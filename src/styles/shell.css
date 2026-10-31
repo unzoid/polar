@@ -1,0 +1,278 @@
+.not-tauri {
+  display: grid;
+  place-content: center;
+  gap: 0.25rem;
+  height: 100%;
+  text-align: center;
+}
+
+.app {
+  position: relative;
+  height: 100%;
+}
+
+/* --- Main: full-window; pages stack, only the top one renders. */
+.main {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.page {
+  position: absolute;
+  inset: 0;
+}
+.page[data-active="false"] {
+  /* Keeps state, scroll position and decoded images, but skips rendering. */
+  visibility: hidden;
+  content-visibility: hidden;
+}
+.scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 4rem;
+}
+/* Pushed pages (detail) get one short entrance; tab switches get none. */
+.page-pushed {
+  animation: page-in var(--dur-base) var(--ease-out);
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* --- Navbar (modern Netflix pattern), doubling as the window title bar.
+       Transparent over hero art with a soft top scrim for legibility; once
+       the page scrolls, a solid material layer fades in beneath it. */
+.navbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 20;
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-left: calc(var(--gutter) - 0.5rem);
+}
+.navbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 -32px 0;
+  z-index: -2;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0.25) 55%, transparent);
+  pointer-events: none;
+}
+.navbar-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(10 10 12 / 0.78);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: 0 1px 0 var(--hairline);
+  opacity: 0;
+  transition: opacity var(--dur-base) ease;
+  pointer-events: none;
+}
+.navbar[data-scrolled="true"] .navbar-bg {
+  opacity: 1;
+}
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 40px;
+  padding: 0 0.5rem;
+  margin-right: 1.25rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.navbar-brand img {
+  border-radius: 6px;
+}
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+/* Active link: white and bold; others quieter. Selection is instant. */
+.navbar-link {
+  height: 36px;
+  padding: 0 0.75rem;
+  border-radius: var(--r-pill);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  color: var(--text-2);
+  transition: color var(--dur-fast) ease;
+}
+.navbar-link[aria-current="page"] {
+  color: var(--text);
+  font-weight: 650;
+}
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-left: auto;
+  margin-right: 0.5rem;
+}
+.navbar-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease;
+}
+.navbar-icon[aria-current="page"] {
+  color: var(--text);
+  background: rgb(255 255 255 / 0.12);
+}
+.navbar-back {
+  color: var(--text);
+  margin-right: 0.25rem;
+}
+@media (hover: hover) and (pointer: fine) {
+  .navbar-link:hover,
+  .navbar-icon:hover {
+    color: var(--text);
+  }
+  .navbar-icon:hover {
+    background: rgb(255 255 255 / 0.1);
+  }
+}
+.navbar .window-controls {
+  margin-left: 0;
+  align-self: stretch;
+}
+.navbar .window-controls button {
+  height: 100%;
+  max-height: 40px;
+}
+
+.window-controls {
+  display: flex;
+  margin-left: auto;
+  align-self: flex-start;
+}
+.window-controls button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 32px;
+  color: var(--text-2);
+  transition: background-color 80ms linear, color 80ms linear;
+}
+.window-controls button:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: var(--text);
+}
+.window-controls .close:hover {
+  background: #c42b1c;
+  color: white;
+}
+
+/* --- Screen headers & grids */
+.screen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: calc(var(--nav-h) + 1.75rem) var(--gutter) 1.5rem var(--content-start);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--poster-w), 1fr));
+  gap: 2rem 1.25rem;
+  padding: 0 var(--gutter) 0 var(--content-start);
+}
+.grid-section + .grid-section {
+  margin-top: 2.5rem;
+}
+.grid-title {
+  margin: 0;
+  padding: 0 var(--gutter) 1rem var(--content-start);
+}
+.empty {
+  padding: 3rem var(--gutter) 3rem var(--content-start);
+}
+
+/* --- Segmented control. The selected state is a clipped "active" copy; the
+       clip moves with a transition, except for keyboard changes (instant). */
+.segmented {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--glass);
+  backdrop-filter: var(--blur-control);
+  box-shadow: 0 0 0 1px var(--glass-edge);
+  flex: none;
+}
+.segmented-item {
+  position: relative;
+  min-width: 44px;
+  height: 32px;
+  padding: 0 1rem;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  display: grid;
+  place-items: center;
+  transition: color var(--dur-fast) ease;
+}
+.segmented-active {
+  position: absolute;
+  inset: 3px;
+  display: flex;
+  pointer-events: none;
+  background: var(--pill-light);
+  border-radius: var(--r-pill);
+  transition: clip-path var(--dur-base) var(--ease-in-out);
+}
+.segmented-active[data-instant="true"] {
+  transition: none;
+}
+.segmented-active .segmented-item {
+  color: var(--text-on-light);
+}
+@media (hover: hover) and (pointer: fine) {
+  .segmented-item:hover {
+    color: var(--text);
+  }
+}
+
+/* Large, track-less variant: tvOS season tabs ("Season 1  Season 2  [Season 3]"). */
+.segmented[data-variant="large"] {
+  background: none;
+  backdrop-filter: none;
+  box-shadow: none;
+  padding: 0;
+}
+.segmented[data-variant="large"] .segmented-active {
+  inset: 0;
+}
+.segmented[data-variant="large"] .segmented-item {
+  height: 46px;
+  padding: 0 1.125rem;
+  font-size: 1.625rem;
+  line-height: 1;
+  letter-spacing: -0.018em;
+  font-weight: 650;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmented-active {
+    transition: none;
+  }
+  .page-pushed {
+    animation-duration: 150ms;
+  }
+}

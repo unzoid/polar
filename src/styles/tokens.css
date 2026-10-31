@@ -1,0 +1,90 @@
+/*
+ * Design tokens — modelled on the Apple TV app (tvOS 26 / macOS Tahoe):
+ * full-bleed artwork under a floating top navbar, light pill for the primary
+ * action, round glass buttons for the rest.
+ *
+ * Every timing/curve below is chosen, not guessed:
+ *  - --ease-out:     entering/exiting UI (strong ease-out, never ease-in)
+ *  - --ease-in-out:  things moving on screen (season pill)
+ *  - --ease-drawer:  sheets and panels (iOS drawer curve)
+ * UI motion stays under 300ms; springs (src/lib/motion.ts) handle gestures.
+ */
+:root {
+  --font: "Inter Variable", "Inter", system-ui, "Segoe UI Variable Text", sans-serif;
+  --bg: #08080a;
+  --surface-1: #131316;
+  --surface-2: #1c1c21;
+  --surface-3: #26262c;
+  --hairline: rgb(255 255 255 / 0.08);
+  --hairline-strong: rgb(255 255 255 / 0.16);
+
+  --text: #f5f5f7;
+  --text-2: rgb(245 245 247 / 0.7);
+  --text-3: rgb(245 245 247 / 0.45);
+  --text-on-light: #0b0b0d;
+
+  --pill-light: rgb(240 240 242 / 0.94);
+  --focus: #6aa8ff;
+  --progress: #f5f5f7;
+  --danger: #ff6b5e;
+  --good: #5ed39a;
+
+  /* Glass: one recipe, two weights. Heavy for structure, light for controls. */
+  --glass: rgb(36 36 42 / 0.46);
+  --glass-heavy: rgb(20 20 24 / 0.7);
+  --glass-control: rgb(255 255 255 / 0.13);
+  --glass-control-hover: rgb(255 255 255 / 0.2);
+  --glass-edge: rgb(255 255 255 / 0.13);
+  --glass-highlight: inset 0 1px 0 rgb(255 255 255 / 0.1);
+  --blur-glass: blur(32px) saturate(180%);
+  --blur-control: blur(16px) saturate(160%);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --dur-press: 140ms;
+  --dur-fast: 160ms;
+  --dur-base: 220ms;
+  --dur-slow: 300ms;
+
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-card: 14px;
+  --r-lg: 18px;
+  --r-panel: 22px;
+  --r-pill: 999px;
+
+  /* Top navbar height; pages pad their content below it. */
+  --nav-h: 64px;
+  --gutter: clamp(1.5rem, 3vw, 3rem);
+  --content-start: var(--gutter);
+
+  --poster-w: clamp(136px, 10.5vw, 176px);
+  --landscape-w: clamp(240px, 20vw, 340px);
+  --episode-w: clamp(260px, 24vw, 380px);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass: rgb(28 28 33);
+    --glass-heavy: rgb(20 20 24);
+    --glass-control: rgb(58 58 66);
+    --glass-control-hover: rgb(72 72 80);
+    --blur-glass: none;
+    --blur-control: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --text-2: rgb(245 245 247 / 0.88);
+    --text-3: rgb(245 245 247 / 0.72);
+    --hairline: rgb(255 255 255 / 0.3);
+    --hairline-strong: rgb(255 255 255 / 0.45);
+    --glass: rgb(16 16 18);
+    --glass-heavy: rgb(12 12 14);
+    --glass-edge: rgb(255 255 255 / 0.45);
+  }
+}

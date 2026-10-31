@@ -1,0 +1,95 @@
+import { useEffect, useState } from "react";
+import { api } from "../../lib/api";
+import { useProgress, useStreams } from "../../lib/queries";
+import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
+
+export type SourceState =
+  | { status: "searching" }
+  | { status: "resolving"; stream: Stream; label?: string }
+  | { status: "ready"; stream: Stream; url: string; label?: string }
+  | { status: "failed"; reason: string };
+
+interface Candidate {
+  stream: Stream;
+  label?: string;
+}
+
+/**
+ * Decides what to play, with no user decision required:
+ *   1. the stream explicitly picked in the source sheet, else
+ *   2. the stream this video was last played with (resume = same file), else
+ *   3. the top-ranked streams, in order.
+ * The decision is frozen once made — saving progress mid-playback must never
+ * re-trigger source selection. `next()` falls through after a playback error.
+ */
+export function useSource(type: ContentType, metaId: string, videoId: string, picked?: Stream) {
+  const progress = useProgress(metaId);
+  const [saved, setSaved] = useState<Progress | null | undefined>(undefined);
+  useEffect(() => {
+    if (saved === undefined && progress.data) setSaved(progress.data.find((p) => p.videoId === videoId) ?? null);
+  }, [progress.data, saved, videoId]);
+
+  const needsRanking = !picked && saved !== undefined && !saved?.stream;
+  const streams = useStreams(type, needsRanking ? videoId : undefined);
+
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  useEffect(() => {
+    if (candidates) return;
+    if (picked) return setCandidates([{ stream: picked }]);
+    if (saved === undefined) return;
+    if (saved?.stream) return setCandidates([{ stream: saved.stream }]);
+    if (streams.data) {
+      setCandidates(
+        streams.data.streams
+          .filter((s) => !s.quality.lowQualitySource)
+          .slice(0, 5)
+          .map((s) => ({ stream: s.stream, label: s.label })),
+      );
+    } else if (streams.isError) {
+      setCandidates([]);
+    }
+  }, [candidates, picked, saved, streams.data, streams.isError]);
+
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<SourceState>({ status: "searching" });
+
+  useEffect(() => {
+    if (!candidates) return;
+    const candidate = candidates[attempt];
+    if (!candidate) {
+      setState({
+        status: "failed",
+        reason: candidates.length
+          ? "None of the sources could be played."
+          : "No sources found. Install a stream addon in Settings.",
+      });
+      return;
+    }
+    let cancelled = false;
+    setState({ status: "resolving", ...candidate });
+    api
+      .resolveStream(candidate.stream)
+      .then((p: Playable) => {
+        if (cancelled) return;
+        if (p.kind === "url") setState({ status: "ready", url: p.url, ...candidate });
+        else if (p.kind === "unsupported") setState({ status: "failed", reason: p.reason });
+        else setState({ status: "failed", reason: "This source opens outside the player." });
+      })
+      .catch((e) => !cancelled && setState({ status: "failed", reason: String(e) }));
+    return () => {
+      cancelled = true;
+    };
+  }, [candidates, attempt]);
+
+  return {
+    state,
+    /** Resume point captured when playback started. */
+    resume: saved ?? undefined,
+    /** Try the next candidate after a playback error. False if none left. */
+    next: () => {
+      if (!candidates || attempt + 1 >= candidates.length) return false;
+      setAttempt((a) => a + 1);
+      return true;
+    },
+  };
+}

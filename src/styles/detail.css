@@ -1,0 +1,439 @@
+/* ==========================================================================
+   Detail page
+   ========================================================================== */
+.detail {
+  position: relative;
+  height: 100%;
+  /* Lets the fixed background layers follow the scroller's timeline. */
+  timeline-scope: --detail;
+}
+.detail-loading {
+  height: 100%;
+}
+.detail-scroll {
+  position: relative;
+  scroll-timeline: --detail block;
+}
+
+/* --- Background: sharp art, plus a pre-blurred copy that fades in as you
+       scroll. Only opacity is driven (composite-only); the blur itself is
+       static, rendered once — animating blur radius would repaint per frame. */
+.detail-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.detail-bg img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+.detail-bg-blur {
+  filter: blur(48px) saturate(150%) brightness(0.5);
+  transform: scale(1.12); /* hide the blur's soft edges */
+}
+.detail-bg-blur[data-loaded="true"] {
+  opacity: 0;
+  animation: detail-ambient linear both;
+  animation-timeline: --detail;
+  animation-range: 0 32vh;
+}
+@keyframes detail-ambient {
+  to {
+    opacity: 1;
+  }
+}
+.detail-bg-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, rgb(8 8 10 / 0.92) 0%, rgb(8 8 10 / 0.5) 26%, transparent 55%),
+    linear-gradient(to right, rgb(8 8 10 / 0.8) 0%, rgb(8 8 10 / 0.4) 36%, transparent 62%);
+}
+
+.detail-ambient-title {
+  position: absolute;
+  top: calc(var(--nav-h) + 1.5rem);
+  left: var(--content-start);
+  right: var(--gutter);
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  animation: detail-ambient linear both;
+  animation-timeline: --detail;
+  animation-range: 22vh 32vh;
+}
+.detail-ambient-title img {
+  max-width: 300px;
+  max-height: 96px;
+  object-fit: contain;
+}
+
+/* --- Hero: bottom-left title block, bottom-right credits. Tall enough that
+       the season tabs peek in below the fold, inviting the scroll. */
+.detail-hero {
+  position: relative;
+  min-height: calc(100vh - 7.5rem);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: calc(var(--nav-h) + 4rem) var(--gutter) 2.5rem var(--content-start);
+}
+.detail-hero-main,
+.detail-credits {
+  /* Recede as the episodes take over. Opacity only. */
+  animation: detail-recede linear both;
+  animation-timeline: --detail;
+  animation-range: 4vh 30vh;
+}
+@keyframes detail-recede {
+  to {
+    opacity: 0;
+  }
+}
+.detail-hero-main {
+  width: min(540px, 52vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+/* One entrance when the page opens: three groups, 40ms apart. */
+.detail-hero-main > * {
+  animation: rise 240ms var(--ease-out) both;
+}
+.detail-hero-main > :nth-child(n + 2):nth-child(-n + 4) {
+  animation-delay: 40ms;
+}
+.detail-hero-main > :nth-child(n + 5) {
+  animation-delay: 80ms;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.detail-logo {
+  width: auto;
+  max-width: min(460px, 100%);
+  max-height: 168px;
+  object-fit: contain;
+  object-position: left bottom;
+  margin-bottom: 0.625rem;
+  filter: drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
+}
+.detail-title {
+  margin: 0 0 0.25rem;
+}
+.detail-kind,
+.detail-description,
+.detail-facts {
+  margin: 0;
+}
+.detail-kind {
+  font-weight: 600;
+}
+.detail-description {
+  color: rgb(245 245 247 / 0.82);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.detail-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-2);
+}
+/* --- Rating ring */
+.rating-ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  margin-right: 0.25rem;
+}
+.rating-ring svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg); /* start the arc at 12 o'clock */
+}
+.rating-ring circle {
+  fill: none;
+}
+.rating-ring-track {
+  stroke: rgb(255 255 255 / 0.16);
+}
+.rating-ring-arc {
+  stroke-linecap: round;
+  stroke: var(--good);
+  /* Draw in once on open — rare, and it reads the score as it fills. */
+  animation: ring-fill 600ms var(--ease-out) 120ms both;
+}
+.rating-ring[data-tone="mid"] .rating-ring-arc {
+  stroke: #f2c94c;
+}
+.rating-ring[data-tone="low"] .rating-ring-arc {
+  stroke: var(--danger);
+}
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-c);
+  }
+}
+.rating-ring-value {
+  position: relative;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rating-ring-arc {
+    animation: none;
+  }
+}
+
+/* Spec badges, Apple-style: solid grey "4K", outlined labels, wordmark text. */
+.badge-solid,
+.badge-outline,
+.badge-wordmark {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 0.3125rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.badge-solid {
+  background: rgb(245 245 247 / 0.75);
+  color: var(--text-on-light);
+}
+.badge-outline {
+  box-shadow: inset 0 0 0 1.25px rgb(245 245 247 / 0.7);
+  color: var(--text);
+}
+.badge-wordmark {
+  padding: 0;
+  font-weight: 800;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.875rem;
+}
+.detail-play {
+  min-width: 200px;
+}
+.detail-credits {
+  margin: 0;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  color: var(--text-2);
+}
+.detail-credits dt,
+.detail-credits dd {
+  display: inline;
+  margin: 0;
+}
+.detail-credits dt {
+  color: var(--text-3);
+}
+
+/* --- Seasons: big text tabs, then the episode shelf. */
+.seasons {
+  position: relative;
+  padding-bottom: 2rem;
+}
+.seasons-bar {
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px var(--gutter) 0.5rem calc(var(--content-start) - 1.125rem);
+}
+.seasons-bar::-webkit-scrollbar {
+  display: none;
+}
+.segmented[data-variant="large"] .segmented-item[aria-selected="false"] {
+  color: rgb(245 245 247 / 0.55);
+}
+
+/* --- Episode lockup */
+.episode-card {
+  position: relative;
+  min-width: 0;
+}
+.episode-card-main {
+  width: 100%;
+}
+.episode-card-main:disabled {
+  opacity: 0.5;
+}
+.episode-runtime {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  font-weight: 600;
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
+}
+.episode-card .progress-track {
+  left: auto;
+  width: 34%;
+  bottom: 16px;
+  right: 12px;
+}
+.episode-watched {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  display: grid;
+  place-items: center;
+  background: var(--pill-light);
+  color: var(--text-on-light);
+}
+.episode-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  padding: 0.25rem 2px 0;
+  min-width: 0;
+}
+.episode-kicker {
+  color: var(--text-3);
+}
+.episode-card[data-up-next="true"] .episode-kicker {
+  color: var(--text);
+}
+.episode-card-title {
+  font-size: 1.125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.episode-card-overview {
+  margin: 0;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(1.45em * 3);
+}
+.episode-rating {
+  margin-left: 0.5rem;
+}
+.episode-sources {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  opacity: 0;
+  transition:
+    opacity var(--dur-fast) ease,
+    transform var(--dur-press) var(--ease-out);
+}
+.episode-card:focus-within .episode-sources {
+  opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .episode-card:hover .episode-sources {
+    opacity: 1;
+  }
+}
+
+/* --- Movie "About" */
+.about {
+  position: relative;
+  padding: 1rem var(--gutter) 2rem var(--content-start);
+}
+.about h2 {
+  margin: 0 0 1rem;
+}
+.about-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 1.25rem;
+}
+.about-card,
+.about-info,
+.about-cast {
+  padding: 1.25rem 1.375rem;
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  backdrop-filter: var(--blur-control);
+  box-shadow: 0 0 0 1px var(--glass-edge), var(--glass-highlight);
+}
+.about-card p {
+  margin: 0.5rem 0 0;
+}
+.about-info {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem 1.25rem;
+}
+.about-info dd {
+  margin: 0.125rem 0 0;
+}
+.about-cast {
+  grid-column: 1 / -1;
+}
+.cast-list {
+  list-style: none;
+  margin: 0.875rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.cast-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 40px;
+  padding: 0 0.875rem 0 0.3125rem;
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.07);
+}
+.cast-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.14);
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-hero-main > * {
+    animation-name: fade-in;
+  }
+}
