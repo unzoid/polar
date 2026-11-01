@@ -2933,7 +2933,7 @@ dependencies = [
 
 [[package]]
 name = "polar"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "futures",
@@ -2953,7 +2953,7 @@ dependencies = [
 
 [[package]]
 name = "polar-addon"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "regex",
  "reqwest 0.12.28",
@@ -2965,7 +2965,7 @@ dependencies = [
 
 [[package]]
 name = "polar-index"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "axum",
  "futures",
