@@ -37,12 +37,18 @@
 
 /* Shared: bare glyphs on video need a soft shadow to read on bright frames. */
 .player-icon,
-.player-transport,
 .player-action,
 .player-heading,
 .player-remaining {
   color: var(--text);
   filter: drop-shadow(0 1px 8px rgb(0 0 0 / 0.45));
+}
+/* Centre glyphs: a tight shadow on the glyph itself, not the whole button. */
+.player-transport {
+  color: var(--text);
+}
+.player-transport > svg {
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.4));
 }
 
 .player-top {
@@ -111,7 +117,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(4rem, 14vw, 12rem);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
   pointer-events: none; /* clicks between the glyphs reach the video */
   transition: opacity var(--dur-base) ease;
 }
@@ -499,6 +505,24 @@
 .scrubber-fill {
   background: var(--text);
 }
+/* Intro: a faint tint over both the empty and played parts of the bar. */
+.scrubber-intro {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent, #6ea8ff) 45%, transparent);
+  pointer-events: none;
+}
+/* Chapter breaks: thin notches cut into the bar. */
+.scrubber-chapter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgb(0 0 0 / 0.65);
+  pointer-events: none;
+}
 .scrubber-knob {
   position: absolute;
   left: -7px;
@@ -644,21 +668,22 @@
   bottom: 10rem;
   z-index: 3;
   display: flex;
-  gap: 1rem;
-  width: min(460px, 60vw);
-  padding: 0.75rem;
-  border-radius: var(--r-lg);
-  background: rgb(24 24 24 / 0.9);
-  box-shadow:
-    0 0 0 1px var(--glass-edge),
-    var(--glass-highlight),
-    0 16px 48px rgb(0 0 0 / 0.5);
+  align-items: stretch;
+  gap: 1.125rem;
+  width: min(30rem, 60vw);
+  padding: 0.625rem;
+  /* The same frosted dark as the rest of the player's floating UI: no edge,
+     just a soft shadow to lift it off the picture. */
+  border-radius: 1.25rem;
+  background: rgb(16 16 16 / 0.78);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: 0 1.5rem 3rem -1rem rgb(0 0 0 / 0.6);
 }
 .next-up-still {
   flex: none;
-  width: 168px;
+  width: 42%;
   aspect-ratio: 16 / 9;
-  border-radius: var(--r-sm);
+  border-radius: 0.75rem; /* concentric with the card */
   overflow: hidden;
   background: var(--surface-2);
 }
@@ -668,26 +693,47 @@
   object-fit: cover;
 }
 .next-up-text {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
+  padding: 0.25rem 0.25rem 0 0;
 }
-.next-up-text .t-headline {
-  white-space: nowrap;
+.next-up-kicker {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+.next-up-title {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .next-up-actions {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.375rem;
   margin-top: auto;
+  padding-top: 0.5rem;
 }
 .next-up-actions .btn {
-  height: 38px;
+  height: 2.375rem;
 }
-.next-up-actions .btn-icon {
-  width: 38px;
+.next-up-play {
+  flex: 1;
+  justify-content: center;
+}
+.next-up-dismiss.btn-icon {
+  flex: none;
+  width: 2.375rem;
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: none;
 }
 .next-up-play {
   position: relative;
@@ -1011,17 +1057,17 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   display: inline-flex;
   align-items: center;
   gap: 0.625rem;
-  height: 48px;
-  padding: 0 1.25rem 0 1.375rem;
-  border-radius: var(--r-sm);
+  height: 3rem;
+  padding: 0 1.25rem 0 1.5rem;
+  border-radius: var(--r-pill);
   font-size: 1rem;
   font-weight: 650;
   letter-spacing: -0.005em;
   color: var(--text);
-  background: rgb(22 22 22 / 0.55);
-  box-shadow:
-    inset 0 0 0 1.5px rgb(255 255 255 / 0.7),
-    0 8px 24px rgb(0 0 0 / 0.35);
+  /* Same frosted dark as the Up Next card. */
+  background: rgb(16 16 16 / 0.78);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: 0 1rem 2.5rem -0.75rem rgb(0 0 0 / 0.6);
   /* The lift moves in step with the chrome's fade (same duration), so the
      button never trails behind the controls it's making room for. */
   transition:

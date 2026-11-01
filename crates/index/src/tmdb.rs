@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use futures::future::join_all;
-use rustio_addon::{Meta, MetaPreview, Video};
+use polar_addon::{Meta, MetaPreview, Video};
 use serde::Deserialize;
 use serde_json::Value;
 

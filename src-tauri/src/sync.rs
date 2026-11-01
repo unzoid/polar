@@ -170,9 +170,15 @@ fn merge(s: &mut Space, library: Vec<SyncLibraryItem>, progress: Vec<Progress>) 
             );
         }
     }
-    for p in progress {
-        if s.progress.get(&p.video_id).is_some_and(|l| l.updated_at >= p.updated_at) {
+    for mut p in progress {
+        let local = s.progress.get(&p.video_id);
+        if local.is_some_and(|l| l.updated_at >= p.updated_at) {
             continue;
+        }
+        // The source isn't synced (its URL is large and often expires), so
+        // keep this device's own for resuming.
+        if p.stream.is_none() {
+            p.stream = local.and_then(|l| l.stream.clone());
         }
         changed = true;
         s.progress.insert(p.video_id.clone(), p);
@@ -232,6 +238,17 @@ mod tests {
         assert!(!merge(&mut s, vec![item("a", 20, true)], vec![progress("v", 40, 5.0)]));
         assert!(s.library.contains_key("a"));
         assert_eq!(s.progress["v"].position, 40.0);
+    }
+
+    #[test]
+    fn remote_progress_keeps_local_stream() {
+        let mut s = Space::default();
+        let mut local = progress("v", 10, 5.0);
+        local.stream = Some(serde_json::from_str(r#"{"url":"https://x/a.mkv"}"#).unwrap());
+        merge(&mut s, vec![], vec![local]);
+        assert!(merge(&mut s, vec![], vec![progress("v", 20, 30.0)]));
+        assert_eq!(s.progress["v"].position, 30.0);
+        assert!(s.progress["v"].stream.is_some());
     }
 
     #[test]

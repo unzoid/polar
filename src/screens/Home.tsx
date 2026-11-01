@@ -1,6 +1,7 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Play, Plus, Check } from "lucide-react";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AmbientWash } from "../components/AmbientWash";
+import { Check, ChevronRight, Play, Plus } from "../components/icons";
 import { Img } from "../components/Img";
 import { CardSkeleton, LandscapeCard, PosterCard, ProgressBar, useIntent } from "../components/PosterCard";
 import { Row } from "../components/Row";
@@ -17,131 +18,17 @@ import {
   useToggleLibrary,
 } from "../lib/queries";
 import { useRouter } from "../lib/router";
-import type { ContentType, MetaPreview, Progress } from "../lib/types";
+import { shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf } from "../lib/shelves";
+import type { MetaPreview, Progress } from "../lib/types";
 
 /**
- * The page, top to bottom: featured carousel, what you're watching, a Top 10,
- * then shelves that alternate card shape and mix sources — trending, new,
- * genres, hidden gems, classics and "Because you watched …" — so no two
- * neighbours look or read alike. Which genres appear rotates daily, and a
- * title already shown higher up is left out of the shelves below it.
- * Shelves below the fold only fetch when scrolled near.
+ * The page, top to bottom: featured carousel, what you're watching, then the
+ * day's shelves (lib/shelves.ts). A title already shown higher up (the
+ * carousel included) is left out of the shelves below it. Shelves below the
+ * fold only fetch when scrolled near.
  */
-type Shape = "poster" | "landscape";
-type Shelf =
-  | { kind: "catalog"; type: ContentType; id: string; genre?: string; title: string; shape: Shape }
-  | { kind: "because"; type: ContentType; seed: string; title: string; shape: Shape };
 
-const shelfKey = (s: Shelf) => (s.kind === "catalog" ? keys.catalog(s.type, s.id, s.genre) : keys.recommend(s.type, s.seed));
-
-/** Genre shelves; a handful are picked each day. */
-const GENRES: { type: ContentType; genre: string; title: string }[] = [
-  { type: "movie", genre: "Action", title: "Action & Adventure" },
-  { type: "movie", genre: "Sci-Fi", title: "Sci-Fi Movies" },
-  { type: "movie", genre: "Animation", title: "Animated Movies" },
-  { type: "movie", genre: "Comedy", title: "Comedy Movies" },
-  { type: "movie", genre: "Horror", title: "Horror Movies" },
-  { type: "movie", genre: "Thriller", title: "Thrillers" },
-  { type: "movie", genre: "Romance", title: "Romance Movies" },
-  { type: "movie", genre: "Crime", title: "Crime Movies" },
-  { type: "movie", genre: "Fantasy", title: "Fantasy Movies" },
-  { type: "movie", genre: "Documentary", title: "Documentaries" },
-  { type: "series", genre: "Comedy", title: "Comedy Series" },
-  { type: "series", genre: "Crime", title: "Crime Series" },
-  { type: "series", genre: "Drama", title: "Drama Series" },
-  { type: "series", genre: "Sci-Fi", title: "Sci-Fi & Fantasy Series" },
-  { type: "series", genre: "Animation", title: "Animated Series" },
-  { type: "series", genre: "Mystery", title: "Mystery Series" },
-  { type: "series", genre: "Documentary", title: "Docuseries" },
-];
-
-/** Stable pseudo-random 0..1 for (day, key): same order all day, new one tomorrow. */
-function dailyNoise(day: number, key: string) {
-  let h = 2166136261 ^ day;
-  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
-  return (h >>> 0) / 4294967296;
-}
-
-interface Seed {
-  type: ContentType;
-  id: string;
-  name: string;
-}
-
-function todaysShelves(seeds: Seed[]): Shelf[] {
-  const day = Math.floor(Date.now() / 86_400_000);
-  const genres = [...GENRES].sort((a, b) => dailyNoise(day, a.type + a.genre) - dailyNoise(day, b.type + b.genre));
-  const genre = (i: number, shape: Shape): Shelf => ({ kind: "catalog", id: "popular", shape, ...genres[i] });
-  const catalog = (type: ContentType, id: string, title: string, shape: Shape): Shelf => ({ kind: "catalog", type, id, title, shape });
-  const because = (i: number, shape: Shape): Shelf[] =>
-    seeds[i] ? [{ kind: "because", type: seeds[i].type, seed: seeds[i].id, title: `Because you watched ${seeds[i].name}`, shape }] : [];
-
-  return [
-    ...because(0, "landscape"),
-    catalog("series", "trending", "Trending Series", "landscape"),
-    catalog("movie", "new", "New Movies", "poster"),
-    genre(0, "landscape"),
-    catalog("series", "popular", "Popular Series", "poster"),
-    ...because(1, "landscape"),
-    catalog("movie", "popular", "Popular Movies", "poster"),
-    genre(1, "landscape"),
-    catalog("movie", "gems", "Hidden Gems", "poster"),
-    genre(2, "landscape"),
-    catalog("series", "new", "New Series", "poster"),
-    genre(3, "landscape"),
-    catalog("movie", "classics", "Classic Movies", "poster"),
-    catalog("series", "top_rated", "Top Rated Series", "landscape"),
-    genre(4, "poster"),
-    catalog("series", "gems", "Hidden Gem Series", "landscape"),
-    catalog("movie", "top_rated", "Top Rated Movies", "poster"),
-    genre(5, "landscape"),
-    catalog("series", "classics", "Classic Series", "poster"),
-  ];
-}
-
-/** The two titles you were most recently into (watching, else saved). */
-function useSeeds(): Seed[] {
-  const { data: watching } = useContinueWatching();
-  const { data: library } = useLibrary();
-  return useMemo(() => {
-    const candidates: Seed[] = [
-      ...[...(watching ?? [])].sort((a, b) => b.updatedAt - a.updatedAt).map((p) => ({ type: p.type, id: p.metaId, name: p.name })),
-      ...[...(library ?? [])].sort((a, b) => b.addedAt - a.addedAt).map((l) => ({ type: l.type, id: l.id, name: l.name })),
-    ];
-    const seen = new Set<string>();
-    return candidates.filter((s) => !seen.has(s.id) && seen.add(s.id)).slice(0, 2);
-  }, [watching, library]);
-}
-
-/**
- * For each shelf, the ids already shown above it (Top 10 and earlier shelves),
- * recomputed as shelves finish loading.
- */
-function useShownAbove(shelves: Shelf[]) {
-  const qc = useQueryClient();
-  const [version, bump] = useReducer((n: number) => n + 1, 0);
-  useEffect(
-    () =>
-      qc.getQueryCache().subscribe((e) => {
-        const root = e.query.queryKey[0];
-        if (e.type === "updated" && e.action.type === "success" && (root === "catalog" || root === "recommend")) bump();
-      }),
-    [qc],
-  );
-  return useMemo(() => {
-    void version;
-    const shown = new Set(
-      top10(qc.getQueryData(keys.catalog("series", "trending")), qc.getQueryData(keys.catalog("movie", "trending"))).map(
-        (m) => m.id,
-      ),
-    );
-    return shelves.map((s) => {
-      const above = new Set(shown);
-      for (const m of qc.getQueryData<MetaPreview[]>(shelfKey(s)) ?? []) shown.add(m.id);
-      return above;
-    });
-  }, [shelves, version, qc]);
-}
+const NO_TITLES: MetaPreview[] = [];
 
 /** The first shelves load immediately; the rest wait until they're close. */
 const EAGER_SHELVES = 2;
@@ -151,7 +38,7 @@ export function Home() {
   const [index, setIndex] = useState(0);
   const seeds = useSeeds();
   const shelves = useMemo(() => todaysShelves(seeds), [seeds]);
-  const shownAbove = useShownAbove(shelves);
+  const shownAbove = useShownAbove(shelves, items ?? NO_TITLES);
   const { data: watching } = useContinueWatching();
   const watched = useMemo(() => new Set((watching ?? []).map((p) => p.metaId)), [watching]);
 
@@ -160,7 +47,6 @@ export function Home() {
       <HeroCarousel items={items} index={index} setIndex={setIndex} />
       <div className="rows home-rows">
         <ContinueRow />
-        <Top10Row />
         {shelves.map((shelf, i) => (
           <LazyShelf
             key={shelfKey(shelf).join("/")}
@@ -178,21 +64,6 @@ export function Home() {
 // --- Hero ----------------------------------------------------------------
 
 const ADVANCE_MS = 9000;
-
-/** Featured titles: a mix of trending series and movies that have full art. */
-function useFeatured() {
-  return useQuery({
-    queryKey: ["featured"],
-    queryFn: async () => {
-      const [series, movies] = await Promise.all([api.catalog("series", "trending"), api.catalog("movie", "trending")]);
-      const pick = (list: MetaPreview[]) => list.filter((m) => m.background && m.description).slice(0, 4);
-      const s = pick(series);
-      const m = pick(movies);
-      // Interleave so the carousel alternates TV and film.
-      return s.flatMap((item, i) => (m[i] ? [item, m[i]] : [item])).slice(0, 7);
-    },
-  });
-}
 
 /**
  * Featured carousel: a framed card, with the page behind it tinted by the art. Auto-advances, but never while you're
@@ -296,44 +167,6 @@ function HeroCarousel({
   );
 }
 
-/**
- * The art shrunk to a few pixels: stretched back up, the browser's smoothing
- * turns it into one soft gradient of the image's main colours — no busy detail
- * showing through, and no per-frame blur cost. Drawing a cross-origin image is
- * fine; only reading its pixels back would be blocked.
- */
-function AmbientWash({ src, current }: { src?: string; current: boolean }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    if (!src) return;
-    const img = new Image();
-    img.decoding = "async";
-    img.onload = () => {
-      const ctx = canvas.current?.getContext("2d");
-      if (!ctx) return;
-      // Two steps so the tiny version averages the whole picture, not a few pixels of it.
-      const mid = document.createElement("canvas");
-      mid.width = 48;
-      mid.height = 27;
-      const m = mid.getContext("2d");
-      if (!m) return;
-      m.imageSmoothingQuality = "high";
-      m.drawImage(img, 0, 0, mid.width, mid.height);
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(mid, 0, 0, ctx.canvas.width, ctx.canvas.height);
-      setReady(true);
-    };
-    img.src = src;
-    return () => {
-      img.onload = null;
-    };
-  }, [src]);
-
-  return <canvas ref={canvas} width={4} height={3} data-current={current && ready} />;
-}
-
 function HeroContent({ item }: { item: MetaPreview }) {
   const { navigate } = useRouter();
   const intent = useIntent(item);
@@ -360,8 +193,8 @@ function HeroContent({ item }: { item: MetaPreview }) {
         <button
           className="btn btn-glass btn-icon"
           onClick={() => toggle.mutate(item)}
-          aria-label={inLibrary ? "Remove from My List" : "Add to My List"}
-          title={inLibrary ? "Remove from My List" : "Add to My List"}
+          aria-label={inLibrary ? "Remove from Library" : "Add to Library"}
+          title={inLibrary ? "Remove from Library" : "Add to Library"}
           aria-pressed={inLibrary}
         >
           <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
@@ -422,39 +255,6 @@ function LazyShelf({ shelf, eager, exclude }: { shelf: Shelf; eager: boolean; ex
   );
 }
 
-/** The ten most popular titles, series and movies alternating. */
-function top10(series?: MetaPreview[], movies?: MetaPreview[]) {
-  const s = (series ?? []).filter((m) => m.poster);
-  const m = (movies ?? []).filter((x) => x.poster);
-  const out: MetaPreview[] = [];
-  for (let i = 0; out.length < 10 && (i < s.length || i < m.length); i++) {
-    if (s[i]) out.push(s[i]);
-    if (m[i] && out.length < 10) out.push(m[i]);
-  }
-  return out;
-}
-
-/** Today's ten most popular titles, movies and series mixed, with big rank numbers. */
-function Top10Row() {
-  const series = useCatalog("series", "trending");
-  const movies = useCatalog("movie", "trending");
-  const top = useMemo(() => top10(series.data, movies.data), [series.data, movies.data]);
-
-  if (!top.length) return null;
-  return (
-    <Row title="Top 10 Today" shape="top10">
-      {top.map((item, i) => (
-        <div className="top10-item" key={item.id}>
-          <span className="top10-rank" aria-hidden>
-            {i + 1}
-          </span>
-          <PosterCard item={item} />
-        </div>
-      ))}
-    </Row>
-  );
-}
-
 function ContinueRow() {
   const { data } = useContinueWatching();
   const items = useMemo(() => data ?? [], [data]);
@@ -468,25 +268,43 @@ function ContinueRow() {
   );
 }
 
-/** One click resumes playback — no detour through the detail page. */
+/** The card opens the title's page; the play button resumes straight away. */
 function ContinueCard({ progress: p }: { progress: Progress }) {
   const { navigate } = useRouter();
+  const openDetail = () => navigate({ name: "detail", type: p.type, id: p.metaId });
+  const resume = () => navigate({ name: "player", type: p.type, metaId: p.metaId, videoId: p.videoId, stream: p.stream });
   const fraction = p.duration ? p.position / p.duration : 0;
   const meta = useQuery({ queryKey: keys.meta(p.type, p.metaId), queryFn: () => api.meta(p.type, p.metaId), staleTime: 60 * 60_000 });
   const logo = meta.data?.logo;
 
   return (
-    <button
+    <div
       className="card card-landscape"
-      onClick={() => navigate({ name: "player", type: p.type, metaId: p.metaId, videoId: p.videoId, stream: p.stream })}
+      role="link"
+      tabIndex={0}
+      onClick={openDetail}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          openDetail();
+        }
+      }}
     >
       <div className="card-frame">
         <Img src={p.background ?? p.poster} alt="" className="card-img" />
         <div className="card-art-scrim" />
         {logo ? <Img src={logo} alt={p.name} className="card-logo" /> : <span className="card-art-title t-title2">{p.name}</span>}
-        <span className="card-play" aria-hidden>
+        <button
+          type="button"
+          className="card-play"
+          aria-label="Resume"
+          onClick={(e) => {
+            e.stopPropagation();
+            resume();
+          }}
+        >
           <Play size={20} fill="currentColor" />
-        </span>
+        </button>
         <ProgressBar fraction={fraction} />
       </div>
       {/* Always shown: it's where you are, not a description. */}
@@ -496,6 +314,6 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
         </span>
         <span className="t-caption faint tabular">{formatRemaining(p.position, p.duration)}</span>
       </div>
-    </button>
+    </div>
   );
 }

@@ -292,6 +292,620 @@
   font-size: 0.8125rem;
   color: var(--danger);
 }
+.settings-link {
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.settings-link:hover {
+  color: var(--text);
+}
+
+/* --- Keyboard shortcuts, editor-style: search on top, grouped rows, each
+       key its own keycap. Row tools (reset, add) appear on hover. */
+.shortcut-toolbar {
+  display: flex;
+  gap: 0.5rem;
+}
+.shortcut-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--text-3);
+  transition: border-color var(--dur-fast) ease;
+}
+.shortcut-search:focus-within {
+  border-color: var(--accent);
+}
+.shortcut-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.875rem;
+  color: var(--text);
+  outline: none;
+  user-select: text;
+}
+.shortcut-search-input::placeholder {
+  color: var(--text-3);
+}
+.shortcut-toolbar .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.shortcut-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.shortcut-group-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 60px;
+  padding: 0.625rem 1rem 0.625rem 1.25rem;
+  transition: background-color var(--dur-fast) ease;
+}
+.shortcut-row:hover,
+.shortcut-row[data-capturing] {
+  background: rgb(255 255 255 / 0.03);
+}
+.shortcut-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.shortcut-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+/* A small dot: this one isn't the default any more. */
+.shortcut-modified {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.shortcut-when {
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.shortcut-when[data-note] {
+  color: var(--text-2);
+}
+.shortcut-keys {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.shortcut-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.shortcut-or {
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.shortcut-tool {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--text-3);
+  opacity: 0;
+  transition:
+    opacity var(--dur-fast) ease,
+    background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+.shortcut-row:hover .shortcut-tool,
+.shortcut-tool:focus-visible {
+  opacity: 1;
+}
+.shortcut-tool:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--text);
+}
+/* The clickable shortcut: keycaps on a frame that only shows on hover. */
+.shortcut-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 30px;
+  padding: 3px;
+  border-radius: 7px;
+  font-size: 0.75rem;
+  color: var(--text-3);
+  transition:
+    background-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+button.shortcut-combo:hover {
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+}
+.shortcut-combo[data-empty] {
+  padding: 0 0.625rem;
+  border: 1px dashed var(--hairline-strong);
+}
+.shortcut-capture {
+  min-width: 7.5rem;
+  padding: 3px 4px 3px 0.625rem;
+  justify-content: space-between;
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--text-2);
+}
+.shortcut-capture-cancel {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--text-3);
+}
+.shortcut-capture-cancel:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: var(--text);
+}
+.keycaps {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.keycap {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 0.4rem;
+  border-radius: 5px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.05));
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.1),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+.keycap-ghost {
+  background: none;
+  box-shadow: none;
+  border: 1px dashed rgb(255 255 255 / 0.15);
+  color: var(--text-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shortcut-tool,
+  .shortcut-combo {
+    transition: none;
+  }
+}
+
+/* --- Library: tabs in the header, quiet filters under them. */
+.library-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 var(--gutter) 1.5rem var(--content-start);
+}
+.library-suggestions {
+  margin-top: 4rem;
+  opacity: 0.92;
+}
+.library-suggestions .row-title,
+.library-suggestions h2 {
+  font-size: 1.0625rem;
+  color: var(--text-2);
+}
+
+/* Playlist tiles: the first posters fanned out whole over a blurred wash of
+   the first one. The art layer clips; the frame doesn't, so the card's hover
+   shadow survives. */
+.playlist-cover-art {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgb(255 255 255 / 0.08), transparent 70%),
+    var(--surface-1);
+}
+.playlist-cover-wash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(22px) saturate(1.5);
+  transform: scale(1.25);
+}
+/* Darken the wash so the fan and the label sit on it cleanly. */
+.playlist-cover-art:has(.playlist-cover-wash)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.35);
+}
+.playlist-cover-icon {
+  margin-bottom: 30%;
+  color: var(--text-3);
+}
+
+.playlist-fan {
+  position: absolute;
+  z-index: 1;
+  top: 13%;
+  left: 50%;
+  width: 52%;
+  aspect-ratio: 2 / 3;
+  translate: -50% 0;
+}
+.playlist-fan > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow:
+    0 10px 24px -6px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(255 255 255 / 0.08);
+  transform-origin: 50% 100%;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.playlist-fan-blank {
+  background: var(--surface-2);
+}
+/* First title in front; the others tuck behind it, tilted out to each side. */
+.playlist-fan > :nth-child(1) {
+  z-index: 3;
+}
+.playlist-fan > :nth-child(2) {
+  z-index: 2;
+  transform: translateX(-26%) rotate(-9deg) scale(0.9);
+}
+.playlist-fan > :nth-child(3) {
+  z-index: 1;
+  transform: translateX(26%) rotate(9deg) scale(0.9);
+}
+.playlist-fan[data-count="2"] > :nth-child(1) {
+  transform: translateX(10%) rotate(3deg);
+}
+.playlist-fan[data-count="2"] > :nth-child(2) {
+  transform: translateX(-22%) rotate(-7deg) scale(0.92);
+}
+@media (hover: hover) and (pointer: fine) {
+  .playlist-tile:hover .playlist-fan > :nth-child(2) {
+    transform: translateX(-32%) rotate(-12deg) scale(0.9);
+  }
+  .playlist-tile:hover .playlist-fan > :nth-child(3) {
+    transform: translateX(32%) rotate(12deg) scale(0.9);
+  }
+  .playlist-tile:hover .playlist-fan[data-count="2"] > :nth-child(2) {
+    transform: translateX(-28%) rotate(-10deg) scale(0.92);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .playlist-fan > * {
+    transition: none;
+  }
+}
+/* Name and contents on the cover, over a scrim tall enough for two lines. */
+.playlist-cover-label {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 2;
+  padding: 3rem 0.875rem 0.875rem;
+  border-radius: 0 0 var(--r-card) var(--r-card);
+  background: linear-gradient(to top, rgb(0 0 0 / 0.88) 0%, rgb(0 0 0 / 0.6) 45%, transparent);
+  color: #fff;
+  text-align: left;
+}
+.playlist-cover-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.4);
+}
+.playlist-cover-meta {
+  font-size: 0.75rem;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.playlist-new {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: 1.5px dashed var(--hairline-strong);
+  color: var(--text-3);
+  font-weight: 600;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+.playlist-new::before,
+.playlist-new::after {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .playlist-tile:hover .playlist-new {
+    color: var(--text);
+    border-color: rgb(255 255 255 / 0.3);
+  }
+}
+
+.playlist-view-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0 var(--gutter) 1.75rem var(--content-start);
+}
+.playlist-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-start;
+  color: var(--text-2);
+}
+.playlist-back:hover {
+  color: var(--text);
+}
+.playlist-view-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.playlist-view-spacer {
+  flex: 1;
+}
+.playlist-name-input {
+  min-width: 0;
+  max-width: 28rem;
+  width: auto;
+  field-sizing: content;
+  /* Reads as the page title at rest; the field only shows itself on hover/focus. */
+  padding: 0.25rem 0.5rem;
+  margin-left: -0.5rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  outline: none;
+  user-select: text;
+  text-overflow: ellipsis;
+  transition:
+    background-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .playlist-name-input:hover {
+    background: rgb(255 255 255 / 0.05);
+  }
+}
+.playlist-name-input:focus {
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+/* Two-step delete (ConfirmDeleteButton): first click turns it red and pops
+   the bin's lid open, second click deletes. Arming is a small spring with a
+   touch of overshoot; standing down is quicker and flat. */
+.btn.btn-icon.confirm-delete {
+  width: 44px;
+  height: 44px;
+  background: rgb(255 255 255 / 0.08);
+  color: var(--text-2);
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+.btn.btn-icon.confirm-delete svg {
+  filter: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn.btn-icon.confirm-delete:hover {
+    background: rgb(255 255 255 / 0.14);
+    color: var(--text);
+  }
+}
+.btn.btn-icon.confirm-delete[data-armed] {
+  background: rgb(255 107 94 / 0.18);
+  color: var(--danger);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn.btn-icon.confirm-delete[data-armed]:hover {
+    background: rgb(255 107 94 / 0.26);
+    color: var(--danger);
+  }
+}
+.confirm-delete-lid {
+  /* Hinge on the right end, so the left side lifts. */
+  transform-origin: 17px 5.4px;
+  transition: transform 150ms var(--ease-out);
+}
+.confirm-delete[data-armed] .confirm-delete-lid {
+  transform: translateY(-1.25px) rotate(-22deg);
+  transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.confirm-delete[data-armed] .confirm-delete-icon {
+  animation: confirm-delete-pop 280ms var(--ease-out);
+}
+@keyframes confirm-delete-pop {
+  40% {
+    scale: 1.12;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confirm-delete-lid,
+  .confirm-delete[data-armed] .confirm-delete-lid {
+    transform: none;
+    transition: none;
+  }
+  .confirm-delete[data-armed] .confirm-delete-icon {
+    animation: none;
+  }
+}
+.playlist-entry {
+  position: relative;
+}
+.playlist-remove {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.65);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+.playlist-entry:hover .playlist-remove,
+.playlist-remove:focus-visible {
+  opacity: 1;
+}
+
+/* "Save to playlist" popover on a title's page. */
+.playlist-menu {
+  width: 280px;
+  padding: 0.375rem;
+  border-radius: var(--r-md);
+  background: var(--glass-heavy);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: 0 0 0 1px var(--glass-edge), var(--glass-highlight), 0 18px 48px rgb(0 0 0 / 0.5);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    scale var(--dur-fast) var(--ease-out);
+  outline: none;
+}
+.playlist-menu[data-starting-style],
+.playlist-menu[data-ending-style] {
+  opacity: 0;
+  scale: 0.97;
+}
+.playlist-menu-title {
+  margin: 0;
+  padding: 0.5rem 0.625rem 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.playlist-menu-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.playlist-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--r-xs);
+  font-size: 0.875rem;
+  color: var(--text-2);
+  text-align: left;
+  outline: none;
+}
+.playlist-menu-item:hover,
+.playlist-menu-item:focus-visible {
+  background: rgb(255 255 255 / 0.1);
+  color: var(--text);
+}
+.playlist-menu-check {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1.5px var(--hairline-strong);
+  color: #fff;
+}
+.playlist-menu-item[aria-checked="true"] .playlist-menu-check {
+  background: var(--accent);
+  box-shadow: none;
+}
+.playlist-menu-new .playlist-menu-check {
+  box-shadow: none;
+  color: var(--text-2);
+}
+.playlist-menu-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playlist-menu-count {
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.playlist-menu-list + .playlist-menu-item,
+.playlist-menu-list + .playlist-menu-form {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--hairline);
+}
+.playlist-menu-form {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.5rem 0.25rem 0.25rem;
+}
+.playlist-menu-form .settings-input {
+  height: 2rem;
+}
+.playlist-menu-form .btn {
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
 
 /* Toggle switch on a native checkbox (accessible by default), styled like
    macOS: a blue gradient track with a lit top edge, and a white thumb that

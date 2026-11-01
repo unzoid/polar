@@ -1,4 +1,4 @@
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Minus, Plus, Reset } from "../icons";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { SubtitleStyle } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvMedia } from "./mpvMedia";
@@ -123,7 +123,16 @@ export function SubtitleSettings({
   return (
     <div className="sub-settings">
       {canPosition && onDelay && delay !== undefined && (
-        <Setting label="Delay" caption={delay === 0 ? "In sync" : delay > 0 ? "Shown later" : "Shown earlier"}>
+        <Setting
+          label="Delay"
+          caption={
+            delay === 0
+              ? "Fix subtitles that don't match the speech. Now in sync"
+              : delay > 0
+                ? "Subtitles show later than before"
+                : "Subtitles show earlier than before"
+          }
+        >
           <Stepper
             value={delay}
             step={0.1}
@@ -139,7 +148,7 @@ export function SubtitleSettings({
         <Stepper value={style.size} step={10} min={50} max={200} format={(v) => `${v}%`} onChange={(size) => onChange({ size })} label="Size" />
       </Setting>
       {canPosition && (
-        <Setting label="Position" caption="Distance from the bottom">
+        <Setting label="Position" caption="Lift subtitles higher up the screen">
           <Stepper value={style.raise} step={2} min={0} max={40} format={(v) => (v === 0 ? "Default" : `+${v}%`)} onChange={(raise) => onChange({ raise })} label="Position" />
         </Setting>
       )}
@@ -168,7 +177,7 @@ export function SubtitleSettings({
           onDelay?.(0);
         }}
       >
-        <RotateCcw size={15} strokeWidth={2.25} /> Reset to default
+        <Reset size={15} strokeWidth={2.25} /> Reset to default
       </button>
     </div>
   );

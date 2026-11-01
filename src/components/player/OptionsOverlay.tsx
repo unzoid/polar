@@ -1,4 +1,4 @@
-import { Check, X } from "lucide-react";
+import { Check, Close } from "../icons";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
@@ -130,7 +130,7 @@ export function OptionsOverlay({
       <VideoBackdrop media={media} />
       <div className="options-shade" aria-hidden />
       <button className="player-icon pressable options-close" onClick={onClose} aria-label="Close" title="Close (Esc)">
-        <X size={26} />
+        <Close size={26} />
       </button>
       <div className="options-columns" data-count={columns.length}>
         {columns.map((col, c) => (
@@ -201,22 +201,50 @@ function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: bool
   );
 }
 
-/** Arrow keys: up/down within a column, left/right across columns. */
+/**
+ * Arrow keys: up/down within a column, left/right across columns. A column's
+ * header controls (filters, sort, the settings cog) sit above its first row:
+ * Up from the top reaches them, left/right moves along them.
+ */
 function moveFocus(root: HTMLElement | null, key: string) {
   if (!root) return;
   const active = document.activeElement as HTMLElement | null;
   const columns = [...root.querySelectorAll<HTMLElement>(".options-column")];
   const ci = Math.max(0, columns.findIndex((c) => c.contains(active)));
-  if (key === "ArrowLeft" || key === "ArrowRight") {
-    const target = columns[ci + (key === "ArrowRight" ? 1 : -1)];
-    (
+  const column = columns[ci];
+  const head = [...column.querySelectorAll<HTMLElement>(".options-head :is(button, .select-trigger):not(:disabled)")];
+  const items = [...column.querySelectorAll<HTMLElement>(".options-item:not(:disabled), .options-custom button:not(:disabled)")];
+  const hi = head.indexOf(active as HTMLElement);
+  const horizontal = key === "ArrowLeft" || key === "ArrowRight";
+  const step = key === "ArrowDown" || key === "ArrowRight" ? 1 : -1;
+
+  if (hi >= 0) {
+    if (horizontal && head[hi + step]) return head[hi + step].focus();
+    if (key === "ArrowDown") return show(items[0]);
+    if (!horizontal) return;
+  }
+  if (horizontal) {
+    const target = columns[ci + step];
+    show(
       target?.querySelector<HTMLElement>('.options-list [aria-checked="true"]') ??
-      target?.querySelector<HTMLElement>(".options-item, .options-custom button:not(:disabled)")
-    )?.focus();
+        target?.querySelector<HTMLElement>(".options-item, .options-custom button:not(:disabled)") ??
+        undefined,
+    );
     return;
   }
-  const items = [...columns[ci].querySelectorAll<HTMLElement>(".options-item:not(:disabled), .options-custom button:not(:disabled)")];
   const i = items.indexOf(active as HTMLElement);
-  // focus() scrolls the column just enough to keep the row in view.
-  items[Math.min(items.length - 1, Math.max(0, i + (key === "ArrowDown" ? 1 : -1)))]?.focus();
+  if (i === 0 && step < 0 && head.length) {
+    return (head.find((el) => el.getAttribute("aria-pressed") === "true") ?? head[0]).focus();
+  }
+  show(items[Math.min(items.length - 1, Math.max(0, i + step))]);
+}
+
+/** Focus a row and bring it to the middle of its column, clear of the faded edges. */
+function show(el: HTMLElement | undefined) {
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  const list = el.closest<HTMLElement>(".options-list");
+  if (!list) return;
+  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  list.scrollTo({ top: el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2, behavior: smooth ? "smooth" : "auto" });
 }

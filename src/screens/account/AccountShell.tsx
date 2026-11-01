@@ -8,8 +8,7 @@ export function AccountShell({ children, header }: { children: ReactNode; header
       <div className="account-glow" aria-hidden />
       <header className="account-bar" data-tauri-drag-region>
         <span className="account-brand" data-tauri-drag-region>
-          <img src="/app-icon.svg" alt="" width={28} height={28} />
-          <span>Rustio</span>
+          Polar
         </span>
         {header}
         <WindowControls />

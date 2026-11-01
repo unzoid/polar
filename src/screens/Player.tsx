@@ -3,21 +3,20 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ArrowLeft,
   Captions,
-  Gauge,
-  Layers,
-  ListVideo,
-  Maximize,
-  Minimize,
+  Close,
+  Episodes,
+  ExitFullscreen,
+  Fullscreen,
+  Instant,
   Pause,
   Play,
   Settings as Cog,
   SkipForward,
-  Volume1,
-  Zap,
-  Volume2,
-  VolumeX,
-  X,
-} from "lucide-react";
+  Sources,
+  Speed,
+  Volume,
+  VolumeMuted,
+} from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease } from "../lib/motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -39,6 +38,8 @@ import {
   subtitleCueVars,
 } from "../components/player/SubtitleSettings";
 import { MpvMedia, type MediaLike } from "../components/player/mpvMedia";
+import { usePrefs } from "../lib/prefs";
+import { actionFor, withShortcut } from "../lib/keybinds";
 import { api } from "../lib/api";
 import { sync } from "../lib/account/sync";
 import { nextVideo, progressMap, seasonsOf } from "../lib/episodes";
@@ -46,6 +47,8 @@ import { episodeCode, formatDate, formatRemaining, formatTime, isReleased, seaso
 import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, RankedStream, Stream } from "../lib/types";
+import { useTvMode } from "../tv/tvMode";
+import { usePadGlyph } from "../tv/TvChrome";
 
 const win = getCurrentWindow();
 const HIDE_AFTER = 1800;
@@ -81,6 +84,10 @@ export function Player({
   leaving?: boolean;
 }) {
   const { back, replace } = useRouter();
+  // TV mode keeps the window fullscreen: no fullscreen toggle, and Esc simply goes back.
+  const tv = useTvMode();
+  // With a controller in TV mode, controls show the button that triggers them.
+  const pad = usePadGlyph(tv);
   const { data: meta } = useMeta(type, metaId);
   const { data: settings } = useSettings();
   // Engine: embedded mpv when installed (plays HEVC/MKV, AC3/DTS audio, every
@@ -99,7 +106,7 @@ export function Player({
   const [buffering, setBuffering] = useState(true);
   // Until the first frame actually plays, the loading screen stays up.
   const [started, setStarted] = useState(false);
-  const [volume, setVolume] = useState(() => Number(localStorage.getItem("rustio.volume") ?? 1));
+  const [volume, setVolume] = useState(() => Number(localStorage.getItem("polar.volume") ?? 1));
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -214,6 +221,7 @@ export function Player({
       saveRef.current();
       queryClient.invalidateQueries({ queryKey: keys.progress(metaId) });
       queryClient.invalidateQueries({ queryKey: keys.continue });
+      queryClient.invalidateQueries({ queryKey: keys.history });
     },
     [metaId],
   );
@@ -276,7 +284,7 @@ export function Player({
     if (!v) return;
     v.volume = volume;
     v.muted = muted;
-    localStorage.setItem("rustio.volume", String(volume));
+    localStorage.setItem("polar.volume", String(volume));
   }, [volume, muted, media]);
 
   useEffect(() => {
@@ -326,14 +334,14 @@ export function Player({
     },
     error: () => {
       if (source.next()) {
-        setNotice("That source didn't load — trying the next best one.");
+        setNotice("That source didn't load. Trying the next best one.");
         window.setTimeout(() => setNotice(null), 3500);
       } else {
         const v = videoRef.current;
         setError(
           v instanceof MpvMedia
             ? (v.error?.message ?? "This file couldn't be played.")
-            : "This file's format needs mpv. Install mpv and Rustio will play it.",
+            : "This file's format needs mpv. Install mpv and Polar will play it.",
         );
       }
     },
@@ -361,11 +369,14 @@ export function Player({
     if (v?.duration) v.currentTime = Math.min(v.duration - 1, Math.max(0, v.currentTime + delta));
   }, []);
 
+  const { preferFileChapters } = usePrefs();
   const skip = useSkipSegments({
     videoId,
     time: time.current,
     started,
     autoSkip: !!settings?.autoSkip,
+    media,
+    preferFile: preferFileChapters,
     seekTo: (t) => {
       if (videoRef.current) videoRef.current.currentTime = t;
     },
@@ -376,19 +387,20 @@ export function Player({
   });
 
   const toggleFullscreen = useCallback(async () => {
+    if (tv) return;
     const next = !(await win.isFullscreen());
     await win.setFullscreen(next);
     setFullscreen(next);
-  }, []);
+  }, [tv]);
 
   // Fade back to the page first, *then* leave fullscreen: resizing the window
   // while mpv's native picture is up is what flickers, so do it once the page
   // is opaque on top.
   const exit = useCallback(async () => {
-    const fs = await win.isFullscreen();
+    const fs = !tv && (await win.isFullscreen());
     back();
     if (fs) window.setTimeout(() => void win.setFullscreen(false), PLAYER_EXIT_MS);
-  }, [back]);
+  }, [back, tv]);
 
   const playVideo = useCallback(
     (id: string, s?: Stream) => {
@@ -448,7 +460,7 @@ export function Player({
     badge: r.quality.lowQualitySource
       ? { text: "CAM", tone: "bad" as const }
       : r.quality.cached
-        ? { text: "Instant", tone: "good" as const, icon: <Zap size={14} fill="currentColor" strokeWidth={0} /> }
+        ? { text: "Instant", tone: "good" as const, icon: <Instant size={14} fill="currentColor" strokeWidth={0} /> }
         : undefined,
   }));
   const currentSourceIndex = rankedStreams.findIndex((r) => streamKey(r) === currentKey);
@@ -461,39 +473,54 @@ export function Player({
       // A dropdown has the keyboard while it's focused or open (arrows, Space, Esc are its own).
       if ((e.target as HTMLElement).closest?.("[aria-haspopup=listbox], [role=listbox]")) return;
       const handled = (() => {
-        switch (e.key) {
-          case " ":
-          case "k":
+        // Shortcuts are rebindable (Settings → Controls); Esc always backs out.
+        switch (e.key === "Escape" ? "escape" : actionFor(e, "player")) {
+          case "playPause":
             togglePlay();
             return true;
-          case "ArrowLeft":
-          case "j":
+          case "seekBack":
             seekBy(-seekStep);
             return true;
-          case "ArrowRight":
-          case "l":
+          case "seekForward":
             seekBy(seekStep);
             return true;
-          case "ArrowUp":
+          case "volumeUp":
             setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
             setMuted(false);
             return true;
-          case "ArrowDown":
+          case "volumeDown":
             setVolume((v) => Math.max(0, +(v - 0.1).toFixed(2)));
             return true;
-          case "m":
+          case "mute":
             setMuted((m) => !m);
             return true;
-          case "f":
+          case "fullscreen":
             void toggleFullscreen();
             return true;
-          case "s":
+          case "skip":
             skip.skipActive();
             return true;
-          case "n":
+          case "nextEpisode":
             if (next) playVideo(next.id);
             return true;
-          case "Escape":
+          case "tracks":
+            setOptions((o) => (o === "tracks" ? null : "tracks"));
+            return true;
+          case "episodes":
+            if (type !== "series") return false;
+            setOptions((o) => (o === "episodes" ? null : "episodes"));
+            return true;
+          case "sources":
+            setOptions((o) => (o === "sources" ? null : "sources"));
+            return true;
+          case "speed":
+            setOptions((o) => (o === "speed" ? null : "speed"));
+            return true;
+          case "escape":
+            if (tv) {
+              void exit();
+              return true;
+            }
             // Leave fullscreen first; a second Esc backs out of the player.
             void win.isFullscreen().then((fs) => {
               if (fs) {
@@ -514,7 +541,7 @@ export function Player({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [leaving, togglePlay, seekBy, seekStep, toggleFullscreen, exit, next, playVideo, poke, skip]);
+  }, [leaving, togglePlay, seekBy, seekStep, toggleFullscreen, exit, next, playVideo, poke, skip, tv, type]);
 
   // Warm the next episode's sources well before the credits.
   const prefetchedNext = useRef(false);
@@ -544,7 +571,7 @@ export function Player({
     time.duration > 0 &&
     (ended || inCredits || (creditsStart == null && remaining <= Math.max(40, time.duration * 0.04)));
 
-  const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const VolumeIcon = muted || volume === 0 ? VolumeMuted : Volume;
 
   return (
     <div
@@ -603,7 +630,7 @@ export function Player({
         </div>
         <div className="player-top-actions">
           <div className="player-volume">
-            <button className="player-icon pressable" onClick={() => setMuted((m) => !m)} aria-label={muted ? "Unmute" : "Mute"} title="Mute (M)">
+            <button className="player-icon pressable" onClick={() => setMuted((m) => !m)} aria-label={muted ? "Unmute" : "Mute"} title={withShortcut("Mute", "mute")}>
               <VolumeIcon size={22} />
             </button>
             <input
@@ -620,20 +647,22 @@ export function Player({
               style={{ "--value": `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
             />
           </div>
-          <button className="player-icon pressable" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title="Fullscreen (F)">
-            {fullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
-          </button>
+          {!tv && (
+            <button className="player-icon pressable" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
+              {fullscreen ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
+            </button>
+          )}
         </div>
-        {!fullscreen && <WindowControls />}
+        {!fullscreen && !tv && <WindowControls />}
       </div>
 
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
       {ready && started && (
         <div className="player-center">
-          <button className="player-transport pressable" onClick={() => seekBy(-seekStep)} aria-label={`Back ${seekStep} seconds`} title={`Back ${seekStep}s (←)`}>
+          <button className="player-transport pressable" onClick={() => seekBy(-seekStep)} aria-label={`Back ${seekStep} seconds`} title={withShortcut(`Back ${seekStep}s`, "seekBack")}>
             <SkipIcon direction="back" seconds={seekStep} size={56} />
           </button>
-          <button className="player-transport player-transport-main pressable" onClick={togglePlay} aria-label={paused ? "Play" : "Pause"} title="Play/Pause (Space)">
+          <button className="player-transport player-transport-main pressable" onClick={togglePlay} aria-label={paused ? "Play" : "Pause"} title={withShortcut("Play/Pause", "playPause")}>
             {buffering ? (
               <span className="player-spinner" aria-label="Buffering" />
             ) : paused ? (
@@ -642,7 +671,7 @@ export function Player({
               <Pause size={64} fill="currentColor" strokeWidth={0} />
             )}
           </button>
-          <button className="player-transport pressable" onClick={() => seekBy(seekStep)} aria-label={`Forward ${seekStep} seconds`} title={`Forward ${seekStep}s (→)`}>
+          <button className="player-transport pressable" onClick={() => seekBy(seekStep)} aria-label={`Forward ${seekStep} seconds`} title={withShortcut(`Forward ${seekStep}s`, "seekForward")}>
             <SkipIcon direction="forward" seconds={seekStep} size={56} />
           </button>
         </div>
@@ -658,6 +687,7 @@ export function Player({
           <Scrubber
             media={media}
             previews={seekTrack}
+            span={skip.segments?.intro}
             onSeek={(t) => {
               if (videoRef.current) videoRef.current.currentTime = t;
             }}
@@ -665,11 +695,20 @@ export function Player({
           <span className="player-remaining tabular">{formatTime(remaining)}</span>
         </div>
         <div className="player-actions">
-          <ActionButton icon={<Gauge size={22} />} label={`Speed (${rate}x)`} onClick={() => setOptions("speed")} />
-          {type === "series" && <ActionButton icon={<Layers size={22} />} label="Episodes" onClick={() => setOptions("episodes")} />}
-          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" onClick={() => setOptions("tracks")} />
-          <ActionButton icon={<ListVideo size={22} />} label="Sources" onClick={() => setOptions("sources")} />
-          {next && <ActionButton icon={<SkipForward size={22} fill="currentColor" />} label="Next Episode" onClick={() => playVideo(next.id)} />}
+          <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("view")} onClick={() => setOptions("speed")} />
+          {type === "series" && (
+            <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("y")} onClick={() => setOptions("episodes")} />
+          )}
+          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("x")} onClick={() => setOptions("tracks")} />
+          <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("lb")} onClick={() => setOptions("sources")} />
+          {next && (
+            <ActionButton
+              icon={<SkipForward size={22} fill="currentColor" />}
+              label="Next Episode"
+              glyph={skip.active ? null : pad("rb")}
+              onClick={() => playVideo(next.id)}
+            />
+          )}
         </div>
       </div>
 
@@ -732,7 +771,12 @@ export function Player({
         ]}
       />
 
-      <SkipButton active={started ? skip.active : null} onSkip={skip.skipActive} chromeVisible={chromeVisible} />
+      <SkipButton
+        active={started ? skip.active : null}
+        onSkip={skip.skipActive}
+        chromeVisible={chromeVisible}
+        glyph={showNextUp ? null : pad("rb")}
+      />
 
       <AnimatePresence>
         {showNextUp && next && (
@@ -748,17 +792,17 @@ export function Player({
               <Img src={next.thumbnail ?? meta?.background} alt="" />
             </div>
             <div className="next-up-text">
-              <span className="t-micro faint">Up Next · {episodeCode(next.season, next.episode)}</span>
-              <span className="t-headline">{next.title}</span>
+              <span className="next-up-kicker">Up Next · {episodeCode(next.season, next.episode)}</span>
+              <span className="next-up-title">{next.title}</span>
               <div className="next-up-actions">
                 <button className="btn btn-primary next-up-play" onClick={() => playVideo(next.id)}>
                   {ended && settings?.autoplayNext && (
                     <span className="next-up-countdown" style={{ animationDuration: `${AUTOPLAY_SECONDS}s` }} />
                   )}
-                  <Play size={16} fill="currentColor" /> Play Now
+                  {pad("rb") ?? <Play size={16} fill="currentColor" />} Play Now
                 </button>
-                <button className="btn btn-glass btn-icon" onClick={() => setNextDismissed(true)} aria-label="Dismiss">
-                  <X size={16} />
+                <button className="btn btn-glass btn-icon next-up-dismiss" onClick={() => setNextDismissed(true)} aria-label="Dismiss">
+                  <Close size={16} />
                 </button>
               </div>
             </div>
@@ -896,8 +940,9 @@ function PlayerStatus({
         </p>
         {failed && (
           <div className="player-status-actions">
-            <button className="btn btn-primary" onClick={onSources}>
-              <ListVideo size={17} /> Choose Another Source
+            {/* Focused, so Enter (or a controller's A) picks it straight away. */}
+            <button className="btn btn-primary" onClick={onSources} autoFocus>
+              <Sources size={17} /> Choose Another Source
             </button>
           </div>
         )}
@@ -906,11 +951,23 @@ function PlayerStatus({
   );
 }
 
-function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+function ActionButton({
+  icon,
+  label,
+  glyph,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  /** The controller button that does the same (TV mode with a controller). */
+  glyph?: React.ReactNode;
+  onClick: () => void;
+}) {
   return (
     <button className="player-action pressable" onClick={onClick}>
       {icon}
       <span>{label}</span>
+      {glyph}
     </button>
   );
 }

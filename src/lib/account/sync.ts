@@ -1,41 +1,39 @@
 /**
- * Moves library and watch-progress changes between the active profile's
- * local space (Rust store) and the account backend. Local-first: the app
- * never waits on this; it reads and writes the local copy, and sync catches
- * up in the background.
+ * Moves the active profile's library, watch progress, playlists and settings
+ * between this device (Rust store / localStorage) and the account backend.
+ * Local-first: the app never waits on this; it reads and writes the local
+ * copy, and sync catches up in the background. There's nothing to press:
  *
- * Runs when a profile is chosen, shortly after local changes, when the
- * window regains focus, and every few minutes.
+ * runs when a profile is chosen, a few seconds after local changes, when the
+ * window regains focus or the network comes back, every few minutes, and
+ * again shortly after a failure.
  */
-import { useSyncExternalStore } from "react";
 import { api } from "../api";
 import { queryClient } from "../queries";
+import { onSettingsChange } from "../settingsChanges";
 import { backend } from "./index";
+import { applying as applyingSettings, syncSettings } from "./settingsSync";
+import {
+  applyRemotePlaylists,
+  markPlaylistsPushed,
+  onPlaylistChange,
+  playlistChanges,
+  playlistsPulledAt,
+  setPlaylistSpace,
+} from "../playlists";
 
-const PERIOD_MS = 5 * 60_000;
-const AFTER_CHANGE_MS = 8_000;
-
-export type SyncState = "off" | "idle" | "syncing" | "error";
-interface Status {
-  state: SyncState;
-  lastSyncedAt: number | null;
-  error: string | null;
-}
-
-let status: Status = { state: "off", lastSyncedAt: null, error: null };
-const listeners = new Set<() => void>();
-const set = (patch: Partial<Status>) => {
-  status = { ...status, ...patch };
-  listeners.forEach((l) => l());
-};
+const PERIOD_MS = 3 * 60_000;
+const AFTER_CHANGE_MS = 5_000;
+const RETRY_MS = [15_000, 60_000, 5 * 60_000];
 
 let active: string | null = null;
 let running: Promise<void> | null = null;
 let again = false;
 let pending: number | undefined;
 let interval: number | undefined;
+let failures = 0;
 
-const onFocus = () => void run();
+const onWake = () => void run();
 
 async function run(): Promise<void> {
   if (!active || !backend) return;
@@ -44,7 +42,7 @@ async function run(): Promise<void> {
     return running;
   }
   const space = active;
-  set({ state: "syncing" });
+  const isActive = () => space === active;
   running = (async () => {
     try {
       const local = await api.syncChanges(space);
@@ -54,12 +52,24 @@ async function run(): Promise<void> {
       await api.syncMarkPushed(space, local.cursor);
 
       const remote = await backend.sync.pull(space, local.pulledAt);
-      if (space !== active) return; // switched profile mid-flight; its own run follows
+      if (!isActive()) return; // switched profile mid-flight; its own run follows
       const changed = await api.syncApply(space, remote.library, remote.progress, remote.cursor);
       if (changed) refreshLocalViews();
-      set({ state: "idle", lastSyncedAt: Date.now(), error: null });
+
+      const lists = playlistChanges();
+      if (lists.space === space) {
+        if (lists.rows.length) await backend.playlists.push(space, lists.rows);
+        markPlaylistsPushed(space, lists.receipt);
+        const pulled = await backend.playlists.pull(space, playlistsPulledAt(space));
+        applyRemotePlaylists(space, pulled.playlists, pulled.cursor);
+      }
+
+      if (isActive()) await syncSettings(space, backend, isActive);
+      failures = 0;
     } catch (e) {
-      set({ state: "error", error: e instanceof Error ? e.message : String(e) });
+      console.warn("sync failed", e);
+      // Try again soon, then less often; focus and reconnecting also retry.
+      if (isActive()) later(RETRY_MS[Math.min(failures++, RETRY_MS.length - 1)]);
     }
   })().finally(() => {
     running = null;
@@ -71,9 +81,19 @@ async function run(): Promise<void> {
   return running;
 }
 
+/** Run once after `ms`. Repeated calls (e.g. progress saves while playing) coalesce. */
+function later(ms: number) {
+  if (!active || pending !== undefined) return;
+  pending = window.setTimeout(() => {
+    pending = undefined;
+    void run();
+  }, ms);
+}
+
 export function refreshLocalViews() {
   queryClient.invalidateQueries({ queryKey: ["library"] });
   queryClient.invalidateQueries({ queryKey: ["continue"] });
+  queryClient.invalidateQueries({ queryKey: ["history"] });
   queryClient.invalidateQueries({ queryKey: ["progress"] });
 }
 
@@ -81,28 +101,24 @@ export const sync = {
   start(profileId: string) {
     sync.stop();
     active = profileId;
-    set({ state: "idle", error: null });
+    failures = 0;
+    setPlaylistSpace(profileId);
     interval = window.setInterval(run, PERIOD_MS);
-    window.addEventListener("focus", onFocus);
+    window.addEventListener("focus", onWake);
+    window.addEventListener("online", onWake);
     return run();
   },
   stop() {
     active = null;
+    setPlaylistSpace(null);
     window.clearInterval(interval);
     window.clearTimeout(pending);
     pending = undefined;
-    window.removeEventListener("focus", onFocus);
-    set({ state: "off", error: null });
+    window.removeEventListener("focus", onWake);
+    window.removeEventListener("online", onWake);
   },
-  /** Push soon. Repeated calls (e.g. progress saves while playing) coalesce. */
-  schedule() {
-    if (!active || pending !== undefined) return;
-    pending = window.setTimeout(() => {
-      pending = undefined;
-      void run();
-    }, AFTER_CHANGE_MS);
-  },
-  now: () => run(),
+  /** Push soon after a local change. */
+  schedule: () => later(AFTER_CHANGE_MS),
   /** Wait for in-flight work, then push whatever is left (before sign-out). */
   async flush() {
     window.clearTimeout(pending);
@@ -117,12 +133,7 @@ export const sync = {
   },
 };
 
-export function useSyncStatus() {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => status,
-  );
-}
+onPlaylistChange(() => sync.schedule());
+onSettingsChange(() => {
+  if (!applyingSettings) sync.schedule();
+});

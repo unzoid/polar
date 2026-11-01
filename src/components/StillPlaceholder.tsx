@@ -1,11 +1,11 @@
-import { EyeOff } from "lucide-react";
+import { Hidden } from "./icons";
 import { useEffect, useState } from "react";
 
 /** Shown in place of an episode still that doesn't exist yet or won't load. */
 export function StillPlaceholder() {
   return (
     <span className="still-placeholder" aria-hidden>
-      <EyeOff size={22} strokeWidth={1.75} />
+      <Hidden size={22} strokeWidth={1.75} />
     </span>
   );
 }

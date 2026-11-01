@@ -87,11 +87,6 @@
   font-weight: 750;
   letter-spacing: -0.02em;
 }
-.navbar-brand img {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-}
 .navbar-links {
   display: flex;
   align-items: center;

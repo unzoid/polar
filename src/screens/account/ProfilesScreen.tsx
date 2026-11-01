@@ -1,7 +1,8 @@
-import { ArrowLeft, Check, LoaderCircle, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Check, Edit, Plus } from "../../components/icons";
 import { useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
 import { Avatar } from "../../components/Avatar";
-import { AVATAR_GROUPS, AVATARS, isDemo, nextAvatar, type AvatarId, type Profile } from "../../lib/account";
+import { BusyLabel, BusyRing } from "../../components/BusyLabel";
+import { AVATAR_GROUPS, AVATARS, nextAvatar, type AvatarId, type Profile } from "../../lib/account";
 import { useAccount } from "../../lib/account/AccountProvider";
 import { AccountShell } from "./AccountShell";
 
@@ -56,12 +57,9 @@ export function ProfilesScreen({ initial = "pick" }: { initial?: "pick" | "manag
   return (
     <AccountShell
       header={
-        <>
-          {isDemo() && <span className="account-demo-badge">Demo account</span>}
-          <button className="account-bar-link" onClick={() => void account.signOut()}>
-            {isDemo() ? "Exit Demo" : "Sign Out"}
-          </button>
-        </>
+        <button className="account-bar-link" onClick={() => void account.signOut()}>
+          Sign Out
+        </button>
       }
     >
       <div className="profiles" key={view.name}>
@@ -84,13 +82,13 @@ export function ProfilesScreen({ initial = "pick" }: { initial?: "pick" | "manag
                   {managing && (
                     <span className="profile-tile-overlay">
                       <span className="profile-tile-pencil">
-                        <Pencil size={22} strokeWidth={2.25} />
+                        <Edit size={22} strokeWidth={2.25} />
                       </span>
                     </span>
                   )}
                   {entering === p.id && (
                     <span className="profile-tile-overlay">
-                      <LoaderCircle className="spin" size={32} />
+                      <BusyRing size={28} />
                     </span>
                   )}
                 </span>
@@ -120,7 +118,7 @@ export function ProfilesScreen({ initial = "pick" }: { initial?: "pick" | "manag
           </button>
         ) : (
           <button className="profiles-manage pressable" onClick={() => setView({ name: "manage" })}>
-            <Pencil size={16} strokeWidth={2.25} />
+            <Edit size={16} strokeWidth={2.25} />
             Manage Profiles
           </button>
         )}
@@ -165,9 +163,6 @@ export function ProfileEditor({
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return setError("Give the profile a name.");
-    if (account.profiles.some((p) => p.id !== profile?.id && p.name.toLowerCase() === trimmed.toLowerCase())) {
-      return setError("Another profile already has this name.");
-    }
     void run(() =>
       profile
         ? account.updateProfile(profile.id, { name: trimmed, avatar })
@@ -202,7 +197,7 @@ export function ProfileEditor({
         >
           <Avatar id={avatar} />
           <span className="profile-editor-avatar-badge">
-            <Pencil size={14} strokeWidth={2.5} />
+            <Edit size={14} strokeWidth={2.5} />
           </span>
         </button>
         <div className="profile-editor-fields">
@@ -228,7 +223,7 @@ export function ProfileEditor({
       </div>
       <div className="profile-editor-actions">
         <button type="submit" className="profiles-done pressable" disabled={busy}>
-          {busy ? <LoaderCircle className="spin" size={18} /> : "Save"}
+          <BusyLabel busy={busy}>Save</BusyLabel>
         </button>
         <button type="button" className="profiles-manage pressable" onClick={done} disabled={busy}>
           Cancel

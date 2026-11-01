@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::join_all;
-use rustio_addon::{rank_streams, Meta, MetaPreview, RankedStream, Stream};
-use rustio_index::Indexer;
+use polar_addon::{rank_streams, Meta, MetaPreview, RankedStream, Stream};
+use polar_index::Indexer;
 use serde::Serialize;
 use tauri::State;
 
@@ -17,9 +17,9 @@ use crate::AppState;
 #[derive(Debug, thiserror::Error)]
 pub enum CmdError {
     #[error(transparent)]
-    Index(#[from] rustio_index::IndexError),
+    Index(#[from] polar_index::IndexError),
     #[error(transparent)]
-    Addon(#[from] rustio_addon::AddonError),
+    Addon(#[from] polar_addon::AddonError),
     #[error("{0}")]
     Other(String),
 }
@@ -270,6 +270,25 @@ pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
     items
 }
 
+/// Everything you've watched: the latest video per title — finished or well
+/// under way — newest first. The Library's "Watched" shelf.
+#[tauri::command]
+pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
+    let store = state.store.lock().unwrap();
+    let Some(space) = store.data.space() else { return Vec::new() };
+    let mut latest: std::collections::HashMap<&str, &Progress> = Default::default();
+    for p in space.progress.values().filter(|p| p.finished() || p.position > 30.0) {
+        let slot = latest.entry(p.meta_id.as_str()).or_insert(p);
+        if p.updated_at > slot.updated_at {
+            *slot = p;
+        }
+    }
+    let mut items: Vec<Progress> = latest.into_values().cloned().collect();
+    items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    items.truncate(200);
+    items
+}
+
 // --- Settings ------------------------------------------------------------
 
 #[derive(Serialize)]
@@ -338,7 +357,7 @@ pub async fn subtitles(state: State<'_, AppState>, ty: String, video_id: String)
 #[tauri::command]
 pub async fn subtitle_vtt(state: State<'_, AppState>, url: String) -> Result<String> {
     let bytes = state.addons.fetch_bytes(&url).await?;
-    Ok(rustio_addon::subs::to_vtt(&bytes))
+    Ok(polar_addon::subs::to_vtt(&bytes))
 }
 
 // --- Seek previews (Seekr) -------------------------------------------------

@@ -5,7 +5,7 @@
 //! [`crate::curate`] re-ranks into the other shelves.
 
 use futures::future::join_all;
-use rustio_addon::{AddonClient, Meta, MetaPreview};
+use polar_addon::{AddonClient, Meta, MetaPreview};
 
 use crate::Result;
 

@@ -188,53 +188,65 @@
 
 .home {
   position: relative;
+  /* Home is the lean-back page: everything a size up from the rest of the app. */
+  --poster-w: clamp(172px, 13.5vw, 236px);
+  --landscape-w: clamp(300px, 25vw, 440px);
 }
 .hero,
 .home-rows {
   z-index: 1;
 }
+.home .hero-card {
+  height: clamp(480px, 76vh, 880px);
+}
+.home .hero-content {
+  width: min(640px, 50vw);
+  gap: 0.9rem;
+}
+.home .hero-logo {
+  max-width: min(540px, 100%);
+  max-height: 190px;
+}
+.home .hero-kind {
+  font-size: 1rem;
+}
+.home .hero-description {
+  font-size: 1.125rem;
+}
+.home .hero-actions .btn {
+  height: 54px;
+  padding: 0 1.9rem;
+  font-size: 1.0625rem;
+}
+.home .hero-actions .btn svg {
+  width: 22px;
+  height: 22px;
+}
+.home .hero-actions .btn.btn-icon,
+.home .hero-next {
+  width: 54px;
+  height: 54px;
+  padding: 0;
+}
 .home-rows {
   position: relative;
-  margin-top: 2.5rem;
-  gap: 3rem;
+  margin-top: 3rem;
+  gap: 3.5rem;
 }
 .home .row-header {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
+}
+.home .row-header h2 {
+  font-size: 1.625rem;
 }
 .home .row-scroller {
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
-
-/* --- Top 10: big outlined rank numbers tucked behind each poster. */
-.row[data-shape="top10"] .row-scroller {
-  grid-auto-columns: max-content;
-  gap: 0.25rem 1.5rem;
+.home .card-caption .t-callout {
+  font-size: 0.9375rem;
 }
-.top10-item {
-  display: flex;
-  align-items: flex-end;
-}
-.top10-rank {
-  position: relative;
-  z-index: 0;
-  /* Negative letter-spacing already trims the box; this leaves just a sliver under the poster. */
-  margin: 0 0.04em 3.1rem 0;
-  font-size: clamp(6.5rem, 8.5vw, 9.5rem);
-  font-weight: 800;
-  line-height: 0.78;
-  letter-spacing: -0.07em;
-  /* A dark fill painted over the stroke (paint-order) hides the inner half of the
-     outline — and the overlapping contours variable fonts have inside glyphs like
-     "4" — leaving a clean outer edge. The stroke is 2x wide because half is covered. */
-  color: var(--bg);
-  -webkit-text-stroke: 6px rgb(255 255 255 / 0.55);
-  paint-order: stroke fill;
-  user-select: none;
-}
-.top10-item .card {
-  position: relative;
-  z-index: 1;
-  width: var(--poster-w);
+.home .card-caption .t-caption {
+  font-size: 0.875rem;
 }
 
 /* ==========================================================================
@@ -423,7 +435,17 @@
   background: var(--glass-control);
   backdrop-filter: var(--blur-control);
   opacity: 0;
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) ease;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.card-play:focus-visible {
+  opacity: 1;
+}
+.card-play:active {
+  transform: scale(0.94);
 }
 .card-caption {
   display: flex;

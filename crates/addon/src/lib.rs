@@ -1,5 +1,5 @@
 //! The Stremio addon protocol, so every existing catalog/meta/stream addon
-//! works with rustio unchanged.
+//! works with polar unchanged.
 //!
 //! * [`types`] — canonical shapes the app works with.
 //! * [`client`] — fetches remote addons and normalises their (loose) JSON.

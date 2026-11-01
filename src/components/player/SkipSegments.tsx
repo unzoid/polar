@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { SkipForward } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { SkipForward } from "../icons";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../../lib/api";
+import { withShortcut } from "../../lib/keybinds";
 import type { SkipSegments, Span } from "../../lib/types";
+import { isMpv, type MediaLike, type MpvChapter } from "./mpvMedia";
 
 export interface ActiveSkip {
   kind: "intro" | "recap" | "credits";
@@ -23,6 +25,8 @@ export function useSkipSegments({
   time,
   started,
   autoSkip,
+  media,
+  preferFile,
   seekTo,
   onAutoSkipped,
 }: {
@@ -30,15 +34,39 @@ export function useSkipSegments({
   time: number;
   started: boolean;
   autoSkip: boolean;
+  /** Where the file's own chapters come from (mpv only). */
+  media: MediaLike | null;
+  /** Trust the file's chapter names over IntroDB where it has them. */
+  preferFile: boolean;
   seekTo: (t: number) => void;
   onAutoSkipped: (label: string) => void;
 }) {
-  const { data: segments } = useQuery({
+  const { data: online } = useQuery({
     queryKey: ["skip-segments", videoId],
     queryFn: () => api.skipSegments(videoId),
     staleTime: 60 * 60_000,
     retry: 1,
   });
+
+  const [fromFile, setFromFile] = useState<Partial<SkipSegments>>({});
+  useEffect(() => {
+    if (!media || !isMpv(media)) {
+      setFromFile({});
+      return;
+    }
+    const sync = () => setFromFile(segmentsFromChapters(media.chapters, media.duration));
+    sync();
+    for (const e of ["chapters", "loadedmetadata", "durationchange"]) media.addEventListener(e, sync);
+    return () => {
+      for (const e of ["chapters", "loadedmetadata", "durationchange"]) media.removeEventListener(e, sync);
+    };
+  }, [media]);
+
+  // The file wins where it has an answer; IntroDB fills the rest.
+  const segments = useMemo<SkipSegments | undefined>(() => {
+    if (!preferFile || !Object.keys(fromFile).length) return online;
+    return { intro: null, recap: null, outro: null, postCredits: null, ...online, ...fromFile } as SkipSegments;
+  }, [online, fromFile, preferFile]);
 
   const active = activeSegment(segments, time);
   const autoSkipped = useRef(new Set<string>());
@@ -67,6 +95,26 @@ export function useSkipSegments({
   };
 }
 
+const INTRO_NAME = /^(intro(duction)?|opening( credits| sequence| titles?)?|op\d*|title sequence|main titles?)$/i;
+const RECAP_NAME = /^(recap|previously( on)?\b.*)$/i;
+const OUTRO_NAME = /^(outro|ending( credits)?|ed\d*|end credits|closing credits|credits)$/i;
+
+/** Intro, recap and credits as the file itself labels them: a chapter runs until the next one starts. */
+function segmentsFromChapters(chapters: MpvChapter[], duration: number): Partial<SkipSegments> {
+  const out: Partial<SkipSegments> = {};
+  chapters.forEach((c, i) => {
+    const name = c.title?.trim().replace(/^\d+[.)\s-]+/, "").trim();
+    if (!name) return;
+    const end = chapters[i + 1]?.time ?? (Number.isFinite(duration) ? duration : NaN);
+    if (!(end > c.time)) return;
+    const span = { start: c.time, end };
+    if (!out.intro && INTRO_NAME.test(name)) out.intro = span;
+    else if (!out.recap && RECAP_NAME.test(name)) out.recap = span;
+    else if (!out.outro && OUTRO_NAME.test(name)) out.outro = span;
+  });
+  return out;
+}
+
 function activeSegment(s: SkipSegments | undefined, t: number): ActiveSkip | null {
   if (!s) return null;
   const within = (sp?: Span | null) => !!sp && t >= sp.start && t < sp.end - MIN_LEFT;
@@ -90,10 +138,13 @@ export function SkipButton({
   active,
   onSkip,
   chromeVisible,
+  glyph,
 }: {
   active: ActiveSkip | null;
   onSkip: () => void;
   chromeVisible: boolean;
+  /** The controller button that skips (TV mode), shown in place of the icon. */
+  glyph?: ReactNode;
 }) {
   // Keep the last label while fading out, so text doesn't vanish mid-exit.
   const [shown, setShown] = useState<ActiveSkip | null>(active);
@@ -112,10 +163,10 @@ export function SkipButton({
         e.stopPropagation();
         onSkip();
       }}
-      title="Skip (S)"
+      title={withShortcut("Skip", "skip")}
     >
       {shown?.label ?? "Skip"}
-      <SkipForward size={18} fill="currentColor" strokeWidth={2.25} />
+      {glyph ?? <SkipForward size={18} fill="currentColor" strokeWidth={2.25} />}
     </button>
   );
 }

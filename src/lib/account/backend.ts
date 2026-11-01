@@ -25,6 +25,7 @@ export type AccountErrorCode =
   | "invalid_code"
   | "rate_limited"
   | "profile_limit"
+  | "not_set_up"
   | "network"
   | "unknown";
 
@@ -43,6 +44,19 @@ export interface PulledChanges {
   progress: Progress[];
   /** Opaque cursor; hand it back to the next `pull`. */
   cursor: string | null;
+}
+
+export interface RemotePlaylist {
+  id: string;
+  name: string;
+  items: Uint8Array;
+  deleted: boolean;
+  updatedAt: number;
+}
+
+export interface RemoteSettings {
+  data: Record<string, unknown>;
+  updatedAt: number;
 }
 
 export interface AccountBackend {
@@ -75,5 +89,17 @@ export interface AccountBackend {
   sync: {
     pull(profileId: string, cursor: string | null): Promise<PulledChanges>;
     push(profileId: string, changes: { library: SyncLibraryItem[]; progress: Progress[] }): Promise<void>;
+  };
+
+  /** The profile's preferences as one small document, last write wins. */
+  settings: {
+    get(profileId: string): Promise<RemoteSettings | null>;
+    put(profileId: string, settings: RemoteSettings): Promise<void>;
+  };
+
+  /** Whole playlists, last write wins per playlist; titles travel packed (playlistCodec). */
+  playlists: {
+    pull(profileId: string, cursor: string | null): Promise<{ playlists: RemotePlaylist[]; cursor: string | null }>;
+    push(profileId: string, playlists: RemotePlaylist[]): Promise<void>;
   };
 }

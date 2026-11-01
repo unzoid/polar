@@ -1,4 +1,4 @@
-//! rustio-index — our Cinemeta.
+//! polar-index — our Cinemeta.
 //!
 //! Serves catalogs (popular / trending / top rated) and full metadata with
 //! episodes, keyed by IMDb ids (`tt…`, episodes `tt…:season:episode`) so every
@@ -6,7 +6,7 @@
 //!
 //! Data comes from TMDB when an API key is configured. Without one it falls
 //! back to the public Cinemeta API, so a fresh install works immediately.
-//! Both paths normalise into the same [`rustio_addon`] types and share one cache.
+//! Both paths normalise into the same [`polar_addon`] types and share one cache.
 
 mod cache;
 mod cinemeta;
@@ -15,7 +15,7 @@ mod tmdb;
 
 use std::time::Duration;
 
-use rustio_addon::{CatalogExtra, Manifest, ManifestCatalog, ManifestResource, Meta, MetaPreview};
+use polar_addon::{CatalogExtra, Manifest, ManifestCatalog, ManifestResource, Meta, MetaPreview};
 
 use cache::TtlCache;
 
@@ -40,7 +40,7 @@ const CLASSIC_GENRES: usize = 3;
 pub enum IndexError {
     #[error("not found")]
     NotFound,
-    #[error("unsupported id {0} (rustio-index serves IMDb ids)")]
+    #[error("unsupported id {0} (polar-index serves IMDb ids)")]
     UnsupportedId(String),
     #[error("upstream: {0}")]
     Upstream(String),
@@ -52,8 +52,8 @@ impl From<reqwest::Error> for IndexError {
     }
 }
 
-impl From<rustio_addon::AddonError> for IndexError {
-    fn from(e: rustio_addon::AddonError) -> Self {
+impl From<polar_addon::AddonError> for IndexError {
+    fn from(e: polar_addon::AddonError) -> Self {
         Self::Upstream(e.to_string())
     }
 }
@@ -233,9 +233,9 @@ impl Indexer {
             })
             .collect();
         Manifest {
-            id: "app.rustio.index".into(),
+            id: "app.getpolar.index".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            name: "Rustio Index".into(),
+            name: "Polar Index".into(),
             description: Some("Movie and series catalogs with full episode metadata.".into()),
             logo: None,
             resources: vec![

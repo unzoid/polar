@@ -1,15 +1,17 @@
-import { Check, GalleryHorizontal, ListVideo, Play, Plus, RotateCcw, Rows3 } from "lucide-react";
+import { Check, LayoutList, LayoutRow, Play, Plus, Reset, Sources } from "../components/icons";
 import { useEffect, useMemo, useState } from "react";
 import { EpisodeShelf } from "../components/EpisodeShelf";
 import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
+import { PlaylistButton } from "../components/Playlists";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
 import { Sheet } from "../components/Sheet";
 import { StreamList } from "../components/StreamList";
 import { SwapIcon } from "../components/SwapIcon";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
-import { episodeCode, formatTime, seasonLabel } from "../lib/format";
+import { episodeCode, formatRuntime, seasonLabel } from "../lib/format";
+import { usePlayTarget } from "../lib/playTarget";
 import { prefetchStreams, useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
@@ -40,28 +42,28 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
         {type === "series" && meta && <Seasons meta={meta} />}
         {type === "movie" && meta && <About meta={meta} />}
       </div>
+      {/* Teases what's below the fold; clears as you scroll. */}
+      <div className="detail-fold" aria-hidden>
+        <i data-l="1" />
+        <i data-l="2" />
+        <i data-l="3" />
+        <i data-l="4" />
+        <i data-l="tint" />
+        <i data-l="grain" />
+      </div>
     </div>
   );
 }
 
 function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
   const { navigate } = useRouter();
-  const { data: progress } = useProgress(item.id);
   const { data: library } = useLibrary();
   const toggle = useToggleLibrary();
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
   const isSeries = item.type === "series";
   const inLibrary = library?.some((l) => l.id === item.id);
-
-  const next = meta && isSeries ? upNext(meta, progress ?? []) : undefined;
-  const movieProgress = !isSeries ? progress?.find((p) => p.videoId === item.id) : undefined;
-  const videoId = isSeries ? next?.video?.id : item.id;
-  const resumeAt = isSeries
-    ? next?.resumeAt
-    : movieProgress && movieProgress.position > 30 && movieProgress.position / movieProgress.duration < 0.92
-      ? movieProgress.position
-      : undefined;
+  const { next, videoId, resumeAt, label: primaryLabel } = usePlayTarget(item, meta);
 
   // Sources for the primary action load as soon as the page opens, so Play
   // (or the source list) is ready by the time the user reaches for it.
@@ -76,16 +78,7 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
     navigate({ name: "player", type: item.type, metaId: item.id, videoId, stream: stream?.stream });
   };
 
-  const primaryLabel = (() => {
-    if (!isSeries) return resumeAt ? `Resume · ${formatTime(resumeAt)}` : "Play";
-    if (!next?.video) return "Play";
-    const code = episodeCode(next.video.season, next.video.episode);
-    if (next.kind === "resume") return `Resume ${code}`;
-    if (next.kind === "next") return `Play ${code}`;
-    return next.video.season === 1 && next.video.episode === 1 ? "Play First Episode" : `Play ${code}`;
-  })();
-
-  const facts = [item.releaseInfo, meta?.runtime?.replace(/(\d+) min/, (_, m) => formatRuntime(Number(m)))].filter(Boolean);
+  const facts = [item.releaseInfo, formatRuntime(meta?.runtime)].filter(Boolean);
 
   return (
     <section className="detail-hero">
@@ -108,18 +101,19 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
             onClick={() => play()}
             onPointerEnter={() => videoId && prefetchStreams(item.type, videoId)}
           >
-            {resumeAt ? <RotateCcw size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
+            {resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
             {primaryLabel}
           </button>
           <button
             className="btn btn-glass btn-icon"
             onClick={() => toggle.mutate(item)}
-            aria-label={inLibrary ? "Remove from My List" : "Add to My List"}
-            title={inLibrary ? "Remove from My List" : "Add to My List"}
+            aria-label={inLibrary ? "Remove from Library" : "Add to Library"}
+            title={inLibrary ? "Remove from Library" : "Add to Library"}
             aria-pressed={inLibrary}
           >
             <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
           </button>
+          <PlaylistButton item={item} />
           <button
             className="btn btn-glass btn-icon"
             disabled={!videoId}
@@ -127,7 +121,7 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
             aria-label="Choose source"
             title="Choose source"
           >
-            <ListVideo size={19} />
+            <Sources size={19} />
           </button>
         </div>
       </div>
@@ -168,12 +162,6 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
       )}
     </section>
   );
-}
-
-function formatRuntime(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return h ? `${h} hr ${m} min` : `${m} min`;
 }
 
 /** Up to this many seasons show as tabs; more become a dropdown. */
@@ -241,8 +229,8 @@ function Seasons({ meta }: { meta: Meta }) {
           value={layout}
           onChange={setLayout}
           options={[
-            { id: "row", label: "Row", icon: <GalleryHorizontal size={18} /> },
-            { id: "list", label: "List", icon: <Rows3 size={18} /> },
+            { id: "row", label: "Row", icon: <LayoutRow size={18} /> },
+            { id: "list", label: "List", icon: <LayoutList size={18} /> },
           ]}
         />
       </div>
@@ -292,23 +280,20 @@ function About({ meta }: { meta: Meta }) {
     <section className="about">
       <h2 className="t-title2">About</h2>
       <div className="about-grid">
-        <div className="about-card">
-          <span className="t-headline">{meta.name}</span>
-          <p className="t-callout muted">{meta.description}</p>
-        </div>
+        {meta.description && <p className="about-description">{meta.description}</p>}
         <dl className="about-info t-callout">
           {info
             .filter(([, v]) => v)
             .map(([k, v]) => (
               <div key={k}>
-                <dt className="faint">{k}</dt>
+                <dt className="about-label">{k}</dt>
                 <dd>{v}</dd>
               </div>
             ))}
         </dl>
         {meta.cast?.length ? (
           <div className="about-cast">
-            <span className="t-headline">Cast</span>
+            <h3 className="about-label">Cast</h3>
             <ul className="cast-list">
               {meta.cast.slice(0, 12).map((name) => (
                 <li key={name} className="cast-chip t-callout">

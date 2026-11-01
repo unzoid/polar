@@ -16,8 +16,15 @@ import type {
   LocalChanges,
   SyncLibraryItem,
 } from "./types";
+import { settingsChanged } from "./settingsChanges";
 
 export const isTauri = "__TAURI_INTERNALS__" in window;
+
+/** Pass a result through, telling settings sync something it covers changed. */
+function changed<T>(value: T): T {
+  settingsChanged();
+  return value;
+}
 
 /** Thin typed wrappers over the Rust commands in src-tauri/src/commands.rs. */
 export const api = {
@@ -42,14 +49,16 @@ export const api = {
   seekrValidate: (key: string) => invoke<string | null>("seekr_validate", { key }),
 
   addons: () => invoke<InstalledAddon[]>("addons_list"),
-  installAddon: (url: string) => invoke<InstalledAddon>("addon_install", { url }),
-  removeAddon: (id: string) => invoke<void>("addon_remove", { id }),
+  installAddon: (url: string) => invoke<InstalledAddon>("addon_install", { url }).then(changed),
+  removeAddon: (id: string) => invoke<void>("addon_remove", { id }).then(changed),
 
   library: () => invoke<LibraryItem[]>("library_list"),
   toggleLibrary: (item: MetaPreview) => invoke<boolean>("library_toggle", { item }),
   progressFor: (metaId: string) => invoke<Progress[]>("progress_for", { metaId }),
   saveProgress: (progress: Progress) => invoke<void>("progress_save", { progress }),
   continueWatching: () => invoke<Progress[]>("continue_watching"),
+  /** The latest video per title you've watched (finished or under way), newest first. */
+  watchHistory: () => invoke<Progress[]>("watch_history"),
 
   // Profile spaces & sync (src-tauri/src/sync.rs). `space` = profile id.
   activateSpace: (space: string | null) => invoke<void>("space_activate", { space }),
@@ -61,7 +70,7 @@ export const api = {
     invoke<boolean>("sync_apply", { space, library, progress, pulledAt }),
 
   settings: () => invoke<Settings>("settings_get"),
-  saveSettings: (settings: Settings) => invoke<Settings>("settings_set", { settings }),
+  saveSettings: (settings: Settings) => invoke<Settings>("settings_set", { settings }).then(changed),
 
   mpvAvailable: () => invoke<boolean>("mpv_available"),
 };

@@ -2,39 +2,43 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Captions,
   ChevronRight,
-  ImageIcon,
-  Pencil,
-  LayoutGrid,
+  Controls,
+  Edit,
+  Grid,
+  Instant,
+  Picture,
   Play,
-  Plug,
   Plus,
+  Profile,
   Puzzle,
-  Trash2,
-  UserRound,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
+  Services,
+  Trash,
+  type Icon as IconT,
+} from "../components/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
 import { useAccount } from "../lib/account/AccountProvider";
-import { isDemo } from "../lib/account/demo";
-import { sync, useSyncStatus } from "../lib/account/sync";
 import { Dropdown } from "../components/Dropdown";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleSettings, subtitleCueVars } from "../components/player/SubtitleSettings";
 import { api } from "../lib/api";
 import { PREFERRED_LANGUAGES, languageName } from "../lib/languages";
 import { keys, useAddons, useSettings, useUpdateSettings } from "../lib/queries";
 import type { Settings as SettingsT } from "../lib/types";
+import { ShortcutSettings } from "../components/ShortcutSettings";
+import { setPrefs, usePrefs } from "../lib/prefs";
+import { playSound, SOUND_PACKS } from "../tv/sounds";
+import { setTvMode } from "../tv/tvMode";
 
-type PageId = "account" | "playback" | "subtitles" | "browsing" | "addons" | "services";
+export type PageId = "account" | "playback" | "subtitles" | "browsing" | "controls" | "addons" | "services";
 
-const PAGES: { id: PageId; label: string; icon: LucideIcon }[] = [
-  { id: "account", label: "Account", icon: UserRound },
+export const PAGES: { id: PageId; label: string; icon: IconT }[] = [
+  { id: "account", label: "Account", icon: Profile },
   { id: "playback", label: "Playback", icon: Play },
   { id: "subtitles", label: "Subtitles & Audio", icon: Captions },
-  { id: "browsing", label: "Browsing", icon: LayoutGrid },
+  { id: "browsing", label: "Browsing", icon: Grid },
+  { id: "controls", label: "Controls & TV", icon: Controls },
   { id: "addons", label: "Add-ons", icon: Puzzle },
-  { id: "services", label: "Services", icon: Plug },
+  { id: "services", label: "Services", icon: Services },
 ];
 
 /**
@@ -75,12 +79,33 @@ export function Settings({ initialPage }: { initialPage?: string }) {
           {page === "playback" && <PlaybackPage />}
           {page === "subtitles" && <SubtitlesPage />}
           {page === "browsing" && <BrowsingPage />}
+          {page === "controls" && <ControlsPage />}
           {page === "addons" && <AddonsPage />}
           {page === "services" && <ServicesPage />}
         </div>
       </div>
     </div>
   );
+}
+
+/** One page's content on its own, for the settings overlay. */
+export function SettingsPageBody({ page }: { page: PageId }) {
+  switch (page) {
+    case "account":
+      return <AccountPage />;
+    case "playback":
+      return <PlaybackPage />;
+    case "subtitles":
+      return <SubtitlesPage />;
+    case "browsing":
+      return <BrowsingPage />;
+    case "controls":
+      return <ControlsPage />;
+    case "addons":
+      return <AddonsPage />;
+    case "services":
+      return <ServicesPage />;
+  }
 }
 
 // --- Building blocks -------------------------------------------------------
@@ -151,7 +176,7 @@ function ExpandRow({
   onToggle,
   children,
 }: {
-  icon?: LucideIcon;
+  icon?: IconT;
   title: string;
   caption?: ReactNode;
   /** Short current state on the right ("On", a server address…). */
@@ -174,11 +199,11 @@ function ExpandRow({
 }
 
 /** A row that leads somewhere else. */
-function LinkRow({ icon: Icon, title, onClick }: { icon: LucideIcon; title: string; onClick: () => void }) {
+function LinkRow({ icon: Icon, title, caption, onClick }: { icon: IconT; title: string; caption?: string; onClick: () => void }) {
   return (
     <button className="settings-row settings-row-button" onClick={onClick}>
       <Icon className="settings-row-icon" size={20} strokeWidth={1.9} />
-      <RowText title={title} />
+      <RowText title={title} caption={caption} />
       <ChevronRight className="settings-chevron" size={18} strokeWidth={2.25} />
     </button>
   );
@@ -194,14 +219,13 @@ function useExpanded() {
 
 function AccountPage() {
   const account = useAccount();
-  const syncStatus = useSyncStatus();
   const expand = useExpanded();
 
   if (account.status === "guest") {
     return (
-      <Card footer="My List and watch history move into your first profile.">
+      <Card footer="Your library and watch history move into your first profile.">
         <div className="settings-row">
-          <RowText title="Not signed in" caption="Sign in to sync profiles, My List and watch history." />
+          <RowText title="Not signed in" caption="Sign in to keep profiles, your library, history and settings on every device." />
           <button className="btn btn-primary" onClick={account.showSignIn}>
             Sign In
           </button>
@@ -210,22 +234,13 @@ function AccountPage() {
     );
   }
 
-  const synced =
-    syncStatus.state === "syncing"
-      ? "Syncing…"
-      : syncStatus.state === "error"
-        ? `Couldn't sync: ${syncStatus.error}`
-        : syncStatus.lastSyncedAt
-          ? `Last synced ${new Date(syncStatus.lastSyncedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
-          : "Not synced yet";
-
   return (
     <>
-      <Card>
+      <Card footer="Your library, watch history, playlists, settings, shortcuts and addons sync automatically. The bridge, volume and TV mode stay on this device.">
         <div className="settings-row">
           <RowText title="Email" caption={account.user?.email} />
           <button className="btn" onClick={() => void account.signOut()}>
-            {isDemo() ? "Exit Demo" : "Sign Out"}
+            Sign Out
           </button>
         </div>
       </Card>
@@ -237,16 +252,7 @@ function AccountPage() {
             <RowText title={p.name} caption={p.id === account.profile?.id ? "Current profile" : undefined} />
           </div>
         ))}
-        <LinkRow icon={Pencil} title="Manage profiles" onClick={() => account.switchProfile("manage")} />
-      </Card>
-
-      <Card title="Sync" footer="Settings stay on this device.">
-        <div className="settings-row">
-          <RowText title="My List and watch history" caption={synced} />
-          <button className="btn" disabled={syncStatus.state === "syncing"} onClick={() => void sync.now()}>
-            Sync Now
-          </button>
-        </div>
+        <LinkRow icon={Edit} title="Manage profiles" onClick={() => account.switchProfile("manage")} />
       </Card>
 
       <Card title="Danger Zone">
@@ -261,7 +267,7 @@ function DeleteAccountRow(props: Expandable) {
   const [typed, setTyped] = useState("");
   const remove = useMutation({ mutationFn: () => account.deleteAccount() });
   return (
-    <ExpandRow icon={Trash2} title="Delete account" caption="Removes all profiles and synced data" {...props}>
+    <ExpandRow icon={Trash} title="Delete account" caption="Removes all profiles and synced data" {...props}>
       <p className="settings-expand-text">
         This can't be undone. Type <strong>delete</strong> to confirm.
       </p>
@@ -287,6 +293,7 @@ const SEEK_STEPS = [5, 10, 15, 30];
 function PlaybackPage() {
   const { data } = useSettings();
   const update = useUpdateSettings();
+  const prefs = usePrefs();
   if (!data) return null;
   const set = (patch: Partial<SettingsT>) => update.mutate(patch);
   const steps = SEEK_STEPS.includes(data.seekStep) ? SEEK_STEPS : [data.seekStep, ...SEEK_STEPS];
@@ -296,22 +303,31 @@ function PlaybackPage() {
       <Card title="Autoplay">
         <ToggleRow
           title="Play the best source automatically"
+          caption="Start playing as soon as a good source is found, without asking you to pick one"
           checked={data.autoPickSource}
           onChange={(v) => set({ autoPickSource: v })}
         />
         <ToggleRow
           title="Play the next episode automatically"
+         
           checked={data.autoplayNext}
           onChange={(v) => set({ autoplayNext: v })}
         />
         <ToggleRow
           title="Skip intros and recaps"
+          caption="Jump past the opening and the “previously on” part on your own"
           checked={data.autoSkip}
           onChange={(v) => set({ autoSkip: v })}
         />
+        <ToggleRow
+          title="Use the file's own chapters for intros"
+          caption="If the video has chapters named Intro, Recap or Credits, use those. Otherwise the online intro database fills in."
+          checked={prefs.preferFileChapters}
+          onChange={(v) => setPrefs({ preferFileChapters: v })}
+        />
       </Card>
       <Card title="Controls">
-        <PickRow title="Skip forward and back" caption="Buttons and arrow keys">
+        <PickRow title="Skip forward and back" caption="How far the skip buttons and the left and right arrow keys jump">
           <Dropdown
             label="Skip amount"
             value={String(data.seekStep)}
@@ -383,10 +399,15 @@ function BrowsingPage() {
   return (
     <>
       <Card title="Cards">
-        <ToggleRow title="Show titles" checked={data.showCardTitles} onChange={(v) => update.mutate({ showCardTitles: v })} />
+        <ToggleRow
+          title="Show titles"
+         
+          checked={data.showCardTitles}
+          onChange={(v) => update.mutate({ showCardTitles: v })}
+        />
         <ToggleRow
           title="Show details"
-          caption="Type, genre and year"
+          caption="Add the type, genre and year under the name"
           checked={data.showCardTitles && data.showCardDetails}
           disabled={!data.showCardTitles}
           onChange={(v) => update.mutate({ showCardDetails: v })}
@@ -424,6 +445,84 @@ function BrowsingPage() {
   );
 }
 
+// --- Controls & TV ---------------------------------------------------------
+
+const SOUND_LEVELS = [
+  { value: "0.25", label: "Low" },
+  { value: "0.5", label: "Medium" },
+  { value: "0.9", label: "High" },
+];
+
+function ControlsPage() {
+  const prefs = usePrefs();
+  const level = SOUND_LEVELS.reduce((best, l) =>
+    Math.abs(Number(l.value) - prefs.uiSoundVolume) < Math.abs(Number(best.value) - prefs.uiSoundVolume) ? l : best,
+  );
+
+  return (
+    <>
+      <Card title="TV Mode">
+        <div className="settings-row">
+          <RowText title="TV mode" caption="A fullscreen interface for the couch, made for a remote or controller." />
+          <button className="btn" onClick={() => setTvMode(true)}>
+            Open TV Mode
+          </button>
+        </div>
+        <ToggleRow
+          title="Interface sounds"
+          caption="Soft clicks as you move, select and go back"
+          checked={prefs.uiSounds}
+          onChange={(v) => {
+            setPrefs({ uiSounds: v });
+            if (v) playSound("select", { force: true });
+          }}
+        />
+        {prefs.uiSounds && (
+          <PickRow title="Sound pack">
+            <Dropdown
+              label="Sound pack"
+              value={prefs.uiSoundPack}
+              onChange={(v) => {
+                setPrefs({ uiSoundPack: v });
+                playSound("select", { force: true });
+              }}
+              options={SOUND_PACKS}
+            />
+          </PickRow>
+        )}
+        {prefs.uiSounds && (
+          <PickRow title="Sound volume">
+            <Dropdown
+              label="Sound volume"
+              value={level.value}
+              onChange={(v) => {
+                setPrefs({ uiSoundVolume: Number(v) });
+                playSound("select", { force: true });
+              }}
+              options={SOUND_LEVELS}
+            />
+          </PickRow>
+        )}
+      </Card>
+      <Card title="Controllers">
+        <ToggleRow
+          title="Connection notices"
+          caption="When a controller connects or disconnects"
+          checked={prefs.controllerAlerts}
+          onChange={(v) => setPrefs({ controllerAlerts: v })}
+        />
+        <ToggleRow
+          title="Suggest TV mode"
+          caption="Offer TV mode when a controller connects in desktop mode"
+          checked={prefs.suggestTvMode}
+          onChange={(v) => setPrefs({ suggestTvMode: v })}
+        />
+      </Card>
+      <ShortcutSettings />
+    </>
+  );
+}
+
 // --- Add-ons ---------------------------------------------------------------
 
 function AddonsPage() {
@@ -455,7 +554,7 @@ function AddonsPage() {
               <p className="settings-expand-text settings-url">{a.manifestUrl}</p>
               <div className="settings-expand-actions">
                 <button className="btn btn-danger" onClick={() => remove.mutate(a.manifest.id)} disabled={remove.isPending}>
-                  <Trash2 size={15} /> Remove
+                  <Trash size={15} /> Remove
                 </button>
               </div>
             </ExpandRow>
@@ -530,9 +629,9 @@ function ArtworkRow(props: Expandable) {
 
   return (
     <ExpandRow
-      icon={ImageIcon}
+      icon={Picture}
       title="Artwork and episode info"
-      caption="TMDB key"
+      caption="Adds logos, sharper posters and episode details using your free TMDB key"
       value={on ? "On" : "Off"}
       {...props}
     >
@@ -573,9 +672,9 @@ function p2pRow(props: Expandable) {
 
   return (
     <ExpandRow
-      icon={Zap}
+      icon={Instant}
       title="p2p playback"
-      caption="bridge address"
+      caption="The address of the server that turns p2ps into video you can watch"
       value={data.bridge.replace(/^https?:\/\//, "")}
       {...props}
     >
@@ -619,9 +718,9 @@ function PreviewsRow(props: Expandable) {
 
   return (
     <ExpandRow
-      icon={LayoutGrid}
+      icon={Grid}
       title="Timeline previews"
-      caption="Seekr key"
+      caption="Small preview pictures when you hover over the seek bar, from Seekr"
       value={hasKey && data.seekPreviews ? "On" : "Off"}
       {...props}
     >

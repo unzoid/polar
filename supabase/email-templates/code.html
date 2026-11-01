@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: dark; supported-color-schemes: dark;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="supported-color-schemes" content="dark" />
+    <title>Your Polar code</title>
+  </head>
+  <body style="margin:0;padding:0;background:#0a0a0a;">
+    <!-- Preheader (inbox preview text) -->
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0a0a0a;">
+      Your Polar code is {{ .Token }}. It expires in 1 hour.
+    </div>
+
+    <!-- Page: dark with the app's soft blue glow at the top (solid fallback if gradients are stripped) -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0a0a0a"
+      style="background:#0a0a0a;background-image:linear-gradient(180deg,#0a2540 0%,#0a1624 220px,#0a0a0a 480px);">
+      <tr>
+        <td align="center" style="padding:32px 20px 64px;">
+          <table role="presentation" width="440" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:440px;">
+
+            <!-- Logo + name, top left like the app -->
+            <tr>
+              <td style="padding-bottom:72px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td width="28" height="28" align="center" valign="middle" bgcolor="#1c1c1c"
+                      style="width:28px;height:28px;background:#1c1c1c;border:1px solid #2a2a2e;border-radius:8px;font-size:12px;line-height:28px;color:#ffffff;font-family:Arial,sans-serif;">
+                      &#9654;
+                    </td>
+                    <td style="padding-left:10px;font-family:'Inter',-apple-system,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:19px;font-weight:700;letter-spacing:-0.02em;color:#f5f5f7;">
+                      Polar
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Heading -->
+            <tr>
+              <td style="font-family:'Inter',-apple-system,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:30px;line-height:36px;font-weight:700;letter-spacing:-0.035em;color:#f5f5f7;padding-bottom:14px;">
+                Your sign-in code
+              </td>
+            </tr>
+            <tr>
+              <td style="font-family:'Inter',-apple-system,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:16px;line-height:24px;color:#b9b9bd;padding-bottom:28px;">
+                Enter this code in Polar to continue. No password needed.
+              </td>
+            </tr>
+
+            <!-- Code, styled like the app's input field -->
+            <tr>
+              <td style="padding-bottom:18px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td bgcolor="#141414" style="background:#141414;border:1px solid #2c2c30;border-radius:12px;padding:12px 18px 14px;">
+                      <div style="font-family:'Inter',-apple-system,'Segoe UI',Arial,sans-serif;font-size:12px;line-height:16px;color:#f5f5f7;opacity:0.85;">
+                        Verification code
+                      </div>
+                      <div style="font-family:'Inter',-apple-system,'Segoe UI',Arial,sans-serif;font-size:34px;line-height:44px;font-weight:700;letter-spacing:12px;color:#f5f5f7;">
+                        {{ .Token }}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Muted helper text -->
+            <tr>
+              <td style="font-family:'Inter',-apple-system,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:21px;color:#8a8a90;padding-bottom:40px;">
+                This code expires in 1 hour. If you didn&rsquo;t request it, you can safely ignore this email.
+              </td>
+            </tr>
+
+            <!-- Hairline + footer -->
+            <tr>
+              <td style="border-top:1px solid #1f1f23;padding-top:20px;font-family:'Inter',-apple-system,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:12px;line-height:18px;color:#6a6a70;">
+                An account syncs your profiles, library and watch history across devices.<br />
+                Sent to {{ .Email }} &middot; getpolar.app
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

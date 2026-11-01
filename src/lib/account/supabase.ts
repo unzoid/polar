@@ -3,13 +3,17 @@
  * supabase-js; schema lives in supabase/migrations.
  */
 import { createClient, type AuthError, type PostgrestError, type User } from "@supabase/supabase-js";
-import type { ContentType, Progress, Stream, SyncLibraryItem } from "../types";
+import type { ContentType, Progress, SyncLibraryItem } from "../types";
 import { AccountError, type AccountBackend, type AccountUser, type Profile } from "./backend";
 import { normalizeAvatar } from "./avatars";
+import { fromHex, toHex } from "../playlistCodec";
 
 const PAGE = 1000;
 /** Re-read a little before the cursor: rows committed out of order still arrive. */
 const PULL_OVERLAP_MS = 10_000;
+/** Everything but the legacy `stream` column, which isn't synced any more. */
+const PROGRESS_COLUMNS =
+  "profile_id, video_id, meta_id, type, name, background, poster, season, episode, episode_title, position, duration, updated_at, synced_at";
 
 export function createSupabaseBackend(url: string, key: string): AccountBackend {
   const db = createClient(url, key, {
@@ -17,7 +21,7 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,
-      storageKey: "rustio.auth",
+      storageKey: "polar.auth",
     },
   });
 
@@ -94,7 +98,7 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
         const since = cursor ? new Date(Date.parse(cursor) - PULL_OVERLAP_MS).toISOString() : null;
         const [lib, prog] = await Promise.all([
           pullAll<LibraryRow>("library_items", profileId, since),
-          pullAll<ProgressRow>("watch_progress", profileId, since),
+          pullAll<ProgressRow>("watch_progress", profileId, since, PROGRESS_COLUMNS),
         ]);
         const newest = [...lib, ...prog].reduce<string | null>(
           (max, r) => (!max || r.synced_at > max ? r.synced_at : max),
@@ -113,12 +117,62 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
         }
       },
     },
+
+    settings: {
+      async get(profileId) {
+        const { data, error } = await db
+          .from("profile_settings")
+          .select("data, updated_at")
+          .eq("profile_id", profileId)
+          .maybeSingle();
+        if (error) throw dbError(error);
+        return data ? { data: data.data as Record<string, unknown>, updatedAt: Number(data.updated_at) } : null;
+      },
+      async put(profileId, { data, updatedAt }) {
+        const { error } = await db
+          .from("profile_settings")
+          .upsert({ profile_id: profileId, data, updated_at: updatedAt }, { onConflict: "profile_id" });
+        if (error) throw dbError(error);
+      },
+    },
+
+    playlists: {
+      async pull(profileId, cursor) {
+        const since = cursor ? new Date(Date.parse(cursor) - PULL_OVERLAP_MS).toISOString() : null;
+        const rows = await pullAll<PlaylistRow>("playlists", profileId, since);
+        const newest = rows.reduce<string | null>((max, r) => (!max || r.synced_at > max ? r.synced_at : max), cursor);
+        return {
+          playlists: rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            items: fromHex(r.items),
+            deleted: r.deleted,
+            updatedAt: Number(r.updated_at),
+          })),
+          cursor: newest,
+        };
+      },
+      async push(profileId, playlists) {
+        const rows = playlists.map((p) => ({
+          id: p.id,
+          profile_id: profileId,
+          name: p.name,
+          items: toHex(p.items),
+          deleted: p.deleted,
+          updated_at: p.updatedAt,
+        }));
+        for (const part of chunks(rows, 200)) {
+          const { error } = await db.from("playlists").upsert(part, { onConflict: "id" });
+          if (error) throw dbError(error);
+        }
+      },
+    },
   };
 
-  async function pullAll<T>(table: string, profileId: string, since: string | null): Promise<T[]> {
+  async function pullAll<T>(table: string, profileId: string, since: string | null, columns = "*"): Promise<T[]> {
     const out: T[] = [];
     for (let from = 0; ; from += PAGE) {
-      let q = db.from(table).select("*").eq("profile_id", profileId);
+      let q = db.from(table).select(columns).eq("profile_id", profileId);
       if (since) q = q.gt("synced_at", since);
       const { data, error } = await q.order("synced_at").range(from, from + PAGE - 1);
       if (error) throw dbError(error);
@@ -142,6 +196,15 @@ interface LibraryRow {
   synced_at: string;
 }
 
+interface PlaylistRow {
+  id: string;
+  name: string;
+  items: string;
+  deleted: boolean;
+  updated_at: number;
+  synced_at: string;
+}
+
 interface ProgressRow {
   profile_id: string;
   video_id: string;
@@ -153,7 +216,6 @@ interface ProgressRow {
   season: number | null;
   episode: number | null;
   episode_title: string | null;
-  stream: Stream | null;
   position: number;
   duration: number;
   updated_at: number;
@@ -199,7 +261,8 @@ const toProgressRow = (profileId: string, p: Progress) => ({
   season: p.season ?? null,
   episode: p.episode ?? null,
   episode_title: p.episodeTitle ?? null,
-  stream: p.stream ?? null,
+  // The playing source stays on the device: it's most of the row's size and
+  // its URL often expires. sync_apply keeps the local one.
   position: p.position,
   duration: p.duration,
   updated_at: p.updatedAt,
@@ -215,7 +278,6 @@ const fromProgressRow = (r: ProgressRow): Progress => ({
   season: r.season ?? undefined,
   episode: r.episode ?? undefined,
   episodeTitle: r.episode_title ?? undefined,
-  stream: r.stream ?? undefined,
   position: r.position,
   duration: r.duration,
   updatedAt: Number(r.updated_at),
@@ -251,6 +313,10 @@ function authError(e: AuthError): AccountError {
 function dbError(e: PostgrestError): AccountError {
   if (e.message?.includes("profile_limit")) {
     return new AccountError("profile_limit", "An account can have up to 5 profiles.");
+  }
+  // A table this version expects hasn't been migrated onto the server yet.
+  if (e.code === "PGRST205" || e.code === "42P01") {
+    return new AccountError("not_set_up", e.message);
   }
   if (e.message?.includes("Failed to fetch") || e.message?.includes("NetworkError")) {
     return new AccountError("network", "Can't reach the server. Check your connection.");

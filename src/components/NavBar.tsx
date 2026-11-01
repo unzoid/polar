@@ -1,4 +1,6 @@
-import { ChevronLeft, Search, Settings, X } from "lucide-react";
+import { ChevronLeft, Close, Search, Settings, Tv } from "./icons";
+import { openSettings } from "../lib/settingsOverlay";
+import { setTvMode } from "../tv/tvMode";
 import { useEffect, useRef, useState } from "react";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { FOCUS_SEARCH_EVENT, setSearchText, useSearchText } from "../lib/searchQuery";
@@ -9,7 +11,7 @@ const LINKS: { route: TabRoute; label: string }[] = [
   { route: { name: "home" }, label: "Home" },
   { route: { name: "discover", type: "series" }, label: "Series" },
   { route: { name: "discover", type: "movie" }, label: "Movies" },
-  { route: { name: "library" }, label: "My List" },
+  { route: { name: "library" }, label: "Library" },
 ];
 
 const SCROLLED_AT = 8;
@@ -38,9 +40,8 @@ export function NavBar() {
           <ChevronLeft size={22} strokeWidth={2.25} />
         </button>
       )}
-      <button className="navbar-brand" onClick={() => tab({ name: "home" })} aria-label="Rustio home">
-        <img src="/app-icon.svg" alt="" width={24} height={24} />
-        <span>Rustio</span>
+      <button className="navbar-brand" onClick={() => tab({ name: "home" })} aria-label="Polar home">
+        <span>Polar</span>
       </button>
       <nav className="navbar-links" aria-label="Primary">
         {LINKS.map((l) => (
@@ -57,12 +58,15 @@ export function NavBar() {
       </nav>
       <div className="navbar-actions">
         <SearchBox />
+        <button className="navbar-icon pressable" aria-label="TV mode" title="TV mode" onClick={() => setTvMode(true)}>
+          <Tv size={23} />
+        </button>
         <button
           className="navbar-icon pressable"
           aria-label="Settings"
           title="Settings"
-          aria-current={active.name === "settings" ? "page" : undefined}
-          onClick={() => tab({ name: "settings" })}
+          aria-haspopup="dialog"
+          onClick={() => openSettings()}
         >
           <Settings size={23} strokeWidth={2} />
         </button>
@@ -165,7 +169,7 @@ function SearchBox() {
       />
       {text && (
         <button className="navbar-search-clear" aria-label="Clear search" onMouseDown={(e) => e.preventDefault()} onClick={() => change("")}>
-          <X size={16} strokeWidth={2.25} />
+          <Close size={16} strokeWidth={2.25} />
         </button>
       )}
     </div>

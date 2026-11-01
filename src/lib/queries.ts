@@ -20,6 +20,7 @@ export const keys = {
   streams: (type: ContentType, videoId: string) => ["streams", type, videoId] as const,
   progress: (metaId: string) => ["progress", metaId] as const,
   continue: ["continue"] as const,
+  history: ["history"] as const,
   library: ["library"] as const,
   addons: ["addons"] as const,
   settings: ["settings"] as const,
@@ -34,8 +35,8 @@ export const useCatalog = (type: ContentType, id: string, genre?: string, enable
 export const useRecommend = (type: ContentType, id: string, enabled = true) =>
   useQuery({ queryKey: keys.recommend(type, id), queryFn: () => api.recommend(type, id), enabled, staleTime: 60 * 60_000 });
 
-export const useMeta = (type: ContentType, id: string) =>
-  useQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000 });
+export const useMeta = (type: ContentType, id: string, enabled = true) =>
+  useQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000, enabled });
 
 export const useStreams = (type: ContentType, videoId: string | undefined) =>
   useQuery({
@@ -50,6 +51,9 @@ export const useProgress = (metaId: string) =>
 
 export const useContinueWatching = () =>
   useQuery({ queryKey: keys.continue, queryFn: api.continueWatching, staleTime: 0 });
+
+export const useWatchHistory = () =>
+  useQuery({ queryKey: keys.history, queryFn: api.watchHistory, staleTime: 0 });
 
 export const useLibrary = () => useQuery({ queryKey: keys.library, queryFn: api.library, staleTime: 0 });
 
@@ -83,6 +87,7 @@ export function useSaveProgress() {
     onSuccess: (_, p) => {
       qc.invalidateQueries({ queryKey: keys.progress(p.metaId) });
       qc.invalidateQueries({ queryKey: keys.continue });
+      qc.invalidateQueries({ queryKey: keys.history });
       sync.schedule();
     },
   });

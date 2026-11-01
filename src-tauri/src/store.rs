@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use rustio_addon::Manifest;
+use polar_addon::Manifest;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,7 +136,7 @@ pub struct Progress {
     pub episode_title: Option<String>,
     /// The source that was playing, so resume uses the same file (and timings).
     #[serde(default)]
-    pub stream: Option<rustio_addon::Stream>,
+    pub stream: Option<polar_addon::Stream>,
     /// Seconds.
     pub position: f64,
     pub duration: f64,

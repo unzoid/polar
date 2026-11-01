@@ -1,16 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
-import { backend, nextAvatar, type AccountUser, type Profile, type ProfileInput } from "./index";
+import { backend, type AccountUser, type Profile, type ProfileInput } from "./index";
+import { forgetSettings, restoreSettings } from "./settingsSync";
 import { refreshLocalViews, sync } from "./sync";
 
 /**
- *  - loading:   restoring the session
+ *  - loading:    restoring the session
  *  - signed-out: show the sign-in screen
- *  - guest:     using Rustio without an account (local library only)
- *  - profiles:  signed in, "Who's watching?"
- *  - ready:     signed in with a profile; the app is showing
+ *  - guest:      using Polar without an account (local library only)
+ *  - onboarding: new account, naming and picking an icon for the first profile
+ *  - profiles:   signed in, "Who's watching?"
+ *  - ready:      signed in with a profile; the app is showing
  */
-export type AccountStatus = "loading" | "signed-out" | "guest" | "profiles" | "ready";
+export type AccountStatus = "loading" | "signed-out" | "guest" | "onboarding" | "profiles" | "ready";
 
 interface Account {
   /** False when no provider is configured: no sign-in UI anywhere. */
@@ -37,6 +39,8 @@ interface Account {
   switchProfile(view?: "pick" | "manage"): void;
   profilesView: "pick" | "manage";
   createProfile(input: ProfileInput): Promise<Profile>;
+  /** Onboarding: create the account's first profile and go straight in. */
+  createFirstProfile(input: ProfileInput): Promise<void>;
   updateProfile(id: string, patch: Partial<ProfileInput>): Promise<void>;
   deleteProfile(id: string): Promise<void>;
   signOut(): Promise<void>;
@@ -45,9 +49,9 @@ interface Account {
 
 const AccountContext = createContext<Account | null>(null);
 
-const GUEST_KEY = "rustio.guest";
-const LAST_PROFILE_KEY = "rustio.lastProfile";
-const profilesKey = (userId: string) => `rustio.profiles.${userId}`;
+const GUEST_KEY = "polar.guest";
+const LAST_PROFILE_KEY = "polar.lastProfile";
+const profilesKey = (userId: string) => `polar.profiles.${userId}`;
 
 function cachedProfiles(userId: string): Profile[] {
   try {
@@ -55,11 +59,6 @@ function cachedProfiles(userId: string): Profile[] {
   } catch {
     return [];
   }
-}
-
-function defaultName(email: string) {
-  const base = email.split("@")[0].replace(/[._-]+/g, " ").trim() || "Me";
-  return (base[0].toUpperCase() + base.slice(1)).slice(0, 20);
 }
 
 export function AccountProvider({ children }: { children: ReactNode }) {
@@ -81,6 +80,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     // Best effort: get the previous profile's last changes up first.
     await Promise.race([sync.flush(), new Promise((r) => setTimeout(r, 3000))]);
     await api.activateSpace(p.id);
+    // This profile's settings as this device last synced them; reinstalling
+    // addons can take a moment, so don't hold the app for it.
+    await Promise.race([restoreSettings(p.id).catch(() => {}), new Promise((r) => setTimeout(r, 1500))]);
     localStorage.setItem(LAST_PROFILE_KEY, p.id);
     setProfile(p);
     refreshLocalViews();
@@ -103,13 +105,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         list = cachedProfiles(u.id);
         if (!list.length) throw e;
       }
-      if (!list.length) {
-        const first = await backend.profiles.create({ name: defaultName(u.email), avatar: nextAvatar([]), position: 0 });
-        // Whatever was saved before signing up becomes this profile's.
-        await api.importLocalInto(first.id);
-        list = [first];
-      }
       setProfiles(u.id, list);
+      // New account: name the first profile and pick its icon.
+      if (!list.length) return setStatus("onboarding");
       if (list.length === 1) return enter(list[0]);
       // Coming back to the app with one remembered profile: still ask, like
       // every streaming app, unless this is a mid-session re-sign-in.
@@ -147,7 +145,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!backend) return;
     return backend.auth.onChange((u) => {
-      if (u || (statusRef.current !== "ready" && statusRef.current !== "profiles")) return;
+      if (u || !["ready", "profiles", "onboarding"].includes(statusRef.current)) return;
       sync.stop();
       setUser(null);
       setProfile(null);
@@ -164,6 +162,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const requireUser = () => {
       if (!user) throw new Error("Not signed in.");
       return user;
+    };
+    /** Drop this account's cached profile list and synced settings from the device. */
+    const forgetLocal = () => {
+      if (user) localStorage.removeItem(profilesKey(user.id));
+      profiles.forEach((p) => forgetSettings(p.id));
     };
 
     return {
@@ -216,6 +219,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setProfiles(u.id, [...profiles, created]);
         return created;
       },
+      async createFirstProfile(input) {
+        const u = requireUser();
+        const first = await need().profiles.create({ ...input, position: 0 });
+        // Whatever was saved before signing up becomes this profile's.
+        await api.importLocalInto(first.id);
+        setProfiles(u.id, [first]);
+        await enter(first);
+      },
       async updateProfile(id, patch) {
         const u = requireUser();
         const updated = await need().profiles.update(id, patch);
@@ -227,6 +238,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         if (profiles.length <= 1) throw new Error("An account needs at least one profile.");
         await need().profiles.remove(id);
         await api.forgetSpace(id);
+        forgetSettings(id);
         setProfiles(u.id, profiles.filter((p) => p.id !== id));
         if (profile?.id === id) setProfile(null);
       },
@@ -236,7 +248,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         await Promise.race([sync.flush(), new Promise((r) => setTimeout(r, 4000))]);
         sync.stop();
         await b.auth.signOut().catch(() => {});
-        if (user) localStorage.removeItem(profilesKey(user.id));
+        forgetLocal();
         await api.forgetSpace(null);
         await api.activateSpace(null);
         refreshLocalViews();
@@ -250,7 +262,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const b = need();
         sync.stop();
         await b.auth.deleteAccount();
-        if (user) localStorage.removeItem(profilesKey(user.id));
+        forgetLocal();
         await api.forgetSpace(null);
         await api.activateSpace(null);
         refreshLocalViews();

@@ -1,4 +1,5 @@
 mod commands;
+mod controllers;
 mod player;
 mod introdb;
 mod seekr;
@@ -7,8 +8,8 @@ mod sync;
 
 use std::sync::{Arc, Mutex, RwLock};
 
-use rustio_addon::AddonClient;
-use rustio_index::{IndexConfig, Indexer};
+use polar_addon::AddonClient;
+use polar_index::{IndexConfig, Indexer};
 use tauri::Manager;
 
 pub struct AppState {
@@ -37,12 +38,29 @@ pub fn index_config(settings: &store::Settings) -> IndexConfig {
     }
 }
 
+/// The app used to be called Rustio (identifier `app.rustio.desktop`); bring
+/// its data file over the first time Polar starts.
+fn migrate_legacy_store(dir: &std::path::Path, path: &std::path::Path) {
+    if path.exists() {
+        return;
+    }
+    let Some(old) = dir.parent().map(|p| p.join("app.rustio.desktop").join("rustio.json")) else {
+        return;
+    };
+    if old.exists() {
+        let _ = std::fs::create_dir_all(dir);
+        let _ = std::fs::copy(old, path);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let path = app.path().app_data_dir()?.join("rustio.json");
+            let dir = app.path().app_data_dir()?;
+            let path = dir.join("polar.json");
+            migrate_legacy_store(&dir, &path);
             let store = store::Store::load(path);
             let indexer = Indexer::new(index_config(&store.data.settings));
             app.manage(AppState {
@@ -53,6 +71,8 @@ pub fn run() {
                 mpv: player::Mpv::default(),
                 introdb: introdb::IntroDb::default(),
             });
+            app.manage(controllers::Controllers::default());
+            controllers::watch(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -75,9 +95,11 @@ pub fn run() {
             commands::progress_for,
             commands::progress_save,
             commands::continue_watching,
+            commands::watch_history,
             commands::settings_get,
             commands::settings_set,
             commands::open_external,
+            controllers::controllers_list,
             sync::space_activate,
             sync::space_import_local,
             sync::space_forget,
@@ -92,7 +114,7 @@ pub fn run() {
             player::mpv_snapshot,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building rustio")
+        .expect("error while building polar")
         .run(|app, event| {
             // Never leave an orphaned mpv behind.
             if let tauri::RunEvent::Exit = event {

@@ -1,5 +1,5 @@
 import { Select } from "@base-ui/react/select";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "./icons";
 
 interface Option<T extends string> {
   value: T;

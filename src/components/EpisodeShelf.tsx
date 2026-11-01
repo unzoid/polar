@@ -1,4 +1,4 @@
-import { Check, ListVideo, Play } from "lucide-react";
+import { Check, Play, Sources } from "./icons";
 import { useLayoutEffect, useRef, useState } from "react";
 import { formatDate, formatRemaining, isReleased } from "../lib/format";
 import { prefetchStreams } from "../lib/queries";
@@ -151,7 +151,7 @@ function EpisodeCard({
           aria-label={`Sources for episode ${v.episode}`}
           title="Choose source"
         >
-          <ListVideo size={17} />
+          <Sources size={17} />
         </button>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "./icons";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
@@ -13,7 +13,7 @@ export function Row({
 }: {
   title?: string;
   action?: ReactNode;
-  shape?: "poster" | "landscape" | "episode" | "top10";
+  shape?: "poster" | "landscape" | "episode";
   children: ReactNode;
 }) {
   const scroller = useRef<HTMLDivElement>(null);

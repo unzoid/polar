@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { NavBar } from "./components/NavBar";
+import { PlayerLayer, usePlayerLayer } from "./components/PlayerLayer";
 import { useSettings } from "./lib/queries";
 import { RouterProvider, useRouter, type Route } from "./lib/router";
 import { focusSearch } from "./lib/searchQuery";
@@ -9,10 +10,16 @@ import { Library } from "./screens/Library";
 import { Search } from "./screens/Search";
 import { Settings } from "./screens/Settings";
 import { Detail } from "./screens/Detail";
-import { PLAYER_EXIT_MS, Player } from "./screens/Player";
 import { AuthScreen } from "./screens/account/AuthScreen";
+import { OnboardingScreen } from "./screens/account/OnboardingScreen";
 import { ProfilesScreen } from "./screens/account/ProfilesScreen";
 import { useAccount } from "./lib/account/AccountProvider";
+import { TvApp } from "./tv/TvApp";
+import { ControllerToast } from "./tv/TvChrome";
+import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
+import { actionFor } from "./lib/keybinds";
+import { SettingsOverlay } from "./components/SettingsOverlay";
+import { isSettingsOpen } from "./lib/settingsOverlay";
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -41,6 +48,8 @@ export function App() {
       return <div className="account-shell" />;
     case "signed-out":
       return <AuthScreen />;
+    case "onboarding":
+      return <OnboardingScreen />;
     case "profiles":
       return <ProfilesScreen initial={profilesView} />;
     case "guest":
@@ -54,36 +63,46 @@ export function App() {
   }
 }
 
+/** The desktop app or, in TV mode, the 10-foot one — over the same navigation stack. */
 function MainApp() {
-  const { stack, current, back } = useRouter();
-  const playing = current.name === "player" ? current : null;
-  // The page under the player stays mounted so leaving playback is instant.
-  const pages = stack.filter((e) => e.route.name !== "player");
-  const topPage = pages[pages.length - 1];
+  const tv = useTvMode();
   const { data: settings } = useSettings();
-
-  // Keep the player drawn for its exit fade after its route is gone; the page
-  // beneath is already live, so leaving never waits on the animation.
-  const [shown, setShown] = useState(playing);
-  useEffect(() => {
-    if (playing) return setShown(playing);
-    const t = window.setTimeout(() => setShown(null), PLAYER_EXIT_MS);
-    return () => window.clearTimeout(t);
-  }, [playing]);
-  const player = playing ?? shown;
-  const leaving = !playing && !!player;
 
   // On the root element so portalled menus pick it up too.
   useEffect(() => {
     document.documentElement.dataset.font = settings?.uiFont ?? "inter";
   }, [settings?.uiFont]);
 
+  // Switching modes works from anywhere, the player included (Settings → Controls to rebind).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (playing) return; // the player owns the keyboard
+      if (e.defaultPrevented || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (actionFor(e, "app") !== "toggleTv") return;
+      e.preventDefault();
+      setTvMode(!isTvMode());
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return tv ? <TvApp /> : <DesktopApp />;
+}
+
+function DesktopApp() {
+  const { stack, current, back } = useRouter();
+  const { playing, player, leaving } = usePlayerLayer(current);
+  // The page under the player stays mounted so leaving playback is instant.
+  const pages = stack.filter((e) => e.route.name !== "player");
+  const topPage = pages[pages.length - 1];
+  const { data: settings } = useSettings();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (playing || isSettingsOpen()) return; // the player / settings overlay owns the keyboard
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
       if (e.key === "Escape" && !typing) back();
-      if ((e.key === "k" && (e.ctrlKey || e.metaKey)) || (e.key === "/" && !typing)) {
+      // Modified shortcuts (Ctrl+K) work while typing too; plain keys ("/") would just type.
+      if (actionFor(e, "app") === "search" && (!typing || e.ctrlKey || e.metaKey || e.altKey)) {
         e.preventDefault();
         focusSearch();
       }
@@ -112,22 +131,10 @@ function MainApp() {
             <Screen route={entry.route} />
           </section>
         ))}
+        <ControllerToast tv={false} />
       </main>
-      {player && (
-        // The layer fades in and out once per visit; the player inside it
-        // remounts per video *and* per source, so switching either starts clean
-        // without the page flashing through.
-        <div className="player-layer" data-leaving={leaving} inert={leaving}>
-          <Player
-            key={`${player.videoId}|${player.stream?.content_id ?? player.stream?.url ?? ""}`}
-            type={player.type}
-            metaId={player.metaId}
-            videoId={player.videoId}
-            stream={player.stream}
-            leaving={leaving}
-          />
-        </div>
-      )}
+      <PlayerLayer player={player} leaving={leaving} />
+      <SettingsOverlay />
     </div>
   );
 }

@@ -8,7 +8,7 @@
  *    generated.
  *  - All of it sits in cascade layers, which our own (unlayered) CSS always beats.
  *  - Catalyst's `dark:` styles follow the `dark` class on <html>, not the OS
- *    setting — Rustio is always dark.
+ *    setting — Polar is always dark.
  */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);

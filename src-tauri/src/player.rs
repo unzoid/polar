@@ -40,6 +40,7 @@ const OBSERVED: &[&str] = &[
     "eof-reached",
     "demuxer-cache-time",
     "track-list",
+    "chapter-list",
     "aid",
     "sid",
     "volume",
@@ -100,8 +101,8 @@ impl Mpv {
 
         let bin = mpv_binary().ok_or("mpv isn't installed")?;
         let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
-        let pipe = format!(r"\\.\pipe\rustio-mpv-{}", std::process::id());
-        let shots = std::env::temp_dir().join("rustio-mpv");
+        let pipe = format!(r"\\.\pipe\polar-mpv-{}", std::process::id());
+        let shots = std::env::temp_dir().join("polar-mpv");
         let _ = std::fs::create_dir_all(&shots);
 
         let mut cmd = Command::new(&bin);
@@ -284,7 +285,7 @@ pub async fn mpv_stop(state: State<'_, AppState>) -> Result<(), String> {
 /// window the page can't sample, so overlays blur this snapshot instead.
 #[tauri::command]
 pub async fn mpv_snapshot(state: State<'_, AppState>) -> Result<String, String> {
-    let path = std::env::temp_dir().join("rustio-mpv").join("frame.jpg");
+    let path = std::env::temp_dir().join("polar-mpv").join("frame.jpg");
     let path_str = path.to_string_lossy().to_string();
     state.mpv.request(json!(["screenshot-to-file", path_str, "video"])).await?;
     let bytes = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;

@@ -9,7 +9,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rustio_addon::MetaPreview;
+use polar_addon::MetaPreview;
 
 /// Days since the Unix epoch (UTC). The rotation seed.
 pub fn today() -> u64 {

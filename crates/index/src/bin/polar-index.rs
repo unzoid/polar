@@ -1,5 +1,5 @@
-//! Standalone addon server: `cargo run -p rustio-index --features server`
-//! then install `http://127.0.0.1:7000/manifest.json` in rustio or Stremio.
+//! Standalone addon server: `cargo run -p polar-index --features server`
+//! then install `http://127.0.0.1:7000/manifest.json` in polar or Stremio.
 //!
 //! Env: `PORT` (default 7000), `TMDB_API_KEY` (optional), `TMDB_LANGUAGE`.
 
@@ -10,7 +10,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use rustio_index::{IndexConfig, IndexError, Indexer, PAGE_SIZE};
+use polar_index::{IndexConfig, IndexError, Indexer, PAGE_SIZE};
 use serde_json::json;
 use tower_http::cors::CorsLayer;
 
@@ -24,7 +24,7 @@ async fn main() {
         tmdb_key: std::env::var("TMDB_API_KEY").ok(),
         language: std::env::var("TMDB_LANGUAGE").ok(),
     }));
-    tracing::info!(source = indexer.source(), "rustio-index starting");
+    tracing::info!(source = indexer.source(), "polar-index starting");
 
     let app = Router::new()
         .route("/manifest.json", get(|| async { Json(Indexer::manifest()) }))

@@ -61,7 +61,7 @@ impl Default for IntroDb {
             http: reqwest::Client::builder()
                 .connect_timeout(Duration::from_secs(5))
                 .timeout(Duration::from_secs(10))
-                .user_agent(concat!("rustio/", env!("CARGO_PKG_VERSION")))
+                .user_agent(concat!("polar/", env!("CARGO_PKG_VERSION")))
                 .build()
                 .expect("http client"),
             cache: Mutex::new(HashMap::new()),

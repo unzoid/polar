@@ -20,6 +20,9 @@ import "./styles/sheet.css";
 import "./styles/player.css";
 import "./styles/screens.css";
 import "./styles/account.css";
+import "./styles/settings-overlay.css";
+import "./styles/tv.css";
+import { installGamepad } from "./tv/gamepad";
 
 // Font rendering differs by OS; base.css tunes text weight for Windows.
 document.documentElement.dataset.os = navigator.userAgent.includes("Windows") ? "windows" : "other";
@@ -29,13 +32,14 @@ const root = createRoot(document.getElementById("root")!);
 if (!isTauri) {
   root.render(
     <div className="not-tauri">
-      <p className="t-title2">Rustio runs inside its desktop shell.</p>
+      <p className="t-title2">Polar runs inside its desktop shell.</p>
       <p className="muted t-body">
         Start it with <code>bun run app</code>.
       </p>
     </div>,
   );
 } else {
+  installGamepad();
   root.render(
     <StrictMode>
       {/* reducedMotion="user": springs become instant cross-fades when the OS asks for less motion. */}

@@ -13,13 +13,10 @@
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   overflow: hidden;
 }
-.avatar svg {
-  width: 82%;
-  height: 82%;
-}
-.avatar[data-art="character"] svg {
+.avatar img {
   width: 100%;
   height: 100%;
+  user-select: none;
 }
 
 /* --- Shell */
@@ -120,8 +117,16 @@
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
-  animation: auth-step-in var(--dur-reveal) var(--ease-reveal);
+  gap: 1rem;
+  animation: auth-form-in 280ms var(--ease-out);
+}
+/* Moving between steps: a short rise and fade, no blur, so the new step is
+   readable almost at once. */
+@keyframes auth-form-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 @keyframes auth-step-in {
   from {
@@ -151,14 +156,21 @@
   color: var(--accent);
 }
 
-/* Floating-label field */
+/* Field: label above, so it never crowds what's typed. */
 .auth-field {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.auth-field label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-2);
 }
 .auth-field input {
   width: 100%;
-  height: 3.5rem;
-  padding: 1.375rem 1rem 0.375rem;
+  height: 3.25rem;
+  padding: 0 1rem;
   border: 1px solid var(--hairline-strong);
   border-radius: var(--r-sm);
   background: rgb(255 255 255 / 0.05);
@@ -166,34 +178,36 @@
   font-size: 1rem;
   outline: none;
   user-select: text;
-  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+.auth-field input::placeholder {
+  color: var(--text-3);
+  opacity: 1;
 }
 .auth-field input:focus {
   border-color: var(--text);
   box-shadow: 0 0 0 1px var(--text);
-}
-.auth-field label {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  translate: 0 -50%;
-  color: var(--text-3);
-  font-size: 1rem;
-  pointer-events: none;
-  transform-origin: left center;
-  transition: translate var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out), color var(--dur-fast) ease;
-}
-.auth-field input:focus + label,
-.auth-field input:not(:placeholder-shown) + label {
-  translate: 0 -1.15rem;
-  scale: 0.75;
-  color: var(--text-2);
+  background: rgb(255 255 255 / 0.07);
 }
 .auth-code input {
-  font-size: 1.25rem;
+  height: 3.75rem;
+  text-align: center;
+  font-size: 1.5rem;
   font-weight: 600;
-  letter-spacing: 0.35em;
+  letter-spacing: 0.3em;
   font-variant-numeric: tabular-nums;
+}
+/* letter-spacing trails the last digit too; pad the left by the same amount so
+   typed digits sit centred. Padding (not text-indent) so the placeholder,
+   which renders in its own box, is never shifted. */
+.auth-code input:not(:placeholder-shown) {
+  padding-left: calc(1rem + 0.3em);
+}
+.auth-code input::placeholder {
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-indent: 0;
 }
 
 .auth-primary {
@@ -213,6 +227,49 @@
 }
 .auth-primary[aria-busy="true"] {
   opacity: 1;
+  cursor: progress;
+}
+
+/* Busy button label (components/BusyLabel.tsx): text and ring share one
+   cell and crossfade, so the button keeps its size. */
+.busy-label {
+  display: inline-grid;
+  place-items: center;
+}
+.busy-label > * {
+  grid-area: 1 / 1;
+  transition:
+    opacity 160ms ease,
+    scale 200ms var(--ease-out);
+}
+.busy-label .busy-ring {
+  opacity: 0;
+  scale: 0.6;
+}
+.busy-label[data-busy="true"] .busy-label-text {
+  opacity: 0;
+  scale: 0.96;
+}
+.busy-label[data-busy="true"] .busy-ring {
+  opacity: 1;
+  scale: 1;
+}
+.busy-ring {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.28);
+  border-top-color: currentColor;
+  animation: busy-spin 700ms linear infinite;
+}
+.busy-ring-solo {
+  border-width: 2.5px;
+  animation: busy-spin 700ms linear infinite, fade-in 200ms ease;
+}
+@keyframes busy-spin {
+  to {
+    rotate: 1turn;
+  }
 }
 @media (hover: hover) and (pointer: fine) {
   .auth-primary:not(:disabled):hover {
@@ -246,24 +303,6 @@
   align-self: center;
   margin-top: 0.75rem;
 }
-.auth-demo {
-  align-self: center;
-  margin-top: -0.25rem;
-  font-size: 0.875rem;
-  color: var(--text-3);
-}
-.account-demo-badge {
-  margin-left: auto;
-  padding: 0.25rem 0.625rem;
-  border-radius: var(--r-pill);
-  background: rgb(10 132 255 / 0.18);
-  color: #6db5ff;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-.account-demo-badge + .account-bar-link {
-  margin-left: 0;
-}
 .auth-fine {
   margin-top: 1.5rem;
   font-size: 0.8125rem;
@@ -286,9 +325,6 @@
   text-decoration-color: currentColor;
 }
 
-.spin {
-  animation: spin 0.9s linear infinite;
-}
 
 /* --- Who's watching? */
 .profiles,
@@ -331,9 +367,100 @@
   }
   .auth-form,
   .auth-title,
-  .icon-picker {
+  .icon-picker,
+  .onboard,
+  .onboard-group,
+  .onboard-preview {
     animation-name: fade-in;
   }
+}
+
+/* --- Onboarding: first profile */
+.onboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: min(100%, 520px);
+  align-self: start;
+  margin-top: clamp(0.5rem, 5vh, 4rem);
+  animation: auth-form-in 320ms var(--ease-out);
+}
+.onboard-head {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.onboard-intro .auth-sub {
+  margin: 0.375rem 0 0;
+}
+.onboard-preview {
+  flex: none;
+  width: 88px;
+  /* Swapping the icon pops it gently (keyed on the avatar). */
+  animation: onboard-pop 260ms var(--ease-out);
+}
+.onboard-preview .avatar {
+  width: 100%;
+  border-radius: var(--r-md);
+}
+@keyframes onboard-pop {
+  from {
+    scale: 0.92;
+    opacity: 0.6;
+  }
+}
+.onboard-icons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.onboard-group {
+  animation: auth-form-in 320ms var(--ease-out) backwards;
+  animation-delay: calc(80ms + var(--i, 0) * var(--stagger));
+}
+.onboard-group h2 {
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.onboard-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.onboard-choice {
+  position: relative;
+  border-radius: var(--r-sm);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) ease, opacity var(--dur-fast) ease;
+}
+.onboard-choice .avatar {
+  width: 100%;
+  border-radius: var(--r-sm);
+}
+.onboard-choice[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
+}
+.onboard-choice .icon-choice-check {
+  width: 20px;
+  height: 20px;
+  right: -4px;
+  bottom: -4px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .onboard-choice:hover {
+    transform: scale(1.06);
+  }
+}
+.onboard-choice:active {
+  transform: scale(0.96);
+}
+.onboard-choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.onboard .auth-primary {
+  margin-top: 0.5rem;
 }
 /* Hover and keyboard focus both lift the tile onto a soft dark card. */
 .profile-tile {
@@ -696,6 +823,14 @@
   font-size: 0.75rem;
   color: var(--text-3);
 }
+/* Keep the email private on screen shares; reveal on hover. */
+.profile-menu-email {
+  filter: blur(3px);
+  transition: filter var(--dur-fast) ease;
+}
+.profile-menu-head:hover .profile-menu-email {
+  filter: none;
+}
 .profile-menu-item {
   display: flex;
   align-items: center;
@@ -716,20 +851,13 @@
   width: 26px;
   border-radius: 5px;
 }
-.profile-menu-item svg.lucide {
+.profile-menu-item svg[data-slot="icon"] {
   width: 18px;
+  height: 18px;
   margin-inline: 4px;
 }
 .profile-menu-sep {
   height: 1px;
   margin: 0.375rem 0.25rem;
   background: var(--hairline);
-}
-.profile-menu-sync {
-  padding: 0.25rem 0.625rem 0.375rem;
-  font-size: 0.75rem;
-  color: var(--text-3);
-}
-.profile-menu-sync[data-state="error"] {
-  color: var(--danger);
 }

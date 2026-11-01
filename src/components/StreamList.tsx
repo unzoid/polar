@@ -1,4 +1,4 @@
-import { AlertCircle, Zap } from "lucide-react";
+import { AlertCircle, Instant } from "./icons";
 import { useRouter } from "../lib/router";
 import { useStreams } from "../lib/queries";
 import type { ContentType, RankedStream } from "../lib/types";
@@ -103,7 +103,7 @@ function StreamRow({
         <span className="stream-badges">
           {s.quality.cached && (
             <span className="badge badge-good">
-              <Zap size={11} fill="currentColor" /> Instant
+              <Instant size={11} fill="currentColor" /> Instant
             </span>
           )}
           {s.quality.lowQualitySource && <span className="badge badge-bad">CAM</span>}

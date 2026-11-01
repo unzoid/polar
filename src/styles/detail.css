@@ -55,16 +55,71 @@
     linear-gradient(to right, rgb(10 10 10 / 0.8) 0%, rgb(10 10 10 / 0.4) 36%, transparent 62%);
 }
 
+/* --- Fold: the seasons sit just under the bottom edge. A progressive blur
+       (four overlapping bands, 1 → 20px, each masked so the steps blend),
+       a light tint, and film grain to dither the banding. Fading is applied to
+       each layer, not the container: an opacity on the parent would make it a
+       backdrop root and the layers would stop seeing the page behind them. */
+.detail-fold {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 10rem;
+  pointer-events: none;
+  z-index: 2;
+}
+.detail-fold > i {
+  position: absolute;
+  inset: 0;
+  animation: detail-recede linear both;
+  animation-timeline: --detail;
+  animation-range: 0 22vh;
+}
+.detail-fold > i[data-l="1"] {
+  backdrop-filter: blur(1px);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 40%, transparent 60%);
+}
+.detail-fold > i[data-l="2"] {
+  backdrop-filter: blur(3px);
+  mask-image: linear-gradient(to bottom, transparent 20%, #000 40%, #000 60%, transparent 80%);
+}
+.detail-fold > i[data-l="3"] {
+  backdrop-filter: blur(8px);
+  mask-image: linear-gradient(to bottom, transparent 40%, #000 60%, #000 80%, transparent 100%);
+}
+.detail-fold > i[data-l="4"] {
+  backdrop-filter: blur(20px);
+  mask-image: linear-gradient(to bottom, transparent 60%, #000 85%);
+}
+.detail-fold > i[data-l="tint"] {
+  background: linear-gradient(to bottom, transparent 0%, rgb(10 10 10 / 0.35) 55%, rgb(10 10 10 / 0.6) 100%);
+}
+.detail-fold > i[data-l="grain"] {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: overlay;
+  opacity: 0.18;
+  mask-image: linear-gradient(to bottom, transparent 20%, #000 100%);
+}
+.detail-fold > i[data-l="grain"] {
+  animation-name: detail-recede-grain;
+}
+@keyframes detail-recede-grain {
+  to {
+    opacity: 0;
+  }
+}
+
 /* --- Hero: bottom-left title block, bottom-right credits. Tall enough that
        the season tabs peek in below the fold, inviting the scroll. */
 .detail-hero {
   position: relative;
-  min-height: calc(100vh - 7.5rem);
+  min-height: calc(100vh + 1rem);
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 2rem;
-  padding: calc(var(--nav-h) + 4rem) var(--gutter) 2.5rem var(--content-start);
+  /* Bottom padding lifts the title block clear of the fold; the seasons below
+     keep their position because min-height is unchanged. */
+  padding: calc(var(--nav-h) + 4rem) var(--gutter) 11rem var(--content-start);
 }
 .detail-hero-main,
 .detail-credits {
@@ -82,7 +137,7 @@
   width: min(540px, 52vw);
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  gap: 1rem;
 }
 /* One entrance when the page opens: three groups, 40ms apart. */
 .detail-hero-main > * {
@@ -114,7 +169,7 @@
   max-height: 168px;
   object-fit: contain;
   object-position: left bottom;
-  margin-bottom: 0.625rem;
+  margin-bottom: 0.75rem;
   filter: drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
 }
 .detail-title {
@@ -253,6 +308,13 @@
 .segmented[data-variant="large"] .segmented-item[aria-selected="false"] {
   color: rgb(245 245 247 / 0.55);
 }
+/* Roomier tabs, and air between them and the episode row. */
+.segmented[data-variant="large"] .segmented-item {
+  padding: 0 1.5rem;
+}
+.seasons-picker {
+  padding-bottom: 1.25rem;
+}
 
 /* --- Episode lockup */
 .episode-card {
@@ -296,8 +358,8 @@
 .episode-card-text {
   display: flex;
   flex-direction: column;
-  gap: 0.1875rem;
-  padding: 0.25rem 2px 0;
+  gap: 0.375rem;
+  padding: 0.75rem 2px 0;
   min-width: 0;
 }
 .episode-kicker {
@@ -430,61 +492,80 @@
 .about h2 {
   margin: 0 0 1rem;
 }
+/* No boxes: the same open layout as the episode list, sections divided by
+   hairlines — the description on the left, the facts beside it, cast below. */
 .about-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 1.75rem 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
 }
-.about-card,
-.about-info,
-.about-cast {
-  padding: 1.25rem 1.375rem;
-  border-radius: var(--r-lg);
-  background: var(--glass);
-  backdrop-filter: var(--blur-control);
-  box-shadow: 0 0 0 1px var(--glass-edge), var(--glass-highlight);
+.about-description {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--text-2);
 }
-.about-card p {
-  margin: 0.5rem 0 0;
+.about-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-3);
 }
 .about-info {
   margin: 0;
+  align-self: start;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.875rem 1.25rem;
+  gap: 1.25rem 2rem;
 }
 .about-info dd {
-  margin: 0.125rem 0 0;
+  margin: 0.25rem 0 0;
+  font-weight: 500;
+}
+/* Nothing to say about it: the facts take the full width. */
+.about-grid > .about-info:first-child {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, max-content));
+  gap: 1.25rem 4rem;
 }
 .about-cast {
   grid-column: 1 / -1;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
 }
 .cast-list {
   list-style: none;
-  margin: 0.875rem 0 0;
+  margin: 1rem 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 1rem 2rem;
 }
 .cast-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  height: 40px;
-  padding: 0 0.875rem 0 0.3125rem;
-  border-radius: var(--r-pill);
-  background: rgb(255 255 255 / 0.07);
+  gap: 0.75rem;
+  font-weight: 500;
 }
 .cast-avatar {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.14);
-  font-size: 0.6875rem;
-  font-weight: 700;
+  background: rgb(255 255 255 / 0.1);
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+@media (max-width: 900px) {
+  .about-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

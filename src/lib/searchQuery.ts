@@ -24,5 +24,5 @@ export function useSearchText() {
 }
 
 /** Asks the navbar to open and focus its search field (Ctrl K, "/"). */
-export const FOCUS_SEARCH_EVENT = "rustio:focus-search";
+export const FOCUS_SEARCH_EVENT = "polar:focus-search";
 export const focusSearch = () => window.dispatchEvent(new Event(FOCUS_SEARCH_EVENT));

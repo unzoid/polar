@@ -1,0 +1,264 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Desktop } from "../components/icons";
+import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/queries";
+import {
+  GENRES,
+  progressFraction,
+  progressItem,
+  shelfKey,
+  todaysShelves,
+  trendingPicks,
+  useLibraryRecommendations,
+  useSeeds,
+  useShownAbove,
+  useTrending,
+  type Shape,
+  type Shelf,
+} from "../lib/shelves";
+import type { ContentType, MetaPreview } from "../lib/types";
+import { useBack, usePageActive } from "./shell";
+import { focusWhenReady } from "./spatial";
+import { usePlaylistItem } from "../components/Playlists";
+import { usePlaylists, type PlaylistItem } from "../lib/playlists";
+import { TvBrowse, TvCard, TvContinueRail, TvItemsRail, TvRail, TvShelfRail, type RailRow } from "./TvRails";
+import { setTvMode } from "./tvMode";
+import { TvKeyboard } from "./TvKeyboard";
+
+const NO_TITLES: MetaPreview[] = [];
+
+/** Home: what you're watching, what's trending, then the day's shelves. */
+export function TvHome() {
+  const seeds = useSeeds();
+  const shelves = useMemo(() => todaysShelves(seeds), [seeds]);
+  const trending = useTrending();
+  const picks = useMemo(
+    () => (trending.series && trending.movies ? trendingPicks(trending.series, trending.movies, [], 20) : undefined),
+    [trending.series, trending.movies],
+  );
+  const shownAbove = useShownAbove(shelves, picks ?? NO_TITLES);
+  const { data: watching } = useContinueWatching();
+  const watched = useMemo(() => new Set((watching ?? []).map((p) => p.metaId)), [watching]);
+
+  const rows: RailRow[] = [
+    { key: "continue", render: () => <TvContinueRail /> },
+    { key: "trending", render: () => <TvItemsRail title="Trending Now" items={picks} shape="poster" /> },
+    ...shelves.map((shelf, i) => ({
+      key: shelfKey(shelf).join("/"),
+      render: (near: boolean) => (
+        <TvShelfRail
+          shelf={shelf}
+          enabled={near}
+          // Recommendations also skip what you're already watching.
+          exclude={shelf.kind === "because" ? new Set([...shownAbove[i], ...watched]) : shownAbove[i]}
+        />
+      ),
+    })),
+  ];
+  return <TvBrowse rows={rows} />;
+}
+
+const CATALOGS = [
+  { id: "trending", title: "Trending" },
+  { id: "popular", title: "Popular" },
+  { id: "new", title: "New" },
+  { id: "top_rated", title: "Top Rated" },
+  { id: "gems", title: "Hidden Gems" },
+  { id: "classics", title: "Classics" },
+];
+
+/** Series or Movies: every catalog, then every genre, as rails. */
+export function TvDiscover({ type }: { type: ContentType }) {
+  const shelves = useMemo<Shelf[]>(() => {
+    const noun = type === "movie" ? "Movies" : "Series";
+    const shapeAt = (i: number): Shape => (i % 3 === 0 ? "landscape" : "poster");
+    const catalogs = CATALOGS.map((c, i): Shelf => ({ kind: "catalog", type, id: c.id, title: `${c.title} ${noun}`, shape: shapeAt(i) }));
+    const genres = GENRES.filter((g) => g.type === type).map(
+      (g, i): Shelf => ({ kind: "catalog", type, id: "popular", genre: g.genre, title: g.title, shape: shapeAt(i + 1) }),
+    );
+    return [...catalogs, ...genres];
+  }, [type]);
+  const shownAbove = useShownAbove(shelves, NO_TITLES);
+  const rows: RailRow[] = shelves.map((shelf, i) => ({
+    key: shelfKey(shelf).join("/"),
+    render: (near) => <TvShelfRail shelf={shelf} enabled={near} exclude={shownAbove[i]} />,
+  }));
+  return <TvBrowse rows={rows} />;
+}
+
+/** Library: what you've saved, what you've watched, then titles like them — as rails under the stage. */
+export function TvLibrary() {
+  const { data: saved } = useLibrary();
+  const { data: history } = useWatchHistory();
+  const playlists = usePlaylists();
+  const { forYou } = useLibraryRecommendations();
+
+  if (saved?.length === 0 && history?.length === 0 && playlists.length === 0) {
+    return (
+      <div className="tv-note">
+        <h1 className="tv-heading">Library</h1>
+        <p className="tv-empty">Titles you save, watch or put in a playlist appear here.</p>
+      </div>
+    );
+  }
+
+  const rows: RailRow[] = [
+    { key: "saved", render: () => <TvItemsRail title="Saved" items={saved} shape="poster" /> },
+    {
+      key: "watched",
+      render: () =>
+        history?.length ? (
+          <TvRail title="Watched">
+            {history.map((p) => (
+              <TvCard key={p.metaId} item={progressItem(p)} shape="landscape" progress={progressFraction(p)} />
+            ))}
+          </TvRail>
+        ) : null,
+    },
+    ...playlists
+      .filter((p) => p.items.length)
+      .map((p) => ({
+        key: `playlist/${p.id}`,
+        render: () => (
+          <TvRail title={p.name}>
+            {p.items.map((i) => (
+              <TvPlaylistCard key={i.id} item={i} />
+            ))}
+          </TvRail>
+        ),
+      })),
+    // One row of suggestions, last: the library stays about your titles.
+    { key: "for-you", render: () => <TvItemsRail title="More Like Your Library" items={forYou} shape="poster" /> },
+  ];
+  return <TvBrowse rows={rows} />;
+}
+
+function TvPlaylistCard({ item }: { item: PlaylistItem }) {
+  const shown = usePlaylistItem(item);
+  return <TvCard item={shown ?? { id: item.id, type: item.type, name: "" }} shape="poster" />;
+}
+
+const MAX_QUERY = 60;
+
+/**
+ * Search, controller-first: an on-screen keyboard on the left, results on
+ * the right as you type. A real keyboard types straight in, too.
+ */
+export function TvSearch() {
+  const active = usePageActive();
+  const [text, setText] = useState("");
+  const [query, setQuery] = useState("");
+  const { data } = useSearch(query);
+  const trending = useTrending();
+  const suggestions = useMemo(
+    () => (trending.series && trending.movies ? trendingPicks(trending.series, trending.movies, [], 18) : undefined),
+    [trending.series, trending.movies],
+  );
+
+  // The network waits for a pause in typing.
+  useEffect(() => {
+    const t = window.setTimeout(() => setQuery(text.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [text]);
+
+  // A genre picked from "Browse by Genre" fills the results; Back (or typing) returns to the list.
+  const [genre, setGenre] = useState<string | null>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const openGenre = (g: string) => {
+    setGenre(g);
+    // The tile you pressed is gone: land on the genre's first title once it's in.
+    requestAnimationFrame(() => focusWhenReady(resultsRef.current));
+  };
+  useBack(active && !!genre, () => {
+    setGenre(null);
+    requestAnimationFrame(() => focusWhenReady(resultsRef.current));
+  });
+  useEffect(() => {
+    if (text) setGenre(null);
+  }, [text]);
+
+  const searching = query.length > 1;
+  const empty = searching && data && !data.movies.length && !data.series.length;
+
+  return (
+    <div className="tv-search">
+      <aside className="tv-osk">
+        <TvKeyboard text={text} onChange={setText} placeholder="Search titles" active={active} max={MAX_QUERY} />
+      </aside>
+      <div className="tv-scroll tv-search-results" data-nav-scroll="start" ref={resultsRef}>
+        {!searching && genre && <TvGenreResults genre={genre} />}
+        {!searching && !genre && (
+          <>
+            <TvRail title="Browse by Genre">
+              {SEARCH_GENRES.map((g) => (
+                <button key={g} className="tv-card tv-genre" data-shape="genre" onClick={() => openGenre(g)}>
+                  <span className="tv-card-frame">
+                    <span className="tv-genre-name">{g}</span>
+                  </span>
+                </button>
+              ))}
+            </TvRail>
+            <TvItemsRail title="Popular Searches" items={suggestions} shape="poster" />
+          </>
+        )}
+        {searching && !data && <TvItemsRail title="Results" items={undefined} shape="poster" />}
+        {searching && data && (
+          <>
+            <TvItemsRail title="Movies" items={data.movies} shape="poster" />
+            <TvItemsRail title="Series" items={data.series} shape="poster" />
+          </>
+        )}
+        {empty && <p className="tv-empty">Nothing found for “{query}”.</p>}
+      </div>
+    </div>
+  );
+}
+
+/** Genres to browse from Search. */
+const SEARCH_GENRES = [
+  "Action",
+  "Comedy",
+  "Drama",
+  "Sci-Fi",
+  "Thriller",
+  "Horror",
+  "Crime",
+  "Animation",
+  "Romance",
+  "Fantasy",
+  "Mystery",
+  "Adventure",
+  "Family",
+  "Documentary",
+];
+
+/** One genre's popular and top-rated titles, movies and series. */
+function TvGenreResults({ genre }: { genre: string }) {
+  const shelves: Shelf[] = [
+    { kind: "catalog", type: "movie", id: "popular", genre, title: `Popular ${genre} Movies`, shape: "poster" },
+    { kind: "catalog", type: "series", id: "popular", genre, title: `Popular ${genre} Series`, shape: "poster" },
+    { kind: "catalog", type: "movie", id: "top_rated", genre, title: `Top Rated ${genre} Movies`, shape: "poster" },
+    { kind: "catalog", type: "series", id: "top_rated", genre, title: `Top Rated ${genre} Series`, shape: "poster" },
+  ];
+  return (
+    <>
+      <h1 className="tv-heading tv-genre-heading">{genre}</h1>
+      {shelves.map((s) => (
+        <TvShelfRail key={shelfKey(s).join("/")} shelf={s} enabled exclude={NO_IDS} />
+      ))}
+    </>
+  );
+}
+const NO_IDS = new Set<string>();
+
+/** Settings are a desk job: they stay in desktop mode. */
+export function TvSettingsNote() {
+  return (
+    <div className="tv-note">
+      <h1 className="tv-heading">Settings</h1>
+      <p className="tv-empty">Settings are available in desktop mode.</p>
+      <button className="tv-pill" data-nav-default onClick={() => setTvMode(false)}>
+        <Desktop size={26} /> Switch to Desktop Mode
+      </button>
+    </div>
+  );
+}

@@ -1,4 +1,4 @@
--- Accounts, profiles and library/progress sync for Rustio.
+-- Accounts, profiles and library/progress sync for Polar.
 -- Apply with the Supabase MCP (apply_migration), `supabase db push`, or paste
 -- into the dashboard's SQL editor.
 

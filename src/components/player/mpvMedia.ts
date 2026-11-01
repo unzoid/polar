@@ -16,6 +16,12 @@ export interface MediaLike extends EventTarget {
   pause(): void;
 }
 
+export interface MpvChapter {
+  title?: string;
+  /** Start, in seconds. */
+  time: number;
+}
+
 export interface MpvTrack {
   id: number;
   type: "video" | "audio" | "sub";
@@ -53,6 +59,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
   private loaded = false;
 
   tracks: MpvTrack[] = [];
+  /** Container chapters, when the file has any. */
+  chapters: MpvChapter[] = [];
   aid: number | "no" | null = null;
   sid: number | "no" | null = null;
   error: { code: number; message: string } | null = null;
@@ -96,6 +104,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
     this.stamp = performance.now();
     this.dur = NaN;
     this.tracks = [];
+    this.chapters = [];
+    this.emit("chapters");
     this.enqueue(async () => {
       await this.listening; // never load before we can hear mpv's answers
       await invoke("mpv_load", { url, start });
@@ -231,6 +241,10 @@ export class MpvMedia extends EventTarget implements MediaLike {
       case "track-list":
         this.tracks = Array.isArray(data) ? (data as MpvTrack[]) : [];
         this.emit("tracks");
+        break;
+      case "chapter-list":
+        this.chapters = Array.isArray(data) ? (data as MpvChapter[]) : [];
+        this.emit("chapters");
         break;
       case "aid":
       case "sid":

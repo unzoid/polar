@@ -1,6 +1,7 @@
-import { ArrowLeft, LoaderCircle } from "lucide-react";
+import { ArrowLeft } from "../../components/icons";
 import { useEffect, useId, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
-import { AccountError, setDemo } from "../../lib/account";
+import { BusyLabel } from "../../components/BusyLabel";
+import { AccountError } from "../../lib/account";
 import { useAccount } from "../../lib/account/AccountProvider";
 import { AccountShell } from "./AccountShell";
 
@@ -85,18 +86,23 @@ export function AuthScreen() {
           <form className="auth-form" onSubmit={submitEmail} noValidate key="email">
             <h1 className="auth-title">Sign in or create an account</h1>
             <p className="auth-sub">We'll email you a code. No password needed.</p>
-            <Field label="Email address" type="email" autoComplete="email" value={email} onValue={setEmail} autoFocus />
+            <Field
+              label="Email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onValue={setEmail}
+              autoFocus
+            />
             <ErrorLine error={error} />
             <SubmitButton busy={busy}>Continue</SubmitButton>
             <button type="button" className="auth-link auth-guest" onClick={account.continueAsGuest}>
               Continue without an account
             </button>
-            {import.meta.env.DEV && (
-              <button type="button" className="auth-link auth-demo" onClick={() => setDemo(true)}>
-                Try a demo account
-              </button>
-            )}
-            <p className="auth-fine">An account syncs your profiles, My List and watch history across devices.</p>
+            <p className="auth-fine">
+              An account keeps your profiles, library, watch history and settings in sync across devices.
+            </p>
           </form>
         ) : (
           <form
@@ -115,6 +121,7 @@ export function AuthScreen() {
             <Field
               label="Code"
               className="auth-code"
+              placeholder="Enter the code"
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={10}
@@ -189,17 +196,16 @@ function Field({
   const id = useId();
   return (
     <div className={className ? `auth-field ${className}` : "auth-field"}>
+      <label htmlFor={id}>{label}</label>
       <input
         id={id}
         type={type}
         value={value}
         onChange={(e) => onValue(e.target.value)}
-        placeholder=" "
         spellCheck={false}
         autoCapitalize="off"
         {...rest}
       />
-      <label htmlFor={id}>{label}</label>
     </div>
   );
 }
@@ -217,7 +223,7 @@ function ErrorLine({ error, action }: { error: Failure | null; action?: ReactNod
 function SubmitButton({ busy, disabled, children }: { busy: boolean; disabled?: boolean; children: ReactNode }) {
   return (
     <button className="auth-primary pressable" type="submit" disabled={busy || disabled} aria-busy={busy}>
-      {busy ? <LoaderCircle className="spin" size={20} /> : children}
+      <BusyLabel busy={busy}>{children}</BusyLabel>
     </button>
   );
 }
