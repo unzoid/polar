@@ -1,4 +1,4 @@
-﻿# Rustio
+﻿# Polar
 
 A desktop app for browsing shows and movies and playing streams from Stremio addons.
 
