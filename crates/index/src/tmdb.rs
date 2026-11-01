@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::cache::TtlCache;
-use crate::{IndexError, Result};
+use crate::{IndexError, Result, curate};
 
 const API: &str = "https://api.themoviedb.org/3";
 const IMG: &str = "https://image.tmdb.org/t/p";
@@ -57,8 +57,23 @@ impl Tmdb {
         Ok(res.error_for_status()?.json().await?)
     }
 
-    pub async fn catalog(&self, ty: &str, id: &str, page: u32) -> Result<Vec<MetaPreview>> {
+    pub async fn catalog(&self, ty: &str, id: &str, page: u32, genre: Option<&str>) -> Result<Vec<MetaPreview>> {
         let kind = tmdb_kind(ty);
+        if matches!(id, "new" | "gems" | "classics") {
+            return self.discover(ty, id, page, genre).await;
+        }
+        if let Some(name) = genre {
+            let genre_id = genre_id(ty, name).ok_or(IndexError::NotFound)?.to_string();
+            let page = page.to_string();
+            let (sort, min_votes) = if id == "top_rated" { ("vote_average.desc", "300") } else { ("popularity.desc", "0") };
+            let list: Paged = self
+                .get(
+                    &format!("/discover/{kind}"),
+                    &[("with_genres", &genre_id), ("sort_by", sort), ("vote_count.gte", min_votes), ("page", &page)],
+                )
+                .await?;
+            return self.previews(ty, list.results).await;
+        }
         let path = match id {
             "trending" => format!("/trending/{kind}/week"),
             "top_rated" => format!("/{kind}/top_rated"),
@@ -68,6 +83,64 @@ impl Tmdb {
         let page = page.to_string();
         let list: Paged = self.get(&path, &[("page", &page)]).await?;
         self.previews(ty, list.results).await
+    }
+
+    /// The curated shelves, as `/discover` queries. Gems and classics start on
+    /// a page that rotates daily, so they don't open on the same titles.
+    async fn discover(&self, ty: &str, id: &str, page: u32, genre: Option<&str>) -> Result<Vec<MetaPreview>> {
+        let day = curate::today();
+        let date_field = if ty == "series" { "first_air_date" } else { "primary_release_date" };
+        let mut query: Vec<(String, String)> = match id {
+            "new" => vec![
+                (format!("{date_field}.gte"), curate::date(day.saturating_sub(240))),
+                (format!("{date_field}.lte"), curate::date(day)),
+                ("sort_by".into(), "popularity.desc".into()),
+                ("vote_count.gte".into(), "25".into()),
+            ],
+            "gems" => vec![
+                ("sort_by".into(), "vote_average.desc".into()),
+                ("vote_average.gte".into(), "7.3".into()),
+                ("vote_count.gte".into(), "150".into()),
+                ("vote_count.lte".into(), "2500".into()),
+            ],
+            _ => vec![
+                (format!("{date_field}.lte"), "2009-12-31".into()),
+                ("sort_by".into(), "vote_average.desc".into()),
+                ("vote_count.gte".into(), if ty == "series" { "400" } else { "1500" }.into()),
+            ],
+        };
+        let offset = match id {
+            "gems" => day % 4,
+            "classics" => day % 6,
+            _ => 0,
+        } as u32;
+        query.push(("page".into(), (page + offset).to_string()));
+        if let Some(name) = genre {
+            query.push(("with_genres".into(), genre_id(ty, name).ok_or(IndexError::NotFound)?.to_string()));
+        }
+        let query: Vec<(&str, &str)> = query.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let list: Paged = self.get(&format!("/discover/{}", tmdb_kind(ty)), &query).await?;
+        self.previews(ty, list.results).await
+    }
+
+    /// TMDB's own "if you liked this" list, falling back to plain similarity.
+    pub async fn recommendations(&self, ty: &str, imdb_id: &str) -> Result<Vec<MetaPreview>> {
+        let tmdb_id = self.find(ty, imdb_id).await?;
+        let kind = tmdb_kind(ty);
+        let mut list: Paged = self.get(&format!("/{kind}/{tmdb_id}/recommendations"), &[]).await?;
+        if list.results.len() < 6 {
+            let similar: Paged = self.get(&format!("/{kind}/{tmdb_id}/similar"), &[]).await?;
+            list.results.extend(similar.results);
+        }
+        Ok(curate::dedupe(self.previews(ty, list.results).await?))
+    }
+
+    async fn find(&self, ty: &str, imdb_id: &str) -> Result<u64> {
+        let found: Value = self
+            .get(&format!("/find/{imdb_id}"), &[("external_source", "imdb_id")])
+            .await?;
+        let bucket = if ty == "series" { "tv_results" } else { "movie_results" };
+        found[bucket][0]["id"].as_u64().ok_or(IndexError::NotFound)
     }
 
     pub async fn search(&self, ty: &str, query: &str) -> Result<Vec<MetaPreview>> {
@@ -99,11 +172,7 @@ impl Tmdb {
     }
 
     pub async fn meta(&self, ty: &str, imdb_id: &str) -> Result<Meta> {
-        let found: Value = self
-            .get(&format!("/find/{imdb_id}"), &[("external_source", "imdb_id")])
-            .await?;
-        let bucket = if ty == "series" { "tv_results" } else { "movie_results" };
-        let tmdb_id = found[bucket][0]["id"].as_u64().ok_or(IndexError::NotFound)?;
+        let tmdb_id = self.find(ty, imdb_id).await?;
         let kind = tmdb_kind(ty);
 
         let d: Value = self
@@ -161,6 +230,35 @@ impl Tmdb {
         videos.sort_by_key(|v| (v.season, v.episode));
         Ok(videos)
     }
+}
+
+/// Cinemeta-style genre names → TMDB genre ids (movie and TV lists differ).
+fn genre_id(ty: &str, name: &str) -> Option<u32> {
+    let movie = ty != "series";
+    Some(match (name.to_ascii_lowercase().as_str(), movie) {
+        ("action", true) => 28,
+        ("action", false) | ("adventure", false) => 10759,
+        ("adventure", true) => 12,
+        ("animation", _) => 16,
+        ("comedy", _) => 35,
+        ("crime", _) => 80,
+        ("documentary", _) => 99,
+        ("drama", _) => 18,
+        ("family", _) => 10751,
+        ("fantasy", true) => 14,
+        ("fantasy", false) | ("sci-fi", false) => 10765,
+        ("history", true) => 36,
+        ("horror", true) => 27,
+        ("music", true) => 10402,
+        ("mystery", _) => 9648,
+        ("romance", true) => 10749,
+        ("sci-fi", true) => 878,
+        ("thriller", true) => 53,
+        ("war", true) => 10752,
+        ("war", false) => 10768,
+        ("western", _) => 37,
+        _ => return None,
+    })
 }
 
 fn tmdb_kind(ty: &str) -> &'static str {

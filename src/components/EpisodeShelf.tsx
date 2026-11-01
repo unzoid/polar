@@ -1,9 +1,10 @@
 import { Check, ListVideo, Play } from "lucide-react";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { formatDate, formatRemaining, isReleased } from "../lib/format";
 import { prefetchStreams } from "../lib/queries";
-import type { Progress, Video } from "../lib/types";
+import type { EpisodeLayout, Progress, Video } from "../lib/types";
 import { Img } from "./Img";
+import { StillPlaceholder } from "./StillPlaceholder";
 import { ProgressBar } from "./PosterCard";
 import { Row } from "./Row";
 
@@ -11,8 +12,12 @@ import { Row } from "./Row";
  * A season as a horizontal shelf of episode lockups (tvOS): still with a
  * "▶ 42m" label, then EPISODE N, title, a three-line synopsis and the airdate.
  * Opens scrolled to the episode you're up to.
+ *
+ * As a "list", the same episodes stack vertically: number, still, then the
+ * title, runtime and synopsis beside it.
  */
 export function EpisodeShelf({
+  layout = "row",
   episodes,
   progress,
   runtime,
@@ -20,6 +25,7 @@ export function EpisodeShelf({
   onPlay,
   onSources,
 }: {
+  layout?: EpisodeLayout;
   episodes: Video[];
   progress: Map<string, Progress>;
   runtime?: string;
@@ -36,31 +42,41 @@ export function EpisodeShelf({
     const el = upNextId ? scroller.querySelector<HTMLElement>(`[data-video="${CSS.escape(upNextId)}"]`) : null;
     const pad = parseFloat(getComputedStyle(scroller).paddingLeft);
     scroller.scrollLeft = el ? el.offsetLeft - pad : 0;
-  }, [episodes, upNextId]);
+  }, [episodes, upNextId, layout]);
 
+  const cards = episodes.map((v) => (
+    <EpisodeCard
+      key={v.id}
+      layout={layout}
+      video={v}
+      progress={progress.get(v.id)}
+      runtime={runtime}
+      upNext={v.id === upNextId}
+      onPlay={onPlay}
+      onSources={onSources}
+    />
+  ));
+
+  if (layout === "list") return <div className="episode-list">{cards}</div>;
   return (
     <div ref={shelf}>
-      <Row shape="episode">
-        {episodes.map((v) => (
-          <EpisodeCard
-            key={v.id}
-            video={v}
-            progress={progress.get(v.id)}
-            runtime={runtime}
-            upNext={v.id === upNextId}
-            onPlay={onPlay}
-            onSources={onSources}
-          />
-        ))}
-      </Row>
+      <Row shape="episode">{cards}</Row>
     </div>
   );
+}
+
+/** A card still that falls back to the placeholder when missing or broken. */
+function ShelfStill({ src }: { src?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <StillPlaceholder />;
+  return <Img src={src} alt="" className="card-img" onError={() => setFailed(true)} />;
 }
 
 /** "49 min" → "49m" */
 const shortRuntime = (r?: string) => r?.replace(/\s*min$/, "m");
 
 function EpisodeCard({
+  layout,
   video: v,
   progress: p,
   runtime,
@@ -68,6 +84,7 @@ function EpisodeCard({
   onPlay,
   onSources,
 }: {
+  layout: EpisodeLayout;
   video: Video;
   progress?: Progress;
   runtime?: string;
@@ -92,10 +109,10 @@ function EpisodeCard({
   const label = inProgress && p ? formatRemaining(p.position, p.duration) : shortRuntime(runtime);
 
   return (
-    <div className="episode-card" data-video={v.id} data-up-next={upNext} data-unreleased={!released}>
+    <div className="episode-card" data-layout={layout} data-video={v.id} data-up-next={upNext} data-unreleased={!released}>
       <button className="card card-landscape episode-card-main" disabled={!released} onClick={() => onPlay(v)} {...intent}>
         <div className="card-frame">
-          {v.thumbnail ? <Img src={v.thumbnail} alt="" className="card-img" /> : null}
+          <ShelfStill src={v.thumbnail} />
           <div className="card-art-scrim" />
           {released && label && (
             <span className="episode-runtime t-callout">
@@ -109,15 +126,21 @@ function EpisodeCard({
           )}
           {inProgress && <ProgressBar fraction={fraction} />}
         </div>
+        {layout === "list" && <span className="episode-number tabular">{v.episode}</span>}
         <div className="episode-card-text">
-          <span className="t-micro episode-kicker">
-            {upNext && released ? `Up Next · Episode ${v.episode}` : `Episode ${v.episode}`}
-          </span>
+          {layout === "list" ? (
+            // The number column already says which episode it is.
+            upNext && released && <span className="t-micro episode-kicker">Up Next</span>
+          ) : (
+            <span className="t-micro episode-kicker">
+              {upNext && released ? `Up Next · Episode ${v.episode}` : `Episode ${v.episode}`}
+            </span>
+          )}
           <span className="t-headline episode-card-title">{v.title}</span>
           {v.overview && <p className="t-callout episode-card-overview">{v.overview}</p>}
           <span className="t-caption faint tabular">
             {released ? formatDate(v.released) : `Coming ${formatDate(v.released)}`}
-            {v.rating && <span className="episode-rating">★ {v.rating}</span>}
+            {Number(v.rating) > 0 && <span className="episode-rating">★ {v.rating}</span>}
           </span>
         </div>
       </button>

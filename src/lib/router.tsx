@@ -6,7 +6,7 @@ export type TabRoute =
   | { name: "discover"; type: ContentType }
   | { name: "library" }
   | { name: "search" }
-  | { name: "settings" };
+  | { name: "settings"; page?: string };
 
 export type Route =
   | TabRoute

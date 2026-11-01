@@ -11,27 +11,28 @@
  */
 :root {
   --font: "Inter Variable", "Inter", system-ui, "Segoe UI Variable Text", sans-serif;
-  --bg: #08080a;
-  --surface-1: #131316;
-  --surface-2: #1c1c21;
-  --surface-3: #26262c;
+  --bg: #0a0a0a;
+  --surface-1: #141414;
+  --surface-2: #1c1c1c;
+  --surface-3: #262626;
   --hairline: rgb(255 255 255 / 0.08);
   --hairline-strong: rgb(255 255 255 / 0.16);
 
   --text: #f5f5f7;
   --text-2: rgb(245 245 247 / 0.7);
   --text-3: rgb(245 245 247 / 0.45);
-  --text-on-light: #0b0b0d;
+  --text-on-light: #0b0b0b;
 
   --pill-light: rgb(240 240 242 / 0.94);
+  --accent: #0a84ff; /* system blue: switches, primary settings actions */
   --focus: #6aa8ff;
   --progress: #f5f5f7;
   --danger: #ff6b5e;
   --good: #5ed39a;
 
   /* Glass: one recipe, two weights. Heavy for structure, light for controls. */
-  --glass: rgb(36 36 42 / 0.46);
-  --glass-heavy: rgb(20 20 24 / 0.7);
+  --glass: rgb(38 38 38 / 0.46);
+  --glass-heavy: rgb(22 22 22 / 0.7);
   --glass-control: rgb(255 255 255 / 0.13);
   --glass-control-hover: rgb(255 255 255 / 0.2);
   --glass-edge: rgb(255 255 255 / 0.13);
@@ -48,6 +49,12 @@
   --dur-base: 220ms;
   --dur-slow: 300ms;
 
+  /* Blur-fade reveals (content coming into focus). Slower, with a softer
+     ease-out than --ease-out, so the blur visibly clears instead of snapping. */
+  --dur-reveal: 420ms;
+  --ease-reveal: cubic-bezier(0.33, 1, 0.68, 1);
+  --stagger: 50ms;
+
   --r-xs: 6px;
   --r-sm: 8px;
   --r-md: 12px;
@@ -57,8 +64,8 @@
   --r-pill: 999px;
 
   /* Top navbar height; pages pad their content below it. */
-  --nav-h: 64px;
-  --gutter: clamp(1.5rem, 3vw, 3rem);
+  --nav-h: 76px;
+  --gutter: clamp(2rem, 4vw, 4.5rem);
   --content-start: var(--gutter);
 
   --poster-w: clamp(136px, 10.5vw, 176px);
@@ -68,10 +75,10 @@
 
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --glass: rgb(28 28 33);
-    --glass-heavy: rgb(20 20 24);
-    --glass-control: rgb(58 58 66);
-    --glass-control-hover: rgb(72 72 80);
+    --glass: rgb(30 30 30);
+    --glass-heavy: rgb(22 22 22);
+    --glass-control: rgb(60 60 60);
+    --glass-control-hover: rgb(74 74 74);
     --blur-glass: none;
     --blur-control: none;
   }
@@ -83,8 +90,8 @@
     --text-3: rgb(245 245 247 / 0.72);
     --hairline: rgb(255 255 255 / 0.3);
     --hairline-strong: rgb(255 255 255 / 0.45);
-    --glass: rgb(16 16 18);
-    --glass-heavy: rgb(12 12 14);
+    --glass: rgb(16 16 16);
+    --glass-heavy: rgb(12 12 12);
     --glass-edge: rgb(255 255 255 / 0.45);
   }
 }

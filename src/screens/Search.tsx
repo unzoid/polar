@@ -1,13 +1,13 @@
-import { Search as SearchIcon, X } from "lucide-react";
-import { useDeferredValue, useEffect, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { PosterCard, PosterSkeleton } from "../components/PosterCard";
 import { useSearch } from "../lib/queries";
+import { useSearchText } from "../lib/searchQuery";
 import type { MetaPreview } from "../lib/types";
 
+/** Results for whatever is typed in the navbar's search field. */
 export function Search() {
-  const input = useRef<HTMLInputElement>(null);
-  const [text, setText] = useState("");
-  const [query, setQuery] = useState("");
+  const text = useSearchText();
+  const [query, setQuery] = useState(text.trim());
   const deferred = useDeferredValue(query);
 
   // Keystrokes update the field instantly; the network waits for a pause.
@@ -16,36 +16,13 @@ export function Search() {
     return () => window.clearTimeout(t);
   }, [text]);
 
-  useEffect(() => input.current?.focus(), []);
-
-  const { data, isFetching } = useSearch(deferred);
+  const { data } = useSearch(deferred);
   const hasQuery = deferred.length > 1;
 
   return (
-    <div className="scroll">
-      <header className="screen-header search-header">
-        <label className="search-field">
-          <SearchIcon size={20} className="faint" />
-          <input
-            ref={input}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Movies, series…"
-            spellCheck={false}
-            className="t-title2"
-            onKeyDown={(e) => e.key === "Escape" && setText("")}
-          />
-          {text && (
-            <button className="search-clear pressable" onClick={() => setText("")} aria-label="Clear">
-              <X size={16} />
-            </button>
-          )}
-          <span className="search-spinner" data-active={isFetching} aria-hidden />
-        </label>
-      </header>
-
-      {!hasQuery && <p className="empty t-body faint">Search across every movie and series.</p>}
-      {hasQuery && !data && <ResultGrid title="Results" loading />}
+    <div className="scroll search-page">
+      {/* Skeletons while typing or waiting; nothing until there's a real query. */}
+      {text.trim().length > 1 && (!hasQuery || !data) && <ResultGrid title="Results" loading />}
       {hasQuery && data && (
         <>
           <ResultGrid title="Movies" items={data.movies} />
@@ -64,7 +41,7 @@ function ResultGrid({ title, items, loading }: { title: string; items?: MetaPrev
   return (
     <section className="grid-section">
       <h2 className="t-title2 grid-title">{title}</h2>
-      <div className="grid">
+      <div className="poster-grid">
         {loading
           ? Array.from({ length: 12 }, (_, i) => <PosterSkeleton key={i} />)
           : items!.map((item) => <PosterCard key={item.id} item={item} />)}

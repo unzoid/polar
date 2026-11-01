@@ -5,19 +5,24 @@ import { MotionConfig } from "motion/react";
 
 import { App } from "./App";
 import { queryClient } from "./lib/queries";
-import { RouterProvider } from "./lib/router";
 import { isTauri } from "./lib/api";
+import { AccountProvider } from "./lib/account/AccountProvider";
 
 // Inter with weight + optical-size axes: large titles get the Display cut automatically.
 import "@fontsource-variable/inter/opsz.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
+import "./styles/fonts.css";
 import "./styles/shell.css";
 import "./styles/cards.css";
 import "./styles/detail.css";
 import "./styles/sheet.css";
 import "./styles/player.css";
 import "./styles/screens.css";
+import "./styles/account.css";
+
+// Font rendering differs by OS; base.css tunes text weight for Windows.
+document.documentElement.dataset.os = navigator.userAgent.includes("Windows") ? "windows" : "other";
 
 const root = createRoot(document.getElementById("root")!);
 
@@ -36,9 +41,9 @@ if (!isTauri) {
       {/* reducedMotion="user": springs become instant cross-fades when the OS asks for less motion. */}
       <MotionConfig reducedMotion="user">
         <QueryClientProvider client={queryClient}>
-          <RouterProvider>
+          <AccountProvider>
             <App />
-          </RouterProvider>
+          </AccountProvider>
         </QueryClientProvider>
       </MotionConfig>
     </StrictMode>,

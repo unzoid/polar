@@ -20,7 +20,7 @@ export function formatRemaining(position: number, duration: number) {
 
 export function episodeCode(season?: number, episode?: number) {
   if (season == null || episode == null) return "";
-  return `S${season} · E${episode}`;
+  return `S${season}, E${episode}`;
 }
 
 export function isReleased(video: Video) {

@@ -1,16 +1,58 @@
 /* ==========================================================================
-   Home hero — full-bleed art under the navbar, shelves overlap it.
+   Home hero — a framed, rounded card below the navbar. Around it, the page
+   takes on the art's colours from a blurred copy that fades into the
+   background (Netflix's billboard).
    ========================================================================== */
 .home {
-  --hero-overlap: 180px;
+  /* Shelves no longer overlap the hero; it's a card of its own. */
+  --hero-overlap: 0px;
+  /* Inner padding of the card, for its text, dots and next button. */
+  --hero-pad: clamp(1.5rem, 3.5vw, 3.5rem);
+  /* The shelves scroll sideways with their paddles; a page scrollbar is just noise. */
+  scrollbar-width: none;
+}
+.home::-webkit-scrollbar {
+  display: none;
 }
 .hero {
   position: relative;
-  height: max(560px, 90vh);
+  padding: calc(var(--nav-h) + 0.75rem) var(--gutter) 0 var(--content-start);
+}
+.hero-card {
+  position: relative;
+  height: clamp(420px, 68vh, 760px);
+  border-radius: var(--r-panel);
   overflow: hidden;
+  isolation: isolate;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.06),
+    0 30px 60px -30px rgb(0 0 0 / 0.8);
 }
 .hero-placeholder {
   display: block;
+}
+/* Static blur (rendered once); only opacity changes when the art does. */
+.hero-ambient {
+  position: absolute;
+  inset: 0 0 -30rem;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent);
+}
+/* A 4×3 pixel copy of the art, stretched: one smooth wash of its colours. */
+.hero-ambient canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: blur(40px) saturate(1.5) brightness(0.75);
+  transform: scale(1.15); /* hide the blur's soft edges */
+  transition: opacity 600ms ease;
+}
+.hero-ambient canvas[data-current="false"] {
+  opacity: 0;
 }
 .hero-art {
   position: absolute;
@@ -34,24 +76,25 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to top, var(--bg) 0%, rgb(8 8 10 / 0.75) calc(var(--hero-overlap) + 4%), transparent 58%),
-    linear-gradient(to right, rgb(8 8 10 / 0.78) 0%, rgb(8 8 10 / 0.42) 38%, transparent 64%);
+    linear-gradient(to top, rgb(10 10 10 / 0.55) 0%, transparent 40%),
+    linear-gradient(to right, rgb(10 10 10 / 0.6) 0%, rgb(10 10 10 / 0.2) 35%, transparent 58%);
   pointer-events: none;
 }
 .hero-content {
   position: absolute;
-  left: var(--content-start);
-  bottom: calc(var(--hero-overlap) + 3.5rem);
+  left: var(--hero-pad);
+  bottom: calc(var(--hero-pad) + 1.25rem);
   width: min(520px, 46vw);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   /* Swapping featured items: a short, blur-bridged fade. */
-  animation: hero-content-in var(--dur-slow) var(--ease-out);
+  animation: hero-content-in var(--dur-reveal) var(--ease-reveal);
 }
 @keyframes hero-content-in {
   from {
     opacity: 0;
+    transform: translateY(6px);
     filter: blur(4px);
   }
 }
@@ -90,14 +133,14 @@
 }
 .hero-next {
   position: absolute;
-  right: var(--gutter);
-  bottom: calc(var(--hero-overlap) + 3.5rem);
+  right: var(--hero-pad);
+  bottom: calc(var(--hero-pad) + 1.25rem);
 }
 .hero-pager {
   position: absolute;
-  left: var(--content-start);
-  right: var(--gutter);
-  bottom: calc(var(--hero-overlap) + 0.75rem);
+  left: var(--hero-pad);
+  right: var(--hero-pad);
+  bottom: 1rem;
   display: flex;
   justify-content: center;
   pointer-events: none;
@@ -143,9 +186,55 @@
   background: var(--text);
 }
 
+.home {
+  position: relative;
+}
+.hero,
+.home-rows {
+  z-index: 1;
+}
 .home-rows {
   position: relative;
-  margin-top: calc(var(--hero-overlap) * -1);
+  margin-top: 2.5rem;
+  gap: 3rem;
+}
+.home .row-header {
+  margin-bottom: 0.25rem;
+}
+.home .row-scroller {
+  gap: 1.5rem;
+}
+
+/* --- Top 10: big outlined rank numbers tucked behind each poster. */
+.row[data-shape="top10"] .row-scroller {
+  grid-auto-columns: max-content;
+  gap: 0.25rem 1.5rem;
+}
+.top10-item {
+  display: flex;
+  align-items: flex-end;
+}
+.top10-rank {
+  position: relative;
+  z-index: 0;
+  /* Negative letter-spacing already trims the box; this leaves just a sliver under the poster. */
+  margin: 0 0.04em 3.1rem 0;
+  font-size: clamp(6.5rem, 8.5vw, 9.5rem);
+  font-weight: 800;
+  line-height: 0.78;
+  letter-spacing: -0.07em;
+  /* A dark fill painted over the stroke (paint-order) hides the inner half of the
+     outline — and the overlapping contours variable fonts have inside glyphs like
+     "4" — leaving a clean outer edge. The stroke is 2x wide because half is covered. */
+  color: var(--bg);
+  -webkit-text-stroke: 6px rgb(255 255 255 / 0.55);
+  paint-order: stroke fill;
+  user-select: none;
+}
+.top10-item .card {
+  position: relative;
+  z-index: 1;
+  width: var(--poster-w);
 }
 
 /* ==========================================================================
@@ -211,11 +300,18 @@
 }
 .row-paddle[data-dir="prev"] {
   left: 0;
-  background: linear-gradient(to right, rgb(8 8 10 / 0.8), transparent);
+  background: linear-gradient(to right, rgb(10 10 10 / 0.8), transparent);
 }
 .row-paddle[data-dir="next"] {
   right: 0;
-  background: linear-gradient(to left, rgb(8 8 10 / 0.8), transparent);
+  background: linear-gradient(to left, rgb(10 10 10 / 0.8), transparent);
+}
+/* Paging a shelf: the chevron gives under the press, like the player's glyphs. */
+.row-paddle svg {
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.row-paddle:active svg {
+  transform: scale(0.92);
 }
 @media (hover: hover) and (pointer: fine) {
   .row-viewport:hover .row-paddle {
@@ -336,6 +432,13 @@
   min-width: 0;
   padding: 0 2px;
 }
+/* Settings → Browsing can hide captions, or just their second line. */
+.app[data-card-titles="false"] .card-caption:not(.card-caption-keep) {
+  display: none;
+}
+.app[data-card-details="false"] .card-caption:not(.card-caption-keep) > :not(.card-title) {
+  display: none;
+}
 .card-title {
   font-weight: 600;
   white-space: nowrap;
@@ -404,7 +507,8 @@
   .card:hover .card-frame,
   .card:hover:active .card-frame,
   .card:active .card-frame,
-  .card:focus-visible .card-frame {
+  .card:focus-visible .card-frame,
+  .row-paddle:active svg {
     transform: none;
   }
   .hero-content {

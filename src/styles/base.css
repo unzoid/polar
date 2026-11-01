@@ -24,6 +24,24 @@ body {
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+/* Windows draws web fonts unhinted with grayscale anti-aliasing, so light text
+   on a dark background comes out thin and soft. A little more weight evens it
+   out (Inter is variable, so 450 is a real weight, not a jump to medium). */
+:root[data-os="windows"] body {
+  font-weight: 450;
+}
+/* "System" font: Segoe UI Variable is hinted for Windows' own text rendering,
+   so it's the crispest option there; elsewhere it falls back to the OS font. */
+:root[data-font="system"] {
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+:root[data-font="system"] body {
+  font-weight: 400;
+  font-feature-settings: normal;
+}
+:root[data-font="system"] :is(.t-display, .t-title1, .t-title2) {
+  font-family: "Segoe UI Variable Display", var(--font);
+}
 
 img {
   display: block;
@@ -174,9 +192,24 @@ input {
   backdrop-filter: var(--blur-control);
   box-shadow: var(--glass-highlight);
 }
-.btn-icon {
+/* Icon-only buttons: just the glyph at rest — no fill, no blur, no edge. A faint
+   circle appears on hover/press. The glyph gets a soft shadow so it stays
+   legible over artwork. (Doubled selector beats .btn-glass regardless of order.) */
+.btn.btn-icon {
   width: 46px;
   padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    background-color var(--dur-fast) ease;
+}
+.btn.btn-icon svg {
+  filter: drop-shadow(0 1px 5px rgb(0 0 0 / 0.45));
+}
+.btn.btn-icon:active {
+  background: rgb(255 255 255 / 0.16);
 }
 @media (hover: hover) and (pointer: fine) {
   .btn-primary:hover {
@@ -184,6 +217,32 @@ input {
   }
   .btn-glass:hover {
     background: var(--glass-control-hover);
+  }
+  .btn.btn-icon:hover {
+    background: rgb(255 255 255 / 0.14);
+  }
+}
+
+/* --- State icons (Plus ↔ Check): the new glyph grows in through a slight
+       blur, so the toggle registers as one change rather than a cut. Only on
+       change, never on mount (see SwapIcon.tsx). */
+.icon-swap {
+  display: grid;
+  place-items: center;
+}
+.icon-swap[data-animate="true"] {
+  animation: icon-swap 200ms var(--ease-out);
+}
+@keyframes icon-swap {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+    filter: blur(2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .icon-swap[data-animate="true"] {
+    animation-name: fade-in;
   }
 }
 
@@ -222,92 +281,173 @@ input {
   }
 }
 
-/* --- Dropdown (Catalyst-style listbox). Menu scales in from its trigger. */
-.dropdown {
-  position: relative;
-  flex: none;
-}
-.dropdown-trigger {
+/* --- Dropdown (Base UI Select). A quiet bordered field; the menu is a blurred
+       glass panel with a soft highlight on the row under the pointer/keys. */
+.select-trigger {
   display: inline-flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 11rem;
+  flex: none;
+  min-height: 2rem;
+  padding: 0 0.5rem 0 0.625rem;
+  border-radius: 8px;
+  border: 1px solid var(--hairline-strong);
+  background: rgb(255 255 255 / 0.04);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+/* The season picker: drawn as the selected season tab (light pill, dark text)
+   with a chevron, so many-season shows look like the few-season ones. */
+.select-trigger[data-size="large"] {
+  width: auto;
+  min-height: 46px;
+  padding: 0 0.875rem 0 1.125rem;
   gap: 0.375rem;
-  height: 30px;
-  padding: 0 0.625rem 0 0.75rem;
+  border: none;
   border-radius: var(--r-pill);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  white-space: nowrap;
-  background: rgb(255 255 255 / 0.08);
-  transition: background-color var(--dur-fast) ease;
+  background: var(--pill-light);
+  color: var(--text-on-light);
+  font-size: 1.625rem;
+  line-height: 1;
+  font-weight: 650;
+  letter-spacing: -0.018em;
 }
-.dropdown-chevron {
-  color: var(--text-3);
+.select-trigger[data-size="large"] .select-icon {
+  opacity: 0.6;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
-.dropdown-trigger[aria-expanded="true"] {
-  background: rgb(255 255 255 / 0.14);
+.select-trigger[data-size="large"][data-popup-open] .select-icon {
+  transform: rotate(180deg);
 }
 @media (hover: hover) and (pointer: fine) {
-  .dropdown-trigger:hover {
-    background: rgb(255 255 255 / 0.14);
+  .select-trigger:hover {
+    background: rgb(255 255 255 / 0.08);
+  }
+  .select-trigger[data-size="large"]:hover {
+    background: #fff;
   }
 }
-.dropdown-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 60;
-  min-width: 200px;
-  padding: 4px;
-  border-radius: var(--r-md);
-  /* Frosted, not see-through: a light tint over a strong blur. */
-  background: rgb(36 36 42 / 0.62);
-  backdrop-filter: blur(24px) saturate(160%);
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.1),
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 12px 32px rgb(0 0 0 / 0.5);
-  transform-origin: top right;
+/* Blue outline only while it's in use (open, or focused from the keyboard). */
+.select-trigger[data-popup-open],
+.select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+.select-trigger[data-size="large"][data-popup-open] {
+  outline: none;
+}
+.select-trigger[data-size="large"]:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+.select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select-icon {
+  display: grid;
+  flex: none;
+  opacity: 0.7;
+}
+/* Rendered in a portal; lift it above the full-window player and its overlays. */
+.select-positioner {
+  z-index: 1000;
+  user-select: none;
+}
+.select-popup {
+  min-width: var(--anchor-width);
+  border-radius: 10px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(30 30 30 / 0.78);
+  backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow: 0 18px 44px -18px rgb(0 0 0 / 0.8);
+  font-family: var(--font);
+  color: var(--text);
+  outline: none;
+  transform-origin: var(--transform-origin);
   transition:
-    opacity 150ms var(--ease-out),
-    transform 150ms var(--ease-out);
-  @starting-style {
-    opacity: 0;
-    transform: scale(0.96) translateY(-4px);
-  }
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
-.dropdown[data-align="start"] .dropdown-menu {
-  right: auto;
-  left: 0;
-  transform-origin: top left;
+.select-popup[data-starting-style],
+.select-popup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.97);
 }
-.dropdown-menu[data-instant="true"] {
-  transition: none;
+.select-popup[data-ending-style] {
+  transition-duration: 100ms;
 }
-.dropdown-item {
+.select-list {
+  max-height: min(var(--available-height), 22rem);
+  overflow-y: auto;
+  padding: 0.25rem;
+  outline: none;
+}
+.select-item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  height: 34px;
-  padding: 0 0.75rem 0 0.5rem;
-  border-radius: 8px;
+  min-height: 1.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 6px;
   font-size: 0.875rem;
-  font-weight: 500;
-  white-space: nowrap;
-  color: var(--text);
-  cursor: default;
+  cursor: pointer;
+  outline: none;
 }
-.dropdown-item[data-active="true"] {
+.select-popup[data-size="large"] {
+  min-width: max(var(--anchor-width), 12rem);
+  border-radius: var(--r-lg);
+}
+.select-popup[data-size="large"] .select-list {
+  padding: 0.375rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.25) transparent;
+}
+.select-popup[data-size="large"] .select-item {
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  border-radius: var(--r-pill);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.select-popup[data-size="large"] .select-item[data-highlighted] {
+  color: var(--text);
+}
+.select-popup[data-size="large"] .select-item[data-selected] {
+  background: var(--pill-light);
+  color: var(--text-on-light);
+}
+.select-item[data-highlighted] {
   background: rgb(255 255 255 / 0.1);
 }
-.dropdown-check {
-  visibility: hidden;
+.select-item[data-selected] {
+  font-weight: 600;
+}
+.select-item-text {
+  flex: 1;
+  min-width: 0;
+}
+.select-item-check {
+  display: grid;
   flex: none;
+  opacity: 0.85;
 }
-.dropdown-item[aria-selected="true"] .dropdown-check {
-  visibility: visible;
-}
+/* Reduced motion: the menu still fades (it helps you see it open), but doesn't scale. */
 @media (prefers-reduced-motion: reduce) {
-  .dropdown-menu {
-    transition: opacity 150ms ease;
+  .select-popup[data-starting-style],
+  .select-popup[data-ending-style] {
+    transform: none;
   }
 }

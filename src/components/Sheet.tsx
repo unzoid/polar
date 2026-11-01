@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useMotionValue, type PanInfo } from "motion/react";
 import { useEffect, useRef, type ReactNode } from "react";
-import { project, springs } from "../lib/motion";
+import { ease, project, springs } from "../lib/motion";
 
 /**
  * A side sheet that enters from the right and leaves the same way.
@@ -58,7 +58,7 @@ export function Sheet({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+              transition={{ duration: 0.2, ease: ease.out }}
               onClick={onClose}
             />
           )}

@@ -10,6 +10,7 @@ import {
   Minimize,
   Pause,
   Play,
+  Settings as Cog,
   SkipForward,
   Volume1,
   Zap,
@@ -18,39 +19,51 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ease } from "../lib/motion";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
 import { streamKey } from "../components/StreamList";
 import { WindowControls } from "../components/WindowControls";
 import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
+import { SkipButton, useSkipSegments } from "../components/player/SkipSegments";
 import { OptionsOverlay, type OptionItem } from "../components/player/OptionsOverlay";
 import { SkipIcon } from "../components/player/icons";
 import { useTracks } from "../components/player/useTracks";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  SubtitlePreview,
+  SubtitleSettings,
+  applySubtitleStyleToMpv,
+  subtitleCueVars,
+} from "../components/player/SubtitleSettings";
 import { MpvMedia, type MediaLike } from "../components/player/mpvMedia";
 import { api } from "../lib/api";
+import { sync } from "../lib/account/sync";
 import { nextVideo, progressMap, seasonsOf } from "../lib/episodes";
 import { episodeCode, formatDate, formatRemaining, formatTime, isReleased, seasonLabel } from "../lib/format";
-import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams } from "../lib/queries";
+import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, RankedStream, Stream } from "../lib/types";
 
 const win = getCurrentWindow();
-const HIDE_AFTER = 2500;
+const HIDE_AFTER = 1800;
 const SAVE_EVERY = 5000;
 const AUTOPLAY_SECONDS = 8;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+/** How long the player layer takes to fade back to the page (matches player.css). */
+export const PLAYER_EXIT_MS = 260;
 
 type SourceSort = "best" | "quality" | "sizeDesc" | "sizeAsc" | "peers";
 const res = (r: RankedStream) => r.quality.resolution ?? 0;
 const size = (r: RankedStream) => r.quality.sizeBytes ?? 0;
 const SOURCE_SORTS: Record<SourceSort, { label: string; cmp: (a: RankedStream, b: RankedStream) => number }> = {
-  best: { label: "Best match", cmp: () => 0 },
-  quality: { label: "Quality: high to low", cmp: (a, b) => res(b) - res(a) || size(b) - size(a) },
-  sizeDesc: { label: "Size: large to small", cmp: (a, b) => size(b) - size(a) },
-  sizeAsc: { label: "Size: small to large", cmp: (a, b) => (size(a) || Infinity) - (size(b) || Infinity) },
-  peers: { label: "Most peers", cmp: (a, b) => (b.quality.sources ?? 0) - (a.quality.sources ?? 0) },
+  best: { label: "Best Match", cmp: () => 0 },
+  quality: { label: "Highest Quality", cmp: (a, b) => res(b) - res(a) || size(b) - size(a) },
+  sizeDesc: { label: "Largest File", cmp: (a, b) => size(b) - size(a) },
+  sizeAsc: { label: "Smallest File", cmp: (a, b) => (size(a) || Infinity) - (size(b) || Infinity) },
+  peers: { label: "Most Peers", cmp: (a, b) => (b.quality.sources ?? 0) - (a.quality.sources ?? 0) },
 };
 
 export function Player({
@@ -58,11 +71,14 @@ export function Player({
   metaId,
   videoId,
   stream,
+  leaving = false,
 }: {
   type: ContentType;
   metaId: string;
   videoId: string;
   stream?: Stream;
+  /** Route already popped; only the exit fade is left. Ignore input. */
+  leaving?: boolean;
 }) {
   const { back, replace } = useRouter();
   const { data: meta } = useMeta(type, metaId);
@@ -92,7 +108,29 @@ export function Player({
   const [nextDismissed, setNextDismissed] = useState(false);
   const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | null>(null);
   const [rate, setRate] = useState(1);
-  const tracks = useTracks(media, type, videoId);
+  const updateSettings = useUpdateSettings();
+  const seekStep = settings?.seekStep ?? 10;
+  // Subtitle look (saved) and timing offset (this video only).
+  const subStyle = settings?.subtitleStyle ?? DEFAULT_SUBTITLE_STYLE;
+  const [subDelay, setSubDelay] = useState(0);
+  const [subSettingsOpen, setSubSettingsOpen] = useState(false);
+
+  const tracks = useTracks(
+    media,
+    type,
+    videoId,
+    { audio: settings?.audioLanguage ?? "", subtitle: settings?.subtitleLanguage ?? "" },
+    (patch) => updateSettings.mutate(patch),
+  );
+  useEffect(() => {
+    if (engine !== "mpv") return;
+    applySubtitleStyleToMpv(mpv, subStyle, subDelay);
+    // mpv may (re)start with the file; apply again once it's loaded.
+    const onLoaded = () => applySubtitleStyleToMpv(mpv, subStyle, subDelay);
+    mpv.addEventListener("loadedmetadata", onLoaded);
+    return () => mpv.removeEventListener("loadedmetadata", onLoaded);
+  }, [engine, mpv, subStyle, subDelay, tracks.subId]); // ASS tracks are restyled differently from plain text
+
   // Optional seek-bar thumbnails (Seekr). Keyed to whole seconds of duration:
   // the API aligns cues to the length of the release being played.
   const durationS = Math.round(time.duration || 0);
@@ -115,6 +153,27 @@ export function Player({
       if (!overControls.current) setChrome({ visible: false, instant: false });
     }, HIDE_AFTER);
   }, []);
+  // Leaving the window (alt-tab, another app, the cursor off the edge) hides it
+  // now: nothing is pointing at the controls any more, so don't wait out the timer.
+  useEffect(() => {
+    const hide = () => {
+      window.clearTimeout(hideTimer.current);
+      overControls.current = false;
+      setChrome({ visible: false, instant: false });
+    };
+    const onVisibility = () => document.hidden && hide();
+    const root = document.documentElement;
+    window.addEventListener("blur", hide);
+    document.addEventListener("visibilitychange", onVisibility);
+    root.addEventListener("mouseleave", hide);
+    const unlisten = win.onFocusChanged(({ payload: focused }) => !focused && hide());
+    return () => {
+      window.removeEventListener("blur", hide);
+      document.removeEventListener("visibilitychange", onVisibility);
+      root.removeEventListener("mouseleave", hide);
+      void unlisten.then((f) => f());
+    };
+  }, []);
   const ready = source.state.status === "ready" && !error;
   const chromeVisible = chrome.visible || paused || !!options || !ready;
 
@@ -122,7 +181,7 @@ export function Player({
   const current = meta?.videos.find((v) => v.id === videoId);
   const next = meta && type === "series" ? nextVideo(meta, videoId) : undefined;
   const title = meta?.name ?? "";
-  const heading = current ? `S${current.season}:E${current.episode} “${current.title}”` : title;
+  const heading = current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
 
   // --- Progress -------------------------------------------------------------
   const lastSave = useRef(0);
@@ -145,7 +204,7 @@ export function Player({
       duration: v.duration,
       updatedAt: 0,
     };
-    api.saveProgress(p).catch(() => {});
+    api.saveProgress(p).then(sync.schedule, () => {});
   }, [meta, metaId, videoId, type, current, source.state]);
 
   const saveRef = useRef(save);
@@ -168,15 +227,26 @@ export function Player({
       if (alive) dispose = d;
       else d(); // this mount is already gone; drop only its own listeners
     });
-    // mpv draws in the native window *under* the page, so the page must be see-through.
-    document.documentElement.dataset.player = "mpv";
     return () => {
       alive = false;
       dispose?.();
       mpv.stop();
-      delete document.documentElement.dataset.player;
     };
   }, [engine, mpv]);
+
+  // mpv draws in the native window *under* the page, so the page must be
+  // see-through — but only once mpv has a picture. Until then the player is
+  // an opaque black layer, so neither the page nor mpv's idle window shows.
+  // Layout effect: the page turns clear (and back) in the same frame the
+  // player does, never one frame apart.
+  const seeThrough = engine === "mpv" && started;
+  useLayoutEffect(() => {
+    if (!seeThrough) return;
+    document.documentElement.dataset.player = "mpv";
+    return () => {
+      delete document.documentElement.dataset.player;
+    };
+  }, [seeThrough]);
 
   // --- Load source ----------------------------------------------------------
   const resumed = useRef(false);
@@ -291,15 +361,33 @@ export function Player({
     if (v?.duration) v.currentTime = Math.min(v.duration - 1, Math.max(0, v.currentTime + delta));
   }, []);
 
+  const skip = useSkipSegments({
+    videoId,
+    time: time.current,
+    started,
+    autoSkip: !!settings?.autoSkip,
+    seekTo: (t) => {
+      if (videoRef.current) videoRef.current.currentTime = t;
+    },
+    onAutoSkipped: (label) => {
+      setNotice(label);
+      window.setTimeout(() => setNotice(null), 2500);
+    },
+  });
+
   const toggleFullscreen = useCallback(async () => {
     const next = !(await win.isFullscreen());
     await win.setFullscreen(next);
     setFullscreen(next);
   }, []);
 
+  // Fade back to the page first, *then* leave fullscreen: resizing the window
+  // while mpv's native picture is up is what flickers, so do it once the page
+  // is opaque on top.
   const exit = useCallback(async () => {
-    if (await win.isFullscreen()) await win.setFullscreen(false);
+    const fs = await win.isFullscreen();
     back();
+    if (fs) window.setTimeout(() => void win.setFullscreen(false), PLAYER_EXIT_MS);
   }, [back]);
 
   const playVideo = useCallback(
@@ -353,22 +441,25 @@ export function Player({
     .sort((a, b) => SOURCE_SORTS[sortBy].cmp(a.r, b.r) || a.i - b.i);
   const sourceItems: OptionItem[] = viewStreams.map(({ r, i }) => ({
     id: String(i),
-    label: i === 0 ? `${r.label} · Best match` : r.label,
+    label: i === 0 ? `${r.label} · Best Match` : r.label,
     detail: [r.addon, r.quality.sources != null ? `${r.quality.sources} peers` : null, (r.stream.title ?? "").split("\n")[0]]
       .filter(Boolean)
       .join(" · "),
     badge: r.quality.lowQualitySource
       ? { text: "CAM", tone: "bad" as const }
       : r.quality.cached
-        ? { text: "Instant (cached)", tone: "good" as const, icon: <Zap size={14} fill="currentColor" strokeWidth={0} /> }
+        ? { text: "Instant", tone: "good" as const, icon: <Zap size={14} fill="currentColor" strokeWidth={0} /> }
         : undefined,
   }));
   const currentSourceIndex = rankedStreams.findIndex((r) => streamKey(r) === currentKey);
 
   // --- Keyboard: instant, never animated -------------------------------------
   useEffect(() => {
+    if (leaving) return; // the page underneath has the keyboard already
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
+      // A dropdown has the keyboard while it's focused or open (arrows, Space, Esc are its own).
+      if ((e.target as HTMLElement).closest?.("[aria-haspopup=listbox], [role=listbox]")) return;
       const handled = (() => {
         switch (e.key) {
           case " ":
@@ -377,11 +468,11 @@ export function Player({
             return true;
           case "ArrowLeft":
           case "j":
-            seekBy(-10);
+            seekBy(-seekStep);
             return true;
           case "ArrowRight":
           case "l":
-            seekBy(10);
+            seekBy(seekStep);
             return true;
           case "ArrowUp":
             setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
@@ -396,11 +487,22 @@ export function Player({
           case "f":
             void toggleFullscreen();
             return true;
+          case "s":
+            skip.skipActive();
+            return true;
           case "n":
             if (next) playVideo(next.id);
             return true;
           case "Escape":
-            void exit();
+            // Leave fullscreen first; a second Esc backs out of the player.
+            void win.isFullscreen().then((fs) => {
+              if (fs) {
+                void win.setFullscreen(false);
+                setFullscreen(false);
+              } else {
+                void exit();
+              }
+            });
             return true;
         }
         return false;
@@ -412,7 +514,7 @@ export function Player({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay, seekBy, toggleFullscreen, exit, next, playVideo, poke]);
+  }, [leaving, togglePlay, seekBy, seekStep, toggleFullscreen, exit, next, playVideo, poke, skip]);
 
   // Warm the next episode's sources well before the credits.
   const prefetchedNext = useRef(false);
@@ -431,8 +533,16 @@ export function Player({
   }, [ended, next, nextDismissed, settings?.autoplayNext, playVideo]);
 
   const remaining = time.duration - time.current;
+  // With IntroDB credit timings, "Up next" arrives exactly when the credits
+  // roll (Netflix-style); without them, fall back to the last ~40s.
+  const creditsStart = skip.segments?.outro?.start;
+  const inCredits =
+    creditsStart != null && time.current >= creditsStart && !skip.segments?.postCredits;
   const showNextUp =
-    !!next && !nextDismissed && time.duration > 0 && (ended || remaining <= Math.max(40, time.duration * 0.04));
+    !!next &&
+    !nextDismissed &&
+    time.duration > 0 &&
+    (ended || inCredits || (creditsStart == null && remaining <= Math.max(40, time.duration * 0.04)));
 
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
@@ -444,11 +554,12 @@ export function Player({
       data-chrome={chromeVisible}
       data-instant={chrome.instant}
       data-options={!!options}
+      data-started={started}
       onPointerMove={() => poke()}
       onPointerDown={() => poke()}
     >
       {engine === "html" && (
-        <video ref={setVideoEl} className="player-video" playsInline />
+        <video ref={setVideoEl} className="player-video" playsInline style={subtitleCueVars(subStyle)} />
       )}
       {/* Click target over either engine: tap to play/pause, double-click for
           fullscreen, wheel for volume. */}
@@ -464,15 +575,20 @@ export function Player({
       />
 
       {/* Status: finding / loading / failed */}
-      <PlayerStatus
-        state={source.state}
-        error={error}
-        started={started}
-        logo={meta?.logo}
-        name={meta?.name}
-        background={meta?.background}
-        onSources={() => setOptions("sources")}
-      />
+      {/* Fades off the first frame instead of cutting to it. */}
+      <AnimatePresence>
+        {!(ready && started) && (
+          <PlayerStatus
+            key="status"
+            state={source.state}
+            error={error}
+            logo={meta?.logo}
+            name={meta?.name}
+            background={meta?.background}
+            onSources={() => setOptions("sources")}
+          />
+        )}
+      </AnimatePresence>
 
       {notice && <div className="player-notice t-callout">{notice}</div>}
 
@@ -512,10 +628,10 @@ export function Player({
       </div>
 
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
-      {ready && (
+      {ready && started && (
         <div className="player-center">
-          <button className="player-transport pressable" onClick={() => seekBy(-10)} aria-label="Back 10 seconds" title="Back 10s (←)">
-            <SkipIcon direction="back" size={56} />
+          <button className="player-transport pressable" onClick={() => seekBy(-seekStep)} aria-label={`Back ${seekStep} seconds`} title={`Back ${seekStep}s (←)`}>
+            <SkipIcon direction="back" seconds={seekStep} size={56} />
           </button>
           <button className="player-transport player-transport-main pressable" onClick={togglePlay} aria-label={paused ? "Play" : "Pause"} title="Play/Pause (Space)">
             {buffering ? (
@@ -526,8 +642,8 @@ export function Player({
               <Pause size={64} fill="currentColor" strokeWidth={0} />
             )}
           </button>
-          <button className="player-transport pressable" onClick={() => seekBy(10)} aria-label="Forward 10 seconds" title="Forward 10s (→)">
-            <SkipIcon direction="forward" size={56} />
+          <button className="player-transport pressable" onClick={() => seekBy(seekStep)} aria-label={`Forward ${seekStep} seconds`} title={`Forward ${seekStep}s (→)`}>
+            <SkipIcon direction="forward" seconds={seekStep} size={56} />
           </button>
         </div>
       )}
@@ -551,9 +667,9 @@ export function Player({
         <div className="player-actions">
           <ActionButton icon={<Gauge size={22} />} label={`Speed (${rate}x)`} onClick={() => setOptions("speed")} />
           {type === "series" && <ActionButton icon={<Layers size={22} />} label="Episodes" onClick={() => setOptions("episodes")} />}
-          <ActionButton icon={<Captions size={22} />} label="Audio & Subtitles" onClick={() => setOptions("tracks")} />
+          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" onClick={() => setOptions("tracks")} />
           <ActionButton icon={<ListVideo size={22} />} label="Sources" onClick={() => setOptions("sources")} />
-          {next && <ActionButton icon={<SkipForward size={22} fill="currentColor" />} label="Next Ep." onClick={() => playVideo(next.id)} />}
+          {next && <ActionButton icon={<SkipForward size={22} fill="currentColor" />} label="Next Episode" onClick={() => playVideo(next.id)} />}
         </div>
       </div>
 
@@ -572,7 +688,11 @@ export function Player({
       />
       <OptionsOverlay
         open={options === "tracks"}
-        onClose={() => setOptions(null)}
+        onClose={() => {
+          setOptions(null);
+          setSubSettingsOpen(false);
+        }}
+        foreground={subSettingsOpen ? <SubtitlePreview style={subStyle} media={media} /> : undefined}
         media={media}
         columns={[
           {
@@ -583,6 +703,27 @@ export function Player({
           },
           {
             title: "Subtitles",
+            size: subSettingsOpen ? "medium" : "narrow",
+            header: (
+              <button
+                className="options-head-btn"
+                aria-pressed={subSettingsOpen}
+                aria-label="Subtitle settings"
+                title="Subtitle settings"
+                onClick={() => setSubSettingsOpen((v) => !v)}
+              >
+                <Cog size={19} strokeWidth={2.1} />
+              </button>
+            ),
+            content: subSettingsOpen ? (
+              <SubtitleSettings
+                style={subStyle}
+                onChange={(patch) => updateSettings.mutate({ subtitleStyle: { ...subStyle, ...patch } })}
+                delay={subDelay}
+                onDelay={setSubDelay}
+                canPosition={engine === "mpv"}
+              />
+            ) : undefined,
             value: tracks.subId,
             options: tracks.subtitles,
             onSelect: (id) => void tracks.selectSubtitle(id),
@@ -591,27 +732,30 @@ export function Player({
         ]}
       />
 
+      <SkipButton active={started ? skip.active : null} onSkip={skip.skipActive} chromeVisible={chromeVisible} />
+
       <AnimatePresence>
         {showNextUp && next && (
           <motion.div
             className="next-up"
             initial={{ opacity: 0, transform: "translateX(24px)" }}
             animate={{ opacity: 1, transform: "translateX(0px)" }}
-            exit={{ opacity: 0, transform: "translateX(24px)" }}
-            transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+            // Arrives at drawer pace; leaves faster — a dismissal shouldn't linger.
+            exit={{ opacity: 0, transform: "translateX(24px)", transition: { duration: 0.18, ease: ease.out } }}
+            transition={{ duration: 0.3, ease: ease.drawer }}
           >
             <div className="next-up-still">
               <Img src={next.thumbnail ?? meta?.background} alt="" />
             </div>
             <div className="next-up-text">
-              <span className="t-micro faint">Up next · {episodeCode(next.season, next.episode)}</span>
+              <span className="t-micro faint">Up Next · {episodeCode(next.season, next.episode)}</span>
               <span className="t-headline">{next.title}</span>
               <div className="next-up-actions">
                 <button className="btn btn-primary next-up-play" onClick={() => playVideo(next.id)}>
                   {ended && settings?.autoplayNext && (
                     <span className="next-up-countdown" style={{ animationDuration: `${AUTOPLAY_SECONDS}s` }} />
                   )}
-                  <Play size={16} fill="currentColor" /> Play now
+                  <Play size={16} fill="currentColor" /> Play Now
                 </button>
                 <button className="btn btn-glass btn-icon" onClick={() => setNextDismissed(true)} aria-label="Dismiss">
                   <X size={16} />
@@ -653,7 +797,7 @@ export function Player({
             header: (
               <div className="source-controls">
                 {addonNames.length > 1 && (
-                  <div className="source-chips" role="group" aria-label="Addon">
+                  <div className="source-chips" role="group" aria-label="Add-on">
                     {[null, ...addonNames].map((name) => (
                       <button
                         key={name ?? "all"}
@@ -701,7 +845,6 @@ const FILL = { searching: 34, resolving: 66, starting: 92, done: 100 } as const;
 function PlayerStatus({
   state,
   error,
-  started,
   logo,
   name,
   background,
@@ -709,14 +852,12 @@ function PlayerStatus({
 }: {
   state: ReturnType<typeof useSource>["state"];
   error: string | null;
-  started: boolean;
   logo?: string;
   name?: string;
   background?: string;
   onSources: () => void;
 }) {
   const failed = state.status === "failed" || !!error;
-  if (state.status === "ready" && !error && started) return null;
 
   const stage = state.status === "searching" ? "searching" : state.status === "resolving" ? "resolving" : "starting";
   const message = failed
@@ -728,7 +869,11 @@ function PlayerStatus({
         : "Starting";
 
   return (
-    <div className="player-status" data-failed={failed}>
+    <motion.div
+      className="player-status"
+      data-failed={failed}
+      exit={{ opacity: 0, transition: { duration: 0.4, ease: ease.out } }}
+    >
       {background && <Img src={background} alt="" className="player-status-bg" />}
       <div className="player-status-content">
         <div className="load-mark" style={{ "--fill": `${failed ? 0 : FILL[stage]}%` } as React.CSSProperties}>
@@ -746,18 +891,18 @@ function PlayerStatus({
             </>
           )}
         </div>
-        <p className="player-status-message t-callout" role="status">
+        <p key={message} className="player-status-message t-callout" role="status">
           {message}
         </p>
         {failed && (
           <div className="player-status-actions">
             <button className="btn btn-primary" onClick={onSources}>
-              <ListVideo size={17} /> Choose another source
+              <ListVideo size={17} /> Choose Another Source
             </button>
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

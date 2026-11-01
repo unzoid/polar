@@ -1,4 +1,4 @@
-import { AlertCircle, Sparkles, Zap } from "lucide-react";
+import { AlertCircle, Zap } from "lucide-react";
 import { useRouter } from "../lib/router";
 import { useStreams } from "../lib/queries";
 import type { ContentType, RankedStream } from "../lib/types";
@@ -10,10 +10,7 @@ const GROUPS: { label: string; test: (r?: number) => boolean }[] = [
   { label: "Other", test: (r) => r == null || r < 720 },
 ];
 
-/**
- * Sources for one video: a single recommended pick on top, then the rest
- * grouped by resolution. The raw addon text is still there, just quieter.
- */
+/** Sources for one video: the best pick on top, then the rest grouped by resolution. */
 export function StreamList({
   type,
   videoId,
@@ -44,10 +41,10 @@ export function StreamList({
     return (
       <div className="stream-empty">
         <p className="t-body muted">
-          {data.failed.length ? "Your addons didn't respond in time." : "No sources found for this title."}
+          {data.failed.length ? "Your add-ons didn't respond in time." : "No sources found."}
         </p>
-        <button className="btn btn-glass" onClick={() => tab({ name: "settings" })}>
-          Manage addons
+        <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "addons" })}>
+          Manage Add-ons
         </button>
       </div>
     );
@@ -56,9 +53,7 @@ export function StreamList({
   const [best, ...rest] = data.streams;
   return (
     <div className="stream-list">
-      <div className="stream-group-label t-micro faint">
-        <Sparkles size={12} /> Best match
-      </div>
+      <div className="stream-group-label t-micro faint">Best Match</div>
       <StreamRow s={best} featured current={currentKey === streamKey(best)} onPick={onPick} />
 
       {GROUPS.map((g) => {

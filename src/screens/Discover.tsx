@@ -9,6 +9,9 @@ const CATALOGS = [
   { id: "trending", label: "Trending" },
   { id: "popular", label: "Popular" },
   { id: "top_rated", label: "Top Rated" },
+  { id: "new", label: "New" },
+  { id: "gems", label: "Hidden Gems" },
+  { id: "classics", label: "Classics" },
 ];
 
 export function Discover({ type }: { type: ContentType }) {
@@ -44,7 +47,7 @@ export function Discover({ type }: { type: ContentType }) {
         <h1 className="t-title1">{type === "movie" ? "Movies" : "Series"}</h1>
         <Segmented options={CATALOGS} value={catalog} onChange={setCatalog} label="Catalog" />
       </header>
-      <div className="grid">
+      <div className="poster-grid">
         {items.map((item) => (
           <PosterCard key={item.id} item={item} />
         ))}

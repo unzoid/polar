@@ -51,28 +51,8 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to top, rgb(8 8 10 / 0.92) 0%, rgb(8 8 10 / 0.5) 26%, transparent 55%),
-    linear-gradient(to right, rgb(8 8 10 / 0.8) 0%, rgb(8 8 10 / 0.4) 36%, transparent 62%);
-}
-
-.detail-ambient-title {
-  position: absolute;
-  top: calc(var(--nav-h) + 1.5rem);
-  left: var(--content-start);
-  right: var(--gutter);
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-  opacity: 0;
-  animation: detail-ambient linear both;
-  animation-timeline: --detail;
-  animation-range: 22vh 32vh;
-}
-.detail-ambient-title img {
-  max-width: 300px;
-  max-height: 96px;
-  object-fit: contain;
+    linear-gradient(to top, rgb(10 10 10 / 0.92) 0%, rgb(10 10 10 / 0.5) 26%, transparent 55%),
+    linear-gradient(to right, rgb(10 10 10 / 0.8) 0%, rgb(10 10 10 / 0.4) 36%, transparent 62%);
 }
 
 /* --- Hero: bottom-left title block, bottom-right credits. Tall enough that
@@ -106,18 +86,26 @@
 }
 /* One entrance when the page opens: three groups, 40ms apart. */
 .detail-hero-main > * {
-  animation: rise 240ms var(--ease-out) both;
+  animation: rise var(--dur-reveal) var(--ease-reveal) both;
 }
 .detail-hero-main > :nth-child(n + 2):nth-child(-n + 4) {
-  animation-delay: 40ms;
+  animation-delay: var(--stagger);
 }
 .detail-hero-main > :nth-child(n + 5) {
-  animation-delay: 80ms;
+  animation-delay: calc(var(--stagger) * 2);
 }
+/* Text comes into focus as it settles: the blur bridges "absent" and
+   "present" so it reads as one motion instead of a fade. */
 @keyframes rise {
   from {
     opacity: 0;
     transform: translateY(8px);
+    filter: blur(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail-hero-main > * {
+    animation-name: fade-in;
   }
 }
 .detail-logo {
@@ -132,13 +120,9 @@
 .detail-title {
   margin: 0 0 0.25rem;
 }
-.detail-kind,
 .detail-description,
 .detail-facts {
   margin: 0;
-}
-.detail-kind {
-  font-weight: 600;
 }
 .detail-description {
   color: rgb(245 245 247 / 0.82);
@@ -162,6 +146,18 @@
   flex: none;
   margin-right: 0.25rem;
 }
+/* Clicking the score opens the title on IMDb. */
+.rating-link {
+  display: inline-flex;
+  flex: none;
+  border-radius: var(--r-pill);
+  transition: opacity var(--dur-fast) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .rating-link:hover {
+    opacity: 0.8;
+  }
+}
 .rating-ring svg {
   position: absolute;
   inset: 0;
@@ -176,8 +172,9 @@
 .rating-ring-arc {
   stroke-linecap: round;
   stroke: var(--good);
-  /* Draw in once on open — rare, and it reads the score as it fills. */
-  animation: ring-fill 600ms var(--ease-out) 120ms both;
+  /* Draw in once on open; it reads the score as it fills. Kept inside the
+     UI budget since a detail page opens many times a day. */
+  animation: ring-fill 300ms var(--ease-out) 60ms both;
 }
 .rating-ring[data-tone="mid"] .rating-ring-arc {
   stroke: #f2c94c;
@@ -201,37 +198,6 @@
   .rating-ring-arc {
     animation: none;
   }
-}
-
-/* Spec badges, Apple-style: solid grey "4K", outlined labels, wordmark text. */
-.badge-solid,
-.badge-outline,
-.badge-wordmark {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 0.3125rem;
-  border-radius: 4px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1;
-}
-.badge-solid {
-  background: rgb(245 245 247 / 0.75);
-  color: var(--text-on-light);
-}
-.badge-outline {
-  box-shadow: inset 0 0 0 1.25px rgb(245 245 247 / 0.7);
-  color: var(--text);
-}
-.badge-wordmark {
-  padding: 0;
-  font-weight: 800;
-  font-size: 0.625rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text);
 }
 
 .detail-actions {
@@ -266,11 +232,22 @@
   padding-bottom: 2rem;
 }
 .seasons-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  /* Starts exactly where the episode cards start, so the selected pill's edge
+     lines up with the first card instead of overhanging it. */
+  padding: 0 var(--gutter) 0 var(--content-start);
+}
+/* Season tabs (or the dropdown) on the left; the row/list switch on the right. */
+.seasons-picker {
+  flex: 1;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 4px var(--gutter) 0.5rem calc(var(--content-start) - 1.125rem);
+  padding: 4px 0 0.5rem;
 }
-.seasons-bar::-webkit-scrollbar {
+.seasons-picker::-webkit-scrollbar {
   display: none;
 }
 .segmented[data-variant="large"] .segmented-item[aria-selected="false"] {
@@ -342,7 +319,6 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: calc(1.45em * 3);
 }
 .episode-rating {
   margin-left: 0.5rem;
@@ -364,6 +340,85 @@
 @media (hover: hover) and (pointer: fine) {
   .episode-card:hover .episode-sources {
     opacity: 1;
+  }
+}
+
+/* --- Episode list: the same lockups stacked vertically (number, still, text),
+       spanning the same width as the season bar above. */
+.episode-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem var(--gutter) 0 var(--content-start);
+}
+.episode-card[data-layout="list"] {
+  border-bottom: 1px solid var(--hairline);
+}
+.episode-card[data-layout="list"]:last-child {
+  border-bottom: none;
+}
+.episode-card[data-layout="list"] .episode-card-main {
+  display: grid;
+  /* The still grows with the window, like the shelf cards do. */
+  grid-template-columns: 2.5rem clamp(10rem, 14vw, 15rem) minmax(0, 1fr);
+  grid-template-areas: "num still text";
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.75rem 4rem 0.75rem 0.25rem;
+  border-radius: var(--r-lg);
+  transition: background-color var(--dur-fast) ease;
+}
+.episode-card[data-layout="list"][data-up-next="true"] .episode-card-main {
+  background: rgb(255 255 255 / 0.06);
+}
+.episode-card[data-layout="list"] .card-frame {
+  grid-area: still;
+  transform: none;
+}
+.episode-card[data-layout="list"] .episode-card-text {
+  grid-area: text;
+  padding: 0;
+}
+.episode-number {
+  grid-area: num;
+  justify-self: center;
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.episode-card[data-layout="list"] .episode-card-title {
+  font-size: 1rem;
+}
+.episode-card[data-layout="list"] .episode-runtime {
+  left: 8px;
+  bottom: 6px;
+  font-size: 0.75rem;
+}
+.episode-card[data-layout="list"] .progress-track {
+  bottom: 11px;
+  right: 8px;
+}
+.episode-card[data-layout="list"] .episode-card-overview {
+  -webkit-line-clamp: 2;
+}
+.episode-card[data-layout="list"] .episode-sources {
+  top: 50%;
+  right: 0.75rem;
+  margin-top: -18px;
+}
+.episode-card[data-layout="list"] .episode-card-main:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.episode-card[data-layout="list"] .episode-card-main:focus-visible .card-frame {
+  transform: none;
+  outline: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .episode-card[data-layout="list"] .episode-card-main:not(:disabled):hover {
+    background: rgb(255 255 255 / 0.09);
+  }
+  .episode-card[data-layout="list"] .episode-card-main:hover .card-frame {
+    transform: none;
   }
 }
 

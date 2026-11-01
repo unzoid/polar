@@ -1,0 +1,46 @@
+/*
+ * TEST ONLY: Netflix Sans, hotlinked from Netflix's CDN. It isn't licensed
+ * for Rustio, so it's never bundled and must not ship; it's here to compare
+ * the look against the free alternatives. Needs an internet connection.
+ */
+@font-face {
+  font-family: "Netflix Sans";
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://assets.nflxext.com/ffe/siteui/fonts/netflix-sans/v3/NetflixSans_W_Lt.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Netflix Sans";
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://assets.nflxext.com/ffe/siteui/fonts/netflix-sans/v3/NetflixSans_W_Rg.woff2) format("woff2");
+}
+/* Netflix maps its Medium cut to 700 and Bold to 800; so do we. */
+@font-face {
+  font-family: "Netflix Sans";
+  font-weight: 500 700;
+  font-display: swap;
+  src: url(https://assets.nflxext.com/ffe/siteui/fonts/netflix-sans/v3/NetflixSans_W_Md.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Netflix Sans";
+  font-weight: 800;
+  font-display: swap;
+  src: url(https://assets.nflxext.com/ffe/siteui/fonts/netflix-sans/v3/NetflixSans_W_Bd.woff2) format("woff2");
+}
+@font-face {
+  font-family: "Netflix Sans";
+  font-weight: 900;
+  font-display: swap;
+  src: url(https://assets.nflxext.com/ffe/siteui/fonts/netflix-sans/v3/NetflixSans_W_Blk.woff2) format("woff2");
+}
+
+:root[data-font="netflix"] {
+  --font: "Netflix Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+/* Inter's character variants don't apply; and there's no 450, so stay on
+   Regular instead of jumping to Medium. */
+:root[data-font="netflix"] body {
+  font-feature-settings: normal;
+  font-weight: 400;
+}

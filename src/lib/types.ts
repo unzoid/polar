@@ -99,6 +99,24 @@ export interface LibraryItem {
   addedAt: number;
 }
 
+/** A library record as it travels over sync: present, or a removal. */
+export interface SyncLibraryItem {
+  id: string;
+  type: ContentType | "";
+  name: string;
+  poster?: string | null;
+  addedAt: number;
+  deleted: boolean;
+  updatedAt: number;
+}
+
+export interface LocalChanges {
+  library: SyncLibraryItem[];
+  progress: Progress[];
+  cursor: number;
+  pulledAt: string | null;
+}
+
 export interface Manifest {
   id: string;
   version: string;
@@ -114,6 +132,8 @@ export interface InstalledAddon {
   manifest: Manifest;
 }
 
+export type EpisodeLayout = "row" | "list";
+
 export interface Settings {
   tmdbKey?: string | null;
   language: string;
@@ -122,6 +142,25 @@ export interface Settings {
   /** Seekr (seekr.tv) API key — enables seek-bar thumbnails. */
   seekrKey?: string | null;
   seekPreviews: boolean;
+  /** Skip intros & recaps automatically (IntroDB timings). */
+  autoSkip: boolean;
+  /** Preferred audio language (`en`); empty = the file's default. */
+  audioLanguage: string;
+  /** Preferred subtitle language; empty = off. */
+  subtitleLanguage: string;
+  /** Seconds the arrow keys jump. */
+  seekStep: number;
+  /** Play the best source immediately; off = show the source list first. */
+  autoPickSource: boolean;
+  /** Title under each poster/thumbnail. */
+  showCardTitles: boolean;
+  /** Type · genre · year under those titles. */
+  showCardDetails: boolean;
+  /** A season's episodes as a horizontal shelf or a vertical list. */
+  episodeLayout: EpisodeLayout;
+  /** "inter" (bundled), "system" (Segoe UI Variable on Windows), or an alternative from styles/fonts.css. */
+  uiFont: "inter" | "system" | "netflix";
+  subtitleStyle: SubtitleStyle;
   metadataSource?: string;
 }
 
@@ -146,4 +185,33 @@ export interface SeekCue {
 export interface SeekTrack {
   cues: SeekCue[];
   sourceDurationMs: number;
+}
+
+/** A timed segment, in seconds. */
+export interface Span {
+  start: number;
+  end: number;
+}
+
+/** IntroDB skip segments for one movie or episode. */
+export interface SkipSegments {
+  intro?: Span | null;
+  recap?: Span | null;
+  outro?: Span | null;
+  postCredits?: Span | null;
+}
+
+/** How subtitles look in the player (store.rs `SubtitleStyle`). */
+export interface SubtitleStyle {
+  /** Percent of normal size. */
+  size: number;
+  /** Percent of the picture height above the usual spot. */
+  raise: number;
+  color: string;
+  /** Percent. */
+  opacity: number;
+  outline: "none" | "thin" | "medium" | "thick";
+  outlineColor: string;
+  /** Opacity of a dark box behind the text, percent (0 = none). */
+  background: number;
 }

@@ -58,7 +58,7 @@ async fn catalog(State(ix): State<Arc<Indexer>>, Path((ty, rest)): Path<(String,
         Some(q) => ix.search(&ty, q).await,
         None => {
             let skip = get("skip").and_then(|s| s.parse().ok()).unwrap_or(0);
-            ix.catalog(&ty, &id, skip - skip % PAGE_SIZE).await
+            ix.catalog(&ty, &id, skip - skip % PAGE_SIZE, get("genre")).await
         }
     };
     match result {

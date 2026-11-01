@@ -1,0 +1,17 @@
+/*
+ * Tailwind, scoped to the Catalyst UI components in /catalyst-ui.
+ *
+ *  - Theme variables + utilities only. No preflight (reset), so nothing about the
+ *    rest of the app's styling changes.
+ *  - Auto source detection is off; only the Catalyst components we use are scanned
+ *    (add another `@source` line when adopting one), so no unused utilities are
+ *    generated.
+ *  - All of it sits in cascade layers, which our own (unlayered) CSS always beats.
+ *  - Catalyst's `dark:` styles follow the `dark` class on <html>, not the OS
+ *    setting — Rustio is always dark.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "../../catalyst-ui/listbox.tsx";
+@custom-variant dark (&:where(.dark, .dark *));

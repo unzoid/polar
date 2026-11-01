@@ -12,14 +12,20 @@
     "index": "cargo run -p rustio-index --features server"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
     "@fontsource-variable/inter": "^5.3.0",
+    "@headlessui/react": "^2.2.10",
+    "@supabase/supabase-js": "^2.118.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.105.0",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-opener": "^2.7.2",
+    "clsx": "^2.1.1",
     "lucide-react": "^1.65.0",
     "motion": "^14.9.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.4",

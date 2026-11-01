@@ -257,7 +257,8 @@ impl RawVideo {
             released: self.released.or(self.first_aired),
             thumbnail: self.thumbnail,
             overview: self.overview.or(self.description).filter(|o| !o.is_empty()),
-            rating: value_to_string(self.rating),
+            // Cinemeta sends "0" for unrated episodes; that's absence, not a score.
+            rating: value_to_string(self.rating).filter(|r| r.parse::<f64>().map_or(true, |n| n > 0.0)),
         })
     }
 }

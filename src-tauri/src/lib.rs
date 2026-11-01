@@ -1,7 +1,9 @@
 mod commands;
 mod player;
+mod introdb;
 mod seekr;
 mod store;
+mod sync;
 
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -16,6 +18,7 @@ pub struct AppState {
     pub store: Mutex<store::Store>,
     pub seekr: seekr::Seekr,
     pub mpv: player::Mpv,
+    pub introdb: introdb::IntroDb,
 }
 
 impl AppState {
@@ -48,11 +51,13 @@ pub fn run() {
                 store: Mutex::new(store),
                 seekr: seekr::Seekr::default(),
                 mpv: player::Mpv::default(),
+                introdb: introdb::IntroDb::default(),
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::catalog,
+            commands::recommend,
             commands::search,
             commands::meta,
             commands::streams,
@@ -61,6 +66,7 @@ pub fn run() {
             commands::subtitle_vtt,
             commands::seek_previews,
             commands::seekr_validate,
+            commands::skip_segments,
             commands::addons_list,
             commands::addon_install,
             commands::addon_remove,
@@ -71,6 +77,13 @@ pub fn run() {
             commands::continue_watching,
             commands::settings_get,
             commands::settings_set,
+            commands::open_external,
+            sync::space_activate,
+            sync::space_import_local,
+            sync::space_forget,
+            sync::sync_changes,
+            sync::sync_mark_pushed,
+            sync::sync_apply,
             player::mpv_available,
             player::mpv_load,
             player::mpv_command,

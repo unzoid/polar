@@ -1,5 +1,11 @@
 import type { Transition } from "motion/react";
 
+/** The CSS easing tokens (tokens.css), for Motion's tweens. */
+export const ease = {
+  out: [0.23, 1, 0.32, 1],
+  drawer: [0.32, 0.72, 0, 1],
+} as const;
+
 /**
  * Springs, in Apple's two designer-facing parameters (bounce ≈ 1 − damping,
  * duration ≈ response). Critically damped by default; bounce only when the

@@ -30,7 +30,7 @@ impl Serialize for CmdError {
     }
 }
 
-type Result<T> = std::result::Result<T, CmdError>;
+pub type Result<T> = std::result::Result<T, CmdError>;
 
 /// Per-addon budget. A slow addon must never hold the whole list hostage.
 const ADDON_TIMEOUT: Duration = Duration::from_secs(8);
@@ -38,8 +38,20 @@ const ADDON_TIMEOUT: Duration = Duration::from_secs(8);
 // --- Discovery -----------------------------------------------------------
 
 #[tauri::command]
-pub async fn catalog(state: State<'_, AppState>, ty: String, id: String, skip: Option<u32>) -> Result<Vec<MetaPreview>> {
-    Ok(state.indexer().catalog(&ty, &id, skip.unwrap_or(0)).await?)
+pub async fn catalog(
+    state: State<'_, AppState>,
+    ty: String,
+    id: String,
+    skip: Option<u32>,
+    genre: Option<String>,
+) -> Result<Vec<MetaPreview>> {
+    Ok(state.indexer().catalog(&ty, &id, skip.unwrap_or(0), genre.as_deref()).await?)
+}
+
+/// Titles like `id` ("Because you watched …").
+#[tauri::command]
+pub async fn recommend(state: State<'_, AppState>, ty: String, id: String) -> Result<Vec<MetaPreview>> {
+    Ok(state.indexer().recommend(&ty, &id).await?)
 }
 
 #[derive(Serialize)]
@@ -187,10 +199,14 @@ pub fn addon_remove(state: State<'_, AppState>, id: String) -> Result<()> {
 
 // --- Library & progress --------------------------------------------------
 
+// Everything here acts on the active space (the signed-out "local" space or
+// the selected profile), see `store::Space`.
+
 #[tauri::command]
 pub fn library_list(state: State<'_, AppState>) -> Vec<LibraryItem> {
     let store = state.store.lock().unwrap();
-    let mut items: Vec<_> = store.data.library.values().cloned().collect();
+    let Some(space) = store.data.space() else { return Vec::new() };
+    let mut items: Vec<_> = space.library.values().cloned().collect();
     items.sort_by(|a, b| b.added_at.cmp(&a.added_at));
     items
 }
@@ -200,11 +216,16 @@ pub fn library_list(state: State<'_, AppState>) -> Vec<LibraryItem> {
 pub fn library_toggle(state: State<'_, AppState>, item: MetaPreview) -> Result<bool> {
     let mut added = false;
     persist(&state, |d| {
-        if d.library.remove(&item.id).is_none() {
+        let space = d.space_mut();
+        let at = now();
+        if space.library.remove(&item.id).is_some() {
+            space.removed.insert(item.id, at);
+        } else {
             added = true;
-            d.library.insert(
+            space.removed.remove(&item.id);
+            space.library.insert(
                 item.id.clone(),
-                LibraryItem { id: item.id, ty: item.ty, name: item.name, poster: item.poster, added_at: now() },
+                LibraryItem { id: item.id, ty: item.ty, name: item.name, poster: item.poster, added_at: at },
             );
         }
     })?;
@@ -215,14 +236,15 @@ pub fn library_toggle(state: State<'_, AppState>, item: MetaPreview) -> Result<b
 #[tauri::command]
 pub fn progress_for(state: State<'_, AppState>, meta_id: String) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
-    store.data.progress.values().filter(|p| p.meta_id == meta_id).cloned().collect()
+    let Some(space) = store.data.space() else { return Vec::new() };
+    space.progress.values().filter(|p| p.meta_id == meta_id).cloned().collect()
 }
 
 #[tauri::command]
 pub fn progress_save(state: State<'_, AppState>, mut progress: Progress) -> Result<()> {
     progress.updated_at = now();
     persist(&state, |d| {
-        d.progress.insert(progress.video_id.clone(), progress);
+        d.space_mut().progress.insert(progress.video_id.clone(), progress);
     })
 }
 
@@ -230,8 +252,9 @@ pub fn progress_save(state: State<'_, AppState>, mut progress: Progress) -> Resu
 #[tauri::command]
 pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
+    let Some(space) = store.data.space() else { return Vec::new() };
     let mut latest: std::collections::HashMap<&str, &Progress> = Default::default();
-    for p in store.data.progress.values() {
+    for p in space.progress.values() {
         let slot = latest.entry(p.meta_id.as_str()).or_insert(p);
         if p.updated_at > slot.updated_at {
             *slot = p;
@@ -340,4 +363,25 @@ pub async fn seek_previews(
 #[tauri::command]
 pub async fn seekr_validate(state: State<'_, AppState>, key: String) -> Result<Option<String>> {
     state.seekr.validate(key.trim()).await.map_err(CmdError::Other)
+}
+
+// --- Skip segments (IntroDB) -------------------------------------------------
+
+/// Intro / recap / credits timings for a movie (`tt…`) or episode (`tt…:s:e`).
+#[tauri::command]
+pub async fn skip_segments(state: State<'_, AppState>, video_id: String) -> Result<crate::introdb::Segments> {
+    state.introdb.segments(&video_id).await.map_err(CmdError::Other)
+}
+
+// --- External links ------------------------------------------------------
+
+/// Opens a web page (e.g. a title on IMDb) in the default browser. Only
+/// https links, so the webview can't use this to launch anything else.
+#[tauri::command]
+pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    if !url.starts_with("https://") {
+        return Err(CmdError::Other("only https links can be opened".into()));
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|e| CmdError::Other(e.to_string()))
 }

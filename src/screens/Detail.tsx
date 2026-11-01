@@ -1,16 +1,18 @@
-import { Check, ListVideo, Play, Plus, RotateCcw } from "lucide-react";
+import { Check, GalleryHorizontal, ListVideo, Play, Plus, RotateCcw, Rows3 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { EpisodeShelf } from "../components/EpisodeShelf";
+import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
 import { Sheet } from "../components/Sheet";
 import { StreamList } from "../components/StreamList";
+import { SwapIcon } from "../components/SwapIcon";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
-import { episodeCode, formatTime } from "../lib/format";
-import { prefetchStreams, useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "../lib/queries";
+import { episodeCode, formatTime, seasonLabel } from "../lib/format";
+import { prefetchStreams, useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
 import { useRouter } from "../lib/router";
-import type { ContentType, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
+import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 
 /**
  * Title page in the Apple TV layout: the art fills the window, the title
@@ -32,10 +34,6 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
         <Img src={shown.background} alt="" loading="eager" className="detail-bg-sharp" />
         <Img src={shown.background} alt="" loading="eager" className="detail-bg-blur" />
         <div className="detail-bg-scrim" />
-      </div>
-      {/* Once the hero has receded, the title treatment settles top-centre (tvOS). */}
-      <div className="detail-ambient-title" aria-hidden>
-        {shown.logo ? <Img src={shown.logo} alt="" /> : <span className="t-title1">{shown.name}</span>}
       </div>
       <div className="scroll detail-scroll">
         <DetailHero item={shown} meta={meta} />
@@ -65,25 +63,28 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
       ? movieProgress.position
       : undefined;
 
-  // Sources for the primary action load as soon as the page opens: by the
-  // time the user reaches for Play, it starts immediately — and the badges
-  // (4K, Dolby Vision) describe what's actually available.
-  const streams = useStreams(item.type, videoId);
-  const best = streams.data?.streams[0]?.quality;
+  // Sources for the primary action load as soon as the page opens, so Play
+  // (or the source list) is ready by the time the user reaches for it.
+  useStreams(item.type, videoId);
+  const { data: settings } = useSettings();
+  const autoPick = settings?.autoPickSource ?? true;
 
-  const play = (stream?: RankedStream) =>
-    videoId && navigate({ name: "player", type: item.type, metaId: item.id, videoId, stream: stream?.stream });
+  const play = (stream?: RankedStream) => {
+    if (!videoId) return;
+    // Auto-pick off: choose a source first (resuming keeps the file you were on).
+    if (!stream && !autoPick && !resumeAt) return setSourcesOpen(true);
+    navigate({ name: "player", type: item.type, metaId: item.id, videoId, stream: stream?.stream });
+  };
 
   const primaryLabel = (() => {
     if (!isSeries) return resumeAt ? `Resume · ${formatTime(resumeAt)}` : "Play";
     if (!next?.video) return "Play";
-    const code = `S${next.video.season}, E${next.video.episode}`;
+    const code = episodeCode(next.video.season, next.video.episode);
     if (next.kind === "resume") return `Resume ${code}`;
     if (next.kind === "next") return `Play ${code}`;
     return next.video.season === 1 && next.video.episode === 1 ? "Play First Episode" : `Play ${code}`;
   })();
 
-  const kind = [isSeries ? "TV Show" : "Movie", ...(item.genres ?? []).slice(0, 2)].join(" · ");
   const facts = [item.releaseInfo, meta?.runtime?.replace(/(\d+) min/, (_, m) => formatRuntime(Number(m)))].filter(Boolean);
 
   return (
@@ -94,18 +95,10 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
         ) : (
           <h1 className="t-display detail-title">{item.name}</h1>
         )}
-        <p className="detail-kind t-callout">{kind}</p>
         {item.description && <p className="detail-description t-callout">{item.description}</p>}
         <p className="detail-facts t-callout tabular">
-          {item.imdbRating && <RatingRing value={item.imdbRating} />}
+          {item.imdbRating && <RatingRing value={item.imdbRating} imdbId={item.id} />}
           {facts.join(" · ")}
-          {best?.resolution === 2160 && <span className="badge-solid">4K</span>}
-          {best?.dolbyVision ? (
-            <span className="badge-wordmark">Dolby Vision</span>
-          ) : best?.hdr ? (
-            <span className="badge-outline">HDR</span>
-          ) : null}
-          {best?.cached && <span className="badge-outline">Instant</span>}
         </p>
 
         <div className="detail-actions">
@@ -121,11 +114,11 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
           <button
             className="btn btn-glass btn-icon"
             onClick={() => toggle.mutate(item)}
-            aria-label={inLibrary ? "Remove from Library" : "Add to Library"}
-            title={inLibrary ? "In Library" : "Add to Library"}
+            aria-label={inLibrary ? "Remove from My List" : "Add to My List"}
+            title={inLibrary ? "Remove from My List" : "Add to My List"}
             aria-pressed={inLibrary}
           >
-            {inLibrary ? <Check size={20} /> : <Plus size={20} />}
+            <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
           </button>
           <button
             className="btn btn-glass btn-icon"
@@ -183,12 +176,17 @@ function formatRuntime(minutes: number) {
   return h ? `${h} hr ${m} min` : `${m} min`;
 }
 
+/** Up to this many seasons show as tabs; more become a dropdown. */
+const MAX_SEASON_TABS = 6;
+
 function Seasons({ meta }: { meta: Meta }) {
   const { navigate } = useRouter();
   const { data: progress } = useProgress(meta.id);
   const seasons = useMemo(() => seasonsOf(meta), [meta]);
   const next = useMemo(() => upNext(meta, progress ?? []), [meta, progress]);
   const [season, setSeason] = useState<number | undefined>();
+  // This page's choice; until you pick one, the default from Settings.
+  const [layoutChoice, setLayout] = useState<EpisodeLayout | undefined>();
   // Kept after closing so the sheet keeps its content while it slides out.
   const [sourcesFor, setSourcesFor] = useState<Video | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -203,21 +201,53 @@ function Seasons({ meta }: { meta: Meta }) {
   const episodes = meta.videos.filter((v) => v.season === current);
   const map = useMemo(() => progressMap(progress), [progress]);
 
-  const play = (v: Video, stream?: RankedStream) =>
+  const { data: settings } = useSettings();
+  const autoPick = settings?.autoPickSource ?? true;
+  const layout = layoutChoice ?? settings?.episodeLayout ?? "row";
+  const play = (v: Video, stream?: RankedStream) => {
+    // Auto-pick off: choose a source first (a started episode keeps its file).
+    if (!stream && !autoPick && !map.has(v.id)) {
+      setSourcesFor(v);
+      return setSheetOpen(true);
+    }
     navigate({ name: "player", type: "series", metaId: meta.id, videoId: v.id, stream: stream?.stream });
+  };
 
   return (
     <section className="seasons">
       <div className="seasons-bar">
+        <div className="seasons-picker">
+          {seasons.length > MAX_SEASON_TABS ? (
+            // Long-running shows: tabs would scroll off-screen and hide most seasons.
+            <Dropdown
+              label="Season"
+              size="large"
+              value={String(current)}
+              onChange={(v) => setSeason(Number(v))}
+              options={seasons.map((s) => ({ value: String(s), label: seasonLabel(s) }))}
+            />
+          ) : (
+            <Segmented
+              label="Season"
+              variant="large"
+              value={current}
+              onChange={setSeason}
+              options={seasons.map((s) => ({ id: s, label: seasonLabel(s) }))}
+            />
+          )}
+        </div>
         <Segmented
-          label="Season"
-          variant="large"
-          value={current}
-          onChange={setSeason}
-          options={seasons.map((s) => ({ id: s, label: s === 0 ? "Specials" : `Season ${s}` }))}
+          label="Episode layout"
+          value={layout}
+          onChange={setLayout}
+          options={[
+            { id: "row", label: "Row", icon: <GalleryHorizontal size={18} /> },
+            { id: "list", label: "List", icon: <Rows3 size={18} /> },
+          ]}
         />
       </div>
       <EpisodeShelf
+        layout={layout}
         episodes={episodes}
         progress={map}
         runtime={meta.runtime}
@@ -251,11 +281,11 @@ function Seasons({ meta }: { meta: Meta }) {
 
 /** Movies: the Apple TV "About" + information block below the hero. */
 function About({ meta }: { meta: Meta }) {
+  // The rating already shows (and links to IMDb) in the hero.
   const info: [string, string | undefined][] = [
     ["Genre", meta.genres?.join(", ")],
     ["Released", meta.releaseInfo],
     ["Runtime", meta.runtime],
-    ["Rating", meta.imdbRating && `★ ${meta.imdbRating}`],
     ["Director", meta.director?.join(", ")],
   ];
   return (

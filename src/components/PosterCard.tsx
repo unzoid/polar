@@ -68,7 +68,7 @@ export function LandscapeCard({ item }: { item: MetaPreview }) {
       <div className="card-caption">
         <span className="card-title t-callout">{item.name}</span>
         <span className="t-caption faint">
-          {[item.type === "movie" ? "Movie" : "TV Show", item.genres?.[0], item.releaseInfo].filter(Boolean).join(" · ")}
+          {[item.type === "movie" ? "Movie" : "Series", item.genres?.[0], item.releaseInfo].filter(Boolean).join(" · ")}
         </span>
       </div>
     </button>

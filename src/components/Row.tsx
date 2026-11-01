@@ -13,7 +13,7 @@ export function Row({
 }: {
   title?: string;
   action?: ReactNode;
-  shape?: "poster" | "landscape" | "episode";
+  shape?: "poster" | "landscape" | "episode" | "top10";
   children: ReactNode;
 }) {
   const scroller = useRef<HTMLDivElement>(null);

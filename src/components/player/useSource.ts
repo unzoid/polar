@@ -61,7 +61,7 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
         status: "failed",
         reason: candidates.length
           ? "None of the sources could be played."
-          : "No sources found. Install a stream addon in Settings.",
+          : "No sources found. Install a stream add-on in Settings.",
       });
       return;
     }
