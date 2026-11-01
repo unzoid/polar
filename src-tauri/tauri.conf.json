@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Polar",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "app.getpolar.desktop",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "bun scripts/fetch-mpv.ts && bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "bun scripts/fetch-mpv.ts && bun run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -36,6 +36,12 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "vendor/mpv/mpv.exe": "mpv.exe",
+      "vendor/mpv/d3dcompiler_43.dll": "d3dcompiler_43.dll",
+      "vendor/mpv/LICENSE.GPL.txt": "licenses/mpv/LICENSE.GPL.txt",
+      "vendor/mpv/COPYRIGHT.txt": "licenses/mpv/COPYRIGHT.txt"
+    }
   }
 }
