@@ -116,6 +116,7 @@ function DesktopApp() {
       className="app"
       data-card-titles={settings?.showCardTitles ?? true}
       data-card-details={settings?.showCardDetails ?? true}
+      data-card-ratings={settings?.showCardRatings ?? false}
       data-player-leaving={leaving}
     >
       <main className="main">

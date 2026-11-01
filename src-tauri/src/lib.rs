@@ -53,6 +53,33 @@ fn migrate_legacy_store(dir: &std::path::Path, path: &std::path::Path) {
     }
 }
 
+/// Addons that come with the app: subtitles work out of the box.
+const BUNDLED_ADDONS: &[&str] = &["https://opensubtitles-v3.strem.io/manifest.json"];
+
+/// Install each bundled addon the first time the app runs with it. Offline
+/// launches try again next time; one the user has removed stays removed.
+async fn install_bundled_addons(app: tauri::AppHandle) {
+    let state = app.state::<AppState>();
+    let pending: Vec<&str> = {
+        let store = state.store.lock().unwrap();
+        BUNDLED_ADDONS
+            .iter()
+            .copied()
+            .filter(|url| !store.data.bundled_addons.iter().any(|u| u == url))
+            .collect()
+    };
+    for url in pending {
+        let Ok(manifest) = state.addons.manifest(url).await else { continue };
+        let mut store = state.store.lock().unwrap();
+        let data = &mut store.data;
+        if !data.addons.iter().any(|a| a.manifest.id == manifest.id) {
+            data.addons.push(store::InstalledAddon { manifest_url: url.into(), manifest });
+        }
+        data.bundled_addons.push(url.into());
+        let _ = store.save();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -73,6 +100,8 @@ pub fn run() {
             });
             app.manage(controllers::Controllers::default());
             controllers::watch(app.handle().clone());
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move { install_bundled_addons(handle).await });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -319,9 +319,10 @@
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
-  /* Room for the last row to come up to the top; the focused row stops just
-     clear of the fade along the top edge. */
-  padding-bottom: 50vh;
+  /* The focused row stops just clear of the fade along the top edge. No
+     spare room past the last row: the list ends where its content does, so
+     the last few rows settle lower instead of scrolling into empty space. */
+  padding-bottom: 2rem;
   scroll-padding-top: 0.5rem;
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 1rem);
   mask-image: linear-gradient(to bottom, transparent, #000 1rem);
@@ -357,6 +358,18 @@
   /* Vertical room for a lifted card and its ring, clear of the row title. */
   padding: 1.5rem var(--tv-gutter) 1.6rem;
   scroll-padding-inline-start: var(--tv-gutter);
+}
+/* IMDb badges sit just under the posters; the rail makes room for them. */
+.tv[data-card-ratings="true"] .tv-rail-track:has(.card-rating) {
+  padding-bottom: 3.4rem;
+}
+.app.tv[data-card-ratings="true"] .card-rating {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  left: 0;
+  min-height: 0;
+  padding: 0;
+  font-size: 0.85rem;
 }
 
 /* --- Cards --------------------------------------------------------------------- */
@@ -506,6 +519,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-height: 0;
   padding: 1.5rem 1rem 0 var(--tv-gutter);
 }
 .tv-search-field {
@@ -520,8 +534,80 @@
   white-space: pre;
   overflow: hidden;
 }
+.tv-search-field {
+  cursor: text;
+  transition: border-color var(--dur-fast) ease;
+}
+/* Typing on a real keyboard (or clicking here) puts focus in the field: Enter searches. */
+.tv-search-field:focus {
+  outline: none;
+  border-bottom-color: var(--text);
+}
 .tv-search-placeholder {
   color: var(--text-3);
+}
+.tv-osk-keyboard {
+  display: contents;
+}
+
+/* Recent searches, under the keyboard. */
+.tv-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-height: 0;
+  margin-top: 0.75rem;
+}
+.tv-recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+}
+.tv-recent-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--text-2);
+}
+.tv-recent-clear,
+.tv-recent-item {
+  border-radius: 0.55rem;
+  color: var(--text-2);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.tv-recent-clear {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.tv-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  height: 2.5rem;
+  padding: 0 0.8rem;
+  font-size: 1.05rem;
+  font-weight: 550;
+  text-align: left;
+}
+.tv-recent-item svg {
+  flex: none;
+  opacity: 0.6;
+}
+.tv-recent-item span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tv-recent-clear:focus,
+.tv-recent-item:focus {
+  outline: none;
+  background: var(--pill-light);
+  color: var(--text-on-light);
 }
 .tv-caret {
   flex: none;
@@ -577,7 +663,7 @@
   position: relative;
   inset: auto;
   min-height: 0;
-  padding-bottom: 40vh;
+  padding-bottom: 2rem;
 }
 .tv-search-results .tv-rail-title {
   margin-left: 1rem;
@@ -824,8 +910,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  /* The first and last episodes can come to the middle too. */
-  padding: 40vh var(--tv-gutter) 40vh 1rem;
+  padding: 1.5rem var(--tv-gutter) 2rem 1rem;
 }
 .tv-episode {
   display: flex;
@@ -959,7 +1044,7 @@
   flex: 1;
   min-height: 0;
   width: min(56rem, 100%);
-  padding: 0.5rem 0.5rem 40vh;
+  padding: 0.5rem 0.5rem 2rem;
 }
 /* Add to Playlist: one row per playlist, ticked if the title is in it. */
 .tv-playlist-list {

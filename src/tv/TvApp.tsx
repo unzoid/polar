@@ -17,6 +17,7 @@ import {
 import { Desktop } from "../components/icons";
 import { actionFor, shortcutText } from "../lib/keybinds";
 import { playSound } from "./sounds";
+import { useSettings } from "../lib/queries";
 import { setTvMode } from "./tvMode";
 import { ControllerToast, TV_TABS, TvHints, TvMenu, TvNav, sameTab } from "./TvChrome";
 import { TvDetail } from "./TvDetail";
@@ -60,8 +61,15 @@ export function TvApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cursorHidden, setCursorHidden] = useState(true);
   const pageEls = useRef(new Map<number, HTMLElement>());
+  const { data: settings } = useSettings();
 
   useEffect(installFocusMemory, []);
+
+  // The pack's startup chime (if it has one) as TV mode opens, once the first frame is up.
+  useEffect(() => {
+    const t = setTimeout(() => playSound("startup"), 300);
+    return () => clearTimeout(t);
+  }, []);
 
   const goBack = useCallback(() => {
     if (runBack()) return;
@@ -164,7 +172,12 @@ export function TvApp() {
   }, []);
 
   return (
-    <div className="app tv" data-player-leaving={leaving} data-cursor={cursorHidden ? "hidden" : "shown"}>
+    <div
+      className="app tv"
+      data-player-leaving={leaving}
+      data-cursor={cursorHidden ? "hidden" : "shown"}
+      data-card-ratings={settings?.showCardRatings ?? false}
+    >
       <main className="main tv-main" data-nav-scope>
         {pages.map((entry) => {
           const isTop = entry === topPage;

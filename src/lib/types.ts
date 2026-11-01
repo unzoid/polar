@@ -156,6 +156,8 @@ export interface Settings {
   showCardTitles: boolean;
   /** Type · genre · year under those titles. */
   showCardDetails: boolean;
+  /** IMDb rating badge under each poster. */
+  showCardRatings?: boolean;
   /** A season's episodes as a horizontal shelf or a vertical list. */
   episodeLayout: EpisodeLayout;
   /** "inter" (bundled), "system" (Segoe UI Variable on Windows), or an alternative from styles/fonts.css. */
@@ -214,4 +216,6 @@ export interface SubtitleStyle {
   outlineColor: string;
   /** Opacity of a dark box behind the text, percent (0 = none). */
   background: number;
+  /** System font family name (older saved styles may lack it). */
+  font?: string;
 }

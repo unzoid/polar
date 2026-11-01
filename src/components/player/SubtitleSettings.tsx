@@ -2,6 +2,9 @@ import { Minus, Plus, Reset } from "../icons";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { SubtitleStyle } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvMedia } from "./mpvMedia";
+import { Dropdown } from "../Dropdown";
+
+const DEFAULT_FONT = "Segoe UI Semibold";
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   size: 100,
@@ -11,7 +14,36 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   outline: "thin",
   outlineColor: "#000000",
   background: 0,
+  font: DEFAULT_FONT,
 };
+
+/** Styles saved before a setting existed are missing it: fill in the defaults. */
+const complete = (style: SubtitleStyle): Required<SubtitleStyle> =>
+  ({ ...DEFAULT_SUBTITLE_STYLE, ...style, font: style.font || DEFAULT_FONT }) as Required<SubtitleStyle>;
+const isDefaultStyle = (style: SubtitleStyle) => JSON.stringify(complete(style)) === JSON.stringify(complete(DEFAULT_SUBTITLE_STYLE));
+
+/** Fonts that ship with Windows, so mpv and the preview both find them. Values are family names. */
+const FONTS = [
+  { value: DEFAULT_FONT, label: "Segoe UI (Default)" },
+  { value: "Arial", label: "Arial" },
+  { value: "Calibri", label: "Calibri" },
+  { value: "Verdana", label: "Verdana" },
+  { value: "Tahoma", label: "Tahoma" },
+  { value: "Trebuchet MS", label: "Trebuchet MS" },
+  { value: "Bahnschrift", label: "Bahnschrift" },
+  { value: "Georgia", label: "Georgia" },
+  { value: "Cambria", label: "Cambria" },
+  { value: "Times New Roman", label: "Times New Roman" },
+  { value: "Consolas", label: "Consolas" },
+  { value: "Comic Sans MS", label: "Comic Sans MS" },
+  { value: "Impact", label: "Impact" },
+];
+
+/** CSS for the chosen font: the default face is a semibold family of its own; the rest are drawn regular, as mpv does. */
+const fontVars = (font: string) => ({
+  "--sub-font": `"${font}"`,
+  "--sub-weight": font === DEFAULT_FONT ? 600 : 400,
+});
 
 const TEXT_COLORS = [
   { value: "#FFFFFF", label: "White" },
@@ -57,11 +89,13 @@ const mpvColor = (hex: string, opacity = 100) => `#${alphaHex(opacity)}${hex.rep
  * forced for ASS/SSA tracks; plain-text subtitles (SRT, WebVTT…) follow the
  * sub-* options either way.
  */
-export function applySubtitleStyleToMpv(mpv: MpvMedia, style: SubtitleStyle, delay: number) {
-  const custom = JSON.stringify(style) !== JSON.stringify(DEFAULT_SUBTITLE_STYLE);
+export function applySubtitleStyleToMpv(mpv: MpvMedia, saved: SubtitleStyle, delay: number) {
+  const style = complete(saved);
+  const custom = !isDefaultStyle(style);
   const codec = mpv.tracks.find((t) => t.type === "sub" && t.id === mpv.sid)?.codec;
   const ass = codec === "ass" || codec === "ssa";
   void mpv.set("sub-ass-override", custom && ass ? "force" : "scale");
+  void mpv.set("sub-font", style.font);
   void mpv.set("sub-scale", style.size / 100);
   void mpv.set("sub-pos", 100 - style.raise);
   void mpv.set("sub-color", mpvColor(style.color, style.opacity));
@@ -78,7 +112,8 @@ export function applySubtitleStyleToMpv(mpv: MpvMedia, style: SubtitleStyle, del
 }
 
 /** The built-in <video> player: the same choices, as CSS variables read by `::cue`. */
-export function subtitleCueVars(style: SubtitleStyle): CSSProperties {
+export function subtitleCueVars(saved: SubtitleStyle): CSSProperties {
+  const style = complete(saved);
   const text = hexToRgb(style.color, style.opacity);
   const edge = hexToRgb(style.outlineColor, style.opacity);
   const w = OUTLINE_PX[style.outline];
@@ -91,6 +126,7 @@ export function subtitleCueVars(style: SubtitleStyle): CSSProperties {
     "--sub-color": text,
     "--sub-shadow": shadow,
     "--sub-bg": `rgb(0 0 0 / ${style.background / 100})`,
+    ...fontVars(style.font),
   } as CSSProperties;
 }
 
@@ -119,7 +155,7 @@ export function SubtitleSettings({
   /** Delay and position need the mpv engine. */
   canPosition: boolean;
 }) {
-  const isDefault = JSON.stringify(style) === JSON.stringify(DEFAULT_SUBTITLE_STYLE) && !delay;
+  const isDefault = isDefaultStyle(style) && !delay;
   return (
     <div className="sub-settings">
       {canPosition && onDelay && delay !== undefined && (
@@ -144,6 +180,9 @@ export function SubtitleSettings({
           />
         </Setting>
       )}
+      <Setting label="Font">
+        <Dropdown label="Subtitle font" value={style.font || DEFAULT_FONT} options={FONTS} onChange={(font) => onChange({ font })} />
+      </Setting>
       <Setting label="Size">
         <Stepper value={style.size} step={10} min={50} max={200} format={(v) => `${v}%`} onChange={(size) => onChange({ size })} label="Size" />
       </Setting>
@@ -291,7 +330,8 @@ const SAMPLE = "This is how your subtitles will look.";
  * real subtitles are hidden behind the blur. Shows the line on screen when
  * there is one.
  */
-export function SubtitlePreview({ style, media }: { style: SubtitleStyle; media: MediaLike | null }) {
+export function SubtitlePreview({ style: saved, media }: { style: SubtitleStyle; media: MediaLike | null }) {
+  const style = complete(saved);
   const [line, setLine] = useState("");
   useEffect(() => {
     if (!isMpv(media)) return;
@@ -316,6 +356,7 @@ export function SubtitlePreview({ style, media }: { style: SubtitleStyle; media:
     "--sub-edge": hexToRgb(style.outlineColor, style.opacity),
     "--sub-edge-w": OUTLINE_PX[style.outline],
     "--sub-bg": `rgb(0 0 0 / ${style.background / 100})`,
+    ...fontVars(style.font),
   } as CSSProperties;
   return (
     <div className="sub-preview" style={vars} aria-hidden>

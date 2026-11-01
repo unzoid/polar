@@ -271,7 +271,7 @@ function NamePanel({
         <p className="tv-sources-sub">{editing ? editing.name : `Starts with ${item.name}`}</p>
       </header>
       <div className="tv-osk tv-name-osk">
-        <TvKeyboard text={text} onChange={setText} placeholder="Playlist name" active={active} caps />
+        <TvKeyboard text={text} onChange={setText} onSubmit={save} placeholder="Playlist name" active={active} caps />
         <button className="tv-pill tv-name-save" onClick={save}>
           <Check size={20} />
           {editing ? "Save" : "Create Playlist"}

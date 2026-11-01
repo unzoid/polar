@@ -14,6 +14,7 @@ const KEYS = [..."abcdefghijklmnopqrstuvwxyz1234567890"];
 export function TvKeyboard({
   text,
   onChange,
+  onSubmit,
   placeholder,
   active,
   max = 60,
@@ -21,12 +22,18 @@ export function TvKeyboard({
 }: {
   text: string;
   onChange: (text: string) => void;
+  /** Enter pressed in the text field (rather than on an on-screen key). */
+  onSubmit?: () => void;
   placeholder: string;
   /** Whether a real keyboard should type here (the screen is on top). */
   active: boolean;
   max?: number;
   caps?: boolean;
 }) {
+  const field = useRef<HTMLDivElement>(null);
+  const keys = useRef<HTMLDivElement>(null);
+  const submitRef = useRef(onSubmit);
+  submitRef.current = onSubmit;
   const [shift, setShift] = useState(false);
   const autoCap = caps && (text === "" || text.endsWith(" "));
   const upper = caps && autoCap !== shift;
@@ -45,16 +52,27 @@ export function TvKeyboard({
   // A physical keyboard types without visiting the on-screen keys. Capture
   // phase, so Backspace deletes a letter before it can mean "Back" (once the
   // field is empty, it's Back again).
+  //
+  // Typing on it moves focus off the on-screen key you were on and into the
+  // field, so Enter afterwards searches instead of pressing that key.
   useEffect(() => {
     if (!active) return;
+    const toField = () => {
+      if (keys.current?.contains(document.activeElement)) field.current?.focus({ preventScroll: true });
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key.length === 1 && /[\p{L}\p{N} '&:-]/u.test(e.key)) {
         e.preventDefault();
         type(caps ? e.key : e.key.toLowerCase());
+        toField();
       } else if (e.key === "Backspace" && textRef.current) {
         e.preventDefault();
         erase();
+        toField();
+      } else if (e.key === "Enter" && document.activeElement === field.current && submitRef.current) {
+        e.preventDefault();
+        submitRef.current();
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -64,10 +82,12 @@ export function TvKeyboard({
 
   return (
     <>
-      <div className="tv-search-field" aria-live="polite">
+      {/* Clickable (focus leaves the on-screen keys), but not a stop for the arrows: tabIndex -1. */}
+      <div ref={field} className="tv-search-field" tabIndex={-1} role="textbox" aria-label={placeholder} aria-live="polite" data-nav-keep>
         {text ? <span>{text}</span> : <span className="tv-search-placeholder">{placeholder}</span>}
         <span className="tv-caret" aria-hidden />
       </div>
+      <div ref={keys} className="tv-osk-keyboard">
       <div className="tv-osk-row" data-caps={caps || undefined} data-nav-memory>
         {caps && (
           <button
@@ -95,6 +115,7 @@ export function TvKeyboard({
             {upper ? k.toUpperCase() : k}
           </button>
         ))}
+      </div>
       </div>
     </>
   );

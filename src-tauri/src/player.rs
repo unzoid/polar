@@ -13,18 +13,18 @@
 //!     events (high-frequency ones throttled), lifecycle events as `mpv://event`.
 //!
 //! The process is started on first playback and kept alive (idle, black,
-//! hidden under opaque pages) so the next title starts instantly; it's killed
-//! when the app exits.
+//! hidden under opaque pages) so the next title starts instantly; it's shut
+//! down after a few idle minutes (to give its memory back) and when the app exits.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, WriteHalf};
 use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
 use tokio::sync::{oneshot, Mutex};
@@ -50,6 +50,22 @@ const OBSERVED: &[&str] = &[
 /// Properties that change every frame; the UI interpolates between updates.
 const THROTTLED: &[(&str, u64)] = &[("time-pos", 250), ("demuxer-cache-time", 1000)];
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long an idle mpv is kept around after playback stops. Re-using it saves
+/// ~150 ms of startup; past this it's not worth the GPU/RAM it holds.
+const IDLE_SHUTDOWN: Duration = Duration::from_secs(5 * 60);
+
+/// Options only newer mpv builds know. An unknown option is fatal at startup,
+/// so if a user's older mpv (found on PATH) exits immediately, we retry without them.
+const MODERN_ARGS: &[&str] = &[
+    // mpv's built-in Lua scripts each run their own VM + thread (~6 MiB,
+    // 5 threads together). Our UI replaces all of them.
+    "--load-stats-overlay=no",
+    "--load-console=no",
+    "--load-select=no",
+    "--load-commands=no",
+    "--load-positioning=no",
+    "--load-auto-profiles=no",
+];
 
 type Pending = Arc<StdMutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>;
 
@@ -57,12 +73,16 @@ struct Conn {
     child: Child,
     writer: WriteHalf<NamedPipeClient>,
     pending: Pending,
+    /// Set before an intentional kill so the reader doesn't report a crash.
+    quiet: Arc<AtomicBool>,
 }
 
 #[derive(Default)]
 pub struct Mpv {
     conn: Mutex<Option<Conn>>,
     next_id: AtomicU64,
+    /// Bumped on every load/stop; an idle-shutdown timer only fires if it's unchanged.
+    idle_gen: AtomicU64,
 }
 
 /// mpv.exe: next to our binary (bundled), on PATH, or a standard install.
@@ -104,21 +124,42 @@ impl Mpv {
         let pipe = format!(r"\\.\pipe\polar-mpv-{}", std::process::id());
         let shots = std::env::temp_dir().join("polar-mpv");
         let _ = std::fs::create_dir_all(&shots);
+        // Compiled shaders persist here, so the first frame after an app
+        // restart doesn't wait on shader compilation.
+        let shader_cache = app
+            .path()
+            .app_cache_dir()
+            .unwrap_or_else(|_| shots.clone())
+            .join("mpv-shaders");
+        let _ = std::fs::create_dir_all(&shader_cache);
 
-        let mut cmd = Command::new(&bin);
-        cmd.args([
+        let base: Vec<String> = vec![
             format!("--wid={hwnd}"),
             format!("--input-ipc-server={pipe}"),
             "--profile=libmpv".into(), // no OSC/OSD/default key bindings — our UI does that
+            // Ignore a user's own mpv.conf/scripts: heavy shaders or
+            // interpolation from a desktop setup don't belong in the embed.
+            "--config=no".into(),
             "--idle=yes".into(),
             "--keep-open=yes".into(),
             "--force-window=yes".into(),
-            "--hwdec=auto-safe".into(),
+            "--hwdec=auto-safe".into(), // d3d11va: decoded frames stay on the GPU
             "--vo=gpu-next".into(),
+            "--gpu-api=d3d11".into(), // lighter than Vulkan on Windows, and zero-copy with d3d11va
+            format!("--gpu-shader-cache-dir={}", shader_cache.display()),
             "--background-color=#000000".into(),
+            // Cache: with --cache=yes mpv ignores --demuxer-readahead-secs and
+            // uses --cache-secs (default: 1000 hours), so it always filled the
+            // whole byte limit. Now: up to 90 s ahead, capped at 192 MiB
+            // (~20 s of a 4K remux, minutes of a typical 1080p stream), with
+            // 32 MiB kept behind for instant short rewinds.
             "--cache=yes".into(),
-            "--demuxer-max-bytes=400MiB".into(),
-            "--demuxer-readahead-secs=60".into(),
+            "--cache-secs=90".into(),
+            "--demuxer-max-bytes=192MiB".into(),
+            "--demuxer-max-back-bytes=32MiB".into(),
+            // Once full, read again in bursts (when 60 s remain) instead of
+            // waking up for every packet.
+            "--demuxer-hysteresis-secs=60".into(),
             "--network-timeout=30".into(),
             "--ytdl=no".into(),
             "--sub-auto=no".into(),
@@ -132,30 +173,21 @@ impl Mpv {
             "--screenshot-format=jpg".into(),
             "--screenshot-jpeg-quality=70".into(),
             format!("--screenshot-directory={}", shots.display()),
-        ])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: no console flash
-        }
-        let child = cmd.spawn().map_err(|e| format!("couldn't start mpv: {e}"))?;
+        ];
 
-        // The pipe appears once mpv has initialised.
-        let started = Instant::now();
-        let client = loop {
-            match ClientOptions::new().open(&pipe) {
-                Ok(c) => break c,
-                Err(_) if started.elapsed() < Duration::from_secs(8) => tokio::time::sleep(Duration::from_millis(40)).await,
-                Err(e) => return Err(format!("mpv didn't open its control pipe: {e}")),
-            }
+        let (child, client) = match launch(&bin, &base, true, &pipe).await? {
+            Some(ok) => ok,
+            // Exited during startup: most likely an older mpv that rejects
+            // a newer option.
+            None => launch(&bin, &base, false, &pipe)
+                .await?
+                .ok_or("mpv exited during startup")?,
         };
         let (reader, writer) = tokio::io::split(client);
         let pending: Pending = Arc::default();
-        tokio::spawn(read_loop(app.clone(), BufReader::new(reader), pending.clone()));
-        *guard = Some(Conn { child, writer, pending });
+        let quiet = Arc::new(AtomicBool::new(false));
+        tokio::spawn(read_loop(app.clone(), BufReader::new(reader), pending.clone(), quiet.clone()));
+        *guard = Some(Conn { child, writer, pending, quiet });
         drop(guard);
 
         for (i, name) in OBSERVED.iter().enumerate() {
@@ -184,13 +216,81 @@ impl Mpv {
     pub fn kill(&self) {
         if let Ok(mut guard) = self.conn.try_lock() {
             if let Some(mut conn) = guard.take() {
+                conn.quiet.store(true, Ordering::Relaxed);
                 let _ = conn.child.kill();
+            }
+        }
+    }
+
+    /// Cancel any pending idle shutdown (a new title is starting).
+    fn touch(&self) {
+        self.idle_gen.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Shut mpv down if nothing plays for `IDLE_SHUTDOWN`: an idle mpv still
+    /// holds its swapchain, decoder pools and ~40+ MiB of RAM.
+    fn schedule_idle_shutdown(&self, app: &AppHandle) {
+        let generation = self.idle_gen.fetch_add(1, Ordering::Relaxed) + 1;
+        let app = app.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(IDLE_SHUTDOWN).await;
+            let mpv = &app.state::<AppState>().mpv;
+            let mut guard = mpv.conn.lock().await;
+            if mpv.idle_gen.load(Ordering::Relaxed) != generation {
+                return;
+            }
+            if let Some(mut conn) = guard.take() {
+                conn.quiet.store(true, Ordering::Relaxed);
+                let _ = conn.child.kill();
+                let _ = conn.child.wait();
+            }
+        });
+    }
+}
+
+/// Spawn mpv and connect to its IPC pipe. `Ok(None)` means mpv exited before
+/// the pipe appeared (only reported when `modern` is set, so the caller can
+/// retry without the newer options).
+async fn launch(
+    bin: &PathBuf,
+    base: &[String],
+    modern: bool,
+    pipe: &str,
+) -> Result<Option<(Child, NamedPipeClient)>, String> {
+    let mut cmd = Command::new(bin);
+    cmd.args(base);
+    if modern {
+        cmd.args(MODERN_ARGS);
+    }
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: no console flash
+    }
+    let mut child = cmd.spawn().map_err(|e| format!("couldn't start mpv: {e}"))?;
+
+    // The pipe appears once mpv has initialised.
+    let started = Instant::now();
+    loop {
+        match ClientOptions::new().open(pipe) {
+            Ok(c) => return Ok(Some((child, c))),
+            Err(_) if modern && matches!(child.try_wait(), Ok(Some(_))) => return Ok(None),
+            Err(_) if started.elapsed() < Duration::from_secs(8) => tokio::time::sleep(Duration::from_millis(15)).await,
+            Err(e) => {
+                let _ = child.kill();
+                return Err(format!("mpv didn't open its control pipe: {e}"));
             }
         }
     }
 }
 
-async fn read_loop(app: AppHandle, mut reader: BufReader<tokio::io::ReadHalf<NamedPipeClient>>, pending: Pending) {
+async fn read_loop(
+    app: AppHandle,
+    mut reader: BufReader<tokio::io::ReadHalf<NamedPipeClient>>,
+    pending: Pending,
+    quiet: Arc<AtomicBool>,
+) {
     let mut last_emit: HashMap<String, Instant> = HashMap::new();
     let mut line = String::new();
     loop {
@@ -232,7 +332,9 @@ async fn read_loop(app: AppHandle, mut reader: BufReader<tokio::io::ReadHalf<Nam
             None => {}
         }
     }
-    let _ = app.emit("mpv://event", json!({ "event": "shutdown" }));
+    if !quiet.load(Ordering::Relaxed) {
+        let _ = app.emit("mpv://event", json!({ "event": "shutdown" }));
+    }
 }
 
 // --- Commands --------------------------------------------------------------
@@ -251,6 +353,7 @@ pub async fn mpv_load(
     url: String,
     start: Option<f64>,
 ) -> Result<(), String> {
+    state.mpv.touch();
     state.mpv.ensure(&app, &window).await?;
     let mut options = String::new();
     if let Some(s) = start.filter(|s| *s > 1.0) {
@@ -274,10 +377,11 @@ pub async fn mpv_set(state: State<'_, AppState>, name: String, value: Value) -> 
 
 /// Stop playback but keep mpv alive (idle) for the next title.
 #[tauri::command]
-pub async fn mpv_stop(state: State<'_, AppState>) -> Result<(), String> {
+pub async fn mpv_stop(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     if state.mpv.conn.lock().await.is_none() {
         return Ok(());
     }
+    state.mpv.schedule_idle_shutdown(&app);
     state.mpv.request(json!(["stop"])).await.map(|_| ())
 }
 

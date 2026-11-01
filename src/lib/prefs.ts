@@ -25,7 +25,7 @@ export interface Prefs {
 const DEFAULTS: Prefs = {
   uiSounds: true,
   uiSoundVolume: 0.5,
-  uiSoundPack: "soft",
+  uiSoundPack: "classic",
   controllerAlerts: true,
   suggestTvMode: true,
   preferFileChapters: true,

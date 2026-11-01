@@ -36,6 +36,8 @@ pub struct Settings {
     pub show_card_titles: bool,
     /// Show the type, genre and year under those titles.
     pub show_card_details: bool,
+    /// Show an IMDb rating badge under each poster.
+    pub show_card_ratings: bool,
     /// How a season's episodes are laid out: "row" (horizontal shelf) or "list".
     pub episode_layout: String,
     /// Interface font: "inter" (bundled) or "system" (Segoe UI Variable on Windows).
@@ -63,6 +65,8 @@ pub struct SubtitleStyle {
     pub outline_color: String,
     /// Opacity of a dark box behind the text, percent (0 = no box).
     pub background: u32,
+    /// Font family name, as installed on the system.
+    pub font: String,
 }
 
 impl Default for SubtitleStyle {
@@ -75,6 +79,7 @@ impl Default for SubtitleStyle {
             outline: "thin".into(),
             outline_color: "#000000".into(),
             background: 0,
+            font: "Segoe UI Semibold".into(),
         }
     }
 }
@@ -95,6 +100,7 @@ impl Default for Settings {
             auto_pick_source: true,
             show_card_titles: true,
             show_card_details: true,
+            show_card_ratings: false,
             episode_layout: "row".into(),
             ui_font: "inter".into(),
             subtitle_style: SubtitleStyle::default(),
@@ -178,6 +184,9 @@ pub struct Space {
 pub struct Data {
     pub settings: Settings,
     pub addons: Vec<InstalledAddon>,
+    /// Bundled addons already installed once (manifest URLs). Removing one
+    /// keeps it here, so it isn't put back on the next launch.
+    pub bundled_addons: Vec<String>,
     pub spaces: HashMap<String, Space>,
     /// Which space library/progress commands act on.
     pub active_space: String,

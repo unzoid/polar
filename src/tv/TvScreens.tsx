@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Desktop } from "../components/icons";
+import { Desktop, Speed } from "../components/icons";
+import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../lib/recentSearches";
+import { playSound } from "./sounds";
 import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/queries";
 import {
   GENRES,
@@ -147,7 +149,8 @@ export function TvSearch() {
   const active = usePageActive();
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
-  const { data } = useSearch(query);
+  const { data, isPlaceholderData } = useSearch(query);
+  const recent = useRecentSearches();
   const trending = useTrending();
   const suggestions = useMemo(
     () => (trending.series && trending.movies ? trendingPicks(trending.series, trending.movies, [], 18) : undefined),
@@ -177,14 +180,63 @@ export function TvSearch() {
   }, [text]);
 
   const searching = query.length > 1;
-  const empty = searching && data && !data.movies.length && !data.series.length;
+  const empty = searching && data && !isPlaceholderData && !data.movies.length && !data.series.length;
+
+  // Enter (or a recent search): search now, and go to the first result once it's in.
+  const pendingFocus = useRef<string | null>(null);
+  const [submits, setSubmits] = useState(0);
+  const runSearch = (q: string) => {
+    q = q.trim().slice(0, MAX_QUERY);
+    if (q.length < 2) return false;
+    setText(q);
+    setQuery(q);
+    addRecentSearch(q);
+    pendingFocus.current = q;
+    setSubmits((n) => n + 1); // the same search again still moves to the results
+    return true;
+  };
+  useEffect(() => {
+    if (pendingFocus.current !== query || !data || isPlaceholderData) return;
+    pendingFocus.current = null;
+    if (data.movies.length || data.series.length) return focusWhenReady(resultsRef.current);
+  }, [query, data, isPlaceholderData, submits]);
 
   return (
     <div className="tv-search">
       <aside className="tv-osk">
-        <TvKeyboard text={text} onChange={setText} placeholder="Search titles" active={active} max={MAX_QUERY} />
+        <TvKeyboard
+          text={text}
+          onChange={setText}
+          // Enter in the field (the shell's own Enter sound doesn't reach it).
+          onSubmit={() => runSearch(text) && playSound("select")}
+          placeholder="Search titles"
+          active={active}
+          max={MAX_QUERY}
+        />
+        {recent.length > 0 && (
+          <section className="tv-recent" data-nav-memory aria-label="Recent searches">
+            <div className="tv-recent-head">
+              <h2 className="tv-recent-title">Recent Searches</h2>
+              <button className="tv-recent-clear" onClick={clearRecentSearches}>
+                Clear
+              </button>
+            </div>
+            {recent.map((r) => (
+              <button key={r} className="tv-recent-item" onClick={() => runSearch(r)}>
+                <Speed size={18} />
+                <span>{r}</span>
+              </button>
+            ))}
+          </section>
+        )}
       </aside>
-      <div className="tv-scroll tv-search-results" data-nav-scroll="start" ref={resultsRef}>
+      <div
+        className="tv-scroll tv-search-results"
+        data-nav-scroll="start"
+        ref={resultsRef}
+        // Opening a result counts as running the search.
+        onClickCapture={(e) => searching && (e.target as HTMLElement).closest(".tv-card") && addRecentSearch(query)}
+      >
         {!searching && genre && <TvGenreResults genre={genre} />}
         {!searching && !genre && (
           <>

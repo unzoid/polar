@@ -10,12 +10,14 @@ import { isTvMode } from "./tvMode";
  * No audio files: each pack is rendered once into buffers from small physical
  * models (a filtered noise strike for the contact, decaying inharmonic modes
  * for the body, or a plucked string). That's what makes them sound like a
- * tap on something rather than a pure sine beep.
+ * tap on something rather than a pure sine beep. The ambient pack is the
+ * exception: soft swelling tones in a small room, plus a startup chime.
  */
-export type Sound = "move" | "select" | "back" | "edge";
-export type SoundPack = "soft" | "wood" | "glass" | "pluck" | "classic";
+export type Sound = "move" | "select" | "back" | "edge" | "startup";
+export type SoundPack = "ambient" | "soft" | "wood" | "glass" | "pluck" | "classic";
 
 export const SOUND_PACKS: { value: SoundPack; label: string }[] = [
+  { value: "ambient", label: "Ambient" },
   { value: "soft", label: "Soft tap" },
   { value: "wood", label: "Wood" },
   { value: "glass", label: "Glass" },
@@ -138,14 +140,196 @@ function glide(buf: Float32Array, sr: number, from: number, to: number, dur: num
   }
 }
 
+/** Rises along sine² (no click, no edge), then falls exponentially. */
+const swellEnv = (t: number, attack: number, decay: number) =>
+  t < attack ? Math.sin((Math.PI / 2) * (t / attack)) ** 2 : Math.exp(-(t - attack) / decay);
+
+/**
+ * A soft, rounded tone: a sine and a quiet octave that swell in and fade.
+ * `glide` starts the pitch that fraction flat (or sharp, if negative) and
+ * lets it settle, which gives a gentle "bloop" rather than a beep.
+ */
+function swell(
+  buf: Float32Array,
+  sr: number,
+  f: number,
+  { at = 0, amp = 1, attack = 0.01, decay = 0.1, octave = 0.15, octaveDecay = 1, glide = 0 } = {},
+) {
+  const start = Math.floor(at * sr);
+  for (const [ratio, a, d] of [[1, 1, decay], [2, octave, decay * octaveDecay]]) {
+    if (!a) continue;
+    let phase = 0;
+    for (let i = start; i < buf.length; i++) {
+      const t = (i - start) / sr;
+      const env = swellEnv(t, attack, d);
+      if (t > attack && env < 1e-4) break;
+      phase += (2 * Math.PI * f * ratio * (1 - glide * Math.exp(-t / 0.012))) / sr;
+      buf[i] += amp * a * env * Math.sin(phase);
+    }
+  }
+}
+
+/**
+ * A slow pad note: two slightly detuned voices (so it breathes) with a few
+ * soft harmonics, faded in, held and faded out. Sines by recurrence, since
+ * the startup chime runs hundreds of thousands of samples per partial.
+ */
+function pad(
+  buf: Float32Array,
+  sr: number,
+  f: number,
+  { at = 0, amp = 1, attack = 1, hold = 0, release = 1.5, detune = 5, partials = [[1, 1], [2, 0.16], [3, 0.04]] } = {},
+) {
+  const start = Math.floor(at * sr);
+  const end = Math.min(buf.length, start + Math.floor((attack + hold + release) * sr));
+  // One envelope, shared by every voice and partial.
+  const env = new Float32Array(Math.max(0, end - start));
+  for (let i = 0; i < env.length; i++) {
+    const t = i / sr;
+    env[i] =
+      0.5 *
+      amp *
+      (t < attack
+        ? Math.sin((Math.PI / 2) * (t / attack)) ** 2
+        : t < attack + hold
+          ? 1
+          : Math.cos((Math.PI / 2) * Math.min(1, (t - attack - hold) / release)) ** 2);
+  }
+  for (const cents of [-detune, detune]) {
+    for (const [ratio, a] of partials) {
+      const w = (2 * Math.PI * f * ratio * 2 ** (cents / 1200)) / sr;
+      if (w >= Math.PI * 0.9) continue;
+      const k = 2 * Math.cos(w);
+      let y1 = Math.sin(-w);
+      let y2 = Math.sin(-2 * w);
+      for (let i = start; i < end; i++) {
+        const y = k * y1 - y2;
+        y2 = y1;
+        y1 = y;
+        buf[i] += a * env[i - start] * y;
+      }
+    }
+  }
+}
+
+/** A small Schroeder room (four damped combs into two allpasses), mixed in place. */
+function space(buf: Float32Array, sr: number, { mix = 0.3, t60 = 1, damp = 0.35 } = {}) {
+  const wet = new Float32Array(buf.length);
+  for (const d of [0.0297, 0.0371, 0.0411, 0.0437]) {
+    const line = new Float32Array(Math.round(d * sr));
+    const g = 10 ** ((-3 * d) / t60);
+    let j = 0, lp = 0;
+    for (let i = 0; i < buf.length; i++) {
+      const y = line[j];
+      lp = (1 - damp) * y + damp * lp;
+      line[j] = buf[i] + g * lp;
+      wet[i] += y / 4;
+      j = (j + 1) % line.length;
+    }
+  }
+  for (const d of [0.005, 0.0017]) {
+    const line = new Float32Array(Math.round(d * sr));
+    let j = 0;
+    for (let i = 0; i < wet.length; i++) {
+      const x = wet[i];
+      const y = line[j] - 0.7 * x;
+      line[j] = x + 0.7 * y;
+      wet[i] = y;
+      j = (j + 1) % line.length;
+    }
+  }
+  for (let i = 0; i < buf.length; i++) buf[i] += mix * wet[i];
+}
+
 type Voice = { dur: number; peak: number; draw: (buf: Float32Array, sr: number) => void };
+/** Every pack has the four navigation sounds; a startup chime is optional. */
+type Pack = Record<Exclude<Sound, "startup">, Voice> & { startup?: Voice };
+
+/** Note frequencies the ambient pack is written in (a dreamy A♭ / D♭ colour). */
+const N = {
+  Ab1: 51.91, Db2: 69.3, Eb2: 77.78, F2: 87.31, Ab2: 103.83,
+  Db3: 138.59, Eb3: 155.56, F3: 174.61, Gb3: 185.0, Ab3: 207.65, Bb3: 233.08,
+  C4: 261.63, Db4: 277.18, Eb4: 311.13, F4: 349.23, Gb4: 369.99, Ab4: 415.3,
+  Db5: 554.37, Eb5: 622.25, Ab5: 830.61,
+};
 
 // Ratios for a free wooden bar / marimba bar / small glass bar.
 const WOOD_BLOCK: Mode[] = [[1, 1, 0.014], [2.57, 0.35, 0.007], [4.07, 0.12, 0.004]];
 const marimba = (d: number): Mode[] => [[1, 1, d], [3.93, 0.22, d * 0.25], [9.2, 0.06, d * 0.08]];
 const glass = (d: number): Mode[] => [[1, 1, d], [2.756, 0.28, d * 0.4], [5.404, 0.1, d * 0.18], [8.933, 0.04, d * 0.1]];
 
-const PACKS: Record<SoundPack, Record<Sound, Voice>> = {
+const PACKS: Record<SoundPack, Pack> = {
+  // Console-style: round tones that swell rather than strike, in a little
+  // room. Select and back are two-part (a high swell handing over to a lower
+  // chord), so select reads as "settling in" and back as "stepping down".
+  ambient: {
+    move: {
+      dur: 0.32,
+      peak: 0.08,
+      draw: (b, sr) => {
+        swell(b, sr, N.F4, { attack: 0.009, decay: 0.035, octave: 0.45, octaveDecay: 1.5, glide: 0.02 });
+        space(b, sr, { mix: 0.22, t60: 0.3 });
+      },
+    },
+    select: {
+      dur: 1.3,
+      peak: 0.12,
+      draw: (b, sr) => {
+        for (const [f, a] of [[N.Ab4, 1], [N.Db5, 0.55], [N.Eb5, 0.4]])
+          swell(b, sr, f, { amp: a, attack: 0.05, decay: 0.12, octave: 0.06 });
+        for (const [f, a] of [[N.Ab3, 1], [N.Db4, 0.7], [N.Eb4, 0.45]])
+          swell(b, sr, f, { at: 0.07, amp: a, attack: 0.04, decay: 0.3, octave: 0.1 });
+        space(b, sr, { mix: 0.3, t60: 0.9 });
+      },
+    },
+    back: {
+      dur: 1.1,
+      peak: 0.1,
+      draw: (b, sr) => {
+        for (const [f, a] of [[N.Db5, 0.55], [N.Gb4, 1]])
+          swell(b, sr, f, { amp: a, attack: 0.04, decay: 0.09, octave: 0.06 });
+        for (const [f, a] of [[N.Gb3, 1], [N.Ab3, 0.35], [N.Db4, 0.6]])
+          swell(b, sr, f, { at: 0.06, amp: a, attack: 0.035, decay: 0.24, octave: 0.1 });
+        space(b, sr, { mix: 0.3, t60: 0.8 });
+      },
+    },
+    edge: {
+      dur: 0.3,
+      peak: 0.11,
+      draw: (b, sr) => {
+        // Starts a touch sharp and sags: a soft "nope".
+        swell(b, sr, N.Db3, { attack: 0.006, decay: 0.05, octave: 0.3, glide: -0.04 });
+        swell(b, sr, N.Ab3, { amp: 0.2, attack: 0.006, decay: 0.035, octave: 0 });
+        space(b, sr, { mix: 0.15, t60: 0.25 });
+      },
+    },
+    // A slow bloom through F → D♭maj7 → A♭add9 over a soft bass, ~8 seconds.
+    startup: {
+      dur: 9,
+      peak: 0.14,
+      draw: (b, sr) => {
+        const chord = (at: number, notes: [number, number][], env: { attack: number; hold: number; release: number }) => {
+          for (const [f, a] of notes) pad(b, sr, f, { at, amp: a, ...env });
+        };
+        chord(0, [[N.F2, 0.7], [N.F3, 1], [N.C4, 0.6], [N.F4, 0.45]], { attack: 1.4, hold: 0.5, release: 1.8 });
+        chord(0.5, [[N.Bb3, 0.35]], { attack: 1.2, hold: 0.3, release: 1.6 });
+        chord(1.9, [[N.Db2, 0.7], [N.Db3, 0.8], [N.F3, 0.7], [N.Ab3, 0.6], [N.C4, 0.45]], {
+          attack: 1.2,
+          hold: 0.5,
+          release: 1.8,
+        });
+        chord(3.6, [[N.Ab1, 0.5], [N.Ab2, 0.6], [N.Eb3, 0.8], [N.Ab3, 0.75], [N.Bb3, 0.45], [N.Eb4, 0.5]], {
+          attack: 1.3,
+          hold: 0.9,
+          release: 2.6,
+        });
+        // A faint shimmer on top of the last chord.
+        chord(4.2, [[N.Ab4, 0.18], [N.Eb5, 0.1], [N.Ab5, 0.05]], { attack: 1.2, hold: 0.6, release: 2.2 });
+        space(b, sr, { mix: 0.45, t60: 2.4, damp: 0.5 });
+      },
+    },
+  },
+
   // Felt on a hard surface: mostly contact, a short muted body.
   soft: {
     move: {
@@ -293,27 +477,35 @@ const PACKS: Record<SoundPack, Record<Sound, Voice>> = {
   },
 };
 
-const rendered = new Map<string, AudioBuffer>();
-
-function bufferFor(ac: AudioContext, pack: SoundPack, sound: Sound) {
-  const key = `${pack}:${sound}`;
-  let buf = rendered.get(key);
-  if (buf) return buf;
+/** Renders a voice, normalised so every pack lands at the same, quiet level. */
+export function renderVoice(pack: SoundPack, sound: Sound, sr: number): Float32Array<ArrayBuffer> | null {
   const voice = (PACKS[pack] ?? PACKS.soft)[sound];
-  const sr = ac.sampleRate;
+  if (!voice) return null;
   const data = new Float32Array(Math.ceil(voice.dur * sr));
   voice.draw(data, sr);
-  // Normalise so every pack lands at the same, quiet level; fade the tail.
   let max = 0;
   for (const v of data) max = Math.max(max, Math.abs(v));
   const scale = max > 0 ? voice.peak / max : 0;
+  // Fade the tail so a cut-off reverb never clicks.
   const fade = Math.floor(0.008 * sr);
   for (let i = 0; i < data.length; i++) {
     const left = data.length - i;
     data[i] *= scale * (left < fade ? left / fade : 1);
   }
-  buf = ac.createBuffer(1, data.length, sr);
-  buf.copyToChannel(data, 0);
+  return data;
+}
+
+const rendered = new Map<string, AudioBuffer | null>();
+
+function bufferFor(ac: AudioContext, pack: SoundPack, sound: Sound) {
+  const key = `${pack}:${sound}`;
+  if (rendered.has(key)) return rendered.get(key)!;
+  const data = renderVoice(pack, sound, ac.sampleRate);
+  let buf: AudioBuffer | null = null;
+  if (data) {
+    buf = ac.createBuffer(1, data.length, ac.sampleRate);
+    buf.copyToChannel(data, 0);
+  }
   rendered.set(key, buf);
   return buf;
 }
@@ -335,9 +527,21 @@ export function playSound(sound: Sound, { force = false } = {}) {
     lastMove = now;
   }
   const { ctx, out } = audio();
-  out.gain.value = uiSoundVolume * 0.6;
-  const src = ctx.createBufferSource();
-  src.buffer = bufferFor(ctx, uiSoundPack, sound);
-  src.connect(out);
-  src.start();
+  const buf = bufferFor(ctx, uiSoundPack, sound);
+  if (!buf) return; // this pack has no such sound (most have no startup chime)
+  const start = () => {
+    out.gain.value = uiSoundVolume * 0.6;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(out);
+    src.start();
+  };
+  if (ctx.state === "running") return start();
+  // Not unlocked yet (no user gesture so far): a startup chime that turned up
+  // whenever the first key is pressed would be odd, so it only plays if the
+  // context comes up straight away.
+  if (sound === "startup") {
+    const asked = performance.now();
+    void ctx.resume().then(() => performance.now() - asked < 1000 && start());
+  } else start();
 }

@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { prefetchMeta, preloadImage } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { MetaPreview } from "../lib/types";
+import { CardRating } from "./ImdbBadge";
 import { Img } from "./Img";
 
 const INTENT_DELAY = 120;
@@ -40,6 +41,7 @@ export function PosterCard({ item, progress }: { item: MetaPreview; progress?: n
         <span className="card-title t-callout">{item.name}</span>
         <span className="t-caption faint tabular">{item.releaseInfo}</span>
       </div>
+      <CardRating rating={item.imdbRating} />
     </button>
   );
 }

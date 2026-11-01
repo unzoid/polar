@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
+import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
 import { ProgressBar } from "../components/PosterCard";
 import { episodeCode, formatRemaining } from "../lib/format";
@@ -6,7 +7,7 @@ import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecomme
 import { useRouter } from "../lib/router";
 import type { Shape, Shelf } from "../lib/shelves";
 import type { MetaPreview, Progress } from "../lib/types";
-import { StageProvider, TvStage, useStage } from "./TvStage";
+import { StageProvider, TvStage, useStage, useStageSeed } from "./TvStage";
 
 /** Resting on a card this long means interest: fetch its page ahead. Longer than desktop — a held D-pad passes every card. */
 const INTENT_MS = 450;
@@ -33,7 +34,14 @@ export function TvCard({
 }) {
   const { navigate } = useRouter();
   const stage = useStage();
+  const seedStage = useStageSeed();
+  const el = useRef<HTMLButtonElement>(null);
   const timer = useRef<number>(undefined);
+  // Show on the stage until something is focused, if this is the page's first title.
+  useEffect(() => {
+    if (el.current) seedStage({ item, kicker }, el.current);
+    // Again once a placeholder title (a playlist entry still loading) fills in.
+  }, [item.id, item.name]);
   // Art that won't load falls back to the title, not an empty frame.
   const [broken, setBroken] = useState(false);
   const preferred = shape === "poster" ? (item.poster ?? item.background) : (item.background ?? item.poster);
@@ -42,6 +50,7 @@ export function TvCard({
 
   return (
     <button
+      ref={el}
       className="tv-card"
       data-shape={shape}
       aria-label={item.name}
@@ -70,6 +79,7 @@ export function TvCard({
         {chip && <span className="tv-card-chip">{chip}</span>}
         {progress != null && <ProgressBar fraction={progress} />}
       </span>
+      {shape === "poster" && <CardRating rating={item.imdbRating} />}
     </button>
   );
 }

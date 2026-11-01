@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AmbientWash } from "../components/AmbientWash";
+import { ImdbBadge } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
 import { api } from "../lib/api";
 import { keys } from "../lib/queries";
@@ -20,6 +21,14 @@ export interface StageEntry {
 const StageSetter = createContext<(entry: StageEntry) => void>(() => {});
 export const useStage = () => useContext(StageSetter);
 
+const StageSeed = createContext<(entry: StageEntry, el: HTMLElement) => void>(() => {});
+/**
+ * Before anything on the page has focus (you arrived from the navbar, which
+ * keeps it), the stage shows the page's first title rather than sitting dark.
+ * Cards offer themselves as they mount; the one highest up the page wins.
+ */
+export const useStageSeed = () => useContext(StageSeed);
+
 /** Focus can sweep across a shelf faster than art loads; the stage follows once it settles. */
 const SETTLE_MS = 160;
 
@@ -27,6 +36,7 @@ export function StageProvider({ children, render }: { children: ReactNode; rende
   const [entry, setEntry] = useState<StageEntry | null>(null);
   const timer = useRef<number>(undefined);
   const first = useRef(true);
+  const seededEl = useRef<HTMLElement | null>(null);
   const show = useCallback((next: StageEntry) => {
     window.clearTimeout(timer.current);
     if (first.current) {
@@ -35,11 +45,20 @@ export function StageProvider({ children, render }: { children: ReactNode; rende
     }
     timer.current = window.setTimeout(() => setEntry(next), SETTLE_MS);
   }, []);
+  const seed = useCallback((next: StageEntry, el: HTMLElement) => {
+    if (!first.current) return; // something has had focus: it owns the stage now
+    const current = seededEl.current;
+    if (current && current !== el && current.isConnected && !(el.compareDocumentPosition(current) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
+    seededEl.current = el;
+    setEntry(next);
+  }, []);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   return (
     <StageSetter.Provider value={show}>
-      {render(entry)}
-      {children}
+      <StageSeed.Provider value={seed}>
+        {render(entry)}
+        {children}
+      </StageSeed.Provider>
     </StageSetter.Provider>
   );
 }
@@ -54,17 +73,6 @@ export function titleFacts(item: MetaPreview, extra: (string | undefined)[] = []
     ...extra,
     score > 0 ? <ImdbBadge key="imdb" value={score} /> : undefined,
   ].filter(Boolean);
-}
-
-/** The IMDb mark with the score beside it, the score tinted by band (green ≥ 7, amber ≥ 5, red below). */
-function ImdbBadge({ value }: { value: number }) {
-  const tone = value >= 7 ? "good" : value >= 5 ? "mid" : "low";
-  return (
-    <span className="imdb-badge" data-tone={tone} role="img" aria-label={`IMDb rating ${value.toFixed(1)} out of 10`}>
-      <span className="imdb-badge-logo">IMDb</span>
-      <span className="imdb-badge-score tabular">{value.toFixed(1)}</span>
-    </span>
-  );
 }
 
 export function Facts({ facts, className = "" }: { facts: ReactNode[]; className?: string }) {

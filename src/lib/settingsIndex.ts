@@ -26,6 +26,7 @@ const ROWS: SettingEntry[] = [
   { title: "Subtitles", page: "subtitles", keywords: "subtitle language captions" },
   { title: "Subtitle Style", page: "subtitles", keywords: "captions appearance" },
   { title: "Delay", page: "subtitles", keywords: "subtitle sync offset timing" },
+  { title: "Font", page: "subtitles", keywords: "subtitle typeface family" },
   { title: "Size", page: "subtitles", keywords: "subtitle text font" },
   { title: "Position", page: "subtitles", keywords: "subtitle raise height" },
   { title: "Color", page: "subtitles", keywords: "subtitle colour text" },
@@ -35,7 +36,8 @@ const ROWS: SettingEntry[] = [
 
   // Browsing
   { title: "Show titles", page: "browsing", keywords: "cards names" },
-  { title: "Show details", page: "browsing", keywords: "cards year rating" },
+  { title: "Show details", page: "browsing", keywords: "cards year" },
+  { title: "Show IMDb ratings", page: "browsing", keywords: "cards rating score badge imdb posters" },
   { title: "Default layout", page: "browsing", keywords: "episodes list grid" },
   { title: "Font", page: "browsing", keywords: "text typeface inter" },
 

@@ -461,6 +461,16 @@
 .app[data-card-details="false"] .card-caption:not(.card-caption-keep) > :not(.card-title) {
   display: none;
 }
+/* Settings → Browsing → Show IMDb ratings: a badge under each poster. */
+.card-rating {
+  display: none;
+}
+.app[data-card-ratings="true"] .card-rating {
+  display: flex;
+  min-height: 1.4rem;
+  padding: 0 2px;
+  font-size: 0.75rem;
+}
 .card-title {
   font-weight: 600;
   white-space: nowrap;

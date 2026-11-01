@@ -199,8 +199,8 @@
 }
 .settings-sub-sample span {
   text-align: center;
-  font-family: "Segoe UI Semibold", "Segoe UI", var(--font);
-  font-weight: 600;
+  font-family: var(--sub-font, "Segoe UI Semibold"), "Segoe UI", var(--font);
+  font-weight: var(--sub-weight, 600);
   font-size: calc(1.375rem * var(--sub-scale, 1));
   line-height: 1.25;
   color: var(--sub-color, #fff);

@@ -412,6 +412,12 @@ function BrowsingPage() {
           disabled={!data.showCardTitles}
           onChange={(v) => update.mutate({ showCardDetails: v })}
         />
+        <ToggleRow
+          title="Show IMDb ratings"
+          caption="Add an IMDb rating badge under each poster"
+          checked={data.showCardRatings ?? false}
+          onChange={(v) => update.mutate({ showCardRatings: v })}
+        />
       </Card>
       <Card title="Episodes">
         <PickRow title="Default layout">

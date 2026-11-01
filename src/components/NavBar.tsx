@@ -85,13 +85,20 @@ export function NavBar() {
 function SearchBox() {
   const { stack, current, navigate, back } = useRouter();
   const text = useSearchText();
-  const [open, setOpen] = useState(false);
-  // Opened from the keyboard (Ctrl K, "/"): appear instantly, no transition.
-  const [instant, setInstant] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const onResults = current.name === "search";
   const inStack = stack.some((e) => e.route.name === "search");
+  // Text outlives the navbar (a trip through TV mode unmounts it). Still on
+  // the results: come back open, without the sweep. Left them meanwhile: start fresh.
+  const resume = !!text && inStack;
+  const [open, setOpen] = useState(resume);
+  // Opened from the keyboard (Ctrl K, "/"): appear instantly, no transition.
+  const [instant, setInstant] = useState(resume);
+  useEffect(() => {
+    if (!resume) setSearchText("");
+    // Mount only.
+  }, []);
 
   const expand = () => {
     setInstant(false);
@@ -167,7 +174,7 @@ function SearchBox() {
         aria-label="Search"
         tabIndex={open ? 0 : -1}
       />
-      {text && (
+      {open && text && (
         <button className="navbar-search-clear" aria-label="Clear search" onMouseDown={(e) => e.preventDefault()} onClick={() => change("")}>
           <Close size={16} strokeWidth={2.25} />
         </button>
