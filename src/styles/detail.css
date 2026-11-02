@@ -237,6 +237,10 @@
 .rating-ring[data-tone="low"] .rating-ring-arc {
   stroke: var(--danger);
 }
+/* Settings → Browsing → Colour-code IMDb ratings, off: IMDb yellow whatever the score. */
+.app[data-rating-colors="false"] .rating-ring .rating-ring-arc {
+  stroke: #f5c518;
+}
 @keyframes ring-fill {
   from {
     stroke-dashoffset: var(--ring-c);

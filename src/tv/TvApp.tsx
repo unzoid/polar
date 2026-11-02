@@ -20,6 +20,7 @@ import { playSound } from "./sounds";
 import { useSettings } from "../lib/queries";
 import { setTvMode } from "./tvMode";
 import { ControllerToast, TV_TABS, TvHints, TvMenu, TvNav, sameTab } from "./TvChrome";
+import { TvCardMenuHost, useCardMenuOpen } from "./TvCardMenu";
 import { TvDetail } from "./TvDetail";
 import { TvDiscover, TvHome, TvLibrary, TvSearch, TvSettingsNote } from "./TvScreens";
 
@@ -59,6 +60,7 @@ export function TvApp() {
   const atRoot = pages.length === 1;
   const activeTab = rootTab(stack);
   const [menuOpen, setMenuOpen] = useState(false);
+  const cardMenuOpen = useCardMenuOpen();
   const [cursorHidden, setCursorHidden] = useState(true);
   const pageEls = useRef(new Map<number, HTMLElement>());
   const { data: settings } = useSettings();
@@ -112,7 +114,8 @@ export function TvApp() {
 
   // Controller-only shortcuts: shoulders switch sections, Y searches, Menu opens the menu.
   useEffect(() => {
-    if (playing) return;
+    // A title's options menu has the controller until it closes.
+    if (playing || cardMenuOpen) return;
     const onAction = (e: Event) => {
       const action = (e as CustomEvent<TvAction>).detail;
       if (action === "menu") {
@@ -128,7 +131,7 @@ export function TvApp() {
     };
     window.addEventListener(TV_ACTION_EVENT, onAction);
     return () => window.removeEventListener(TV_ACTION_EVENT, onAction);
-  }, [playing, menuOpen, tab, activeTab]);
+  }, [playing, menuOpen, cardMenuOpen, tab, activeTab]);
 
   // Arriving on a page (or back from the player) puts focus where you were on it, or its first title.
   useEffect(() => {
@@ -177,6 +180,7 @@ export function TvApp() {
       data-player-leaving={leaving}
       data-cursor={cursorHidden ? "hidden" : "shown"}
       data-card-ratings={settings?.showCardRatings ?? false}
+      data-rating-colors={settings?.ratingColors ?? false}
     >
       <main className="main tv-main" data-nav-scope>
         {pages.map((entry) => {
@@ -195,7 +199,7 @@ export function TvApp() {
               aria-hidden={!isTop || !!playing}
               inert={!isTop || !!playing}
             >
-              <PageActive.Provider value={isTop && !playing && !menuOpen}>
+              <PageActive.Provider value={isTop && !playing && !menuOpen && !cardMenuOpen}>
                 <TvScreen route={entry.route} />
               </PageActive.Provider>
             </section>
@@ -203,6 +207,7 @@ export function TvApp() {
         })}
         {/* Sections are for the top level; a title page is a place of its own. */}
         {atRoot && <TvNav onMenu={() => setMenuOpen(true)} />}
+        {!playing && <TvCardMenuHost />}
         {menuOpen && <TvMenu onClose={() => setMenuOpen(false)} />}
         <TvHints />
         {!playing && (

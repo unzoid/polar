@@ -128,6 +128,7 @@ pub fn run() {
             commands::library_toggle,
             commands::progress_for,
             commands::progress_save,
+            commands::progress_save_many,
             commands::continue_watching,
             commands::watch_history,
             commands::settings_get,

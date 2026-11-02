@@ -18,6 +18,18 @@ export interface Prefs {
   controllerAlerts: boolean;
   /** In desktop mode, offer TV mode when a controller connects. */
   suggestTvMode: boolean;
+  /** Whose button labels to show: the controller in use ("auto"), or always one maker's. */
+  padLabels: "auto" | "xbox" | "playstation" | "nintendo";
+  /** The strip of button hints along the bottom of TV mode. */
+  padHints: boolean;
+  /** The left stick moves around (and seeks in the player), like the D-pad. */
+  padStick: boolean;
+  /** How far the stick has to tilt before it counts. */
+  padStickSensitivity: "low" | "normal" | "high";
+  /** How quickly a held direction repeats. */
+  padRepeat: "slow" | "normal" | "fast";
+  /** In the player, up and down change the volume. Off: they do nothing (keeps the TV's own volume in charge). */
+  padPlayerVolume: boolean;
   /** Take intro, recap and credits from the file's own chapters before IntroDB. */
   preferFileChapters: boolean;
 
@@ -48,6 +60,12 @@ const DEFAULTS: Prefs = {
   uiSoundPack: "classic",
   controllerAlerts: true,
   suggestTvMode: true,
+  padLabels: "auto",
+  padHints: true,
+  padStick: true,
+  padStickSensitivity: "normal",
+  padRepeat: "normal",
+  padPlayerVolume: true,
   preferFileChapters: true,
   uiScale: 1,
   pauseOnMinimize: false,

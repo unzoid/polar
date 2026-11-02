@@ -103,6 +103,22 @@
   padding: 0.875rem 1.5rem;
   text-align: left;
 }
+/* Settings → Controller: a button's glyph and where it sits; its row lights up as you press it. */
+.pad-binding-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+  font-size: 1.05rem;
+}
+.pad-binding-row {
+  transition: background-color 400ms ease;
+}
+.pad-binding-row[data-lit] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  transition-duration: 0ms;
+}
 .settings-row-text {
   flex: 1;
   display: flex;

@@ -796,17 +796,17 @@ export function Player({
           </button>
         </div>
         <div className="player-actions">
-          <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("view")} onClick={() => setOptions("speed")} />
+          <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={() => setOptions("speed")} />
           {type === "series" && (
-            <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("y")} onClick={() => setOptions("episodes")} />
+            <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
-          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("x")} onClick={() => setOptions("tracks")} />
-          <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("lb")} onClick={() => setOptions("sources")} />
+          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={() => setOptions("tracks")} />
+          <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />
           {next && (
             <ActionButton
               icon={<SkipForward size={22} fill="currentColor" />}
               label="Next Episode"
-              glyph={skip.active ? null : pad("rb")}
+              glyph={skip.active ? null : pad("skipOrNext", "nextEpisode")}
               onClick={() => playVideo(next.id)}
             />
           )}
@@ -876,7 +876,7 @@ export function Player({
         active={started ? skip.active : null}
         onSkip={skip.skipActive}
         chromeVisible={chromeVisible}
-        glyph={showNextUp ? null : pad("rb")}
+        glyph={showNextUp ? null : pad("skipOrNext", "nextEpisode")}
       />
 
       <AnimatePresence>
@@ -908,7 +908,7 @@ export function Player({
                   {ended && willAutoplay && (
                     <span className="next-up-countdown" style={{ animationDuration: `${countdown}s` }} />
                   )}
-                  {pad("rb") ?? <Play size={16} fill="currentColor" />} {ended && stillWatching ? "Keep Watching" : "Play Now"}
+                  {pad("skipOrNext", "nextEpisode") ?? <Play size={16} fill="currentColor" />} {ended && stillWatching ? "Keep Watching" : "Play Now"}
                 </button>
                 <button className="btn btn-glass btn-icon next-up-dismiss" onClick={() => setNextDismissed(true)} aria-label="Dismiss">
                   <Close size={16} />

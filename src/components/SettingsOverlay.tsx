@@ -11,7 +11,7 @@ import { PAGES, SettingsPageBody, type PageId } from "../screens/Settings";
 /** Sidebar groups, T3 Code style: an unlabelled first group, then headed ones. */
 const GROUPS: { heading?: string; pages: PageId[] }[] = [
   { pages: ["account", "playback", "subtitles", "appearance", "browsing"] },
-  { heading: "Input", pages: ["controls"] },
+  { heading: "Input", pages: ["controls", "controller"] },
   { heading: "Sources", pages: ["sources", "addons", "services"] },
   { heading: "System", pages: ["advanced", "about"] },
 ];

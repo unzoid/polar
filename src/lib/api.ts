@@ -56,6 +56,8 @@ export const api = {
   toggleLibrary: (item: MetaPreview) => invoke<boolean>("library_toggle", { item }),
   progressFor: (metaId: string) => invoke<Progress[]>("progress_for", { metaId }),
   saveProgress: (progress: Progress) => invoke<void>("progress_save", { progress }),
+  /** In one save; the last entry counts as the most recently touched. */
+  saveProgressMany: (progress: Progress[]) => invoke<void>("progress_save_many", { progress }),
   continueWatching: () => invoke<Progress[]>("continue_watching"),
   /** The latest video per title you've watched (finished or under way), newest first. */
   watchHistory: () => invoke<Progress[]>("watch_history"),

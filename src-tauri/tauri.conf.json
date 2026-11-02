@@ -19,7 +19,7 @@
         "minHeight": 600,
         "decorations": false,
         "center": true,
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-blink-features=AudioVideoTracks",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-blink-features=AudioVideoTracks --autoplay-policy=no-user-gesture-required",
         "transparent": true
       }
     ],
@@ -36,7 +36,7 @@
         "object-src": "'none'",
         "base-uri": "'self'",
         "form-action": "'none'",
-        "frame-src": "'none'"
+        "frame-src": "https://www.youtube-nocookie.com https://www.youtube.com"
       }
     }
   },

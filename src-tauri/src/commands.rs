@@ -252,6 +252,20 @@ pub fn progress_save(state: State<'_, AppState>, mut progress: Progress) -> Resu
     })
 }
 
+/// Several entries in one save (marking a whole show watched). They count as
+/// touched in the order given, so the last one is the title's latest.
+#[tauri::command]
+pub fn progress_save_many(state: State<'_, AppState>, progress: Vec<Progress>) -> Result<()> {
+    let at = now();
+    persist(&state, |d| {
+        let space = d.space_mut();
+        for (i, mut p) in progress.into_iter().enumerate() {
+            p.updated_at = at + i as u64;
+            space.progress.insert(p.video_id.clone(), p);
+        }
+    })
+}
+
 /// Latest unfinished video per title, newest first.
 #[tauri::command]
 pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {

@@ -180,6 +180,7 @@ function DesktopApp() {
       data-card-titles={settings?.showCardTitles ?? true}
       data-card-details={settings?.showCardDetails ?? true}
       data-card-ratings={settings?.showCardRatings ?? false}
+      data-rating-colors={settings?.ratingColors ?? false}
       data-player-leaving={leaving}
     >
       <main className="main">

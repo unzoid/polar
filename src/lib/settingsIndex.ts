@@ -78,6 +78,7 @@ const ROWS: SettingEntry[] = [
   { title: "Show titles", page: "browsing", keywords: "cards names" },
   { title: "Show details", page: "browsing", keywords: "cards year" },
   { title: "Show IMDb ratings", page: "browsing", keywords: "cards rating score badge imdb posters" },
+  { title: "Colour-code IMDb ratings", page: "browsing", keywords: "color colour rating score badge imdb yellow green red" },
   { title: "Default layout", page: "browsing", keywords: "episodes list grid" },
 
   // Controls & TV
@@ -85,9 +86,19 @@ const ROWS: SettingEntry[] = [
   { title: "Interface sounds", page: "controls", keywords: "audio clicks" },
   { title: "Sound pack", page: "controls", keywords: "interface sounds" },
   { title: "Sound volume", page: "controls", keywords: "interface sounds loudness" },
-  { title: "Connection notices", page: "controls", keywords: "controller gamepad toast" },
-  { title: "Suggest TV mode", page: "controls", keywords: "controller gamepad" },
   { title: "Keyboard Shortcuts", page: "controls", keywords: "keybinds hotkeys keys" },
+
+  // Controller
+  { title: "Connection notices", page: "controller", keywords: "controller gamepad toast" },
+  { title: "Suggest TV mode", page: "controller", keywords: "controller gamepad" },
+  { title: "Button labels", page: "controller", keywords: "controller gamepad xbox playstation nintendo glyphs icons" },
+  { title: "Button hints", page: "controller", keywords: "controller gamepad bottom bar help" },
+  { title: "Left stick moves too", page: "controller", keywords: "controller gamepad analog thumbstick navigation" },
+  { title: "Stick sensitivity", page: "controller", keywords: "controller gamepad analog deadzone" },
+  { title: "Repeat speed", page: "controller", keywords: "controller gamepad dpad d-pad hold scroll fast" },
+  { title: "Buttons while browsing", page: "controller", keywords: "controller gamepad buttons remap bindings dpad d-pad" },
+  { title: "Buttons in the player", page: "controller", keywords: "controller gamepad buttons remap bindings" },
+  { title: "Up and down change the volume", page: "controller", keywords: "controller gamepad dpad d-pad player" },
 
   // Add-ons
   { title: "Installed", page: "addons", keywords: "add-ons addons remove" },

@@ -38,6 +38,8 @@ pub struct Settings {
     pub show_card_details: bool,
     /// Show an IMDb rating badge under each poster.
     pub show_card_ratings: bool,
+    /// Tint IMDb scores by band (green / amber / red). Off: always IMDb yellow.
+    pub rating_colors: bool,
     /// How a season's episodes are laid out: "row" (horizontal shelf) or "list".
     pub episode_layout: String,
     /// Interface font: "inter" (bundled) or "system" (Segoe UI Variable on Windows).
@@ -169,6 +171,7 @@ impl Default for Settings {
             show_card_titles: true,
             show_card_details: true,
             show_card_ratings: false,
+            rating_colors: false,
             episode_layout: "row".into(),
             ui_font: "inter".into(),
             subtitle_style: SubtitleStyle::default(),

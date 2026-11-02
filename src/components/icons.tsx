@@ -64,7 +64,21 @@ export const SkipForward = icon(S24.ForwardIcon, S20.ForwardIcon, S16.ForwardIco
 export const Sources = icon(S24.QueueListIcon, S20.QueueListIcon, S16.QueueListIcon);
 export const Speed = icon(S24.ClockIcon, S20.ClockIcon, S16.ClockIcon);
 export const Trash = icon(S24.TrashIcon, S20.TrashIcon, S16.TrashIcon);
+export const Trailer = icon(S24.FilmIcon, S20.FilmIcon, S16.FilmIcon);
 export const Tv = icon(S24.TvIcon, S20.TvIcon, S16.TvIcon);
+export const Watched = icon(S24.CheckCircleIcon, S20.CheckCircleIcon, S16.CheckCircleIcon);
 export const Users = icon(S24.UsersIcon, S20.UsersIcon, S16.UsersIcon);
 export const Volume = icon(S24.SpeakerWaveIcon, S20.SpeakerWaveIcon, S16.SpeakerWaveIcon);
 export const VolumeMuted = icon(S24.SpeakerXMarkIcon, S20.SpeakerXMarkIcon, S16.SpeakerXMarkIcon);
+
+/** A game controller, drawn solid to sit with the Heroicons (which have none). */
+export function Gamepad({ size = 24, fill: _fill, strokeWidth: _stroke, ...rest }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden {...rest}>
+      <path
+        fillRule="evenodd"
+        d="M7.6 5.5h8.8a4.9 4.9 0 0 1 4.8 3.95l1.05 5.35a3.05 3.05 0 0 1-5.35 2.5L15.2 15.2H8.8l-1.7 2.1a3.05 3.05 0 0 1-5.35-2.5L2.8 9.45A4.9 4.9 0 0 1 7.6 5.5ZM7.75 8.5a.75.75 0 0 0-.75.75V10.5H5.75a.75.75 0 0 0 0 1.5H7v1.25a.75.75 0 0 0 1.5 0V12h1.25a.75.75 0 0 0 0-1.5H8.5V9.25a.75.75 0 0 0-.75-.75Zm8.5.25a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm-1.75 2.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm3.5 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"
+      />
+    </svg>
+  );
+}

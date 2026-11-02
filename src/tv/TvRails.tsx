@@ -8,6 +8,7 @@ import { useRouter } from "../lib/router";
 import type { Shape, Shelf } from "../lib/shelves";
 import type { MetaPreview, Progress } from "../lib/types";
 import { StageProvider, TvStage, useStage, useStageSeed } from "./TvStage";
+import { isMenuKey, openCardMenu } from "./TvCardMenu";
 
 /** Resting on a card this long means interest: fetch its page ahead. Longer than desktop — a held D-pad passes every card. */
 const INTENT_MS = 450;
@@ -22,6 +23,7 @@ export function TvCard({
   progress,
   kicker,
   chip,
+  entry,
   onOpen,
 }: {
   item: MetaPreview;
@@ -30,6 +32,8 @@ export function TvCard({
   kicker?: string;
   /** Short label shown on the card itself, e.g. "S2, E4 · 23m left". */
   chip?: string;
+  /** The watch progress this card stands for, if it's one video (Continue Watching). */
+  entry?: Progress;
   onOpen?: () => void;
 }) {
   const { navigate } = useRouter();
@@ -63,6 +67,17 @@ export function TvCard({
         }, INTENT_MS);
       }}
       onBlur={() => window.clearTimeout(timer.current)}
+      // Options: X / Square on a controller (sent as the Menu key), the Menu key, or a right-click.
+      onKeyDown={(e) => {
+        if (!isMenuKey(e)) return;
+        e.preventDefault();
+        openCardMenu({ item, entry, anchor: e.currentTarget });
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.currentTarget.focus({ preventScroll: true });
+        openCardMenu({ item, entry, anchor: e.currentTarget });
+      }}
     >
       <span className="tv-card-frame">
         {art ? (
@@ -155,6 +170,7 @@ export function TvContinueRail() {
           progress={p.duration ? p.position / p.duration : 0}
           kicker={continueKicker(p)}
           chip={continueChip(p)}
+          entry={p}
           onOpen={() => navigate({ name: "player", type: p.type, metaId: p.metaId, videoId: p.videoId, stream: p.stream })}
         />
       ))}

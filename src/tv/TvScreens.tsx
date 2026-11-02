@@ -111,7 +111,7 @@ export function TvLibrary() {
         history?.length ? (
           <TvRail title="Watched">
             {history.map((p) => (
-              <TvCard key={p.metaId} item={progressItem(p)} shape="landscape" progress={progressFraction(p)} />
+              <TvCard key={p.metaId} item={progressItem(p)} shape="landscape" progress={progressFraction(p)} entry={p} />
             ))}
           </TvRail>
         ) : null,

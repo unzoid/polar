@@ -177,7 +177,7 @@ function freshName(taken: string[]) {
  * Tick the playlists a title belongs in. Right of each row is Rename; New
  * Playlist asks for a name on the on-screen keyboard and puts the title in.
  */
-function PlaylistsPanel({
+export function PlaylistsPanel({
   item,
   onRename,
   onNew,
@@ -238,7 +238,7 @@ function PlaylistsPanel({
  * Name a playlist on the on-screen keyboard: rename one, or (no
  * `playlistId`) start a new one with this title in it. Back cancels.
  */
-function NamePanel({
+export function NamePanel({
   item,
   playlistId,
   active,

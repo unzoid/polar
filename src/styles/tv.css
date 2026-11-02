@@ -283,7 +283,6 @@
   border-radius: 0.3em;
   font-size: 0.9em;
   line-height: 1;
-  background: rgb(255 255 255 / 0.12);
 }
 .imdb-badge-logo,
 .imdb-badge-score {
@@ -292,19 +291,23 @@
 }
 .imdb-badge-logo {
   padding: 0.28em 0.45em;
+  border-radius: 0.3em; /* rounded all round now nothing sits behind the score */
   background: #f5c518;
   color: #000;
   font-weight: 900;
   letter-spacing: -0.02em;
 }
+/* The score sits on whatever's behind it, just past the mark. */
 .imdb-badge-score {
-  padding: 0.28em 0.55em;
+  padding: 0.28em 0 0.28em 0.4em;
   font-weight: 750;
   color: var(--imdb-tone);
 }
 .imdb-badge[data-tone="good"] { --imdb-tone: #5dd879; }
 .imdb-badge[data-tone="mid"] { --imdb-tone: #f5c518; }
 .imdb-badge[data-tone="low"] { --imdb-tone: #ff6b5e; }
+/* Settings → Browsing → Colour-code IMDb ratings, off: IMDb yellow whatever the score. */
+.app[data-rating-colors="false"] .imdb-badge { --imdb-tone: #f5c518; }
 .tv-stage-description {
   margin: 0;
   font-size: 1rem;
@@ -395,11 +398,12 @@
   --tv-card-w: var(--tv-landscape-w);
   aspect-ratio: 16 / 9;
 }
-/* Neighbours step aside so the lifted card and its ring never sit on them. */
-.tv-rail-track .tv-card:focus ~ .tv-card {
+/* Neighbours step aside so the lifted card and its ring never sit on them.
+   A card whose options menu is open stays lifted, though focus is in the menu. */
+.tv-rail-track .tv-card:is(:focus, [data-menu-open]) ~ .tv-card {
   transform: translateX(var(--tv-card-reach));
 }
-.tv-rail-track .tv-card:has(~ .tv-card:focus) {
+.tv-rail-track .tv-card:has(~ .tv-card:is(:focus, [data-menu-open])) {
   transform: translateX(calc(var(--tv-card-reach) * -1));
 }
 .tv-card-frame {
@@ -426,15 +430,15 @@
   transition: opacity var(--dur-fast) ease;
   pointer-events: none;
 }
-.tv-card:focus {
+.tv-card:is(:focus, [data-menu-open]) {
   outline: none;
   z-index: 1;
   transform: scale(var(--tv-lift));
 }
-.tv-card:focus::after {
+.tv-card:is(:focus, [data-menu-open])::after {
   opacity: 1;
 }
-.tv-card:focus .tv-card-frame {
+.tv-card:is(:focus, [data-menu-open]) .tv-card-frame {
   box-shadow: 0 1.4rem 2.6rem -1rem rgb(0 0 0 / 0.85);
 }
 .tv-card-scrim {
@@ -1551,6 +1555,136 @@
 .tv-menu-close svg {
   width: 1.2rem;
   height: 1.2rem;
+}
+
+/* --- A title's options (X / Square, the Menu key or a right-click on a card) ----------------- */
+.tv-card-menu-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+}
+.tv-card-menu-layer[data-dim] {
+  background: rgb(0 0 0 / 0.35);
+  animation: fade-in 200ms ease;
+}
+.tv-card-menu {
+  position: absolute;
+  width: 23rem;
+  /* No side padding: rows span the panel, so the focused one (scaled up)
+     stands out past its edges, like a tvOS menu. */
+  padding: 0.5rem 0;
+  border-radius: 1.25rem;
+  background: rgb(38 38 38 / 0.82);
+  backdrop-filter: blur(40px) saturate(160%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.08),
+    0 1.5rem 3.5rem -1rem rgb(0 0 0 / 0.7);
+  transform-origin: top left;
+  animation: tv-card-menu-in 220ms var(--ease-out);
+}
+.tv-card-menu[data-side="left"] {
+  transform-origin: top right;
+}
+@keyframes tv-card-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.tv-card-menu-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 1.4rem 0.7rem;
+}
+.tv-card-menu-head :is(strong, span) {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tv-card-menu-head strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.tv-card-menu-head span {
+  font-size: 0.85rem;
+  color: var(--text-3);
+}
+.tv-card-menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.tv-card-menu-group + .tv-card-menu-group {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--hairline);
+}
+.tv-card-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  position: relative;
+  height: 3.4rem;
+  padding: 0 1.4rem;
+  border-radius: 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-2);
+  text-align: left;
+  transition:
+    background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    box-shadow 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+.tv-card-menu-item svg {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  opacity: 0.85;
+}
+.tv-card-menu-item:focus {
+  outline: none;
+  background: var(--pill-light);
+  color: var(--text-on-light);
+  /* Full panel width × 1.07: about 0.8rem past each side. */
+  transform: scale(1.07);
+  box-shadow: 0 0.75rem 1.75rem -0.5rem rgb(0 0 0 / 0.55);
+  z-index: 1;
+}
+.tv-card-menu-item:disabled {
+  opacity: 0.4;
+}
+
+/* The trailer, full screen; its buttons sit below the video so it's never covered. */
+.tv-trailer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2.5rem var(--tv-gutter);
+  background: #000;
+  animation: tv-panel-in 280ms var(--ease-out);
+}
+.tv-trailer-video {
+  width: min(100%, calc((100vh - 10rem) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: var(--tv-radius);
+  background: #111;
+}
+.tv-trailer-bar {
+  display: flex;
+  gap: 1rem;
+}
+.tv-trailer-bar .tv-pill {
+  min-width: 0;
 }
 
 /* --- Controller hints & glyphs -------------------------------------------------------------- */

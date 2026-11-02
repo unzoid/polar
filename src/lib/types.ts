@@ -160,6 +160,8 @@ export interface Settings {
   showCardDetails: boolean;
   /** IMDb rating badge under each poster. */
   showCardRatings?: boolean;
+  /** Tint IMDb scores by band; off = always IMDb yellow. */
+  ratingColors?: boolean;
   /** A season's episodes as a horizontal shelf or a vertical list. */
   episodeLayout: EpisodeLayout;
   /** "inter" (bundled) or "system" (Segoe UI Variable on Windows). */

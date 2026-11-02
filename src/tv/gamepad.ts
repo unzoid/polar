@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useSyncExternalStore } from "react";
 import { keyEventFor, type Action } from "../lib/keybinds";
+import { getPrefs, usePrefs } from "../lib/prefs";
+import { getPadBindings, type PadButton } from "./padBindings";
 import { isTvMode, setTvMode } from "./tvMode";
 
 /**
@@ -50,12 +52,19 @@ const BUTTONS: Partial<Record<number, Button>> = {
   15: "right",
 };
 const DIRECTIONS = new Set<Button>(["up", "down", "left", "right"]);
-const STICK_DEADZONE = 0.55;
 
-/** Held directions repeat like a held key: a pause, then a steady stream that speeds up. */
-const REPEAT_DELAY = 380;
-const REPEAT_SLOW = 130;
-const REPEAT_FAST = 70;
+/** How far the stick tilts before it counts (Settings → Controller → Stick sensitivity). */
+const STICK_DEADZONE = { low: 0.7, normal: 0.55, high: 0.35 } as const;
+
+/**
+ * Held directions repeat like a held key: a pause, then a steady stream that
+ * speeds up after FAST_AFTER (Settings → Controller → Repeat speed).
+ */
+const REPEAT = {
+  slow: { delay: 500, slow: 180, fast: 110 },
+  normal: { delay: 380, slow: 130, fast: 70 },
+  fast: { delay: 280, slow: 90, fast: 45 },
+} as const;
 const FAST_AFTER = 1200;
 
 // --- Connected state ----------------------------------------------------------
@@ -164,19 +173,20 @@ export function useGamepadConnected() {
   return useSyncExternalStore(subscribe, () => connected);
 }
 
-/** Which kind of controller is in use, for showing its own button labels. */
+/** Which kind of controller's labels to show: the one in use, unless Settings picks one. */
 export function usePadFamily() {
-  return useSyncExternalStore(subscribe, () => family);
+  const pick = usePrefs().padLabels;
+  const inUse = useSyncExternalStore(subscribe, () => family);
+  return pick === "auto" ? inUse : pick;
 }
 
 // --- Dispatch -----------------------------------------------------------------
 
-const KEY_FOR: Partial<Record<Button, string>> = {
+const ARROW: Record<"up" | "down" | "left" | "right", string> = {
   up: "ArrowUp",
   down: "ArrowDown",
   left: "ArrowLeft",
   right: "ArrowRight",
-  b: "Escape",
 };
 
 function focused(): HTMLElement {
@@ -188,7 +198,7 @@ function key(name: string, target: HTMLElement = focused()) {
   return target.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }));
 }
 
-/** A: Enter on the focused control; if nothing claims it, press it. */
+/** Select: Enter on the focused control; if nothing claims it, press it. */
 function activate() {
   const el = focused();
   if (el === document.body) return;
@@ -210,58 +220,68 @@ const PLAYER_DIRECTIONS: Record<"left" | "right" | "up" | "down", Action> = {
 const playerActive = () => !!document.querySelector('.player-layer:not([data-leaving="true"])');
 const tvAction = (action: TvAction) => window.dispatchEvent(new CustomEvent(TV_ACTION_EVENT, { detail: action }));
 
+/** The last button pressed, so Settings can light up its row as you press it. */
+let lastPress: { button: Button; at: number } | null = null;
+export const useLastPadPress = () => useSyncExternalStore(subscribe, () => lastPress);
+
+/** What a button does is up to Settings → Controls & TV → Controller (padBindings.ts). */
 function press(button: Button) {
+  lastPress = { button, at: performance.now() };
+  notify();
+  const bindings = getPadBindings();
+  const direction = DIRECTIONS.has(button) ? (button as keyof typeof ARROW) : null;
+  const pad = direction ? null : (button as PadButton);
+
   // Outside TV mode the controller does one thing: Menu switches to TV mode.
   if (!isTvMode()) {
-    if (button === "menu") setTvMode(true);
+    if (pad && bindings.nav[pad] === "menu") setTvMode(true);
     return;
   }
+
   if (playerActive()) {
     const inPicker = !!focused().closest(".options-overlay, .next-up, .skip-button, .player-status");
+    if (direction) {
+      // In a picker the D-pad moves around it; otherwise it seeks and sets the volume.
+      if (inPicker) return void key(ARROW[direction]);
+      if ((direction === "up" || direction === "down") && !getPrefs().padPlayerVolume) return;
+      return act(PLAYER_DIRECTIONS[direction]);
+    }
+    // In a picker, Select and Back work as they do everywhere else.
+    if (inPicker && bindings.nav[pad!] === "select") return activate();
     // Player buttons press whatever key their action is bound to (Settings → Controls).
-    switch (button) {
-      case "a":
-        return inPicker ? activate() : act("playPause");
-      case "menu":
-        return act("playPause");
-      case "x":
-        return act("tracks");
-      case "y":
-        return act("episodes");
-      case "lb":
-        return act("sources");
-      case "view":
-        return act("speed");
-      case "rb":
+    switch (bindings.player[pad!]) {
+      case "back":
+        return void key("Escape");
+      case "skipOrNext":
         // Skip the intro / recap while its button is up; otherwise the next episode.
         return act(
           !document.querySelector(".next-up") && document.querySelector('.skip-button[data-visible="true"]') ? "skip" : "nextEpisode",
         );
-      case "left":
-      case "right":
-      case "up":
-      case "down":
-        // In a picker the D-pad moves around it; otherwise it seeks and sets the volume.
-        if (inPicker) break;
-        return act(PLAYER_DIRECTIONS[button]);
-    }
-  } else {
-    switch (button) {
-      case "a":
-        return activate();
-      case "y":
-        return tvAction("search");
-      case "lb":
-        return tvAction("prevTab");
-      case "rb":
-        return tvAction("nextTab");
-      case "menu":
-      case "view":
-        return tvAction("menu");
+      case "none":
+        return;
+      default:
+        return act(bindings.player[pad!] as Action);
     }
   }
-  const name = KEY_FOR[button];
-  if (name) key(name);
+
+  if (direction) return void key(ARROW[direction]);
+  switch (bindings.nav[pad!]) {
+    case "select":
+      return activate();
+    case "back":
+      return void key("Escape");
+    case "options":
+      // Options for what's focused (a title's menu), as the keyboard's Menu key.
+      return void key("ContextMenu");
+    case "search":
+      return tvAction("search");
+    case "prevTab":
+      return tvAction("prevTab");
+    case "nextTab":
+      return tvAction("nextTab");
+    case "menu":
+      return tvAction("menu");
+  }
 }
 
 // --- Polling ------------------------------------------------------------------
@@ -270,6 +290,8 @@ const held = new Map<Button, { since: number; next: number }>();
 let frame = 0;
 
 function pressedButtons(): Set<Button> {
+  const { padStick, padStickSensitivity } = getPrefs();
+  const deadzone = STICK_DEADZONE[padStickSensitivity] ?? STICK_DEADZONE.normal;
   const down = new Set<Button>();
   for (const pad of navigator.getGamepads?.() ?? []) {
     if (!pad?.connected) continue;
@@ -279,7 +301,7 @@ function pressedButtons(): Set<Button> {
       if (name && b.pressed) down.add(name);
     });
     const [x = 0, y = 0] = pad.axes;
-    if (Math.max(Math.abs(x), Math.abs(y)) > STICK_DEADZONE) {
+    if (padStick && Math.max(Math.abs(x), Math.abs(y)) > deadzone) {
       if (Math.abs(x) > Math.abs(y)) down.add(x < 0 ? "left" : "right");
       else down.add(y < 0 ? "up" : "down");
     }
@@ -300,13 +322,14 @@ function poll(now: number) {
   // Only the focused window listens; the controller may be driving another app.
   if (document.hasFocus()) {
     const down = pressedButtons();
+    const repeat = REPEAT[getPrefs().padRepeat] ?? REPEAT.normal;
     for (const b of down) {
       const h = held.get(b);
       if (!h) {
-        held.set(b, { since: now, next: now + REPEAT_DELAY });
+        held.set(b, { since: now, next: now + repeat.delay });
         press(b);
       } else if (DIRECTIONS.has(b) && now >= h.next) {
-        h.next = now + (now - h.since > FAST_AFTER ? REPEAT_FAST : REPEAT_SLOW);
+        h.next = now + (now - h.since > FAST_AFTER ? repeat.fast : repeat.slow);
         press(b);
       }
     }

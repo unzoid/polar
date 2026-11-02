@@ -5,6 +5,7 @@ import { Close, Desktop, Power, Profile, Search, Tv, Users } from "../components
 import { useAccount } from "../lib/account/AccountProvider";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { usePrefs } from "../lib/prefs";
+import { buttonFor, usePadBindings, type NavAction, type PadButton, type PlayerPadAction } from "./padBindings";
 import { shortcutText } from "../lib/keybinds";
 import {
   dismissNotice,
@@ -139,17 +140,28 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** What the controller's buttons do here, while one is connected. */
+const HINTS: { actions: NavAction[]; label: string }[] = [
+  { actions: ["select"], label: "Select" },
+  { actions: ["back"], label: "Back" },
+  { actions: ["options"], label: "Options" },
+  { actions: ["search"], label: "Search" },
+  { actions: ["prevTab", "nextTab"], label: "Sections" },
+  { actions: ["menu"], label: "Menu" },
+];
+
+/** What the controller's buttons do here (as Settings has them), while one is connected. */
 export function TvHints() {
   const connected = useGamepadConnected();
-  if (!connected) return null;
+  const { padHints } = usePrefs();
+  const bindings = usePadBindings();
+  if (!connected || !padHints) return null;
   return (
     <div className="tv-hints" aria-hidden>
-      <Hint glyphs={["a"]} label="Select" />
-      <Hint glyphs={["b"]} label="Back" />
-      <Hint glyphs={["y"]} label="Search" />
-      <Hint glyphs={["lb", "rb"]} label="Sections" />
-      <Hint glyphs={["menu"]} label="Menu" />
+      {HINTS.map((h) => {
+        const glyphs = h.actions.map((a) => buttonFor(bindings, "nav", a)).filter((b): b is PadButton => !!b);
+        // A job with no button (set to Nothing) has nothing to hint at.
+        return glyphs.length === h.actions.length && <Hint key={h.label} glyphs={glyphs} label={h.label} />;
+      })}
     </div>
   );
 }
@@ -198,10 +210,17 @@ export function PadGlyph({ button }: { button: GlyphButton }) {
   );
 }
 
-/** The controller button for a player control, while TV mode has a controller connected. */
+/**
+ * The controller button for a player control (whichever is bound to the
+ * first of `actions` that has one), while TV mode has a controller connected.
+ */
 export function usePadGlyph(tv: boolean) {
   const connected = useGamepadConnected();
-  return (button: GlyphButton) => (tv && connected ? <PadGlyph button={button} /> : null);
+  const bindings = usePadBindings();
+  return (...actions: PlayerPadAction[]) => {
+    const button = tv && connected ? buttonFor(bindings, "player", ...actions) : undefined;
+    return button ? <PadGlyph button={button} /> : null;
+  };
 }
 
 /**
