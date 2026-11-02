@@ -16,7 +16,7 @@
   --t3-input: rgb(255 255 255 / 0.11);
   --t3-hover: rgb(255 255 255 / 0.04);
   --t3-selected: rgb(255 255 255 / 0.06);
-  --t3-primary: oklch(0.571 0.21 264);
+  --t3-primary: var(--accent);
   --t3-icon: color-mix(in srgb, var(--t3-muted-fg) 85%, var(--t3-card));
   --t3-ease: cubic-bezier(0.23, 1, 0.32, 1);
 
@@ -56,7 +56,9 @@
   position: fixed;
   z-index: 900;
   inset: 0;
-  background: rgb(0 0 0 / 0.6);
+  background: rgb(0 0 0 / 0.5);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   transition: opacity 180ms var(--ease-out);
 }
 .t3s-backdrop[data-starting-style],
@@ -516,7 +518,7 @@
 .t3s .btn-primary {
   border-color: transparent;
   background: var(--t3-primary);
-  color: #fff;
+  color: var(--accent-fg);
 }
 .t3s .btn-primary:not(:disabled):hover {
   background: color-mix(in oklab, var(--t3-primary) 90%, white);

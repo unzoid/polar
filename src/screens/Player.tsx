@@ -46,19 +46,28 @@ import { nextVideo, progressMap, seasonsOf } from "../lib/episodes";
 import { episodeCode, formatDate, formatRemaining, formatTime, isReleased, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
 import { useRouter } from "../lib/router";
-import type { ContentType, Progress, RankedStream, Stream } from "../lib/types";
+import type { ContentType, Progress, RankedStream, SourceSort, Stream } from "../lib/types";
+import { watchedFraction } from "../lib/watched";
+import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
 
 const win = getCurrentWindow();
-const HIDE_AFTER = 1800;
 const SAVE_EVERY = 5000;
-const AUTOPLAY_SECONDS = 8;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 /** How long the player layer takes to fade back to the page (matches player.css). */
 export const PLAYER_EXIT_MS = 260;
+/** With "Up next" set to the very end, it appears this many seconds before. */
+const NEXT_UP_AT_END = 12;
 
-type SourceSort = "best" | "quality" | "sizeDesc" | "sizeAsc" | "peers";
+/**
+ * Episodes autoplayed in a row with nobody touching anything, for "Still
+ * watching?". Module-level: each episode is a fresh Player.
+ */
+let autoplayStreak = 0;
+
+const TIME_DISPLAYS = ["remaining", "elapsed", "endsAt"] as const;
+const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 const res = (r: RankedStream) => r.quality.resolution ?? 0;
 const size = (r: RankedStream) => r.quality.sizeBytes ?? 0;
 const SOURCE_SORTS: Record<SourceSort, { label: string; cmp: (a: RankedStream, b: RankedStream) => number }> = {
@@ -114,9 +123,18 @@ export function Player({
   const [ended, setEnded] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
   const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | null>(null);
-  const [rate, setRate] = useState(1);
   const updateSettings = useUpdateSettings();
+  // Settings → Playback → "Remember playback speed".
+  const [rate, setRateState] = useState(() => (settings?.rememberSpeed && settings.playbackSpeed > 0 ? settings.playbackSpeed : 1));
+  const setRate = (r: number) => {
+    setRateState(r);
+    if (settings?.rememberSpeed) updateSettings.mutate({ playbackSpeed: r });
+  };
   const seekStep = settings?.seekStep ?? 10;
+  const hideAfter = Math.max(1, settings?.controlsHideSecs ?? 2) * 1000;
+  const countdown = Math.max(3, settings?.autoplayCountdown ?? 8);
+  const timeDisplay = settings?.timeDisplay ?? "remaining";
+  useMpvTune(engine === "mpv" ? mpv : null);
   // Subtitle look (saved) and timing offset (this video only).
   const subStyle = settings?.subtitleStyle ?? DEFAULT_SUBTITLE_STYLE;
   const [subDelay, setSubDelay] = useState(0);
@@ -126,7 +144,11 @@ export function Player({
     media,
     type,
     videoId,
-    { audio: settings?.audioLanguage ?? "", subtitle: settings?.subtitleLanguage ?? "" },
+    {
+      audio: settings?.audioLanguage ?? "",
+      subtitle: settings?.subtitleLanguage ?? "",
+      subtitleMode: settings?.subtitleMode ?? "always",
+    },
     (patch) => updateSettings.mutate(patch),
   );
   useEffect(() => {
@@ -158,8 +180,8 @@ export function Player({
     window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => {
       if (!overControls.current) setChrome({ visible: false, instant: false });
-    }, HIDE_AFTER);
-  }, []);
+    }, hideAfter);
+  }, [hideAfter]);
   // Leaving the window (alt-tab, another app, the cursor off the edge) hides it
   // now: nothing is pointing at the controls any more, so don't wait out the timer.
   useEffect(() => {
@@ -257,6 +279,11 @@ export function Player({
   }, [seeThrough]);
 
   // --- Load source ----------------------------------------------------------
+  /** Where to pick up (Settings → Playback: resume on/off, rewind), or undefined to start over. */
+  const resumePoint = (r?: Progress) => {
+    if (settings?.resumePlayback === false || !r || r.position <= 30 || r.position / r.duration >= watchedFraction()) return undefined;
+    return Math.max(0, r.position - (settings?.resumeRewind ?? 0));
+  };
   const resumed = useRef(false);
   useEffect(() => {
     const v = videoRef.current;
@@ -268,8 +295,7 @@ export function Player({
     if (v instanceof MpvMedia) {
       // Start at the resume point directly: no fetching the opening of a
       // network stream only to seek away from it.
-      const r = source.resume;
-      const start = r && r.position > 30 && r.position / r.duration < 0.92 ? r.position : undefined;
+      const start = resumePoint(source.resume);
       resumed.current = true;
       v.load(source.state.url, start);
     } else if (v instanceof HTMLVideoElement) {
@@ -291,9 +317,43 @@ export function Player({
     if (videoRef.current) videoRef.current.playbackRate = rate;
   }, [rate, source.state, media]);
 
-  // Fullscreen carries over from the previous episode.
+  // Fullscreen carries over from the previous episode; Settings → Playback
+  // can also start every video in it.
+  const fullscreenApplied = useRef(false);
   useEffect(() => {
-    void win.isFullscreen().then(setFullscreen);
+    if (!settings || fullscreenApplied.current) return;
+    fullscreenApplied.current = true;
+    void win.isFullscreen().then((fs) => {
+      if (!fs && settings.startFullscreen && !tv) {
+        void win.setFullscreen(true);
+        setFullscreen(true);
+      } else setFullscreen(fs);
+    });
+  }, [settings, tv]);
+
+  // Settings → Playback → "Pause when minimized".
+  const { pauseOnMinimize } = usePrefs();
+  useEffect(() => {
+    if (!pauseOnMinimize) return;
+    const unlisten = win.onResized(() => {
+      void win.isMinimized().then((min) => {
+        if (min && videoRef.current && !videoRef.current.paused) videoRef.current.pause();
+      });
+    });
+    return () => void unlisten.then((f) => f());
+  }, [pauseOnMinimize]);
+
+  // Any deliberate input means someone's still there ("Still watching?").
+  useEffect(() => {
+    const reset = () => (autoplayStreak = 0);
+    window.addEventListener("keydown", reset);
+    window.addEventListener("pointerdown", reset);
+    window.addEventListener("wheel", reset);
+    return () => {
+      window.removeEventListener("keydown", reset);
+      window.removeEventListener("pointerdown", reset);
+      window.removeEventListener("wheel", reset);
+    };
   }, []);
 
   // --- Media events (identical for <video> and mpv) ---------------------------
@@ -315,10 +375,8 @@ export function Player({
     canplay: () => setBuffering(false),
     loadedmetadata: () => {
       const v = videoRef.current!;
-      const r = source.resume;
-      if (!resumed.current && r && r.position > 30 && r.position / r.duration < 0.92) {
-        v.currentTime = r.position;
-      }
+      const start = resumePoint(source.resume);
+      if (!resumed.current && start != null) v.currentTime = start;
       resumed.current = true;
       setTime({ current: v.currentTime, duration: v.duration });
     },
@@ -374,7 +432,7 @@ export function Player({
     videoId,
     time: time.current,
     started,
-    autoSkip: !!settings?.autoSkip,
+    autoSkip: { intro: !!settings?.autoSkip, recap: settings?.autoSkipRecaps ?? !!settings?.autoSkip },
     media,
     preferFile: preferFileChapters,
     seekTo: (t) => {
@@ -430,12 +488,12 @@ export function Player({
         label: `${v.episode}. ${v.title}`,
         detail: !released
           ? `Coming ${formatDate(v.released)}`
-          : fraction > 0 && fraction < 0.92 && p
+          : fraction > 0 && fraction < watchedFraction() && p
             ? formatRemaining(p.position, p.duration)
             : formatDate(v.released),
         thumbnail: v.thumbnail ?? "",
-        progress: fraction < 0.92 ? fraction : undefined,
-        badge: fraction >= 0.92 ? { text: "Watched" } : undefined,
+        progress: fraction < watchedFraction() ? fraction : undefined,
+        badge: fraction >= watchedFraction() ? { text: "Watched" } : undefined,
         disabled: !released,
       };
     });
@@ -446,7 +504,10 @@ export function Player({
   // the ranked list, so selection works regardless of the view.
   const addonNames = useMemo(() => [...new Set(rankedStreams.map((r) => r.addon))], [rankedStreams]);
   const [addonFilter, setAddonFilter] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<SourceSort>("best");
+  const [sortBy, setSortBy] = useState<SourceSort>(() =>
+    settings?.sourceSort && settings.sourceSort in SOURCE_SORTS ? settings.sourceSort : "best",
+  );
+  const hiddenSources = streams.data?.hidden ?? 0;
   const viewStreams = rankedStreams
     .map((r, i) => ({ r, i }))
     .filter(({ r }) => !addonFilter || r.addon === addonFilter)
@@ -552,24 +613,46 @@ export function Player({
     }
   }, [next, time, type]);
 
-  // Autoplay countdown once the episode ends.
+  // Autoplay countdown once the episode ends, unless it's time to ask
+  // whether anyone's still watching (Settings → Playback).
+  const askAfter = settings?.stillWatchingAfter ?? 0;
+  const stillWatching = askAfter > 0 && autoplayStreak >= askAfter;
+  const willAutoplay = !!settings?.autoplayNext && !stillWatching;
   useEffect(() => {
-    if (!ended || !next || nextDismissed || !settings?.autoplayNext) return;
-    const t = window.setTimeout(() => playVideo(next.id), AUTOPLAY_SECONDS * 1000);
+    if (!ended || !next || nextDismissed || !willAutoplay) return;
+    const t = window.setTimeout(() => {
+      autoplayStreak += 1;
+      playVideo(next.id);
+    }, countdown * 1000);
     return () => window.clearTimeout(t);
-  }, [ended, next, nextDismissed, settings?.autoplayNext, playVideo]);
+  }, [ended, next, nextDismissed, willAutoplay, countdown, playVideo]);
 
   const remaining = time.duration - time.current;
   // With IntroDB credit timings, "Up next" arrives exactly when the credits
-  // roll (Netflix-style); without them, fall back to the last ~40s.
+  // roll (Netflix-style); without them, fall back to the last ~40s. Settings
+  // can hold it back until the very end instead.
   const creditsStart = skip.segments?.outro?.start;
   const inCredits =
     creditsStart != null && time.current >= creditsStart && !skip.segments?.postCredits;
+  const atEnd = settings?.nextUpTiming === "end";
   const showNextUp =
     !!next &&
     !nextDismissed &&
     time.duration > 0 &&
-    (ended || inCredits || (creditsStart == null && remaining <= Math.max(40, time.duration * 0.04)));
+    (ended ||
+      (atEnd
+        ? remaining <= NEXT_UP_AT_END
+        : inCredits || (creditsStart == null && remaining <= Math.max(40, time.duration * 0.04))));
+
+  // The timeline clock (Settings → Playback; clicking it cycles).
+  const clockText =
+    timeDisplay === "elapsed"
+      ? `${formatTime(time.current)} / ${formatTime(time.duration)}`
+      : timeDisplay === "endsAt"
+        ? `Ends at ${clock.format(Date.now() + (remaining / (rate || 1)) * 1000)}`
+        : formatTime(remaining);
+  const cycleClock = () =>
+    updateSettings.mutate({ timeDisplay: TIME_DISPLAYS[(TIME_DISPLAYS.indexOf(timeDisplay) + 1) % TIME_DISPLAYS.length] });
 
   const VolumeIcon = muted || volume === 0 ? VolumeMuted : Volume;
 
@@ -592,11 +675,22 @@ export function Player({
           fullscreen, wheel for volume. */}
       <div
         className="player-surface"
-        onClick={togglePlay} // respond immediately; double-click adds fullscreen on top
+        // Respond immediately; double-click adds fullscreen on top. Settings
+        // can make a click only show/hide the controls instead.
+        onClick={() => {
+          if (settings?.clickAction !== "controls") return togglePlay();
+          if (chrome.visible) setChrome({ visible: false, instant: false });
+          else poke();
+        }}
         onDoubleClick={() => void toggleFullscreen()}
         onWheel={(e) => {
-          setVolume((v) => Math.min(1, Math.max(0, +(v - Math.sign(e.deltaY) * 0.05).toFixed(2))));
-          setMuted(false);
+          const wheel = settings?.wheelAction ?? "volume";
+          if (wheel === "none") return;
+          if (wheel === "seek") seekBy(-Math.sign(e.deltaY) * seekStep);
+          else {
+            setVolume((v) => Math.min(1, Math.max(0, +(v - Math.sign(e.deltaY) * 0.05).toFixed(2))));
+            setMuted(false);
+          }
           poke(true);
         }}
       />
@@ -692,7 +786,14 @@ export function Player({
               if (videoRef.current) videoRef.current.currentTime = t;
             }}
           />
-          <span className="player-remaining tabular">{formatTime(remaining)}</span>
+          <button
+            className="player-remaining tabular"
+            onClick={cycleClock}
+            title="Change what the clock shows"
+            aria-label={`${clockText}. Change what the clock shows`}
+          >
+            {clockText}
+          </button>
         </div>
         <div className="player-actions">
           <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("view")} onClick={() => setOptions("speed")} />
@@ -792,14 +893,22 @@ export function Player({
               <Img src={next.thumbnail ?? meta?.background} alt="" />
             </div>
             <div className="next-up-text">
-              <span className="next-up-kicker">Up Next · {episodeCode(next.season, next.episode)}</span>
+              <span className="next-up-kicker">
+                {ended && stillWatching ? "Are you still watching?" : `Up Next · ${episodeCode(next.season, next.episode)}`}
+              </span>
               <span className="next-up-title">{next.title}</span>
               <div className="next-up-actions">
-                <button className="btn btn-primary next-up-play" onClick={() => playVideo(next.id)}>
-                  {ended && settings?.autoplayNext && (
-                    <span className="next-up-countdown" style={{ animationDuration: `${AUTOPLAY_SECONDS}s` }} />
+                <button
+                  className="btn btn-primary next-up-play"
+                  onClick={() => {
+                    autoplayStreak = 0;
+                    playVideo(next.id);
+                  }}
+                >
+                  {ended && willAutoplay && (
+                    <span className="next-up-countdown" style={{ animationDuration: `${countdown}s` }} />
                   )}
-                  {pad("rb") ?? <Play size={16} fill="currentColor" />} Play Now
+                  {pad("rb") ?? <Play size={16} fill="currentColor" />} {ended && stillWatching ? "Keep Watching" : "Play Now"}
                 </button>
                 <button className="btn btn-glass btn-icon next-up-dismiss" onClick={() => setNextDismissed(true)} aria-label="Dismiss">
                   <Close size={16} />
@@ -854,6 +963,11 @@ export function Player({
                     ))}
                   </div>
                 )}
+                {hiddenSources > 0 && (
+                  <span className="source-hidden t-caption" title="Change these in Settings → Sources">
+                    {hiddenSources} hidden by your filters
+                  </span>
+                )}
                 <Dropdown
                   label="Sort sources"
                   value={sortBy}
@@ -864,7 +978,13 @@ export function Player({
             ),
             value: currentSourceIndex >= 0 ? String(currentSourceIndex) : undefined,
             options: sourceItems,
-            empty: streams.isLoading ? "Finding sources…" : streams.isError ? "Couldn't load sources." : "No sources found.",
+            empty: streams.isLoading
+              ? "Finding sources…"
+              : streams.isError
+                ? "Couldn't load sources."
+                : hiddenSources > 0
+                  ? `All ${hiddenSources} sources are hidden by your filters in Settings → Sources.`
+                  : "No sources found.",
             onSelect: (id) => {
               const pick = rankedStreams[Number(id)];
               if (pick && Number(id) !== currentSourceIndex) playVideo(videoId, pick.stream);

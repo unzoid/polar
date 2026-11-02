@@ -44,6 +44,74 @@ pub struct Settings {
     pub ui_font: String,
     /// How subtitles look in the player.
     pub subtitle_style: SubtitleStyle,
+
+    // --- Playback ---
+    /// Seconds the "Up next" countdown runs before the next episode starts.
+    pub autoplay_countdown: u32,
+    /// After this many episodes autoplay in a row with nobody touching
+    /// anything, stop and ask. 0 = never ask.
+    pub still_watching_after: u32,
+    /// When "Up next" appears: "credits" (as the credits start) or "end".
+    pub next_up_timing: String,
+    /// Skip recaps on their own. `None` = follow `auto_skip` (older settings).
+    pub auto_skip_recaps: Option<bool>,
+    /// Pick up where you left off. Off: always start from the beginning.
+    pub resume_playback: bool,
+    /// Seconds to back up when resuming, to catch the thread again.
+    pub resume_rewind: u32,
+    /// Percent of a video watched before it counts as watched.
+    pub watched_threshold: u32,
+    /// Go fullscreen when playback starts.
+    pub start_fullscreen: bool,
+    /// The timeline's clock: "remaining", "elapsed" or "endsAt".
+    pub time_display: String,
+    /// Seconds without movement before the player controls hide.
+    pub controls_hide_secs: u32,
+    /// Mouse wheel over the video: "volume", "seek" or "none".
+    pub wheel_action: String,
+    /// Clicking the video: "toggle" (play/pause) or "controls" (show them).
+    pub click_action: String,
+    /// Keep the last playback speed for the next video.
+    pub remember_speed: bool,
+    pub playback_speed: f32,
+
+    // --- Sources ---
+    /// Highest resolution to play (e.g. 1080). 0 = any.
+    pub max_resolution: u32,
+    /// Largest movie file, GB. 0 = any.
+    pub max_movie_size_gb: f32,
+    /// Largest episode file, GB. 0 = any.
+    pub max_episode_size_gb: f32,
+    /// Hide CAM and telesync rips from the source list.
+    pub hide_cam: bool,
+    /// Comma-separated words; sources mentioning any are hidden.
+    pub exclude_keywords: String,
+    /// How the source list is sorted when it opens.
+    pub source_sort: String,
+
+    // --- Subtitles ---
+    /// "always": use the preferred subtitle language whenever there is one.
+    /// "foreign": only when the audio isn't already in that language.
+    pub subtitle_mode: String,
+
+    // --- Appearance & browsing ---
+    /// Accent colour, `#RRGGBB`.
+    pub accent_color: String,
+    /// "dark" or "black" (pure black backgrounds, for OLED screens).
+    pub theme: String,
+    /// Poster and thumbnail size: "small", "medium" or "large".
+    pub card_size: String,
+    /// "system" (follow Windows), "on" or "off".
+    pub reduce_motion: String,
+    /// Rotate the featured carousel on Home.
+    pub hero_autoplay: bool,
+    pub show_continue_watching: bool,
+    /// Blur the stills of episodes you haven't watched.
+    pub hide_episode_thumbs: bool,
+    /// Hide the descriptions of episodes you haven't watched.
+    pub hide_episode_descriptions: bool,
+    /// Where the app opens: "home", "library", "movies" or "series".
+    pub start_page: String,
 }
 
 /// Subtitle appearance. Applies to every video; the timing offset (delay) is
@@ -104,6 +172,59 @@ impl Default for Settings {
             episode_layout: "row".into(),
             ui_font: "inter".into(),
             subtitle_style: SubtitleStyle::default(),
+            autoplay_countdown: 8,
+            still_watching_after: 0,
+            next_up_timing: "credits".into(),
+            auto_skip_recaps: None,
+            resume_playback: true,
+            resume_rewind: 0,
+            watched_threshold: 92,
+            start_fullscreen: false,
+            time_display: "remaining".into(),
+            controls_hide_secs: 2,
+            wheel_action: "volume".into(),
+            click_action: "toggle".into(),
+            remember_speed: false,
+            playback_speed: 1.0,
+            max_resolution: 0,
+            max_movie_size_gb: 0.0,
+            max_episode_size_gb: 0.0,
+            hide_cam: true,
+            exclude_keywords: String::new(),
+            source_sort: "best".into(),
+            subtitle_mode: "always".into(),
+            accent_color: "#0A84FF".into(),
+            theme: "dark".into(),
+            card_size: "medium".into(),
+            reduce_motion: "system".into(),
+            hero_autoplay: true,
+            show_continue_watching: true,
+            hide_episode_thumbs: false,
+            hide_episode_descriptions: false,
+            start_page: "home".into(),
+        }
+    }
+}
+
+impl Settings {
+    /// Watched threshold as a fraction, kept to a sensible range.
+    pub fn watched_fraction(&self) -> f64 {
+        (self.watched_threshold.clamp(50, 100) as f64) / 100.0
+    }
+
+    /// Source filters for one kind of title.
+    pub fn stream_filter(&self, ty: &str) -> polar_addon::StreamFilter {
+        let gb = if ty == "movie" { self.max_movie_size_gb } else { self.max_episode_size_gb };
+        polar_addon::StreamFilter {
+            max_resolution: (self.max_resolution > 0).then(|| self.max_resolution.min(u16::MAX as u32) as u16),
+            max_size_bytes: (gb > 0.0).then(|| (gb as f64 * 1e9) as u64),
+            hide_cam: self.hide_cam,
+            exclude_words: self
+                .exclude_keywords
+                .split(',')
+                .map(|w| w.trim().to_owned())
+                .filter(|w| !w.is_empty())
+                .collect(),
         }
     }
 }
@@ -154,9 +275,9 @@ impl Progress {
         if self.duration > 0.0 { (self.position / self.duration).clamp(0.0, 1.0) } else { 0.0 }
     }
 
-    /// Past the credits threshold — counts as watched.
-    pub fn finished(&self) -> bool {
-        self.fraction() >= 0.92
+    /// Past the watched threshold (Settings → Playback), e.g. 0.92.
+    pub fn finished(&self, threshold: f64) -> bool {
+        self.fraction() >= threshold
     }
 }
 
@@ -225,10 +346,18 @@ pub struct Store {
 
 impl Store {
     pub fn load(path: PathBuf) -> Self {
-        let mut data: Data = std::fs::read(&path)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default();
+        let mut data: Data = match std::fs::read(&path) {
+            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|e| {
+                // Starting fresh would overwrite the user's library, history,
+                // addons and settings on the next save. Keep the unreadable
+                // file next to it so nothing is lost for good.
+                let backup = path.with_extension(format!("corrupt-{}.json", now()));
+                eprintln!("polar: {} is unreadable ({e}); kept as {}", path.display(), backup.display());
+                let _ = std::fs::copy(&path, backup);
+                Data::default()
+            }),
+            Err(_) => Data::default(),
+        };
         data.migrate();
         Self { path, data }
     }

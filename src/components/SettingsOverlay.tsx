@@ -10,9 +10,10 @@ import { PAGES, SettingsPageBody, type PageId } from "../screens/Settings";
 
 /** Sidebar groups, T3 Code style: an unlabelled first group, then headed ones. */
 const GROUPS: { heading?: string; pages: PageId[] }[] = [
-  { pages: ["account", "playback", "subtitles", "browsing"] },
+  { pages: ["account", "playback", "subtitles", "appearance", "browsing"] },
   { heading: "Input", pages: ["controls"] },
-  { heading: "Sources", pages: ["addons", "services"] },
+  { heading: "Sources", pages: ["sources", "addons", "services"] },
+  { heading: "System", pages: ["advanced", "about"] },
 ];
 
 /** Where a search result's row can be on its page. */

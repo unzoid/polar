@@ -12,5 +12,5 @@ pub mod subs;
 pub mod types;
 
 pub use client::{AddonClient, AddonError};
-pub use rank::{rank_streams, RankedStream, StreamQuality};
+pub use rank::{rank_streams, rank_streams_filtered, RankedStream, StreamFilter, StreamQuality};
 pub use types::*;

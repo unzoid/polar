@@ -1094,7 +1094,7 @@
   opacity: 1;
   background: var(--accent);
   box-shadow: none;
-  color: #fff;
+  color: var(--accent-fg);
 }
 .tv-playlist-row[aria-checked="true"]:focus {
   color: var(--text-on-light);

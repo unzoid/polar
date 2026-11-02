@@ -17,13 +17,38 @@ const ROWS: SettingEntry[] = [
   // Playback
   { title: "Play the best source automatically", page: "playback", keywords: "autoplay stream" },
   { title: "Play the next episode automatically", page: "playback", keywords: "autoplay binge" },
-  { title: "Skip intros and recaps", page: "playback", keywords: "opening credits" },
+  { title: "Countdown", page: "playback", keywords: "autoplay next episode timer seconds up next" },
+  { title: "Ask if you're still watching", page: "playback", keywords: "are you still watching sleep timer autoplay stop" },
+  { title: "Show Up Next", page: "playback", keywords: "next episode card credits end post-play" },
+  { title: "Skip intros", page: "playback", keywords: "opening credits auto skip intro" },
+  { title: "Skip recaps", page: "playback", keywords: "previously on auto skip recap" },
   { title: "Use the file's own chapters for intros", page: "playback", keywords: "intro recap credits skip p2p chapters introdb" },
+  { title: "Resume where you left off", page: "playback", keywords: "continue position start beginning" },
+  { title: "Back up when resuming", page: "playback", keywords: "rewind resume seconds" },
+  { title: "Count as watched at", page: "playback", keywords: "watched threshold percent played finished mark" },
+  { title: "Start in fullscreen", page: "playback", keywords: "full screen" },
+  { title: "Pause when minimized", page: "playback", keywords: "minimise background" },
+  { title: "Remember playback speed", page: "playback", keywords: "rate faster slower" },
+  { title: "Clock", page: "playback", keywords: "time remaining elapsed ends at end time" },
   { title: "Skip forward and back", page: "playback", keywords: "seek amount seconds arrow keys" },
+  { title: "Hide controls after", page: "playback", keywords: "overlay timeout auto hide" },
+  { title: "Clicking the video", page: "playback", keywords: "click pause tap" },
+  { title: "Scrolling over the video", page: "playback", keywords: "mouse wheel scroll volume seek" },
+
+  // Sources
+  { title: "Highest quality", page: "sources", keywords: "resolution 4k 1080p 720p max limit filter" },
+  { title: "Largest movie file", page: "sources", keywords: "size gb limit filter" },
+  { title: "Largest episode file", page: "sources", keywords: "size gb limit filter" },
+  { title: "Hide cinema recordings", page: "sources", keywords: "cam telesync ts filter" },
+  { title: "Hide Sources Containing", page: "sources", keywords: "keywords exclude words filter hc 3d" },
+  { title: "Sort by", page: "sources", keywords: "source list order sort" },
 
   // Subtitles & Audio
   { title: "Audio", page: "subtitles", keywords: "audio language dub" },
   { title: "Subtitles", page: "subtitles", keywords: "subtitle language captions" },
+  { title: "Show subtitles", page: "subtitles", keywords: "foreign audio forced only when" },
+  { title: "Boost dialogue", page: "subtitles", keywords: "voices clear center centre channel surround quiet speech" },
+  { title: "Even out volume", page: "subtitles", keywords: "night mode loudness normalize compression leveling" },
   { title: "Subtitle Style", page: "subtitles", keywords: "captions appearance" },
   { title: "Delay", page: "subtitles", keywords: "subtitle sync offset timing" },
   { title: "Font", page: "subtitles", keywords: "subtitle typeface family" },
@@ -34,12 +59,26 @@ const ROWS: SettingEntry[] = [
   { title: "Outline", page: "subtitles", keywords: "subtitle edge stroke shadow" },
   { title: "Background", page: "subtitles", keywords: "subtitle box" },
 
+  // Appearance
+  { title: "Accent colour", page: "appearance", keywords: "color theme highlight" },
+  { title: "Background", page: "appearance", keywords: "theme black oled dark" },
+  { title: "Interface size", page: "appearance", keywords: "zoom scale bigger smaller text" },
+  { title: "Card size", page: "appearance", keywords: "posters thumbnails bigger smaller" },
+  { title: "Font", page: "appearance", keywords: "text typeface inter" },
+  { title: "Reduce motion", page: "appearance", keywords: "animations accessibility" },
+
   // Browsing
+  { title: "Open the app on", page: "browsing", keywords: "start page startup home library" },
+  { title: "Titles and descriptions", page: "browsing", keywords: "metadata language tmdb" },
+  { title: "Rotate the featured titles", page: "browsing", keywords: "carousel hero autoplay" },
+  { title: "Show Continue Watching", page: "browsing", keywords: "home row" },
+  { title: "Blur unwatched episode pictures", page: "browsing", keywords: "spoilers thumbnails stills" },
+  { title: "Hide unwatched episode descriptions", page: "browsing", keywords: "spoilers synopsis summary" },
+  { title: "Remember recent searches", page: "browsing", keywords: "history privacy" },
   { title: "Show titles", page: "browsing", keywords: "cards names" },
   { title: "Show details", page: "browsing", keywords: "cards year" },
   { title: "Show IMDb ratings", page: "browsing", keywords: "cards rating score badge imdb posters" },
   { title: "Default layout", page: "browsing", keywords: "episodes list grid" },
-  { title: "Font", page: "browsing", keywords: "text typeface inter" },
 
   // Controls & TV
   { title: "TV mode", page: "controls", keywords: "couch fullscreen remote" },
@@ -58,6 +97,18 @@ const ROWS: SettingEntry[] = [
   { title: "Artwork and episode info", page: "services", keywords: "tmdb api key metadata posters" },
   { title: "p2p playback", page: "services", keywords: "bridge source" },
   { title: "Timeline previews", page: "services", keywords: "seekr thumbnails scrubbing" },
+
+  // Advanced
+  { title: "Hardware decoding", page: "advanced", keywords: "gpu hwdec green glitches black" },
+  { title: "Smooth colour banding", page: "advanced", keywords: "deband gradients color" },
+  { title: "Buffer", page: "advanced", keywords: "cache read ahead memory stutter" },
+  { title: "Reset all settings", page: "advanced", keywords: "defaults restore" },
+
+  // About & Updates
+  { title: "Version", page: "about", keywords: "about build number" },
+  { title: "Software update", page: "about", keywords: "check for updates upgrade new version install" },
+  { title: "Download updates automatically", page: "about", keywords: "auto update background" },
+  { title: "Release notes", page: "about", keywords: "changelog what's new" },
 ];
 
 /** Each rebindable shortcut, found under Controls & TV. */

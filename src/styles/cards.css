@@ -189,8 +189,8 @@
 .home {
   position: relative;
   /* Home is the lean-back page: everything a size up from the rest of the app. */
-  --poster-w: clamp(172px, 13.5vw, 236px);
-  --landscape-w: clamp(300px, 25vw, 440px);
+  --poster-w: calc(clamp(172px, 13.5vw, 236px) * var(--card-scale, 1));
+  --landscape-w: calc(clamp(300px, 25vw, 440px) * var(--card-scale, 1));
 }
 .hero,
 .home-rows {

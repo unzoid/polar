@@ -3,6 +3,7 @@ import { useEffect, useMemo, useReducer } from "react";
 import { api } from "./api";
 import { keys, useCatalog, useContinueWatching, useLibrary, useWatchHistory } from "./queries";
 import type { ContentType, MetaPreview, Progress } from "./types";
+import { watchedFraction } from "./watched";
 
 /**
  * What the home screens show, shared by the desktop and TV layouts: the
@@ -244,4 +245,4 @@ export const progressItem = (p: Progress): MetaPreview => ({
 });
 
 /** How far through a history entry is, 0..1 (a finished one reads as complete). */
-export const progressFraction = (p: Progress) => (!p.duration ? 0 : p.position / p.duration >= 0.92 ? 1 : p.position / p.duration);
+export const progressFraction = (p: Progress) => (!p.duration ? 0 : p.position / p.duration >= watchedFraction() ? 1 : p.position / p.duration);

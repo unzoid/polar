@@ -6,6 +6,7 @@ import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { FOCUS_SEARCH_EVENT, setSearchText, useSearchText } from "../lib/searchQuery";
 import { WindowControls } from "./WindowControls";
 import { ProfileMenu } from "./ProfileMenu";
+import { UpdatePill } from "./Updates";
 
 const LINKS: { route: TabRoute; label: string }[] = [
   { route: { name: "home" }, label: "Home" },
@@ -57,6 +58,7 @@ export function NavBar() {
         ))}
       </nav>
       <div className="navbar-actions">
+        <UpdatePill />
         <SearchBox />
         <button className="navbar-icon pressable" aria-label="TV mode" title="TV mode" onClick={() => setTvMode(true)}>
           <Tv size={23} />

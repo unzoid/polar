@@ -68,7 +68,7 @@ input {
 }
 
 ::selection {
-  background: rgb(106 168 255 / 0.35);
+  background: color-mix(in srgb, var(--focus) 35%, transparent);
 }
 
 /* Scrollbars that stay out of the way. */

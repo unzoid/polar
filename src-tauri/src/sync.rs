@@ -125,7 +125,9 @@ pub fn sync_apply(
 ) -> Result<bool> {
     let mut changed = false;
     save(&state, |d| {
-        let s = d.spaces.entry(space).or_default();
+        // A pull that finishes after sign-out (or after the profile was
+        // deleted) must not bring that profile's data back onto this device.
+        let Some(s) = d.spaces.get_mut(&space) else { return };
         changed = merge(s, library, progress);
         if pulled_at.is_some() {
             s.pulled_at = pulled_at;

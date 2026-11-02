@@ -1,4 +1,8 @@
 import { useEffect } from "react";
+import { MotionConfig } from "motion/react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { usePrefs } from "./lib/prefs";
+import type { Settings as SettingsT } from "./lib/types";
 import { NavBar } from "./components/NavBar";
 import { PlayerLayer, usePlayerLayer } from "./components/PlayerLayer";
 import { useSettings } from "./lib/queries";
@@ -20,6 +24,8 @@ import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
 import { actionFor } from "./lib/keybinds";
 import { SettingsOverlay } from "./components/SettingsOverlay";
 import { isSettingsOpen } from "./lib/settingsOverlay";
+import { UpdateToast, WhatsNewSheet } from "./components/Updates";
+import { startUpdateChecks } from "./lib/updater";
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -43,6 +49,7 @@ function Screen({ route }: { route: Route }) {
 /** Sign-in and profile picking come before the app itself. */
 export function App() {
   const { status, profile, profilesView } = useAccount();
+  const { data: settings, isFetched } = useSettings();
   switch (status) {
     case "loading":
       return <div className="account-shell" />;
@@ -54,9 +61,11 @@ export function App() {
       return <ProfilesScreen initial={profilesView} />;
     case "guest":
     case "ready":
-      // Each profile starts at Home with its own navigation.
+      // Each profile starts on its start page with its own navigation. Wait
+      // for settings (a local read) so it doesn't open on Home and then jump.
+      if (!isFetched) return <div className="account-shell" />;
       return (
-        <RouterProvider key={profile?.id ?? "guest"}>
+        <RouterProvider key={profile?.id ?? "guest"} initial={[startRoute(settings?.startPage)]}>
           <MainApp />
         </RouterProvider>
       );
@@ -70,8 +79,44 @@ function MainApp() {
 
   // On the root element so portalled menus pick it up too.
   useEffect(() => {
-    document.documentElement.dataset.font = settings?.uiFont ?? "inter";
+    // Anything else (e.g. the removed "netflix" test font) falls back to Inter.
+    document.documentElement.dataset.font = settings?.uiFont === "system" ? "system" : "inter";
   }, [settings?.uiFont]);
+
+  // Settings → Appearance and → Browsing, as attributes and variables on <html>
+  // (TV mode and portalled menus included).
+  useEffect(() => {
+    if (!settings) return;
+    const root = document.documentElement;
+    const accent = /^#[0-9a-f]{6}$/i.test(settings.accentColor ?? "") ? settings.accentColor : null;
+    if (accent) {
+      root.style.setProperty("--accent", accent);
+      // Light accents (yellow, teal) need dark text on top to stay readable.
+      const n = parseInt(accent.slice(1), 16);
+      const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+      root.style.setProperty("--accent-fg", lum > 0.62 ? "#0b0b0b" : "#fff");
+    } else {
+      root.style.removeProperty("--accent");
+      root.style.removeProperty("--accent-fg");
+    }
+    root.dataset.theme = settings.theme === "black" ? "black" : "dark";
+    root.dataset.cardSize = settings.cardSize ?? "medium";
+    root.dataset.reduceMotion = settings.reduceMotion ?? "system";
+    root.dataset.hideThumbs = String(!!settings.hideEpisodeThumbs);
+    root.dataset.hideOverviews = String(!!settings.hideEpisodeDescriptions);
+  }, [settings]);
+
+  // Interface size is this screen's, so it's a device pref.
+  const { uiScale } = usePrefs();
+  useEffect(() => {
+    void getCurrentWebview()
+      .setZoom(uiScale > 0 ? uiScale : 1)
+      .catch(() => {});
+  }, [uiScale]);
+  const reduce = settings?.reduceMotion;
+
+  // Look for a new version shortly after launch, then every few hours (TV mode too).
+  useEffect(() => startUpdateChecks(), []);
 
   // Switching modes works from anywhere, the player included (Settings → Controls to rebind).
   useEffect(() => {
@@ -85,7 +130,25 @@ function MainApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  return tv ? <TvApp /> : <DesktopApp />;
+  return (
+    <MotionConfig reducedMotion={reduce === "on" ? "always" : reduce === "off" ? "never" : "user"}>
+      {tv ? <TvApp /> : <DesktopApp />}
+    </MotionConfig>
+  );
+}
+
+/** Settings → Browsing → "Open the app on". */
+function startRoute(page: SettingsT["startPage"] | undefined): Route {
+  switch (page) {
+    case "library":
+      return { name: "library" };
+    case "movies":
+      return { name: "discover", type: "movie" };
+    case "series":
+      return { name: "discover", type: "series" };
+    default:
+      return { name: "home" };
+  }
 }
 
 function DesktopApp() {
@@ -133,7 +196,9 @@ function DesktopApp() {
           </section>
         ))}
         <ControllerToast tv={false} />
+        <UpdateToast hidden={!!playing} />
       </main>
+      <WhatsNewSheet />
       <PlayerLayer player={player} leaving={leaving} />
       <SettingsOverlay />
     </div>

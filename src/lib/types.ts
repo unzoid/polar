@@ -68,6 +68,8 @@ export interface RankedStream {
 export interface StreamsResult {
   streams: RankedStream[];
   failed: string[];
+  /** Left out by the filters in Settings → Sources. */
+  hidden?: number;
 }
 
 export type Playable =
@@ -160,11 +162,59 @@ export interface Settings {
   showCardRatings?: boolean;
   /** A season's episodes as a horizontal shelf or a vertical list. */
   episodeLayout: EpisodeLayout;
-  /** "inter" (bundled), "system" (Segoe UI Variable on Windows), or an alternative from styles/fonts.css. */
-  uiFont: "inter" | "system" | "netflix";
+  /** "inter" (bundled) or "system" (Segoe UI Variable on Windows). */
+  uiFont: "inter" | "system";
   subtitleStyle: SubtitleStyle;
   metadataSource?: string;
+
+  // Playback
+  /** Seconds the "Up next" countdown runs. */
+  autoplayCountdown: number;
+  /** Ask "Still watching?" after this many autoplayed episodes in a row. 0 = never. */
+  stillWatchingAfter: number;
+  nextUpTiming: "credits" | "end";
+  /** Skip recaps automatically; null = same as `autoSkip`. */
+  autoSkipRecaps?: boolean | null;
+  resumePlayback: boolean;
+  /** Seconds to back up when resuming. */
+  resumeRewind: number;
+  /** Percent watched before a video counts as watched. */
+  watchedThreshold: number;
+  startFullscreen: boolean;
+  timeDisplay: "remaining" | "elapsed" | "endsAt";
+  controlsHideSecs: number;
+  wheelAction: "volume" | "seek" | "none";
+  clickAction: "toggle" | "controls";
+  rememberSpeed: boolean;
+  playbackSpeed: number;
+
+  // Sources
+  /** 0 = any. */
+  maxResolution: number;
+  /** GB; 0 = any. */
+  maxMovieSizeGb: number;
+  maxEpisodeSizeGb: number;
+  hideCam: boolean;
+  /** Comma-separated. */
+  excludeKeywords: string;
+  sourceSort: SourceSort;
+
+  // Subtitles
+  subtitleMode: "always" | "foreign";
+
+  // Appearance & browsing
+  accentColor: string;
+  theme: "dark" | "black";
+  cardSize: "small" | "medium" | "large";
+  reduceMotion: "system" | "on" | "off";
+  heroAutoplay: boolean;
+  showContinueWatching: boolean;
+  hideEpisodeThumbs: boolean;
+  hideEpisodeDescriptions: boolean;
+  startPage: "home" | "library" | "movies" | "series";
 }
+
+export type SourceSort = "best" | "quality" | "sizeDesc" | "sizeAsc" | "peers";
 
 export interface SubtitleOption {
   id: string;

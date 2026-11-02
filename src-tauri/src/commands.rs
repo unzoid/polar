@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::join_all;
-use polar_addon::{rank_streams, Meta, MetaPreview, RankedStream, Stream};
+use polar_addon::{rank_streams_filtered, Meta, MetaPreview, RankedStream, Stream};
 use polar_index::Indexer;
 use serde::Serialize;
 use tauri::State;
@@ -89,6 +89,8 @@ pub struct StreamsResult {
     /// Addons that failed or timed out, so the UI can say so instead of
     /// silently showing fewer results.
     failed: Vec<String>,
+    /// Sources left out by the filters in Settings → Sources.
+    hidden: usize,
 }
 
 /// Query every installed stream addon concurrently, then rank and dedupe.
@@ -115,7 +117,9 @@ pub async fn streams(state: State<'_, AppState>, ty: String, video_id: String) -
             _ => failed.push(name),
         }
     }
-    Ok(StreamsResult { streams: rank_streams(all), failed })
+    let filter = state.store.lock().unwrap().data.settings.stream_filter(&ty);
+    let (streams, hidden) = rank_streams_filtered(all, &filter);
+    Ok(StreamsResult { streams, failed, hidden })
 }
 
 #[derive(Serialize)]
@@ -252,6 +256,7 @@ pub fn progress_save(state: State<'_, AppState>, mut progress: Progress) -> Resu
 #[tauri::command]
 pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
+    let watched = store.data.settings.watched_fraction();
     let Some(space) = store.data.space() else { return Vec::new() };
     let mut latest: std::collections::HashMap<&str, &Progress> = Default::default();
     for p in space.progress.values() {
@@ -262,7 +267,7 @@ pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
     }
     let mut items: Vec<Progress> = latest
         .into_values()
-        .filter(|p| !p.finished() && p.position > 30.0)
+        .filter(|p| !p.finished(watched) && p.position > 30.0)
         .cloned()
         .collect();
     items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
@@ -275,9 +280,10 @@ pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
 #[tauri::command]
 pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
+    let watched = store.data.settings.watched_fraction();
     let Some(space) = store.data.space() else { return Vec::new() };
     let mut latest: std::collections::HashMap<&str, &Progress> = Default::default();
-    for p in space.progress.values().filter(|p| p.finished() || p.position > 30.0) {
+    for p in space.progress.values().filter(|p| p.finished(watched) || p.position > 30.0) {
         let slot = latest.entry(p.meta_id.as_str()).or_insert(p);
         if p.updated_at > slot.updated_at {
             *slot = p;
@@ -317,6 +323,21 @@ pub fn settings_set(state: State<'_, AppState>, settings: Settings) -> Result<Se
     let next = settings.clone();
     persist(&state, |d| d.settings = next)?;
     Ok(SettingsView { settings, metadata_source: state.indexer().source() })
+}
+
+/// Everything back to the defaults, except what took effort to set up: API
+/// keys, the bridge's address and the metadata language.
+#[tauri::command]
+pub fn settings_reset(state: State<'_, AppState>) -> Result<SettingsView> {
+    let current = state.store.lock().unwrap().data.settings.clone();
+    let fresh = Settings {
+        tmdb_key: current.tmdb_key,
+        seekr_key: current.seekr_key,
+        bridge: current.bridge,
+        language: current.language,
+        ..Settings::default()
+    };
+    settings_set(state, fresh)
 }
 
 // --- Subtitles -----------------------------------------------------------

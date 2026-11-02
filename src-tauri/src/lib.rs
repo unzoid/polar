@@ -85,6 +85,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle().plugin(tauri_plugin_process::init())?;
+            }
             let dir = app.path().app_data_dir()?;
             let path = dir.join("polar.json");
             migrate_legacy_store(&dir, &path);
@@ -127,6 +132,7 @@ pub fn run() {
             commands::watch_history,
             commands::settings_get,
             commands::settings_set,
+            commands::settings_reset,
             commands::open_external,
             controllers::controllers_list,
             sync::space_activate,
@@ -139,6 +145,7 @@ pub fn run() {
             player::mpv_load,
             player::mpv_command,
             player::mpv_set,
+            player::mpv_tune,
             player::mpv_stop,
             player::mpv_snapshot,
         ])

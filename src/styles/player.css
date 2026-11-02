@@ -172,6 +172,13 @@
   font-weight: 600;
   min-width: 4.5ch;
   text-align: right;
+  /* A button: clicking cycles remaining / elapsed / ends at. */
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
 }
 /* Labelled actions spread across the width — text, not boxes. */
 .player-actions {
@@ -945,6 +952,11 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
+}
+.source-hidden {
+  margin-left: auto;
+  color: var(--text-3);
+  white-space: nowrap;
 }
 .source-chips {
   display: flex;

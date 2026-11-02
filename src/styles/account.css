@@ -34,8 +34,8 @@
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(110% 75% at 35% -15%, rgb(10 132 255 / 0.3), transparent 65%),
-    radial-gradient(80% 60% at 50% 120%, rgb(10 132 255 / 0.06), transparent 70%);
+    radial-gradient(110% 75% at 35% -15%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 65%),
+    radial-gradient(80% 60% at 50% 120%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%);
 }
 .account-bar {
   position: relative;
@@ -217,7 +217,7 @@
   margin-top: 0.25rem;
   border-radius: var(--r-sm);
   background: var(--accent);
-  color: white;
+  color: var(--accent-fg);
   font-size: 1rem;
   font-weight: 600;
   transition: background-color var(--dur-fast) ease, opacity var(--dur-fast) ease;
@@ -273,7 +273,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .auth-primary:not(:disabled):hover {
-    background: #2b95ff;
+    background: color-mix(in srgb, var(--accent) 88%, white);
   }
 }
 

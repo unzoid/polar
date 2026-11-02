@@ -71,6 +71,8 @@ export const api = {
 
   settings: () => invoke<Settings>("settings_get"),
   saveSettings: (settings: Settings) => invoke<Settings>("settings_set", { settings }).then(changed),
+  /** Defaults again, keeping API keys, the bridge and the metadata language. */
+  resetSettings: () => invoke<Settings>("settings_reset").then(changed),
 
   mpvAvailable: () => invoke<boolean>("mpv_available"),
 };

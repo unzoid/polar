@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
 import type { MediaLike } from "./mpvMedia";
+import { prefersReducedMotion } from "../../lib/reducedMotion";
 
 export interface OptionItem {
   id: string;
@@ -245,6 +246,6 @@ function show(el: HTMLElement | undefined) {
   el.focus({ preventScroll: true });
   const list = el.closest<HTMLElement>(".options-list");
   if (!list) return;
-  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const smooth = !prefersReducedMotion();
   list.scrollTo({ top: el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2, behavior: smooth ? "smooth" : "auto" });
 }

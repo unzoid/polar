@@ -21,6 +21,8 @@
  *                       `data-nav-row` to the top, "center" centres it.
  *  - `data-nav-own`     Handles its own arrow keys (sliders and the like).
  */
+import { prefersReducedMotion } from "../lib/reducedMotion";
+
 export type Dir = "up" | "down" | "left" | "right";
 
 export const KEY_DIRS: Record<string, Dir> = {
@@ -33,7 +35,7 @@ export const KEY_DIRS: Record<string, Dir> = {
 const FOCUSABLE = "button, a[href], input, select, textarea, [tabindex]";
 const memory = new WeakMap<Element, HTMLElement>();
 
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reducedMotion = prefersReducedMotion;
 
 export function isNavigable(el: Element): el is HTMLElement {
   if (!(el instanceof HTMLElement)) return false;

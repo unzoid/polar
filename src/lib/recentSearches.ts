@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { getPrefs } from "./prefs";
 
 /** The last few searches you ran (pressed Enter on, or opened a result from), newest first. Kept on this machine. */
 const KEY = "polar.recentSearches";
@@ -22,7 +23,7 @@ function save(next: string[]) {
 
 export function addRecentSearch(query: string) {
   const q = query.trim();
-  if (q.length < 2) return;
+  if (q.length < 2 || !getPrefs().saveRecentSearches) return;
   // The same search again moves to the top rather than appearing twice.
   const rest = recent.filter((s) => s.toLowerCase() !== q.toLowerCase());
   if (recent[0] === q) return;

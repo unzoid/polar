@@ -33,7 +33,8 @@ export function useSkipSegments({
   videoId: string;
   time: number;
   started: boolean;
-  autoSkip: boolean;
+  /** Which segments to skip without asking (Settings → Playback). */
+  autoSkip: { intro: boolean; recap: boolean };
   /** Where the file's own chapters come from (mpv only). */
   media: MediaLike | null;
   /** Trust the file's chapter names over IntroDB where it has them. */
@@ -79,14 +80,17 @@ export function useSkipSegments({
   );
 
   // Auto-skip intros and recaps (never credits: those lead into "Up next").
+  const skipIntro = autoSkip.intro;
+  const skipRecap = autoSkip.recap;
   useEffect(() => {
-    if (!autoSkip || !started || !active || active.kind === "credits") return;
+    if (!started || !active || active.kind === "credits") return;
+    if (!(active.kind === "intro" ? skipIntro : skipRecap)) return;
     const key = `${active.kind}@${active.span.start}`;
     if (autoSkipped.current.has(key)) return;
     autoSkipped.current.add(key);
     skipTo(active);
     onAutoSkipped(active.kind === "intro" ? "Intro skipped" : "Recap skipped");
-  }, [autoSkip, started, active, skipTo, onAutoSkipped]);
+  }, [skipIntro, skipRecap, started, active, skipTo, onAutoSkipped]);
 
   return {
     segments,

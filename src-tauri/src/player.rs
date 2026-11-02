@@ -83,6 +83,9 @@ pub struct Mpv {
     next_id: AtomicU64,
     /// Bumped on every load/stop; an idle-shutdown timer only fires if it's unchanged.
     idle_gen: AtomicU64,
+    /// What mpv is currently tuned to, so `mpv_tune` only sends changes:
+    /// re-setting `hwdec` to the same value can still reinitialise decoding.
+    tuned: StdMutex<Tune>,
 }
 
 /// mpv.exe: next to our binary (bundled), on PATH, or a standard install.
@@ -188,6 +191,8 @@ impl Mpv {
         let quiet = Arc::new(AtomicBool::new(false));
         tokio::spawn(read_loop(app.clone(), BufReader::new(reader), pending.clone(), quiet.clone()));
         *guard = Some(Conn { child, writer, pending, quiet });
+        // A fresh mpv starts from the launch arguments above.
+        *self.tuned.lock().unwrap() = Tune::default();
         drop(guard);
 
         for (i, name) in OBSERVED.iter().enumerate() {
@@ -344,6 +349,69 @@ pub fn mpv_available() -> bool {
     mpv_binary().is_some()
 }
 
+// --- What the webview may ask of mpv --------------------------------------
+//
+// mpv's IPC is all-powerful: `run` starts any program, `load-script` runs Lua,
+// and some properties write files. The webview renders data from third-party
+// addons, so it only gets the handful of commands and properties the player
+// UI actually uses — a script injected into the page can't turn the player
+// into a way to run code on the machine.
+
+/// Commands the UI sends through `mpv_command`.
+const ALLOWED_COMMANDS: &[&str] = &["seek", "set", "get_property", "sub-add"];
+
+/// Properties the UI reads or writes (`mpv_set`, `set`, `get_property`).
+const ALLOWED_PROPERTIES: &[&str] = &[
+    "pause",
+    "volume",
+    "mute",
+    "speed",
+    "aid",
+    "sid",
+    "sub-text",
+    "sub-ass-override",
+    "sub-font",
+    "sub-scale",
+    "sub-pos",
+    "sub-color",
+    "sub-border-size",
+    "sub-border-color",
+    "sub-border-style",
+    "sub-shadow-offset",
+    "sub-back-color",
+    "sub-delay",
+];
+
+/// Media and subtitles only ever come from the network (addons, or the local
+/// bridge); never local files or mpv's special protocols.
+fn is_web_url(url: &str) -> bool {
+    let lower = url.trim_start().to_ascii_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://")
+}
+
+fn check_command(args: &[Value]) -> Result<(), String> {
+    let name = args.first().and_then(Value::as_str).ok_or("missing mpv command")?;
+    if !ALLOWED_COMMANDS.contains(&name) {
+        return Err(format!("mpv command `{name}` isn't allowed"));
+    }
+    match name {
+        "set" | "get_property" => check_property(args.get(1).and_then(Value::as_str).unwrap_or_default()),
+        "sub-add" => match args.get(1).and_then(Value::as_str) {
+            Some(url) if is_web_url(url) => Ok(()),
+            _ => Err("subtitles must be an http(s) URL".into()),
+        },
+        _ => Ok(()),
+    }
+}
+
+fn check_property(name: &str) -> Result<(), String> {
+    if ALLOWED_PROPERTIES.contains(&name) {
+        Ok(())
+    } else {
+        Err(format!("mpv property `{name}` isn't allowed"))
+    }
+}
+
 /// Load `url` (optionally starting at `start` seconds) and play.
 #[tauri::command]
 pub async fn mpv_load(
@@ -353,6 +421,9 @@ pub async fn mpv_load(
     url: String,
     start: Option<f64>,
 ) -> Result<(), String> {
+    if !is_web_url(&url) {
+        return Err("only http(s) streams can be played".into());
+    }
     state.mpv.touch();
     state.mpv.ensure(&app, &window).await?;
     let mut options = String::new();
@@ -364,15 +435,132 @@ pub async fn mpv_load(
     Ok(())
 }
 
-/// Any mpv command, e.g. `["seek", 10, "relative"]`.
+/// An allow-listed mpv command, e.g. `["seek", 10, "relative"]`.
 #[tauri::command]
 pub async fn mpv_command(state: State<'_, AppState>, args: Vec<Value>) -> Result<Value, String> {
+    check_command(&args)?;
     state.mpv.request(Value::Array(args)).await
 }
 
 #[tauri::command]
 pub async fn mpv_set(state: State<'_, AppState>, name: String, value: Value) -> Result<(), String> {
+    check_property(&name)?;
     state.mpv.request(json!(["set_property", name, value])).await.map(|_| ())
+}
+
+/// Device-level picture and sound options (Settings → Subtitles & Audio and
+/// → Advanced). Presets, not raw values: `af` takes lavfi graphs, which can
+/// read files, so the page never gets to write it directly.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tune {
+    /// Fold surround down to stereo with the centre (dialogue) channel
+    /// louder. Only sent for tracks with more than two channels.
+    pub dialogue_boost: bool,
+    /// Even out loud and quiet scenes ("night mode").
+    pub volume_leveling: bool,
+    /// Hardware decoding. Off is a troubleshooting switch for broken drivers.
+    pub hwdec: bool,
+    /// Smooth colour banding in gradients (dark scenes, anime skies).
+    pub deband: bool,
+    /// Read-ahead: "small", "normal" or "large".
+    pub buffer: BufferSize,
+}
+
+#[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum BufferSize {
+    Small,
+    Normal,
+    Large,
+}
+
+/// What the launch arguments in `Mpv::ensure` amount to.
+impl Default for Tune {
+    fn default() -> Self {
+        Self { dialogue_boost: false, volume_leveling: false, hwdec: true, deband: false, buffer: BufferSize::Normal }
+    }
+}
+
+impl Tune {
+    fn audio_filters(&self) -> String {
+        let mut chain: Vec<&str> = Vec::new();
+        if self.dialogue_boost {
+            // The well-known mpv downmix: centre at full level, the rest at 30%.
+            chain.push("lavfi=[pan=stereo|FL<FC+0.30*FL+0.30*BL+0.30*SL|FR<FC+0.30*FR+0.30*BR+0.30*SR]");
+        }
+        if self.volume_leveling {
+            chain.push("lavfi=[dynaudnorm=f=150:g=15:p=0.9]");
+        }
+        chain.join(",")
+    }
+
+    /// (seconds ahead, max bytes) for the demuxer cache.
+    fn cache(&self) -> (u32, &'static str) {
+        match self.buffer {
+            BufferSize::Small => (30, "64MiB"),
+            BufferSize::Normal => (90, "192MiB"),
+            BufferSize::Large => (300, "768MiB"),
+        }
+    }
+}
+
+/// Apply [`Tune`] to the running mpv. Takes effect immediately (audio
+/// filters, decoding, debanding) or from the next read-ahead (cache).
+#[tauri::command]
+pub async fn mpv_tune(state: State<'_, AppState>, tune: Tune) -> Result<(), String> {
+    if state.mpv.conn.lock().await.is_none() {
+        return Ok(());
+    }
+    let mpv = &state.mpv;
+    let was = *mpv.tuned.lock().unwrap();
+    if was == tune {
+        return Ok(());
+    }
+    if was.audio_filters() != tune.audio_filters() {
+        mpv.request(json!(["set_property", "af", tune.audio_filters()])).await?;
+    }
+    if was.hwdec != tune.hwdec {
+        mpv.request(json!(["set_property", "hwdec", if tune.hwdec { "auto-safe" } else { "no" }])).await?;
+    }
+    if was.deband != tune.deband {
+        mpv.request(json!(["set_property", "deband", tune.deband])).await?;
+    }
+    if was.buffer != tune.buffer {
+        let (secs, bytes) = tune.cache();
+        mpv.request(json!(["set_property", "cache-secs", secs])).await?;
+        mpv.request(json!(["set_property", "demuxer-max-bytes", bytes])).await?;
+    }
+    *mpv.tuned.lock().unwrap() = tune;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tune_builds_fixed_filters() {
+        let t = Tune { dialogue_boost: true, volume_leveling: true, hwdec: true, deband: false, buffer: BufferSize::Large };
+        assert!(t.audio_filters().starts_with("lavfi=[pan=stereo") && t.audio_filters().contains("dynaudnorm"));
+        let off = Tune { dialogue_boost: false, volume_leveling: false, ..t };
+        assert_eq!(off.audio_filters(), "");
+        assert_eq!(t.cache(), (300, "768MiB"));
+    }
+
+    #[test]
+    fn only_player_commands_pass() {
+        assert!(check_command(&[json!("seek"), json!(10), json!("absolute+keyframes")]).is_ok());
+        assert!(check_command(&[json!("set"), json!("sub-border-style"), json!("opaque-box")]).is_ok());
+        assert!(check_command(&[json!("sub-add"), json!("https://x/s.srt"), json!("select")]).is_ok());
+        assert!(check_command(&[json!("run"), json!("cmd.exe")]).is_err());
+        assert!(check_command(&[json!("load-script"), json!("C:/x.lua")]).is_err());
+        assert!(check_command(&[json!("set"), json!("input-ipc-server"), json!("x")]).is_err());
+        assert!(check_command(&[json!("sub-add"), json!("C:/secret.txt")]).is_err());
+        assert!(check_command(&[]).is_err());
+        assert!(check_property("screenshot-directory").is_err());
+        assert!(!is_web_url("file:///C:/x.mkv") && is_web_url("HTTP://127.0.0.1:11470/a/0"));
+    }
 }
 
 /// Stop playback but keep mpv alive (idle) for the next title.

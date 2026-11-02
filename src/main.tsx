@@ -12,7 +12,6 @@ import { AccountProvider } from "./lib/account/AccountProvider";
 import "@fontsource-variable/inter/opsz.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
-import "./styles/fonts.css";
 import "./styles/shell.css";
 import "./styles/cards.css";
 import "./styles/detail.css";
@@ -22,6 +21,7 @@ import "./styles/screens.css";
 import "./styles/account.css";
 import "./styles/settings-overlay.css";
 import "./styles/tv.css";
+import "./styles/updates.css";
 import { installGamepad } from "./tv/gamepad";
 
 // Font rendering differs by OS; base.css tunes text weight for Windows.

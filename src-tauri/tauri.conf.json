@@ -24,12 +24,33 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: https: http:",
+        "media-src": "'self' data: blob: https: http:",
+        "font-src": "'self' data: https:",
+        "connect-src": "'self' ipc: http://ipc.localhost https: wss: http://127.0.0.1:* http://localhost:*",
+        "worker-src": "'self' blob:",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'",
+        "frame-src": "'none'"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5MDA2MTJDQjMzOTQ5Q0YKUldUUFNUbXpMR0VBV1lvdWtnSm9hRnRBa0VGbDArZUVLV3ZVbWI1R2I5OEg1YTl5bXJxTmZiaEsK",
+      "endpoints": ["https://github.com/unzoid/polar/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

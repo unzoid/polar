@@ -10,6 +10,7 @@ import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, se
 import { usePlayTarget } from "../lib/playTarget";
 import { useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
 import { useRouter } from "../lib/router";
+import { watchedFraction } from "../lib/watched";
 import type { ContentType, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 import { useBack, useFocusTrap, usePageActive } from "./shell";
 import { reveal } from "./spatial";
@@ -388,7 +389,7 @@ function EpisodesPanel({
         {episodes.map((v) => {
           const p = map.get(v.id);
           const fraction = p?.duration ? p.position / p.duration : 0;
-          const watched = fraction >= 0.92;
+          const watched = fraction >= watchedFraction();
           const released = isReleased(v);
           const isEntry = v.id === entryId;
           const status = !released
@@ -397,7 +398,7 @@ function EpisodesPanel({
               ? formatRemaining(p.position, p.duration)
               : [shortRuntime(meta.runtime), formatDate(v.released)].filter(Boolean).join(" · ");
           return (
-            <div key={v.id} className="tv-episode" data-nav-row data-video={v.id}>
+            <div key={v.id} className="tv-episode" data-nav-row data-video={v.id} data-unwatched={!watched}>
               <button
                 className="tv-episode-main"
                 disabled={!released}

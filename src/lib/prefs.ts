@@ -20,6 +20,26 @@ export interface Prefs {
   suggestTvMode: boolean;
   /** Take intro, recap and credits from the file's own chapters before IntroDB. */
   preferFileChapters: boolean;
+
+  // This machine's screen, speakers and GPU:
+  /** Interface zoom, 1 = 100%. */
+  uiScale: number;
+  /** Pause when the window is minimized. */
+  pauseOnMinimize: boolean;
+  /** mpv: louder dialogue when surround is folded down to stereo. */
+  dialogueBoost: boolean;
+  /** mpv: even out loud and quiet scenes. */
+  volumeLeveling: boolean;
+  /** mpv: hardware decoding. */
+  hwdec: boolean;
+  /** mpv: smooth colour banding. */
+  deband: boolean;
+  /** mpv read-ahead. */
+  buffer: "small" | "normal" | "large";
+  /** Keep the last few searches. */
+  saveRecentSearches: boolean;
+  /** Fetch new versions in the background; installing still waits for a restart. */
+  autoDownloadUpdates: boolean;
 }
 
 const DEFAULTS: Prefs = {
@@ -29,6 +49,15 @@ const DEFAULTS: Prefs = {
   controllerAlerts: true,
   suggestTvMode: true,
   preferFileChapters: true,
+  uiScale: 1,
+  pauseOnMinimize: false,
+  dialogueBoost: false,
+  volumeLeveling: false,
+  hwdec: true,
+  deband: false,
+  buffer: "normal",
+  saveRecentSearches: true,
+  autoDownloadUpdates: true,
 };
 
 const STORAGE = "polar.prefs";
@@ -45,7 +74,7 @@ const listeners = new Set<() => void>();
 export const getPrefs = () => prefs;
 
 /** The ones that follow the profile rather than the machine (account/settingsSync.ts). */
-export const SYNCED_PREFS = ["preferFileChapters"] as const satisfies readonly (keyof Prefs)[];
+export const SYNCED_PREFS = ["preferFileChapters", "saveRecentSearches"] as const satisfies readonly (keyof Prefs)[];
 
 export function setPrefs(patch: Partial<Prefs>, { quiet = false } = {}) {
   prefs = { ...prefs, ...patch };

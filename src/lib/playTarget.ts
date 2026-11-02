@@ -2,6 +2,7 @@ import { upNext } from "./episodes";
 import { episodeCode, formatTime } from "./format";
 import { useProgress } from "./queries";
 import type { Meta, MetaPreview } from "./types";
+import { watchedFraction } from "./watched";
 
 /**
  * What a title's primary button plays, and what it says: the movie (resuming
@@ -16,7 +17,7 @@ export function usePlayTarget(item: MetaPreview, meta?: Meta) {
   const videoId = isSeries ? next?.video?.id : item.id;
   const resumeAt = isSeries
     ? next?.resumeAt
-    : movieProgress && movieProgress.position > 30 && movieProgress.position / movieProgress.duration < 0.92
+    : movieProgress && movieProgress.position > 30 && movieProgress.position / movieProgress.duration < watchedFraction()
       ? movieProgress.position
       : undefined;
 

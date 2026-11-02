@@ -1,4 +1,5 @@
 import { isReleased } from "./format";
+import { watchedFraction } from "./watched";
 import type { Meta, Progress, Video } from "./types";
 
 /** Season numbers with regular seasons first and specials (0) last. */
@@ -37,7 +38,7 @@ export function upNext(meta: Meta, progress: Progress[]): UpNext {
   if (!video) return { video: firstRegular, kind: "start" };
 
   const fraction = latest.duration ? latest.position / latest.duration : 0;
-  if (fraction < 0.92 && latest.position > 30) return { video, resumeAt: latest.position, kind: "resume" };
+  if (fraction < watchedFraction() && latest.position > 30) return { video, resumeAt: latest.position, kind: "resume" };
   const next = nextVideo(meta, video.id);
   return next ? { video: next, kind: "next" } : { video: firstRegular, kind: "start" };
 }

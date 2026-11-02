@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { formatDate, formatRemaining, isReleased } from "../lib/format";
 import { prefetchStreams } from "../lib/queries";
 import type { EpisodeLayout, Progress, Video } from "../lib/types";
+import { watchedFraction } from "../lib/watched";
 import { Img } from "./Img";
 import { StillPlaceholder } from "./StillPlaceholder";
 import { ProgressBar } from "./PosterCard";
@@ -94,7 +95,7 @@ function EpisodeCard({
 }) {
   const released = isReleased(v);
   const fraction = p?.duration ? p.position / p.duration : 0;
-  const watched = fraction >= 0.92;
+  const watched = fraction >= watchedFraction();
   const inProgress = fraction > 0 && !watched;
   const timer = useRef<number>(undefined);
 
@@ -109,7 +110,15 @@ function EpisodeCard({
   const label = inProgress && p ? formatRemaining(p.position, p.duration) : shortRuntime(runtime);
 
   return (
-    <div className="episode-card" data-layout={layout} data-video={v.id} data-up-next={upNext} data-unreleased={!released}>
+    <div
+      className="episode-card"
+      data-layout={layout}
+      data-video={v.id}
+      data-up-next={upNext}
+      data-unreleased={!released}
+      // Settings → Browsing can hide stills and synopses of these (spoilers).
+      data-unwatched={!watched}
+    >
       <button className="card card-landscape episode-card-main" disabled={!released} onClick={() => onPlay(v)} {...intent}>
         <div className="card-frame">
           <ShelfStill src={v.thumbnail} />

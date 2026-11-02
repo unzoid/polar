@@ -15,8 +15,10 @@ import {
   useContinueWatching,
   useLibrary,
   useRecommend,
+  useSettings,
   useToggleLibrary,
 } from "../lib/queries";
+import { prefersReducedMotion } from "../lib/reducedMotion";
 import { useRouter } from "../lib/router";
 import { shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf } from "../lib/shelves";
 import type { MetaPreview, Progress } from "../lib/types";
@@ -41,12 +43,13 @@ export function Home() {
   const shownAbove = useShownAbove(shelves, items ?? NO_TITLES);
   const { data: watching } = useContinueWatching();
   const watched = useMemo(() => new Set((watching ?? []).map((p) => p.metaId)), [watching]);
+  const { data: settings } = useSettings();
 
   return (
     <div className="scroll home">
       <HeroCarousel items={items} index={index} setIndex={setIndex} />
       <div className="rows home-rows">
-        <ContinueRow />
+        {(settings?.showContinueWatching ?? true) && <ContinueRow />}
         {shelves.map((shelf, i) => (
           <LazyShelf
             key={shelfKey(shelf).join("/")}
@@ -85,9 +88,11 @@ function HeroCarousel({
   const count = items?.length ?? 0;
   const item = items?.[index];
 
+  const { data: settings } = useSettings();
+  const rotate = settings?.heroAutoplay ?? true;
   useEffect(() => {
-    if (!count || paused) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!count || paused || !rotate) return;
+    if (prefersReducedMotion()) return;
     const t = window.setInterval(() => {
       // Don't rotate while hidden under another page or behind other windows.
       if (document.hasFocus() && hero.current?.checkVisibility({ visibilityProperty: true })) {
@@ -95,7 +100,7 @@ function HeroCarousel({
       }
     }, ADVANCE_MS);
     return () => window.clearInterval(t);
-  }, [index, count, paused, setIndex]);
+  }, [index, count, paused, rotate, setIndex]);
 
   // Decode the next backdrop ahead of time so the cross-fade never waits.
   useEffect(() => {

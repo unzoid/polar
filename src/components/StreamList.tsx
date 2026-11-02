@@ -37,15 +37,26 @@ export function StreamList({
   if (isError) return <p className="t-body muted">Couldn't load sources: {String(error)}</p>;
   if (!data) return null;
 
+  const hidden = data.hidden ?? 0;
   if (!data.streams.length) {
     return (
       <div className="stream-empty">
         <p className="t-body muted">
-          {data.failed.length ? "Your add-ons didn't respond in time." : "No sources found."}
+          {hidden
+            ? `All ${hidden} sources are hidden by your source filters.`
+            : data.failed.length
+              ? "Your add-ons didn't respond in time."
+              : "No sources found."}
         </p>
-        <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "addons" })}>
-          Manage Add-ons
-        </button>
+        {hidden ? (
+          <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "sources" })}>
+            Source Filters
+          </button>
+        ) : (
+          <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "addons" })}>
+            Manage Add-ons
+          </button>
+        )}
       </div>
     );
   }
@@ -69,6 +80,11 @@ export function StreamList({
         );
       })}
 
+      {hidden > 0 && (
+        <p className="stream-failed t-caption faint">
+          {hidden} more hidden by your source filters (Settings → Sources)
+        </p>
+      )}
       {data.failed.length > 0 && (
         <p className="stream-failed t-caption faint">
           <AlertCircle size={12} /> No response from {data.failed.join(", ")}

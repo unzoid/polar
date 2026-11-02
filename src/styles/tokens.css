@@ -25,7 +25,11 @@
 
   --pill-light: rgb(240 240 242 / 0.94);
   --accent: #0a84ff; /* system blue: switches, primary settings actions */
-  --focus: #6aa8ff;
+  /* Text on an accent fill; App.tsx flips it to dark for light accents (yellow, teal). */
+  --accent-fg: #fff;
+  /* Lighter top stop for accent gradients, and the accent-tinted focus ring. */
+  --accent-hi: color-mix(in srgb, var(--accent) 78%, white);
+  --focus: color-mix(in srgb, var(--accent) 65%, white);
   --progress: #f5f5f7;
   --danger: #ff6b5e;
   --good: #5ed39a;
@@ -68,9 +72,50 @@
   --gutter: clamp(2rem, 4vw, 4.5rem);
   --content-start: var(--gutter);
 
-  --poster-w: clamp(136px, 10.5vw, 176px);
-  --landscape-w: clamp(240px, 20vw, 340px);
-  --episode-w: clamp(260px, 24vw, 380px);
+  /* Settings → Appearance → Card size scales these (data-card-size below). */
+  --card-scale: 1;
+  --poster-w: calc(clamp(136px, 10.5vw, 176px) * var(--card-scale));
+  --landscape-w: calc(clamp(240px, 20vw, 340px) * var(--card-scale));
+  --episode-w: calc(clamp(260px, 24vw, 380px) * var(--card-scale));
+}
+
+:root[data-card-size="small"] {
+  --card-scale: 0.84;
+}
+:root[data-card-size="large"] {
+  --card-scale: 1.2;
+}
+
+/* Settings → Appearance → Background: pure black, for OLED screens. */
+:root[data-theme="black"] {
+  --bg: #000;
+  --surface-1: #0b0b0b;
+  --surface-2: #141414;
+  --surface-3: #1e1e1e;
+}
+
+/* Settings → Appearance → Reduce motion: "On" regardless of Windows. Motion's
+   springs follow via <MotionConfig>; this covers CSS transitions and keyframes. */
+:root[data-reduce-motion="on"] *,
+:root[data-reduce-motion="on"] *::before,
+:root[data-reduce-motion="on"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Settings → Browsing → Spoilers: unwatched episodes keep their stills and
+   synopses to themselves. */
+:root[data-hide-thumbs="true"] :is(.episode-card, .tv-episode)[data-unwatched="true"] :is(.card-frame, .tv-episode-still) img {
+  filter: blur(22px) brightness(0.7);
+  transform: scale(1.15);
+}
+:root[data-hide-thumbs="true"] .episode-card[data-unwatched="true"] .card-frame {
+  overflow: hidden;
+}
+:root[data-hide-overviews="true"] :is(.episode-card, .tv-episode)[data-unwatched="true"] :is(.episode-card-overview, .tv-episode-overview) {
+  display: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {

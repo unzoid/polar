@@ -43,6 +43,8 @@ type AudioTrackListLike = ArrayLike<AudioTrackLike> & EventTarget;
 export interface TrackPrefs {
   audio: string;
   subtitle: string;
+  /** "foreign": only turn subtitles on when the audio isn't in their language. */
+  subtitleMode?: "always" | "foreign";
 }
 
 export function useTracks(
@@ -252,6 +254,24 @@ export function useTracks(
   useEffect(() => {
     if (appliedSub.current || userChose.current || !prefs.subtitle) return;
     if (!(video || (mpv && mpvLoaded))) return;
+    if (prefs.subtitleMode === "foreign") {
+      // The language that will be playing: the preferred audio if the file
+      // has it (applied above), else whatever track is on now.
+      const audioTracks: { lang?: string; on: boolean }[] = mpv
+        ? mpv.tracks.filter((t) => t.type === "audio").map((t) => ({ lang: t.lang, on: t.id === mpv.aid }))
+        : Array.from(((video as unknown as { audioTracks?: AudioTrackListLike })?.audioTracks ?? []) as ArrayLike<AudioTrackLike>).map(
+            (t) => ({ lang: t.language, on: t.enabled }),
+          );
+      const playing =
+        (prefs.audio && audioTracks.find((t) => langMatches(t.lang, prefs.audio))?.lang) ||
+        audioTracks.find((t) => t.on)?.lang ||
+        (audioTracks.length === 1 ? audioTracks[0].lang : undefined);
+      // Already in the subtitle language: nothing to read. Unknown: show them.
+      if (playing && langMatches(playing, prefs.subtitle)) {
+        appliedSub.current = true;
+        return;
+      }
+    }
     const embeddedMatch = mpv
       ? mpv.tracks.find((t) => t.type === "sub" && !t.external && langMatches(t.lang, prefs.subtitle))
       : Array.from(video!.textTracks).find((t) => !t.id.startsWith("ext:") && langMatches(t.language, prefs.subtitle));
@@ -266,7 +286,7 @@ export function useTracks(
     appliedSub.current = true;
     const ext = externalByLang.find((x) => langMatches(x.lang, prefs.subtitle));
     if (ext) void selectSubtitle(`ext:${ext.lang}`, false);
-  }, [prefs.subtitle, video, mpv, mpvLoaded, embedded, externalByLang, external.isLoading, selectSubtitle]);
+  }, [prefs.subtitle, prefs.subtitleMode, prefs.audio, video, mpv, mpvLoaded, audio, embedded, externalByLang, external.isLoading, selectSubtitle]);
 
   // Blob URLs belong to this video only.
   useEffect(
