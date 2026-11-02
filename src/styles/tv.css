@@ -285,6 +285,11 @@
   line-height: 1;
   background: rgb(255 255 255 / 0.12);
 }
+.imdb-badge-logo,
+.imdb-badge-score {
+  display: flex;
+  align-items: center;
+}
 .imdb-badge-logo {
   padding: 0.28em 0.45em;
   background: #f5c518;
