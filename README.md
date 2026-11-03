@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="readme-images/home.png" alt="Polar home screen" width="900">
+  <img src="readme-images/image (4).png" alt="Polar home screen" width="900">
 </p>
 
 ## What's in it
@@ -46,7 +46,7 @@
 
 Big cards, a clock, and everything reachable with a controller or the arrow keys.
 
-![TV mode](readme-images/tv-mode.png)
+![TV mode](readme-images/tvmode.png)
 
 ### Player
 
