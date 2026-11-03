@@ -72,7 +72,7 @@ bun run index
 ## Setup
 
 1. Open Settings and add a Stremio addon URL.
-2. Optionally add a TMDB API key. Without one, the catalog uses Cinemeta.
+2. Optionally add a TMDB API key. 
 
 ## Built with
 
