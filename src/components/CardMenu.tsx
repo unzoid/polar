@@ -148,7 +148,7 @@ function OpenMenu({ target }: { target: Target }) {
                 <ChevronRight className="ctx-menu-chevron" />
               </Menu.SubmenuTrigger>
               <Menu.Portal>
-                <Menu.Positioner sideOffset={4} alignOffset={-6} collisionPadding={12} className="select-positioner">
+                <Menu.Positioner sideOffset={0} alignOffset={-5} collisionPadding={12} className="select-positioner">
                   <Menu.Popup className="ctx-menu">
                     {playlists.map((p) => {
                       const has = p.items.some((i) => i.id === item.id);
