@@ -1,32 +1,33 @@
-import { AlertCircle, Sparkles, Zap } from "lucide-react";
+import { AlertCircle, Check, Instant } from "./icons";
 import { useRouter } from "../lib/router";
-import { useStreams } from "../lib/queries";
+import { useSettings, useStreams } from "../lib/queries";
+import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/sources";
 import type { ContentType, RankedStream } from "../lib/types";
-
-const GROUPS: { label: string; test: (r?: number) => boolean }[] = [
-  { label: "4K", test: (r) => r === 2160 },
-  { label: "1080p", test: (r) => r === 1080 || r === 1440 },
-  { label: "720p", test: (r) => r === 720 },
-  { label: "Other", test: (r) => r == null || r < 720 },
-];
+import { SourceFilterBar } from "./SourceFilters";
 
 /**
- * Sources for one video: a single recommended pick on top, then the rest
- * grouped by resolution. The raw addon text is still there, just quieter.
+ * Sources for one video, with the filters on top (add-on, resolution,
+ * language, size, tags) and the sort. Sorted by best match, the top pick
+ * stands out above the rest; any other sort is one plain list.
  */
 export function StreamList({
   type,
   videoId,
   currentKey,
   onPick,
+  tv = false,
 }: {
   type: ContentType;
   videoId: string;
   currentKey?: string;
   onPick: (s: RankedStream) => void;
+  /** TV mode: filters as chip rows a remote can reach. */
+  tv?: boolean;
 }) {
   const { tab } = useRouter();
   const { data, isLoading, isError, error } = useStreams(type, videoId);
+  const { data: settings } = useSettings();
+  const f = useSourceFilters(data?.streams, settings);
 
   if (isLoading) {
     return (
@@ -40,40 +41,62 @@ export function StreamList({
   if (isError) return <p className="t-body muted">Couldn't load sources: {String(error)}</p>;
   if (!data) return null;
 
+  const hidden = data.hidden ?? 0;
   if (!data.streams.length) {
     return (
       <div className="stream-empty">
         <p className="t-body muted">
-          {data.failed.length ? "Your addons didn't respond in time." : "No sources found for this title."}
+          {hidden
+            ? `All ${hidden} sources are hidden by your source filters.`
+            : data.failed.length
+              ? "Your add-ons didn't respond in time."
+              : "No sources found."}
         </p>
-        <button className="btn btn-glass" onClick={() => tab({ name: "settings" })}>
-          Manage addons
-        </button>
+        {hidden ? (
+          <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "sources" })}>
+            Source Filters
+          </button>
+        ) : (
+          <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "addons" })}>
+            Manage Add-ons
+          </button>
+        )}
       </div>
     );
   }
 
-  const [best, ...rest] = data.streams;
+  const shown = f.view.map(({ r }) => r);
+  const grouped = f.sort === "best";
+  const [best, ...rest] = shown;
+
   return (
     <div className="stream-list">
-      <div className="stream-group-label t-micro faint">
-        <Sparkles size={12} /> Best match
-      </div>
-      <StreamRow s={best} featured current={currentKey === streamKey(best)} onPick={onPick} />
+      <SourceFilterBar f={f} tv={tv} />
 
-      {GROUPS.map((g) => {
-        const items = rest.filter((s) => g.test(s.quality.resolution));
-        if (!items.length) return null;
-        return (
-          <div key={g.label}>
-            <div className="stream-group-label t-micro faint">{g.label}</div>
-            {items.map((s, i) => (
-              <StreamRow key={i} s={s} current={currentKey === streamKey(s)} onPick={onPick} />
-            ))}
-          </div>
-        );
-      })}
+      {!shown.length && (
+        <div className="stream-empty">
+          <p className="t-body muted">No sources match these filters.</p>
+          <button className="btn btn-glass" onClick={f.clear}>
+            Clear Filters
+          </button>
+        </div>
+      )}
 
+      {/* Sorted by best match, the top pick is set apart; the quality control
+          above already sorts by picture, so the rest is one plain list. */}
+      {grouped && best && (
+        <>
+          <div className="stream-group-label t-micro faint">Best Match</div>
+          <StreamRow s={best} featured current={currentKey === streamKey(best)} onPick={onPick} />
+          {rest.length > 0 && <div className="stream-group-label t-micro faint">More Sources</div>}
+          {rest.map((s) => (
+            <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} onPick={onPick} />
+          ))}
+        </>
+      )}
+      {!grouped && shown.map((s) => <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} onPick={onPick} />)}
+
+      {hidden > 0 && <p className="stream-failed t-caption faint">{hidden} more hidden by Settings → Sources</p>}
       {data.failed.length > 0 && (
         <p className="stream-failed t-caption faint">
           <AlertCircle size={12} /> No response from {data.failed.join(", ")}
@@ -82,6 +105,9 @@ export function StreamList({
     </div>
   );
 }
+
+/** Tags worth a badge on the row itself (the label already says resolution, HDR and codec). */
+const ROW_TAGS = new Set(["hdr10+", "remux", "atmos", "truehd", "dts:x", "dts-hd", "10-bit", "imax", "3d"]);
 
 function StreamRow({
   s,
@@ -94,32 +120,36 @@ function StreamRow({
   current?: boolean;
   onPick: (s: RankedStream) => void;
 }) {
-  const detail = (s.stream.title ?? s.stream.description ?? "").split("\n")[0];
+  const row = sourceRow(s);
+  const tags = tagsOf(s).filter((t) => ROW_TAGS.has(t));
   return (
     <button
       className="stream-row pressable"
       data-featured={featured}
       data-current={current}
       onClick={() => onPick(s)}
+      // The release name is for the curious: on hover, not in the row.
       title={s.stream.title ?? s.stream.description}
     >
-      <div className="stream-main">
-        <span className="t-headline">{s.label}</span>
-        <span className="stream-badges">
-          {s.quality.cached && (
-            <span className="badge badge-good">
-              <Zap size={11} fill="currentColor" /> Instant
+      <span className="stream-lead" aria-hidden>
+        {current ? <Check size={16} strokeWidth={2.5} /> : s.quality.cached ? <Instant size={15} fill="currentColor" strokeWidth={0} /> : null}
+      </span>
+      <span className="stream-text">
+        <span className="stream-main">
+          <span className="stream-title">{row.title}</span>
+          {tags.map((t) => (
+            <span key={t} className="badge">
+              {TAG_LABELS[t]}
             </span>
-          )}
+          ))}
           {s.quality.lowQualitySource && <span className="badge badge-bad">CAM</span>}
-          {current && <span className="badge">Playing</span>}
         </span>
-      </div>
-      <div className="stream-sub t-caption faint">
-        <span>{s.addon}</span>
-        {s.quality.sources != null && <span className="tabular">{s.quality.sources} peers</span>}
-        <span className="stream-raw">{detail}</span>
-      </div>
+        <span className="stream-sub t-caption">
+          {current ? "Playing · " : s.quality.cached ? "Instant · " : ""}
+          {row.detail}
+        </span>
+      </span>
+      {row.size && <span className="stream-size tabular">{row.size}</span>}
     </button>
   );
 }

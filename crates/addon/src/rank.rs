@@ -25,6 +25,11 @@ pub struct StreamQuality {
     pub low_quality_source: bool,
     /// Plays over plain HTTP (no p2p engine needed).
     pub direct: bool,
+    /// Audio languages the row mentions (ISO 639-1, plus "multi"), from flags
+    /// and words like "ITA" or "LATINO". Empty when it says nothing.
+    pub languages: Vec<&'static str>,
+    /// Release details worth filtering on: "Remux", "Atmos", "HDR10+", "10-bit"…
+    pub tags: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -99,7 +104,146 @@ pub fn parse_quality(stream: &Stream) -> StreamQuality {
         cached: CACHED.is_match(&text),
         low_quality_source: CAM.is_match(&text),
         direct: stream.url.is_some(),
+        languages: languages(&text),
+        tags: TAGS.iter().filter(|(_, re)| re.is_match(&text)).map(|(tag, _)| *tag).collect(),
     }
+}
+
+/// Release tags, in the order they're shown.
+static TAGS: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| {
+    [
+        ("HDR10+", r"(?i)\bHDR10(\+|plus)"),
+        ("Remux", r"(?i)\bremux\b"),
+        ("Atmos", r"(?i)\batmos\b"),
+        ("DTS:X", r"(?i)\bDTS[:\-. ]?X\b"),
+        ("TrueHD", r"(?i)\btrue\s?hd\b"),
+        ("DTS-HD", r"(?i)\bDTS[\-. ]?HD\b"),
+        ("7.1", r"\b7[ .]1\b"),
+        ("5.1", r"\b5[ .]1\b"),
+        ("10-bit", r"(?i)\b10[\-. ]?bit\b"),
+        ("IMAX", r"(?i)\bIMAX\b"),
+        ("3D", r"(?i)\b3D\b"),
+        ("BluRay", r"(?i)\b(blu[\-. ]?ray|bdrip|brrip)\b"),
+        ("WEB-DL", r"(?i:\bweb[\-. ]?(dl|rip)\b)|\bWEB\b"),
+    ]
+    .into_iter()
+    .map(|(tag, re)| (tag, Regex::new(re).unwrap()))
+    .collect()
+});
+
+/// Language codes as release names write them (whole words, any case), and
+/// full language names only in the capitals scene releases use for them —
+/// "The.Italian.Job" is a title, "Movie.2020.ITALIAN.1080p" is a language.
+static LANG_WORDS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i:\b(multi(?:[\-. ]?audio)?|dual[\-. ]?audio|eng|ita|fre|truefrench|vff|vfq|vostfr|ger|deu|spa|esp|castellano|latino|rus|hindi|tamil|telugu|jap|kor|por|dublado|pol|tur|swe|ukr|hun|cze)\b)|\b(ENGLISH|ITALIAN|FRENCH|GERMAN|SPANISH|RUSSIAN|JAPANESE|KOREAN|CHINESE|PORTUGUESE|POLISH|TURKISH|DUTCH|SWEDISH|UKRAINIAN|ARABIC|HUNGARIAN|CZECH)\b",
+    )
+    .unwrap()
+});
+
+fn word_language(w: &str) -> Option<&'static str> {
+    let w = w.to_ascii_lowercase();
+    Some(match w.as_str() {
+        _ if w.starts_with("multi") || w.starts_with("dual") => "multi",
+        "eng" | "english" => "en",
+        "ita" | "italian" => "it",
+        "fre" | "french" | "truefrench" | "vff" | "vfq" | "vostfr" => "fr",
+        "ger" | "german" | "deu" => "de",
+        "spa" | "spanish" | "esp" | "castellano" | "latino" => "es",
+        "rus" | "russian" => "ru",
+        "hindi" => "hi",
+        "tamil" => "ta",
+        "telugu" => "te",
+        "jap" | "japanese" => "ja",
+        "kor" | "korean" => "ko",
+        "chi" | "chinese" => "zh",
+        "por" | "portuguese" | "dublado" => "pt",
+        "pol" | "polish" => "pl",
+        "tur" | "turkish" => "tr",
+        "dutch" => "nl",
+        "swe" | "swedish" => "sv",
+        "ukr" | "ukrainian" => "uk",
+        "arabic" => "ar",
+        "hun" | "hungarian" => "hu",
+        "cze" | "czech" => "cs",
+        _ => return None,
+    })
+}
+
+/// Flag emoji (a pair of regional indicators) → the country's main language.
+fn flag_language(country: &str) -> Option<&'static str> {
+    Some(match country {
+        "GB" | "US" | "AU" | "CA" | "IE" | "NZ" => "en",
+        "IT" => "it",
+        "FR" | "BE" => "fr",
+        "DE" | "AT" | "CH" => "de",
+        "ES" | "MX" | "AR" | "CO" | "CL" => "es",
+        "PT" | "BR" => "pt",
+        "RU" => "ru",
+        "UA" => "uk",
+        "PL" => "pl",
+        "NL" => "nl",
+        "SE" => "sv",
+        "NO" => "no",
+        "DK" => "da",
+        "FI" => "fi",
+        "GR" => "el",
+        "TR" => "tr",
+        "CZ" => "cs",
+        "SK" => "sk",
+        "HU" => "hu",
+        "RO" => "ro",
+        "BG" => "bg",
+        "HR" => "hr",
+        "RS" => "sr",
+        "SI" => "sl",
+        "LT" => "lt",
+        "LV" => "lv",
+        "EE" => "et",
+        "JP" => "ja",
+        "KR" => "ko",
+        "CN" | "TW" | "HK" => "zh",
+        "IN" => "hi",
+        "TH" => "th",
+        "VN" => "vi",
+        "ID" => "id",
+        "MY" => "ms",
+        "SA" | "AE" | "EG" => "ar",
+        "IL" => "he",
+        "IR" => "fa",
+        _ => return None,
+    })
+}
+
+fn languages(text: &str) -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    let mut push = |l: &'static str| {
+        if !out.contains(&l) {
+            out.push(l);
+        }
+    };
+    // Regional indicator symbols: U+1F1E6 (A) … U+1F1FF (Z), in pairs.
+    let mut prev: Option<char> = None;
+    for c in text.chars() {
+        let ri = ('\u{1F1E6}'..='\u{1F1FF}').contains(&c);
+        match (ri, prev) {
+            (true, Some(p)) => {
+                let letter = |c: char| char::from(b'A' + (c as u32 - 0x1F1E6) as u8);
+                if let Some(l) = flag_language(&format!("{}{}", letter(p), letter(c))) {
+                    push(l);
+                }
+                prev = None;
+            }
+            (true, None) => prev = Some(c),
+            (false, _) => prev = None,
+        }
+    }
+    for m in LANG_WORDS.find_iter(text) {
+        if let Some(l) = word_language(m.as_str()) {
+            push(l);
+        }
+    }
+    out
 }
 
 /// Higher is better. Deliberately simple and explainable; user preferences
@@ -166,9 +310,69 @@ pub fn label(q: &StreamQuality) -> String {
     }
 }
 
+/// The user's source filters (Settings → Sources). Anything a stream doesn't
+/// say about itself (unknown resolution or size) passes: hiding every
+/// unlabelled source would hide most direct links.
+#[derive(Debug, Clone, Default)]
+pub struct StreamFilter {
+    /// Hide anything taller than this, e.g. 1080. `None` = any.
+    pub max_resolution: Option<u16>,
+    /// Hide files larger than this. `None` = any.
+    pub max_size_bytes: Option<u64>,
+    /// Hide CAM / telesync rips.
+    pub hide_cam: bool,
+    /// Hide sources whose name or title contains any of these words
+    /// (case-insensitive, whole words), e.g. `["HC", "3D"]`.
+    pub exclude_words: Vec<String>,
+}
+
+impl StreamFilter {
+    pub fn allows(&self, stream: &Stream, q: &StreamQuality) -> bool {
+        if self.max_resolution.zip(q.resolution).is_some_and(|(max, r)| r > max) {
+            return false;
+        }
+        if self.max_size_bytes.zip(q.size_bytes).is_some_and(|(max, s)| s > max) {
+            return false;
+        }
+        if self.hide_cam && q.low_quality_source {
+            return false;
+        }
+        if !self.exclude_words.is_empty() {
+            let text = [&stream.name, &stream.title, &stream.description]
+                .into_iter()
+                .flatten()
+                .map(|s| s.to_lowercase())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let words: Vec<&str> = text.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+            let hit = self.exclude_words.iter().any(|ex| {
+                let ex = ex.trim().to_lowercase();
+                if ex.is_empty() {
+                    return false;
+                }
+                // Several words ("hard coded") match as a phrase; one word must match a whole word.
+                if ex.contains(char::is_whitespace) { text.contains(&ex) } else { words.contains(&ex.as_str()) }
+            });
+            if hit {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 /// Rank streams from many addons, best first. Duplicates (same info hash +
 /// file, or same URL) collapse to the highest scoring copy.
 pub fn rank_streams(streams: impl IntoIterator<Item = (String, Stream)>) -> Vec<RankedStream> {
+    rank_streams_filtered(streams, &StreamFilter::default()).0
+}
+
+/// [`rank_streams`], minus whatever `filter` rules out. Also returns how many
+/// were hidden, so the UI can say so instead of looking like fewer results.
+pub fn rank_streams_filtered(
+    streams: impl IntoIterator<Item = (String, Stream)>,
+    filter: &StreamFilter,
+) -> (Vec<RankedStream>, usize) {
     let mut ranked: Vec<RankedStream> = streams
         .into_iter()
         .filter(|(_, s)| s.url.is_some() || s.content_id.is_some() || s.yt_id.is_some())
@@ -194,7 +398,11 @@ pub fn rank_streams(streams: impl IntoIterator<Item = (String, Stream)>) -> Vec<
         };
         seen.insert(key)
     });
-    ranked
+    // Filter after de-duplicating, so the hidden count is of distinct sources.
+    let before = ranked.len();
+    ranked.retain(|r| filter.allows(&r.stream, &r.quality));
+    let hidden = before - ranked.len();
+    (ranked, hidden)
 }
 
 #[cfg(test)]
@@ -225,11 +433,55 @@ mod tests {
     }
 
     #[test]
+    fn finds_languages_and_tags() {
+        let q = parse_quality(&stream(
+            "addon 4k",
+            "Movie.2024.2160p.BluRay.REMUX.HDR10+.TrueHD.Atmos.7.1.MULTi\n👤 40 💾 60 GB 🇮🇹 / 🇬🇧",
+        ));
+        assert_eq!(q.languages, vec!["it", "en", "multi"]);
+        assert!(q.tags.contains(&"Remux") && q.tags.contains(&"Atmos") && q.tags.contains(&"HDR10+"));
+        assert!(q.tags.contains(&"7.1") && q.tags.contains(&"BluRay"));
+
+        // A language in the title isn't the audio's.
+        let q = parse_quality(&stream("addon 1080p", "The.Italian.Job.2003.1080p.WEB-DL.x264"));
+        assert!(q.languages.is_empty());
+        assert_eq!(q.tags, vec!["WEB-DL"]);
+        let q = parse_quality(&stream("addon 1080p", "Film.2019.ITALIAN.1080p.WEBRip"));
+        assert_eq!(q.languages, vec!["it"]);
+    }
+
+    #[test]
     fn cams_sink_to_the_bottom() {
         let ranked = rank_streams([
             ("a".into(), stream("addon 1080p", "Movie.2024.HDCAM.x264 👤 900")),
             ("a".into(), Stream { content_id: Some("def".into()), ..stream("addon 720p", "Movie.2024.720p.WEB 👤 12") }),
         ]);
         assert!(ranked[0].label.starts_with("720p"));
+    }
+
+    #[test]
+    fn filters_hide_and_count() {
+        let all = || {
+            vec![
+                ("a".to_string(), Stream { content_id: Some("1".into()), ..stream("T 4k", "Movie.2160p.HC.x265 💾 30 GB") }),
+                ("a".to_string(), Stream { content_id: Some("2".into()), ..stream("T 1080p", "Movie.1080p.WEB 💾 4 GB") }),
+                ("a".to_string(), Stream { content_id: Some("3".into()), ..stream("T 720p", "Movie.HDCAM.720p") }),
+                ("a".to_string(), Stream { content_id: Some("4".into()), ..stream("Direct", "Movie") }),
+            ]
+        };
+        let (kept, hidden) = rank_streams_filtered(all(), &StreamFilter { max_resolution: Some(1080), ..Default::default() });
+        assert_eq!((kept.len(), hidden), (3, 1));
+
+        let (kept, hidden) = rank_streams_filtered(all(), &StreamFilter { max_size_bytes: Some(10_000_000_000), ..Default::default() });
+        assert_eq!((kept.len(), hidden), (3, 1));
+
+        let (kept, _) = rank_streams_filtered(all(), &StreamFilter { hide_cam: true, ..Default::default() });
+        assert!(kept.iter().all(|r| !r.quality.low_quality_source));
+
+        // Whole words only: "hc" hides the HC release but not "Direct" etc.
+        let (kept, hidden) = rank_streams_filtered(all(), &StreamFilter { exclude_words: vec!["hc".into()], ..Default::default() });
+        assert_eq!((kept.len(), hidden), (3, 1));
+        let (_, hidden) = rank_streams_filtered(all(), &StreamFilter { exclude_words: vec!["ire".into()], ..Default::default() });
+        assert_eq!(hidden, 0);
     }
 }

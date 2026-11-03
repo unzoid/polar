@@ -1,7 +1,9 @@
-import { Check } from "lucide-react";
+import { Check, Close } from "../icons";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
 import type { MediaLike } from "./mpvMedia";
+import { prefersReducedMotion } from "../../lib/reducedMotion";
 
 export interface OptionItem {
   id: string;
@@ -27,9 +29,11 @@ export interface OptionColumn {
   /** Shown when the column has nothing to pick. */
   empty?: string;
   /** Wide columns hold rich rows (episodes, sources); narrow ones plain labels. */
-  size?: "narrow" | "wide";
+  size?: "narrow" | "medium" | "wide";
   /** Controls shown beside the title (filters, sort). */
   header?: ReactNode;
+  /** Shown instead of the rows (e.g. subtitle settings in place of the language list). */
+  content?: ReactNode;
 }
 
 /**
@@ -41,21 +45,24 @@ export interface OptionColumn {
  * edges), and open scrolled to the current selection.
  *
  * Motion is CSS (transitions + @starting-style), so it stays smooth while the
- * video decodes on the main thread: one opacity fade on the whole layer (the
- * blur rides along — its radius is never animated), columns rise 8px. Opens
- * in 220ms, closes faster at 160ms: closing is the system getting out of the way.
+ * video decodes on the main thread: the layer fades in while the frosted
+ * picture pulls out of focus (blur + slight zoom), columns rise 8px. Opens
+ * over ~500ms, closes along the same path in 160ms.
  */
 export function OptionsOverlay({
   open,
   onClose,
   columns,
   media,
+  foreground,
 }: {
   open: boolean;
   /** The playing video, frosted behind the options. */
   media: MediaLike | null;
   onClose: () => void;
   columns: OptionColumn[];
+  /** Drawn above the blur and the columns (e.g. a subtitle preview). */
+  foreground?: ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
   // Stay mounted through the exit transition.
@@ -88,7 +95,11 @@ export function OptionsOverlay({
     if (!open || !mounted) return;
     const onKey = (e: KeyboardEvent) => {
       // An open dropdown inside the overlay handles its own keys.
-      if (document.querySelector(".dropdown-menu")) return;
+      if (document.querySelector(".select-popup, .srcf-popover")) return;
+      // A slider (the source list's size range) takes the arrows for itself.
+      if ((e.target as HTMLElement | null)?.closest?.('[role="slider"], input[type="range"]') && e.key !== "Escape") return;
+      // A text field (the party code) keeps its caret keys.
+      if ((e.target as HTMLElement | null)?.matches?.('input:not([type]), input[type="text"]') && e.key !== "Escape") return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onCloseRef.current();
@@ -114,30 +125,41 @@ export function OptionsOverlay({
       data-open={open}
       role="dialog"
       aria-modal
-      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+      // Anywhere on the blur closes; only the columns themselves (and popups opened from them) don't.
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        if ((e.target as Element).closest?.(".options-column, .select-popup, .srcf-popover, .options-close")) return;
+        onClose();
+      }}
     >
       <VideoBackdrop media={media} />
       <div className="options-shade" aria-hidden />
-      <div
-        className="options-columns"
-        data-count={columns.length}
-        onPointerDown={(e) => e.target === e.currentTarget && onClose()}
-      >
+      <button className="player-icon pressable options-close" onClick={onClose} aria-label="Close" title="Close (Esc)">
+        <Close size={26} />
+      </button>
+      <div className="options-columns" data-count={columns.length}>
         {columns.map((col, c) => (
           <section key={col.title} className="options-column" data-column={c} data-size={col.size ?? "narrow"}>
             <div className="options-head">
               <h2 className="options-title">{col.title}</h2>
               {col.header}
             </div>
-            {col.options.length === 0 && col.empty && <p className="options-empty">{col.empty}</p>}
-            <div role="radiogroup" aria-label={col.title} className="options-list">
-              {col.options.map((o) => (
-                <Row key={o.id} item={o} selected={o.id === col.value} onSelect={col.onSelect} />
-              ))}
-            </div>
+            {col.content ? (
+              <div className="options-list options-custom">{col.content}</div>
+            ) : (
+              <>
+                {col.options.length === 0 && col.empty && <p className="options-empty">{col.empty}</p>}
+                <div role="radiogroup" aria-label={col.title} className="options-list">
+                  {col.options.map((o) => (
+                    <Row key={o.id} item={o} selected={o.id === col.value} onSelect={col.onSelect} />
+                  ))}
+                </div>
+              </>
+            )}
           </section>
         ))}
       </div>
+      {foreground}
     </div>
   );
 }
@@ -157,7 +179,7 @@ function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: bool
       </span>
       {o.thumbnail !== undefined && (
         <span className="options-thumb" aria-hidden>
-          {o.thumbnail && <img src={o.thumbnail} alt="" loading="lazy" decoding="async" />}
+          <Still src={o.thumbnail} />
           {o.progress != null && o.progress > 0 && (
             <span className="options-progress">
               <span style={{ transform: `scaleX(${o.progress})` }} />
@@ -184,19 +206,50 @@ function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: bool
   );
 }
 
-/** Arrow keys: up/down within a column, left/right across columns. */
+/**
+ * Arrow keys: up/down within a column, left/right across columns. A column's
+ * header controls (filters, sort, the settings cog) sit above its first row:
+ * Up from the top reaches them, left/right moves along them.
+ */
 function moveFocus(root: HTMLElement | null, key: string) {
   if (!root) return;
   const active = document.activeElement as HTMLElement | null;
   const columns = [...root.querySelectorAll<HTMLElement>(".options-column")];
   const ci = Math.max(0, columns.findIndex((c) => c.contains(active)));
-  if (key === "ArrowLeft" || key === "ArrowRight") {
-    const target = columns[ci + (key === "ArrowRight" ? 1 : -1)];
-    (target?.querySelector<HTMLElement>('[aria-checked="true"]') ?? target?.querySelector<HTMLElement>(".options-item"))?.focus();
+  const column = columns[ci];
+  const head = [...column.querySelectorAll<HTMLElement>(".options-head :is(button, .select-trigger):not(:disabled)")];
+  const items = [...column.querySelectorAll<HTMLElement>(".options-item:not(:disabled), .options-custom button:not(:disabled)")];
+  const hi = head.indexOf(active as HTMLElement);
+  const horizontal = key === "ArrowLeft" || key === "ArrowRight";
+  const step = key === "ArrowDown" || key === "ArrowRight" ? 1 : -1;
+
+  if (hi >= 0) {
+    if (horizontal && head[hi + step]) return head[hi + step].focus();
+    if (key === "ArrowDown") return show(items[0]);
+    if (!horizontal) return;
+  }
+  if (horizontal) {
+    const target = columns[ci + step];
+    show(
+      target?.querySelector<HTMLElement>('.options-list [aria-checked="true"]') ??
+        target?.querySelector<HTMLElement>(".options-item, .options-custom button:not(:disabled)") ??
+        undefined,
+    );
     return;
   }
-  const items = [...columns[ci].querySelectorAll<HTMLElement>(".options-item:not(:disabled)")];
   const i = items.indexOf(active as HTMLElement);
-  // focus() scrolls the column just enough to keep the row in view.
-  items[Math.min(items.length - 1, Math.max(0, i + (key === "ArrowDown" ? 1 : -1)))]?.focus();
+  if (i === 0 && step < 0 && head.length) {
+    return (head.find((el) => el.getAttribute("aria-pressed") === "true") ?? head[0]).focus();
+  }
+  show(items[Math.min(items.length - 1, Math.max(0, i + step))]);
+}
+
+/** Focus a row and bring it to the middle of its column, clear of the faded edges. */
+function show(el: HTMLElement | undefined) {
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  const list = el.closest<HTMLElement>(".options-list");
+  if (!list) return;
+  const smooth = !prefersReducedMotion();
+  list.scrollTo({ top: el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2, behavior: smooth ? "smooth" : "auto" });
 }

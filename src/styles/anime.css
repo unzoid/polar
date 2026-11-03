@@ -1,0 +1,567 @@
+/* --- Anime tab (screens/Anime.tsx) and an anime's page (screens/AnimeDetail.tsx).
+       Same cards, rows and title page as the rest of the app; anime adds its
+       cover's key colour (--cover), airing countdowns and episode badges. */
+
+/* --- Cards ------------------------------------------------------------------ */
+.anime-card .anime-card-frame {
+  background: color-mix(in srgb, var(--cover, #222) 55%, #111);
+}
+.anime-card:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+/* The score pill itself is shared with IMDb ratings (.card-score, cards.css). */
+.anime-card-score {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 1;
+  font-size: 0.6875rem;
+}
+/* A landscape card whose show has no banner gets its portrait cover cropped, not a taller card. */
+.card-landscape.anime-card .card-img {
+  position: absolute;
+  inset: 0;
+}
+
+/* --- The tab: Home's layout (.home), plus the way to Schedule and Browse ------ */
+.anime[data-hero="false"] .home-rows {
+  margin-top: 0;
+  padding-top: calc(var(--nav-h) + 1.5rem);
+}
+.anime-unreachable {
+  padding-top: calc(var(--nav-h) + 3rem);
+}
+/* Under the carousel: Schedule and Browse, then a way in by genre or kind of show. */
+.anime-nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  padding: 0.25rem var(--content-start);
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, #000 calc(100% - 4rem), transparent);
+}
+.anime-nav::-webkit-scrollbar {
+  display: none;
+}
+.anime[data-hero="false"] .anime-nav {
+  padding-top: calc(var(--nav-h) + 1.5rem);
+}
+.anime[data-hero="false"] .anime-nav + .home-rows {
+  padding-top: 0;
+}
+.anime-nav-main {
+  color: var(--text);
+}
+.anime-nav-sep {
+  flex: none;
+  width: 1px;
+  height: 1.5rem;
+  margin: 0 0.5rem;
+  background: var(--hairline-strong);
+}
+.anime-row-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  color: var(--text-2);
+}
+@media (hover: hover) and (pointer: fine) {
+  .anime-row-link:hover {
+    color: var(--text);
+  }
+}
+
+/* --- Shared bits ---------------------------------------------------------------- */
+.anime-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--text-2);
+}
+.anime-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 650;
+  color: var(--text);
+}
+.anime-score svg {
+  color: #f5c518;
+}
+/* Next episode: a plain line of type, as tvOS prints "New episode Monday" -
+   no chip, no tint. The episode leads in full white, the when follows in the
+   secondary grey; a soft shadow is all it needs to read over bright art. */
+.anime-next {
+  margin: 0;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.68);
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.5);
+}
+.anime-next-ep {
+  font-weight: 650;
+  color: #fff;
+}
+
+/* --- Schedule ------------------------------------------------------------------ */
+.anime-schedule {
+  padding: 0 var(--gutter) 0 var(--content-start);
+}
+.anime-days {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.anime-day {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  min-width: 6.5rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: rgb(255 255 255 / 0.03);
+  text-align: left;
+  transition: background-color var(--dur-fast) ease;
+}
+.anime-day-name {
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+.anime-day-date {
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.anime-day[aria-selected="true"] {
+  border-color: transparent;
+  background: var(--pill-light);
+  color: var(--text-on-light);
+}
+.anime-day[aria-selected="true"] .anime-day-date {
+  color: inherit;
+  opacity: 0.65;
+}
+@media (hover: hover) and (pointer: fine) {
+  .anime-day[aria-selected="false"]:hover {
+    background: rgb(255 255 255 / 0.07);
+  }
+}
+.anime-slots {
+  display: grid;
+  gap: 0.5rem;
+}
+.anime-slot {
+  display: grid;
+  grid-template-columns: 5.5rem 3.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem 0.5rem 0.75rem;
+  border-radius: var(--r-md);
+  background: rgb(255 255 255 / 0.04);
+  text-align: left;
+  transition: background-color var(--dur-fast) ease;
+}
+.anime-slot[data-aired="true"] {
+  opacity: 0.6;
+}
+@media (hover: hover) and (pointer: fine) {
+  .anime-slot:hover {
+    background: rgb(255 255 255 / 0.09);
+    opacity: 1;
+  }
+}
+.anime-slot-time {
+  font-size: 1rem;
+  font-weight: 650;
+}
+.anime-slot-cover {
+  width: 3.5rem;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
+  object-fit: cover;
+  background: rgb(255 255 255 / 0.06);
+}
+.anime-slot-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.anime-slot-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.anime-slot-when {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* --- Browse ------------------------------------------------------------------ */
+.anime-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 var(--gutter) 1.75rem var(--content-start);
+}
+.anime-search {
+  flex: 1 1 16rem;
+  max-width: 24rem;
+}
+/* Round, shaded like the dropdowns beside it; a count sits on its shoulder once filters are on. */
+.anime-filter-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 1px solid var(--hairline-strong);
+  background: rgb(255 255 255 / 0.035);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.05);
+  color: var(--text-2);
+}
+@media (hover: hover) and (pointer: fine) {
+  .anime-filter-button:hover {
+    background: rgb(255 255 255 / 0.07);
+    color: var(--text);
+  }
+}
+.anime-filter-count {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  display: grid;
+  place-items: center;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.25rem;
+  border-radius: var(--r-pill);
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent));
+  color: var(--accent-fg, #fff);
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+.anime-sort {
+  margin-left: auto;
+}
+.anime-sort .select-trigger {
+  width: 9.5rem;
+}
+/* The Filters sheet: every filter, labelled, one under another. */
+.anime-filter-panel {
+  display: grid;
+  gap: 1.125rem;
+  justify-items: start;
+}
+.anime-filter-panel .anime-filter-field {
+  width: 100%;
+}
+.anime-filter-field {
+  display: grid;
+  gap: 0.375rem;
+}
+.anime-filter-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.anime-filter-field .select-trigger {
+  width: 100%;
+}
+.anime-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: -0.75rem var(--gutter) 1.75rem var(--content-start);
+}
+.anime-clear {
+  margin-left: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+/* --- Title page ------------------------------------------------------------------ */
+.anime-hero .detail-hero-main {
+  gap: 0.75rem;
+}
+.anime-native {
+  margin: -0.25rem 0 0;
+  color: var(--text-2);
+}
+.anime-genres {
+  margin: 0;
+  color: var(--text-2);
+  font-weight: 550;
+}
+.anime-unavailable {
+  margin: 0;
+  color: var(--text-3);
+}
+
+.anime-characters-wrap {
+  padding: 0 var(--gutter) 3rem var(--content-start);
+}
+.anime-characters-wrap[data-expanded="false"] {
+  padding-bottom: 0;
+}
+.anime-cast-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.5rem 0 1rem;
+}
+.anime-cast-heading h2 {
+  margin: 0;
+}
+.anime-cast-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2rem;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease;
+}
+.anime-cast-toggle:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+.anime-cast-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.anime-cast-content[hidden] {
+  display: none;
+}
+.anime-episodes-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.anime-section-title {
+  margin: 1.5rem 0 1rem;
+  padding: 0 var(--gutter) 0 var(--content-start);
+}
+.anime-episode-count {
+  margin: 0;
+}
+.anime-no-episodes {
+  padding: 0 var(--gutter) 3rem var(--content-start);
+}
+.anime-episodes-tools {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex: none;
+}
+.anime-episodes-tools .segmented {
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+.anime-episodes-tools .segmented-active {
+  background: rgb(255 255 255 / 0.08);
+}
+.anime-episodes-tools .segmented-active .segmented-item {
+  color: var(--text);
+}
+.anime-ranges {
+  display: flex;
+  gap: 0.375rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.anime-range {
+  flex: none;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.06);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.anime-range[aria-selected="true"] {
+  background: var(--pill-light);
+  color: var(--text-on-light);
+}
+.anime-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+/* Characters: the character on the left, their voice on the right, like AniList. */
+.anime-characters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+  gap: 0.625rem;
+}
+.anime-character {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: rgb(255 255 255 / 0.04);
+}
+.anime-character-side {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.anime-character-va {
+  text-align: right;
+}
+.anime-character-img {
+  flex: none;
+  width: 4rem;
+  height: 5.5rem;
+  object-fit: cover;
+  background: rgb(255 255 255 / 0.05);
+}
+.anime-character-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.625rem 0;
+}
+.anime-character-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.anime-staff-label {
+  margin: 2rem 0 0.75rem;
+}
+.anime-staff {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem 1.5rem;
+}
+.anime-staff-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+/* Details */
+.anime-rankings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.anime-ranking {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.04);
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+.anime-ranking strong {
+  color: var(--text);
+}
+.anime-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+.anime-tag {
+  padding: 0.3rem 0.625rem;
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.06);
+  font-size: 0.8125rem;
+  font-weight: 550;
+}
+.anime-tag span {
+  margin-left: 0.25rem;
+  color: var(--text-3);
+}
+.anime-tag[data-spoiler="true"] {
+  background: rgb(239 68 68 / 0.12);
+  color: #fca5a5;
+}
+.anime-spoilers {
+  margin-left: 0.25rem;
+  font-size: 0.8125rem;
+}
+.anime-link-icon {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+}
+.anime-related {
+  padding-bottom: 3rem;
+}
+/* Side by side, each as wide as its cards: a one-title Watch Order doesn't
+   hold half the page open. The longer list gives way (and scrolls) first. */
+.anime-franchise-grid {
+  display: flex;
+  gap: 3rem;
+  padding: 0 var(--gutter) 0 var(--content-start);
+}
+/* Never squeezed below two cards (or its one). */
+.anime-franchise-col {
+  flex: 0 1 auto;
+  min-width: calc(var(--cards) * var(--poster-w) + (var(--cards) - 1) * 0.875rem);
+}
+@media (max-width: 900px) {
+  .anime-franchise-grid {
+    flex-direction: column;
+  }
+}
+.anime-franchise-grid .row-header {
+  padding: 0;
+}
+.anime-franchise-grid .row-scroller {
+  gap: 0.875rem;
+  padding: 14px 0 10px;
+  scroll-padding-inline: 0;
+}
+
+@media (max-width: 760px) {
+  .anime-slot {
+    grid-template-columns: 4.25rem 3rem minmax(0, 1fr);
+  }
+  .anime-slot-when {
+    display: none;
+  }
+}
+
+/* Long shows: find an episode, and the capped list's way to the rest. */
+.anime-episode-search {
+  width: 12rem;
+}
+.anime-show-all {
+  display: flex;
+  margin: 1.25rem auto 0;
+}

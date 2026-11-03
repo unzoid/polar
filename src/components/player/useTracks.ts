@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import type { ContentType, SubtitleOption } from "../../lib/types";
+import { ISO3, langMatches, languageName } from "../../lib/languages";
 import { isMpv, type MediaLike, type MpvTrack } from "./mpvMedia";
 
 export interface TrackOption {
@@ -9,28 +10,12 @@ export interface TrackOption {
   label: string;
 }
 
-const PREF_SUB = "rustio.subtitleLang";
-const PREF_AUDIO = "rustio.audioLang";
 const OFF = "off";
 
-const names = new Intl.DisplayNames(undefined, { type: "language" });
-/** ISO 639-2 codes addons use (`eng`, `pob`) → 639-1 where we know them. */
-const ISO3: Record<string, string> = {
-  eng: "en", spa: "es", spn: "es", fre: "fr", fra: "fr", ger: "de", deu: "de", ita: "it", por: "pt", pob: "pt-BR",
-  dut: "nl", nld: "nl", pol: "pl", rus: "ru", tur: "tr", ara: "ar", heb: "he", jpn: "ja", kor: "ko", chi: "zh",
-  zho: "zh", swe: "sv", dan: "da", nor: "no", fin: "fi", gre: "el", ell: "el", hun: "hu", cze: "cs", ces: "cs",
-  rum: "ro", ron: "ro", ukr: "uk", vie: "vi", tha: "th", ind: "id", hin: "hi", per: "fa", fas: "fa", bul: "bg",
-  hrv: "hr", srp: "sr", slv: "sl", slo: "sk", slk: "sk", may: "ms", msa: "ms",
-};
-export function languageName(code?: string) {
-  if (!code || code === "und") return undefined;
-  const norm = ISO3[code.toLowerCase()] ?? code;
-  try {
-    return names.of(norm) ?? code;
-  } catch {
-    return code;
-  }
-}
+export { languageName };
+
+/** Normalised ISO 639-1 form of a track/addon language code, for saving as a preference. */
+const norm = (code?: string) => (code ? (ISO3[code.toLowerCase()] ?? code) : "");
 
 // HTMLMediaElement.audioTracks: enabled in WebView2 via
 // `--enable-blink-features=AudioVideoTracks` (see tauri.conf.json).
@@ -47,13 +32,28 @@ type AudioTrackListLike = ArrayLike<AudioTrackLike> & EventTarget;
  *  - audio: the file's own tracks (when the engine exposes them);
  *  - subtitles: tracks embedded in the file, plus every subtitle addon's files
  *    (one per language), converted to WebVTT in Rust.
- * The chosen languages are remembered, so the next episode starts the same way.
+ * Preferred languages (Settings) are applied automatically once the tracks are
+ * known; choosing a track here updates that preference, so the next episode
+ * starts the same way.
  *
  * With the mpv engine, tracks come from mpv's own track-list — so embedded
  * subtitles (SRT/ASS/PGS in MKV) and every audio track are real — and addon
  * subtitles are handed to mpv with `sub-add` (it fetches SRT itself).
  */
-export function useTracks(media: MediaLike | null, type: ContentType, videoId: string) {
+export interface TrackPrefs {
+  audio: string;
+  subtitle: string;
+  /** "foreign": only turn subtitles on when the audio isn't in their language. */
+  subtitleMode?: "always" | "foreign";
+}
+
+export function useTracks(
+  media: MediaLike | null,
+  type: ContentType,
+  videoId: string,
+  prefs: TrackPrefs,
+  onPrefChange: (patch: { audioLanguage?: string; subtitleLanguage?: string }) => void,
+) {
   const video = media instanceof HTMLVideoElement ? media : null;
   const mpv = isMpv(media) ? media : null;
   const [mpvLoaded, setMpvLoaded] = useState(false);
@@ -62,6 +62,13 @@ export function useTracks(media: MediaLike | null, type: ContentType, videoId: s
   const [embedded, setEmbedded] = useState<TrackOption[]>([]);
   const [subId, setSubId] = useState<string>(OFF);
   const userChose = useRef(false);
+  const audioChose = useRef(false);
+  const appliedAudio = useRef(false);
+  const appliedSub = useRef(false);
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+  const onPrefRef = useRef(onPrefChange);
+  onPrefRef.current = onPrefChange;
 
   const external = useQuery({
     queryKey: ["subtitles", type, videoId],
@@ -145,12 +152,14 @@ export function useTracks(media: MediaLike | null, type: ContentType, videoId: s
   }, [video]);
 
   const selectAudio = useCallback(
-    (id: string) => {
+    (id: string, remember = true) => {
+      if (remember) audioChose.current = true;
       if (mpv) {
         if (id === "default") return;
+        audioChose.current = true;
         void mpv.set("aid", Number(id));
         const lang = mpv.tracks.find((t) => t.id === Number(id) && t.type === "audio")?.lang;
-        if (lang) localStorage.setItem(PREF_AUDIO, lang);
+        if (lang && remember) onPrefRef.current({ audioLanguage: norm(lang) });
         setAudioId(id);
         return;
       }
@@ -159,7 +168,7 @@ export function useTracks(media: MediaLike | null, type: ContentType, videoId: s
       Array.from(list).forEach((t, i) => {
         const tid = t.id || String(i);
         t.enabled = tid === id;
-        if (tid === id && t.language) localStorage.setItem(PREF_AUDIO, t.language);
+        if (tid === id && t.language && remember) onPrefRef.current({ audioLanguage: norm(t.language) });
       });
       setAudioId(id);
     },
@@ -180,7 +189,15 @@ export function useTracks(media: MediaLike | null, type: ContentType, videoId: s
           if (loaded) void mpv.set("sid", loaded.id);
           else await mpv.command("sub-add", sub.url, "select", languageName(sub.lang) ?? sub.lang, ISO3[sub.lang] ?? sub.lang).catch(() => {});
         }
-        if (remember) localStorage.setItem(PREF_SUB, id === OFF ? OFF : id.slice(4));
+        if (remember) {
+          const lang =
+            id === OFF
+              ? ""
+              : id.startsWith("emb:")
+                ? norm(mpv.tracks.find((t) => t.type === "sub" && t.id === Number(id.slice(4)))?.lang)
+                : norm(id.slice(4));
+          onPrefRef.current({ subtitleLanguage: lang });
+        }
         return;
       }
       if (!video) return;
@@ -208,19 +225,68 @@ export function useTracks(media: MediaLike | null, type: ContentType, videoId: s
       }
 
       for (const t of Array.from(video.textTracks)) t.mode = t === target ? "showing" : "disabled";
-      if (remember) localStorage.setItem(PREF_SUB, id === OFF ? OFF : (target?.language || id.slice(4)));
+      if (remember) {
+        onPrefRef.current({ subtitleLanguage: id === OFF ? "" : norm(target?.language || id.slice(4)) });
+      }
     },
     [video, mpv, externalByLang],
   );
 
-  // Re-apply the remembered subtitle language once options are known.
+  // Apply the preferred audio language once, as soon as the file's tracks are known
+  // (unless the user already picked one for this video).
   useEffect(() => {
-    if (userChose.current || (!video && !(mpv && mpvLoaded))) return;
-    const pref = localStorage.getItem(PREF_SUB);
-    if (!pref || pref === OFF) return;
-    const match = externalByLang.find((s) => s.lang === pref || ISO3[s.lang] === pref);
-    if (match) void selectSubtitle(`ext:${match.lang}`, false);
-  }, [externalByLang, video, mpv, mpvLoaded, selectSubtitle]);
+    if (appliedAudio.current || audioChose.current || !prefs.audio) return;
+    if (!(video || (mpv && mpvLoaded))) return;
+    const tracks: { id: string; lang?: string }[] = mpv
+      ? mpv.tracks.filter((t) => t.type === "audio").map((t) => ({ id: String(t.id), lang: t.lang }))
+      : Array.from(((video as unknown as { audioTracks?: AudioTrackListLike })?.audioTracks ?? []) as ArrayLike<AudioTrackLike>).map((t, i) => ({
+          id: t.id || String(i),
+          lang: t.language,
+        }));
+    if (!tracks.length) return;
+    appliedAudio.current = true;
+    const match = tracks.find((t) => langMatches(t.lang, prefs.audio));
+    if (match && match.id !== audioId) selectAudio(match.id, false);
+  }, [prefs.audio, video, mpv, mpvLoaded, audio, audioId, selectAudio]);
+
+  // Same for subtitles: a track inside the file wins (it's timed to this exact
+  // release); otherwise an addon's subtitles in that language. Empty = off.
+  useEffect(() => {
+    if (appliedSub.current || userChose.current || !prefs.subtitle) return;
+    if (!(video || (mpv && mpvLoaded))) return;
+    if (prefs.subtitleMode === "foreign") {
+      // The language that will be playing: the preferred audio if the file
+      // has it (applied above), else whatever track is on now.
+      const audioTracks: { lang?: string; on: boolean }[] = mpv
+        ? mpv.tracks.filter((t) => t.type === "audio").map((t) => ({ lang: t.lang, on: t.id === mpv.aid }))
+        : Array.from(((video as unknown as { audioTracks?: AudioTrackListLike })?.audioTracks ?? []) as ArrayLike<AudioTrackLike>).map(
+            (t) => ({ lang: t.language, on: t.enabled }),
+          );
+      const playing =
+        (prefs.audio && audioTracks.find((t) => langMatches(t.lang, prefs.audio))?.lang) ||
+        audioTracks.find((t) => t.on)?.lang ||
+        (audioTracks.length === 1 ? audioTracks[0].lang : undefined);
+      // Already in the subtitle language: nothing to read. Unknown: show them.
+      if (playing && langMatches(playing, prefs.subtitle)) {
+        appliedSub.current = true;
+        return;
+      }
+    }
+    const embeddedMatch = mpv
+      ? mpv.tracks.find((t) => t.type === "sub" && !t.external && langMatches(t.lang, prefs.subtitle))
+      : Array.from(video!.textTracks).find((t) => !t.id.startsWith("ext:") && langMatches(t.language, prefs.subtitle));
+    if (embeddedMatch) {
+      appliedSub.current = true;
+      const idx = mpv ? (embeddedMatch as MpvTrack).id : Array.from(video!.textTracks).indexOf(embeddedMatch as TextTrack);
+      void selectSubtitle(`emb:${idx}`, false);
+      return;
+    }
+    // External subtitles arrive asynchronously; wait for them before giving up.
+    if (external.isLoading) return;
+    appliedSub.current = true;
+    const ext = externalByLang.find((x) => langMatches(x.lang, prefs.subtitle));
+    if (ext) void selectSubtitle(`ext:${ext.lang}`, false);
+  }, [prefs.subtitle, prefs.subtitleMode, prefs.audio, video, mpv, mpvLoaded, audio, embedded, externalByLang, external.isLoading, selectSubtitle]);
 
   // Blob URLs belong to this video only.
   useEffect(

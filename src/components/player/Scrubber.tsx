@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { formatTime } from "../../lib/format";
 import { preloadImage } from "../../lib/queries";
-import type { SeekCue, SeekTrack } from "../../lib/types";
-import type { MediaLike } from "./mpvMedia";
+import type { SeekCue, SeekTrack, Span } from "../../lib/types";
+import { isMpv, type MediaLike, type MpvChapter } from "./mpvMedia";
 
 /** Rendered thumbnail width; tiles are cropped from the sheet and scaled to this. */
 const PREVIEW_W = 240;
@@ -23,8 +23,11 @@ const PREVIEW_W = 240;
 export function Scrubber({
   media: video,
   previews,
+  span,
   onSeek,
 }: {
+  /** The intro, when IntroDB knows it: shown as a faint band on the bar. */
+  span?: Span | null;
   /** A <video> or the mpv-backed equivalent. */
   media: MediaLike | null;
   /** Seekr thumbnail track, when the feature is on and the title has one. */
@@ -39,6 +42,22 @@ export function Scrubber({
   const tile = useRef<HTMLDivElement>(null);
   const scrubbing = useRef<number | null>(null); // fraction while dragging
   const [tipText, setTipText] = useState("0:00");
+  const [chapters, setChapters] = useState<MpvChapter[]>([]);
+  const [dur, setDur] = useState(0);
+
+  // Chapters (mpv only) and the duration they're laid out against.
+  useEffect(() => {
+    if (!video) return;
+    const sync = () => {
+      setChapters(isMpv(video) ? [...video.chapters] : []);
+      setDur(video.duration || 0);
+    };
+    sync();
+    for (const e of ["chapters", "loadedmetadata", "durationchange"]) video.addEventListener(e, sync);
+    return () => {
+      for (const e of ["chapters", "loadedmetadata", "durationchange"]) video.removeEventListener(e, sync);
+    };
+  }, [video]);
 
   // Warm the first sheets so the first hover isn't blank.
   useEffect(() => {
@@ -140,6 +159,18 @@ export function Scrubber({
       <div className="scrubber-track">
         <div className="scrubber-buffered" ref={buffered} />
         <div className="scrubber-fill" ref={fill} />
+        {span && dur > 0 && (
+          <div
+            className="scrubber-intro"
+            title="Intro"
+            style={{ left: `${(span.start / dur) * 100}%`, width: `${((span.end - span.start) / dur) * 100}%` }}
+          />
+        )}
+        {dur > 0 &&
+          chapters.map((c, i) =>
+            // The first chapter starts at 0: nothing to separate.
+            c.time > 0.5 && c.time < dur - 0.5 ? <div key={i} className="scrubber-chapter" style={{ left: `${(c.time / dur) * 100}%` }} /> : null,
+          )}
       </div>
       <div className="scrubber-knob" ref={knob} />
       <div className="scrubber-tip" data-preview={!!previews} ref={tip}>

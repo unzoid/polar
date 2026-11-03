@@ -11,27 +11,32 @@
  */
 :root {
   --font: "Inter Variable", "Inter", system-ui, "Segoe UI Variable Text", sans-serif;
-  --bg: #08080a;
-  --surface-1: #131316;
-  --surface-2: #1c1c21;
-  --surface-3: #26262c;
+  --bg: #0a0a0a;
+  --surface-1: #141414;
+  --surface-2: #1c1c1c;
+  --surface-3: #262626;
   --hairline: rgb(255 255 255 / 0.08);
   --hairline-strong: rgb(255 255 255 / 0.16);
 
   --text: #f5f5f7;
   --text-2: rgb(245 245 247 / 0.7);
   --text-3: rgb(245 245 247 / 0.45);
-  --text-on-light: #0b0b0d;
+  --text-on-light: #0b0b0b;
 
   --pill-light: rgb(240 240 242 / 0.94);
-  --focus: #6aa8ff;
+  --accent: #0a84ff; /* system blue: switches, primary settings actions */
+  /* Text on an accent fill; App.tsx flips it to dark for light accents (yellow, teal). */
+  --accent-fg: #fff;
+  /* Lighter top stop for accent gradients, and the accent-tinted focus ring. */
+  --accent-hi: color-mix(in srgb, var(--accent) 78%, white);
+  --focus: color-mix(in srgb, var(--accent) 65%, white);
   --progress: #f5f5f7;
   --danger: #ff6b5e;
   --good: #5ed39a;
 
   /* Glass: one recipe, two weights. Heavy for structure, light for controls. */
-  --glass: rgb(36 36 42 / 0.46);
-  --glass-heavy: rgb(20 20 24 / 0.7);
+  --glass: rgb(38 38 38 / 0.46);
+  --glass-heavy: rgb(22 22 22 / 0.7);
   --glass-control: rgb(255 255 255 / 0.13);
   --glass-control-hover: rgb(255 255 255 / 0.2);
   --glass-edge: rgb(255 255 255 / 0.13);
@@ -48,6 +53,12 @@
   --dur-base: 220ms;
   --dur-slow: 300ms;
 
+  /* Blur-fade reveals (content coming into focus). Slower, with a softer
+     ease-out than --ease-out, so the blur visibly clears instead of snapping. */
+  --dur-reveal: 420ms;
+  --ease-reveal: cubic-bezier(0.33, 1, 0.68, 1);
+  --stagger: 50ms;
+
   --r-xs: 6px;
   --r-sm: 8px;
   --r-md: 12px;
@@ -57,21 +68,62 @@
   --r-pill: 999px;
 
   /* Top navbar height; pages pad their content below it. */
-  --nav-h: 64px;
-  --gutter: clamp(1.5rem, 3vw, 3rem);
+  --nav-h: 76px;
+  --gutter: clamp(2rem, 4vw, 4.5rem);
   --content-start: var(--gutter);
 
-  --poster-w: clamp(136px, 10.5vw, 176px);
-  --landscape-w: clamp(240px, 20vw, 340px);
-  --episode-w: clamp(260px, 24vw, 380px);
+  /* Settings → Appearance → Card size scales these (data-card-size below). */
+  --card-scale: 1;
+  --poster-w: calc(clamp(136px, 10.5vw, 176px) * var(--card-scale));
+  --landscape-w: calc(clamp(240px, 20vw, 340px) * var(--card-scale));
+  --episode-w: calc(clamp(260px, 24vw, 380px) * var(--card-scale));
+}
+
+:root[data-card-size="small"] {
+  --card-scale: 0.84;
+}
+:root[data-card-size="large"] {
+  --card-scale: 1.2;
+}
+
+/* Settings → Appearance → Background: pure black, for OLED screens. */
+:root[data-theme="black"] {
+  --bg: #000;
+  --surface-1: #0b0b0b;
+  --surface-2: #141414;
+  --surface-3: #1e1e1e;
+}
+
+/* Settings → Appearance → Reduce motion: "On" regardless of Windows. Motion's
+   springs follow via <MotionConfig>; this covers CSS transitions and keyframes. */
+:root[data-reduce-motion="on"] *,
+:root[data-reduce-motion="on"] *::before,
+:root[data-reduce-motion="on"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Settings → Browsing → Spoilers: unwatched episodes keep their stills and
+   synopses to themselves. */
+:root[data-hide-thumbs="true"] :is(.episode-card, .tv-episode)[data-unwatched="true"] :is(.card-frame, .tv-episode-still) img {
+  filter: blur(22px) brightness(0.7);
+  transform: scale(1.15);
+}
+:root[data-hide-thumbs="true"] .episode-card[data-unwatched="true"] .card-frame {
+  overflow: hidden;
+}
+:root[data-hide-overviews="true"] :is(.episode-card, .tv-episode)[data-unwatched="true"] :is(.episode-card-overview, .tv-episode-overview) {
+  display: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --glass: rgb(28 28 33);
-    --glass-heavy: rgb(20 20 24);
-    --glass-control: rgb(58 58 66);
-    --glass-control-hover: rgb(72 72 80);
+    --glass: rgb(30 30 30);
+    --glass-heavy: rgb(22 22 22);
+    --glass-control: rgb(60 60 60);
+    --glass-control-hover: rgb(74 74 74);
     --blur-glass: none;
     --blur-control: none;
   }
@@ -83,8 +135,8 @@
     --text-3: rgb(245 245 247 / 0.72);
     --hairline: rgb(255 255 255 / 0.3);
     --hairline-strong: rgb(255 255 255 / 0.45);
-    --glass: rgb(16 16 18);
-    --glass-heavy: rgb(12 12 14);
+    --glass: rgb(16 16 16);
+    --glass-heavy: rgb(12 12 12);
     --glass-edge: rgb(255 255 255 / 0.45);
   }
 }

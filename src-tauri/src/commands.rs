@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::join_all;
-use rustio_addon::{rank_streams, Meta, MetaPreview, RankedStream, Stream};
-use rustio_index::Indexer;
+use polar_addon::{rank_streams_filtered, Meta, MetaPreview, RankedStream, Stream};
+use polar_index::Indexer;
 use serde::Serialize;
 use tauri::State;
 
@@ -17,9 +17,9 @@ use crate::AppState;
 #[derive(Debug, thiserror::Error)]
 pub enum CmdError {
     #[error(transparent)]
-    Index(#[from] rustio_index::IndexError),
+    Index(#[from] polar_index::IndexError),
     #[error(transparent)]
-    Addon(#[from] rustio_addon::AddonError),
+    Addon(#[from] polar_addon::AddonError),
     #[error("{0}")]
     Other(String),
 }
@@ -30,7 +30,7 @@ impl Serialize for CmdError {
     }
 }
 
-type Result<T> = std::result::Result<T, CmdError>;
+pub type Result<T> = std::result::Result<T, CmdError>;
 
 /// Per-addon budget. A slow addon must never hold the whole list hostage.
 const ADDON_TIMEOUT: Duration = Duration::from_secs(8);
@@ -38,8 +38,20 @@ const ADDON_TIMEOUT: Duration = Duration::from_secs(8);
 // --- Discovery -----------------------------------------------------------
 
 #[tauri::command]
-pub async fn catalog(state: State<'_, AppState>, ty: String, id: String, skip: Option<u32>) -> Result<Vec<MetaPreview>> {
-    Ok(state.indexer().catalog(&ty, &id, skip.unwrap_or(0)).await?)
+pub async fn catalog(
+    state: State<'_, AppState>,
+    ty: String,
+    id: String,
+    skip: Option<u32>,
+    genre: Option<String>,
+) -> Result<Vec<MetaPreview>> {
+    Ok(state.indexer().catalog(&ty, &id, skip.unwrap_or(0), genre.as_deref()).await?)
+}
+
+/// Titles like `id` ("Because you watched …").
+#[tauri::command]
+pub async fn recommend(state: State<'_, AppState>, ty: String, id: String) -> Result<Vec<MetaPreview>> {
+    Ok(state.indexer().recommend(&ty, &id).await?)
 }
 
 #[derive(Serialize)]
@@ -77,33 +89,59 @@ pub struct StreamsResult {
     /// Addons that failed or timed out, so the UI can say so instead of
     /// silently showing fewer results.
     failed: Vec<String>,
+    /// Sources left out by the filters in Settings → Sources.
+    hidden: usize,
 }
 
 /// Query every installed stream addon concurrently, then rank and dedupe.
 #[tauri::command]
-pub async fn streams(state: State<'_, AppState>, ty: String, video_id: String) -> Result<StreamsResult> {
-    let addons: Vec<InstalledAddon> = installed(&state)
+pub async fn streams(
+    state: State<'_, AppState>,
+    ty: String,
+    video_id: String,
+    // Other ids for the same episode (an anime's Kitsu id): asked of every addon that serves them, results merged.
+    alt_ids: Option<Vec<String>>,
+) -> Result<StreamsResult> {
+    let mut ids = vec![video_id];
+    ids.extend(alt_ids.unwrap_or_default());
+
+    // One request per (addon, id) the addon claims to serve.
+    let jobs: Vec<(InstalledAddon, String)> = installed(&state)
         .into_iter()
-        .filter(|a| a.manifest.serves("stream", &ty, &video_id))
+        .flat_map(|a| {
+            ids.iter()
+                .filter(|id| a.manifest.serves("stream", &ty, id))
+                .map(|id| (a.clone(), id.clone()))
+                .collect::<Vec<_>>()
+        })
         .collect();
 
     let client = &state.addons;
-    let results = join_all(addons.iter().map(|a| async {
-        let fetch = client.streams(&a.manifest_url, &ty, &video_id);
+    let results = join_all(jobs.iter().map(|(a, id)| async {
+        let fetch = client.streams(&a.manifest_url, &ty, id);
         let res = tokio::time::timeout(ADDON_TIMEOUT, fetch).await;
         (a.manifest.name.clone(), res)
     }))
     .await;
 
     let mut all = Vec::new();
-    let mut failed = Vec::new();
+    let mut failed: Vec<String> = Vec::new();
+    let mut answered: Vec<String> = Vec::new();
     for (name, res) in results {
         match res {
-            Ok(Ok(streams)) => all.extend(streams.into_iter().map(|s| (name.clone(), s))),
+            Ok(Ok(streams)) => {
+                answered.push(name.clone());
+                all.extend(streams.into_iter().map(|s| (name.clone(), s)));
+            }
             _ => failed.push(name),
         }
     }
-    Ok(StreamsResult { streams: rank_streams(all), failed })
+    // An addon that answered for one of the ids isn't "failed" because it timed out on another.
+    failed.retain(|n| !answered.contains(n));
+    failed.dedup();
+    let filter = state.store.lock().unwrap().data.settings.stream_filter(&ty);
+    let (streams, hidden) = rank_streams_filtered(all, &filter);
+    Ok(StreamsResult { streams, failed, hidden })
 }
 
 #[derive(Serialize)]
@@ -120,8 +158,17 @@ pub enum Playable {
 /// bridge until the embedded engine (librqbit) lands.
 #[tauri::command]
 pub async fn resolve_stream(state: State<'_, AppState>, stream: Stream) -> Result<Playable> {
+    Ok(resolve(&state, stream).await)
+}
+
+/// Shared by playback and downloads.
+pub async fn resolve(state: &AppState, stream: Stream) -> Playable {
     if let Some(url) = stream.url {
-        return Ok(Playable::Url { url });
+        // A download played back: a path on this machine, which may have been deleted since.
+        if crate::downloads::is_local(&url) && !std::path::Path::new(&url).exists() {
+            return Playable::Unsupported { reason: "This download is no longer on this device.".into() };
+        }
+        return Playable::Url { url };
     }
     if let Some(hash) = stream.content_id {
         let server = state.store.lock().unwrap().data.settings.bridge.clone();
@@ -133,20 +180,20 @@ pub async fn resolve_stream(state: State<'_, AppState>, stream: Stream) -> Resul
             .await
             .is_ok();
         if !reachable {
-            return Ok(Playable::Unsupported {
+            return Playable::Unsupported {
                 reason: "p2p streams need a bridge. Start Stremio's server, or wait for the built-in engine.".into(),
-            });
+            };
         }
         let file = stream.file_idx.map(|f| f.to_string()).unwrap_or_else(|| "-1".into());
-        return Ok(Playable::Url { url: format!("{server}/{}/{file}", hash.to_lowercase()) });
+        return Playable::Url { url: format!("{server}/{}/{file}", hash.to_lowercase()) };
     }
     if let Some(yt) = stream.yt_id {
-        return Ok(Playable::External { url: format!("https://www.youtube.com/watch?v={yt}") });
+        return Playable::External { url: format!("https://www.youtube.com/watch?v={yt}") };
     }
     if let Some(url) = stream.external_url {
-        return Ok(Playable::External { url });
+        return Playable::External { url };
     }
-    Ok(Playable::Unsupported { reason: "This stream has no playable source.".into() })
+    Playable::Unsupported { reason: "This stream has no playable source.".into() }
 }
 
 // --- Addons --------------------------------------------------------------
@@ -170,12 +217,16 @@ pub fn addons_list(state: State<'_, AppState>) -> Vec<InstalledAddon> {
 pub async fn addon_install(state: State<'_, AppState>, url: String) -> Result<InstalledAddon> {
     let url = url.trim().replace("stremio://", "https://");
     let manifest_url = if url.ends_with("/manifest.json") { url } else { format!("{}/manifest.json", url.trim_end_matches('/')) };
-    let manifest = state.addons.manifest(&manifest_url).await?;
+    let mut manifest = state.addons.manifest(&manifest_url).await?;
+    manifest.behavior_hints.get_or_insert_with(Default::default);
     let addon = InstalledAddon { manifest_url, manifest };
     let saved = addon.clone();
     persist(&state, |d| {
-        d.addons.retain(|a| a.manifest.id != saved.manifest.id);
-        d.addons.push(saved);
+        // Reinstalling (or reconfiguring) keeps the addon's place in the order.
+        match d.addons.iter_mut().find(|a| a.manifest.id == saved.manifest.id) {
+            Some(slot) => *slot = saved,
+            None => d.addons.push(saved),
+        }
     })?;
     Ok(addon)
 }
@@ -187,10 +238,14 @@ pub fn addon_remove(state: State<'_, AppState>, id: String) -> Result<()> {
 
 // --- Library & progress --------------------------------------------------
 
+// Everything here acts on the active space (the signed-out "local" space or
+// the selected profile), see `store::Space`.
+
 #[tauri::command]
 pub fn library_list(state: State<'_, AppState>) -> Vec<LibraryItem> {
     let store = state.store.lock().unwrap();
-    let mut items: Vec<_> = store.data.library.values().cloned().collect();
+    let Some(space) = store.data.space() else { return Vec::new() };
+    let mut items: Vec<_> = space.library.values().cloned().collect();
     items.sort_by(|a, b| b.added_at.cmp(&a.added_at));
     items
 }
@@ -200,11 +255,16 @@ pub fn library_list(state: State<'_, AppState>) -> Vec<LibraryItem> {
 pub fn library_toggle(state: State<'_, AppState>, item: MetaPreview) -> Result<bool> {
     let mut added = false;
     persist(&state, |d| {
-        if d.library.remove(&item.id).is_none() {
+        let space = d.space_mut();
+        let at = now();
+        if space.library.remove(&item.id).is_some() {
+            space.removed.insert(item.id, at);
+        } else {
             added = true;
-            d.library.insert(
+            space.removed.remove(&item.id);
+            space.library.insert(
                 item.id.clone(),
-                LibraryItem { id: item.id, ty: item.ty, name: item.name, poster: item.poster, added_at: now() },
+                LibraryItem { id: item.id, ty: item.ty, name: item.name, poster: item.poster, added_at: at },
             );
         }
     })?;
@@ -215,14 +275,29 @@ pub fn library_toggle(state: State<'_, AppState>, item: MetaPreview) -> Result<b
 #[tauri::command]
 pub fn progress_for(state: State<'_, AppState>, meta_id: String) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
-    store.data.progress.values().filter(|p| p.meta_id == meta_id).cloned().collect()
+    let Some(space) = store.data.space() else { return Vec::new() };
+    space.progress.values().filter(|p| p.meta_id == meta_id).cloned().collect()
 }
 
 #[tauri::command]
 pub fn progress_save(state: State<'_, AppState>, mut progress: Progress) -> Result<()> {
     progress.updated_at = now();
     persist(&state, |d| {
-        d.progress.insert(progress.video_id.clone(), progress);
+        d.space_mut().progress.insert(progress.video_id.clone(), progress);
+    })
+}
+
+/// Several entries in one save (marking a whole show watched). They count as
+/// touched in the order given, so the last one is the title's latest.
+#[tauri::command]
+pub fn progress_save_many(state: State<'_, AppState>, progress: Vec<Progress>) -> Result<()> {
+    let at = now();
+    persist(&state, |d| {
+        let space = d.space_mut();
+        for (i, mut p) in progress.into_iter().enumerate() {
+            p.updated_at = at + i as u64;
+            space.progress.insert(p.video_id.clone(), p);
+        }
     })
 }
 
@@ -230,8 +305,10 @@ pub fn progress_save(state: State<'_, AppState>, mut progress: Progress) -> Resu
 #[tauri::command]
 pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
+    let watched = store.data.settings.watched_fraction();
+    let Some(space) = store.data.space() else { return Vec::new() };
     let mut latest: std::collections::HashMap<&str, &Progress> = Default::default();
-    for p in store.data.progress.values() {
+    for p in space.progress.values() {
         let slot = latest.entry(p.meta_id.as_str()).or_insert(p);
         if p.updated_at > slot.updated_at {
             *slot = p;
@@ -239,11 +316,31 @@ pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
     }
     let mut items: Vec<Progress> = latest
         .into_values()
-        .filter(|p| !p.finished() && p.position > 30.0)
+        .filter(|p| !p.finished(watched) && p.position > 30.0)
         .cloned()
         .collect();
     items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     items.truncate(20);
+    items
+}
+
+/// Everything you've watched: the latest video per title — finished or well
+/// under way — newest first. The Library's "Watched" shelf.
+#[tauri::command]
+pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
+    let store = state.store.lock().unwrap();
+    let watched = store.data.settings.watched_fraction();
+    let Some(space) = store.data.space() else { return Vec::new() };
+    let mut latest: std::collections::HashMap<&str, &Progress> = Default::default();
+    for p in space.progress.values().filter(|p| p.finished(watched) || p.position > 30.0) {
+        let slot = latest.entry(p.meta_id.as_str()).or_insert(p);
+        if p.updated_at > slot.updated_at {
+            *slot = p;
+        }
+    }
+    let mut items: Vec<Progress> = latest.into_values().cloned().collect();
+    items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    items.truncate(200);
     items
 }
 
@@ -275,6 +372,23 @@ pub fn settings_set(state: State<'_, AppState>, settings: Settings) -> Result<Se
     let next = settings.clone();
     persist(&state, |d| d.settings = next)?;
     Ok(SettingsView { settings, metadata_source: state.indexer().source() })
+}
+
+/// Everything back to the defaults, except what took effort to set up: API
+/// keys, the bridge's address and the metadata language.
+#[tauri::command]
+pub fn settings_reset(state: State<'_, AppState>) -> Result<SettingsView> {
+    let current = state.store.lock().unwrap().data.settings.clone();
+    let fresh = Settings {
+        tmdb_key: current.tmdb_key,
+        seekr_key: current.seekr_key,
+        mdblist_key: current.mdblist_key,
+        omdb_key: current.omdb_key,
+        bridge: current.bridge,
+        language: current.language,
+        ..Settings::default()
+    };
+    settings_set(state, fresh)
 }
 
 // --- Subtitles -----------------------------------------------------------
@@ -315,7 +429,7 @@ pub async fn subtitles(state: State<'_, AppState>, ty: String, video_id: String)
 #[tauri::command]
 pub async fn subtitle_vtt(state: State<'_, AppState>, url: String) -> Result<String> {
     let bytes = state.addons.fetch_bytes(&url).await?;
-    Ok(rustio_addon::subs::to_vtt(&bytes))
+    Ok(polar_addon::subs::to_vtt(&bytes))
 }
 
 // --- Seek previews (Seekr) -------------------------------------------------
@@ -340,4 +454,51 @@ pub async fn seek_previews(
 #[tauri::command]
 pub async fn seekr_validate(state: State<'_, AppState>, key: String) -> Result<Option<String>> {
     state.seekr.validate(key.trim()).await.map_err(CmdError::Other)
+}
+
+// --- Skip segments (IntroDB) -------------------------------------------------
+
+/// Intro / recap / credits timings for a movie (`tt…`) or episode (`tt…:s:e`).
+#[tauri::command]
+pub async fn skip_segments(state: State<'_, AppState>, video_id: String) -> Result<crate::introdb::Segments> {
+    state.introdb.segments(&video_id).await.map_err(CmdError::Other)
+}
+
+// --- Ratings (MDBList / OMDb) ----------------------------------------------
+
+/// Rotten Tomatoes, Metacritic, Letterboxd… scores for a title, from whichever
+/// ratings services have a key in Settings → Services. Empty without one.
+#[tauri::command]
+pub async fn ratings(state: State<'_, AppState>, ty: String, id: String) -> Result<crate::ratings::Ratings> {
+    let (mdblist, omdb) = {
+        let s = &state.store.lock().unwrap().data.settings;
+        let key = |k: &Option<String>| k.as_deref().map(str::trim).filter(|k| !k.is_empty()).map(str::to_owned);
+        (key(&s.mdblist_key), key(&s.omdb_key))
+    };
+    Ok(state.ratings.get(&id, &ty, mdblist.as_deref(), omdb.as_deref()).await)
+}
+
+// --- External links ------------------------------------------------------
+
+/// Opens a web page (e.g. a title on IMDb) in the default browser. Only
+/// https links, so the webview can't use this to launch anything else.
+/// A title's trailer as a playable file (IMDb), or none.
+#[tauri::command]
+pub async fn trailer(imdb_id: String) -> Option<crate::trailers::Trailer> {
+    crate::trailers::imdb_trailer(&imdb_id).await
+}
+
+/// Filler episode numbers from animefillerlist.com, trying each slug in turn.
+#[tauri::command]
+pub async fn anime_filler(slugs: Vec<String>) -> Vec<u32> {
+    crate::fillers::filler_episodes(&slugs).await
+}
+
+#[tauri::command]
+pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    if !url.starts_with("https://") {
+        return Err(CmdError::Other("only https links can be opened".into()));
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|e| CmdError::Other(e.to_string()))
 }

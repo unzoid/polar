@@ -30,7 +30,7 @@ impl AddonClient {
             reqwest::Client::builder()
                 .connect_timeout(Duration::from_secs(5))
                 .timeout(Duration::from_secs(20))
-                .user_agent(concat!("rustio/", env!("CARGO_PKG_VERSION")))
+                .user_agent(concat!("polar/", env!("CARGO_PKG_VERSION")))
                 .build()
                 .expect("http client"),
         )
@@ -147,6 +147,14 @@ pub struct RawMeta {
     pub director: Option<Vec<Option<String>>>,
     pub trailers: Option<Vec<RawTrailer>>,
     pub videos: Option<Vec<RawVideo>>,
+    pub writer: Option<Vec<Option<String>>>,
+    /// A string ("United States, Canada") or a list, depending on the addon.
+    pub country: Option<serde_json::Value>,
+    pub awards: Option<String>,
+    pub released: Option<String>,
+    pub status: Option<String>,
+    /// Cinemeta: `{ cast: [{ name, character, photo }] }`.
+    pub app_extras: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize, Default)]
@@ -205,6 +213,8 @@ impl RawMeta {
             director: rest.director,
             trailer_yt_id: rest.trailer,
             videos,
+            people: rest.people,
+            details: rest.details,
         })
     }
 
@@ -222,12 +232,42 @@ impl RawMeta {
             imdb_rating: value_to_string(self.imdb_rating),
             genres: strings(self.genres.or(self.genre)),
         };
+        let people = self
+            .app_extras
+            .as_ref()
+            .and_then(|x| x["cast"].as_array())
+            .map(|cast| {
+                cast.iter()
+                    .filter_map(|p| {
+                        let text = |k: &str| p[k].as_str().map(str::trim).filter(|s| !s.is_empty()).map(str::to_owned);
+                        Some(Person { name: text("name")?, character: text("character"), photo: text("photo") })
+                    })
+                    .take(24)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let countries = match self.country {
+            Some(serde_json::Value::String(s)) => s.split(',').map(|c| c.trim().to_owned()).filter(|c| !c.is_empty()).collect(),
+            Some(serde_json::Value::Array(a)) => a.into_iter().filter_map(|c| c.as_str().map(str::to_owned)).collect(),
+            _ => Vec::new(),
+        };
+        let details = MetaDetails {
+            status: self.status.filter(|s| !s.is_empty()),
+            released: self.released.and_then(|d| d.get(..10).map(str::to_owned)),
+            countries,
+            writers: strings(self.writer),
+            // Cinemeta says "N/A" for none.
+            awards: self.awards.filter(|a| !a.is_empty() && a != "N/A"),
+            ..Default::default()
+        };
         let rest = Rest {
             runtime: self.runtime,
             cast: strings(self.cast),
             director: strings(self.director),
             trailer: self.trailers.and_then(|t| t.into_iter().find_map(|t| t.source)),
             videos: self.videos.unwrap_or_default(),
+            people,
+            details,
         };
         Some((preview, rest))
     }
@@ -239,6 +279,8 @@ struct Rest {
     director: Vec<String>,
     trailer: Option<String>,
     videos: Vec<RawVideo>,
+    people: Vec<Person>,
+    details: MetaDetails,
 }
 
 impl RawVideo {
@@ -257,7 +299,8 @@ impl RawVideo {
             released: self.released.or(self.first_aired),
             thumbnail: self.thumbnail,
             overview: self.overview.or(self.description).filter(|o| !o.is_empty()),
-            rating: value_to_string(self.rating),
+            // Cinemeta sends "0" for unrated episodes; that's absence, not a score.
+            rating: value_to_string(self.rating).filter(|r| r.parse::<f64>().map_or(true, |n| n > 0.0)),
         })
     }
 }

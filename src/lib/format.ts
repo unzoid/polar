@@ -18,9 +18,19 @@ export function formatRemaining(position: number, duration: number) {
   return `${Math.max(1, m)}m left`;
 }
 
+/** An addon's "142 min" as "2 hr 22 min"; other formats pass through. */
+export function formatRuntime(runtime?: string) {
+  return runtime?.replace(/(\d+) min/, (_, n) => {
+    const minutes = Number(n);
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h ? `${h} hr ${m} min` : `${m} min`;
+  });
+}
+
 export function episodeCode(season?: number, episode?: number) {
   if (season == null || episode == null) return "";
-  return `S${season} · E${episode}`;
+  return `S${season}, E${episode}`;
 }
 
 export function isReleased(video: Video) {

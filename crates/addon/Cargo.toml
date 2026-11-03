@@ -1,5 +1,5 @@
 [package]
-name = "rustio-addon"
+name = "polar-addon"
 description = "Stremio-compatible addon protocol: types, HTTP client and stream ranking"
 version.workspace = true
 edition.workspace = true

@@ -1,8 +1,11 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { prefetchMeta, preloadImage } from "../lib/queries";
 import { useRouter } from "../lib/router";
-import type { MetaPreview } from "../lib/types";
+import type { MetaPreview, Progress } from "../lib/types";
+import { cardMenu } from "./CardMenu";
+import { CardRating } from "./ImdbBadge";
 import { Img } from "./Img";
+import { TitleLogo } from "./TitleLogo";
 
 const INTENT_DELAY = 120;
 
@@ -25,21 +28,25 @@ function useOpen(item: MetaPreview) {
 }
 
 /** Portrait 2:3 poster — used in grids (Movies, Series, Search, Library). */
-export function PosterCard({ item, progress }: { item: MetaPreview; progress?: number }) {
+export function PosterCard({ item, progress, entry }: { item: MetaPreview; progress?: number; entry?: Progress }) {
   const open = useOpen(item);
   const intent = useIntent(item);
+  // A poster link that doesn't load leaves the name instead of an empty frame.
+  const [broken, setBroken] = useState(false);
 
   return (
-    <button className="card card-poster" onClick={open} {...intent}>
+    <button className="card card-poster" onClick={open} {...intent} {...cardMenu(item, entry)}>
       <div className="card-frame">
-        <Img src={item.poster} alt="" className="card-img" />
-        {!item.poster && <span className="card-fallback t-headline">{item.name}</span>}
+        {!broken && <Img src={item.poster} alt="" className="card-img" onError={() => setBroken(true)} />}
+        {(!item.poster || broken) && <span className="card-fallback t-headline">{item.name}</span>}
         {progress != null && <ProgressBar fraction={progress} />}
+        <CardRating rating={item.imdbRating} placement="poster" />
       </div>
       <div className="card-caption">
         <span className="card-title t-callout">{item.name}</span>
         <span className="t-caption faint tabular">{item.releaseInfo}</span>
       </div>
+      <CardRating rating={item.imdbRating} />
     </button>
   );
 }
@@ -55,12 +62,12 @@ export function LandscapeCard({ item }: { item: MetaPreview }) {
   const art = item.background ?? item.poster;
 
   return (
-    <button className="card card-landscape" onClick={open} {...intent}>
+    <button className="card card-landscape" onClick={open} {...intent} {...cardMenu(item)}>
       <div className="card-frame">
         <Img src={art} alt="" className="card-img" />
         <div className="card-art-scrim" />
         {item.logo ? (
-          <Img src={item.logo} alt={item.name} className="card-logo" />
+          <TitleLogo src={item.logo} alt={item.name} className="card-logo" />
         ) : (
           <span className="card-art-title t-title2">{item.name}</span>
         )}
@@ -68,7 +75,7 @@ export function LandscapeCard({ item }: { item: MetaPreview }) {
       <div className="card-caption">
         <span className="card-title t-callout">{item.name}</span>
         <span className="t-caption faint">
-          {[item.type === "movie" ? "Movie" : "TV Show", item.genres?.[0], item.releaseInfo].filter(Boolean).join(" · ")}
+          {[item.type === "movie" ? "Movie" : "Series", item.genres?.[0], item.releaseInfo].filter(Boolean).join(" · ")}
         </span>
       </div>
     </button>

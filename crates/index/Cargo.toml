@@ -1,17 +1,17 @@
 [package]
-name = "rustio-index"
+name = "polar-index"
 description = "Media indexer in the spirit of Cinemeta: catalogs + metadata keyed by IMDb ids"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [features]
-# Standalone HTTP addon server (`cargo run -p rustio-index --features server`),
-# installable in rustio *or* Stremio as a regular addon.
+# Standalone HTTP addon server (`cargo run -p polar-index --features server`),
+# installable in polar *or* Stremio as a regular addon.
 server = ["dep:axum", "dep:tower-http", "dep:tracing-subscriber"]
 
 [dependencies]
-rustio-addon.workspace = true
+polar-addon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true
@@ -26,6 +26,6 @@ tower-http = { version = "0.6", features = ["cors"], optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 [[bin]]
-name = "rustio-index"
-path = "src/bin/rustio-index.rs"
+name = "polar-index"
+path = "src/bin/polar-index.rs"
 required-features = ["server"]

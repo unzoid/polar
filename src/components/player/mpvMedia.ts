@@ -16,6 +16,12 @@ export interface MediaLike extends EventTarget {
   pause(): void;
 }
 
+export interface MpvChapter {
+  title?: string;
+  /** Start, in seconds. */
+  time: number;
+}
+
 export interface MpvTrack {
   id: number;
   type: "video" | "audio" | "sub";
@@ -53,9 +59,12 @@ export class MpvMedia extends EventTarget implements MediaLike {
   private loaded = false;
 
   tracks: MpvTrack[] = [];
+  /** Container chapters, when the file has any. */
+  chapters: MpvChapter[] = [];
   aid: number | "no" | null = null;
   sid: number | "no" | null = null;
-  error: { code: number; message: string } | null = null;
+  /** `playerExited`: mpv itself went away (crashed, or its window was closed), not the source failing. */
+  error: { code: number; message: string; playerExited?: boolean } | null = null;
 
   /** Resolves once this object is listening; loads wait on it. */
   private listening: Promise<void> = Promise.resolve();
@@ -96,6 +105,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
     this.stamp = performance.now();
     this.dur = NaN;
     this.tracks = [];
+    this.chapters = [];
+    this.emit("chapters");
     this.enqueue(async () => {
       await this.listening; // never load before we can hear mpv's answers
       await invoke("mpv_load", { url, start });
@@ -125,6 +136,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
     this.time = t;
     this.stamp = performance.now();
     void this.command("seek", t, "absolute+keyframes").catch(() => {});
+    this.emit("seeking"); // as a <video> does when its currentTime is set
   }
   get duration() {
     return this.dur;
@@ -179,8 +191,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
     this.dispatchEvent(new Event(type));
   }
 
-  private fail(message: string) {
-    this.error = { code: 4, message };
+  private fail(message: string, playerExited = false) {
+    this.error = { code: 4, message, playerExited };
     this.emit("error");
   }
 
@@ -232,6 +244,10 @@ export class MpvMedia extends EventTarget implements MediaLike {
         this.tracks = Array.isArray(data) ? (data as MpvTrack[]) : [];
         this.emit("tracks");
         break;
+      case "chapter-list":
+        this.chapters = Array.isArray(data) ? (data as MpvChapter[]) : [];
+        this.emit("chapters");
+        break;
       case "aid":
       case "sid":
         this[name] = typeof data === "number" ? data : data === false || data === "no" ? "no" : null;
@@ -242,7 +258,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
 
   private onEvent(e: { event: string; reason?: string; file_error?: string }) {
     if (e.event === "end-file" && e.reason === "error") this.fail(e.file_error ?? "mpv couldn't open this file");
-    if (e.event === "shutdown") this.fail("The player stopped unexpectedly.");
+    if (e.event === "shutdown") this.fail("The player stopped unexpectedly.", true);
   }
 }
 

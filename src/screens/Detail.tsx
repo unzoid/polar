@@ -1,16 +1,53 @@
-import { Check, ListVideo, Play, Plus, RotateCcw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Check, LayoutList, LayoutRow, Play, Plus, Reset, Sources, Trailer, Volume, VolumeMuted } from "../components/icons";
+import { useFoldSnap } from "../lib/useFoldSnap";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
+import { cardMenu } from "../components/CardMenu";
+import { ScoreChips, TitleDetails } from "../components/TitleDetails";
+import { openTrailer, useTrailerOpen } from "../components/Trailer";
+import { episodeEntry } from "../lib/watched";
 import { EpisodeShelf } from "../components/EpisodeShelf";
+import { EdgeBlur } from "../components/EdgeBlur";
+import { DownloadButton } from "../components/DownloadButton";
+import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
+import { TitleLogo } from "../components/TitleLogo";
+import { PlaylistButton } from "../components/Playlists";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
 import { Sheet } from "../components/Sheet";
 import { StreamList } from "../components/StreamList";
+import { SwapIcon } from "../components/SwapIcon";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
-import { episodeCode, formatTime } from "../lib/format";
-import { prefetchStreams, useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "../lib/queries";
+import { episodeCode, formatRuntime, seasonLabel } from "../lib/format";
+import { usePlayTarget } from "../lib/playTarget";
+import { prefetchStreams, useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
 import { useRouter } from "../lib/router";
-import type { ContentType, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
+import { useQuery } from "@tanstack/react-query";
+import { fetchAniZip } from "../lib/anime/anizip";
+import { usePrefs } from "../lib/prefs";
+import { useFileTrailer } from "../lib/trailers";
+import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
+
+/**
+ * An anime reached by its IMDb id (Search, Library, Continue Watching) opens
+ * on its AniList page instead, so the same show always looks the same.
+ */
+function useAnimeRedirect(id: string, genres: string[] | undefined) {
+  const { animeEnabled } = usePrefs();
+  const { replace } = useRouter();
+  const animated = !!genres?.some((g) => /^anim(e|ation)$/i.test(g));
+  const { data: zip } = useQuery({
+    queryKey: ["anizip", "imdb", id],
+    queryFn: () => fetchAniZip({ imdb_id: id }),
+    enabled: animeEnabled && animated && id.startsWith("tt"),
+    staleTime: Infinity,
+  });
+  const anilist = zip?.mappings.anilist_id;
+  useEffect(() => {
+    if (anilist) replace({ name: "anime-detail", id: anilist });
+  }, [anilist, replace]);
+}
 
 /**
  * Title page in the Apple TV layout: the art fills the window, the title
@@ -22,90 +59,109 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   const { data: meta, isError, error } = useMeta(type, id);
   // Render instantly from the catalog preview; fill in when full meta arrives.
   const shown: MetaPreview | undefined = meta ?? preview;
+  useAnimeRedirect(id, shown?.genres);
+
+  // The trailer behind the page: only while it's the page on top, and paused
+  // once you've scrolled down to read or a sheet or the big trailer is open.
+  const root = useRef<HTMLDivElement>(null);
+  const onTop = usePageOnTop(root);
+  const [scrolledAway, setScrolledAway] = useState(false);
+  const [sheets, setSheets] = useState(0);
+  const onSheet = useCallback((open: boolean) => setSheets((n) => Math.max(0, n + (open ? 1 : -1))), []);
+  const bigTrailer = !!useTrailerOpen();
+  const trailer = useBackdropTrailer(id, meta?.trailerYtId, {
+    active: onTop,
+    paused: scrolledAway || sheets > 0 || bigTrailer,
+  });
+
+  const scroller = useRef<HTMLDivElement>(null);
+  useFoldSnap(scroller, !!shown);
 
   if (isError && !shown) return <p className="empty t-body muted">Couldn't load this title: {String(error)}</p>;
   if (!shown) return <div className="detail-loading skeleton" />;
 
   return (
-    <div className="detail">
+    <div className="detail" ref={root} data-trailer={trailer.visible} data-type={type}>
       <div className="detail-bg" aria-hidden>
         <Img src={shown.background} alt="" loading="eager" className="detail-bg-sharp" />
+        {trailer.node}
         <Img src={shown.background} alt="" loading="eager" className="detail-bg-blur" />
         <div className="detail-bg-scrim" />
       </div>
-      {/* Once the hero has receded, the title treatment settles top-centre (tvOS). */}
-      <div className="detail-ambient-title" aria-hidden>
-        {shown.logo ? <Img src={shown.logo} alt="" /> : <span className="t-title1">{shown.name}</span>}
+      <div
+        className="scroll detail-scroll"
+        ref={scroller}
+        onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
+      >
+        <DetailHero item={shown} meta={meta} onSheet={onSheet} trailer={trailer} />
+        {type === "series" && meta && <SeriesBody meta={meta} onSheet={onSheet} />}
+        {type === "movie" && meta && (
+          <section className="about">
+            <h2 className="t-title2">About</h2>
+            <TitleDetails meta={meta} />
+          </section>
+        )}
       </div>
-      <div className="scroll detail-scroll">
-        <DetailHero item={shown} meta={meta} />
-        {type === "series" && meta && <Seasons meta={meta} />}
-        {type === "movie" && meta && <About meta={meta} />}
-      </div>
+      {/* Teases what's below the fold; clears as you scroll. */}
+      <EdgeBlur className="detail-fold" />
     </div>
   );
 }
 
-function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
+function DetailHero({
+  item,
+  meta,
+  onSheet,
+  trailer,
+}: {
+  item: MetaPreview;
+  meta?: Meta;
+  onSheet: (open: boolean) => void;
+  trailer: { visible: boolean; muted: boolean; toggleMute: () => void };
+}) {
   const { navigate } = useRouter();
-  const { data: progress } = useProgress(item.id);
   const { data: library } = useLibrary();
   const toggle = useToggleLibrary();
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  useEffect(() => {
+    if (!sourcesOpen) return;
+    onSheet(true);
+    return () => onSheet(false);
+  }, [sourcesOpen, onSheet]);
 
   const isSeries = item.type === "series";
   const inLibrary = library?.some((l) => l.id === item.id);
+  const { next, videoId, resumeAt, label: primaryLabel } = usePlayTarget(item, meta);
+  const { data: fileTrailer } = useFileTrailer(item.id);
 
-  const next = meta && isSeries ? upNext(meta, progress ?? []) : undefined;
-  const movieProgress = !isSeries ? progress?.find((p) => p.videoId === item.id) : undefined;
-  const videoId = isSeries ? next?.video?.id : item.id;
-  const resumeAt = isSeries
-    ? next?.resumeAt
-    : movieProgress && movieProgress.position > 30 && movieProgress.position / movieProgress.duration < 0.92
-      ? movieProgress.position
-      : undefined;
+  // Sources for the primary action load as soon as the page opens, so Play
+  // (or the source list) is ready by the time the user reaches for it.
+  useStreams(item.type, videoId);
+  const { data: settings } = useSettings();
+  const autoPick = settings?.autoPickSource ?? true;
 
-  // Sources for the primary action load as soon as the page opens: by the
-  // time the user reaches for Play, it starts immediately — and the badges
-  // (4K, Dolby Vision) describe what's actually available.
-  const streams = useStreams(item.type, videoId);
-  const best = streams.data?.streams[0]?.quality;
+  const play = (stream?: RankedStream) => {
+    if (!videoId) return;
+    // Auto-pick off: choose a source first (resuming keeps the file you were on).
+    if (!stream && !autoPick && !resumeAt) return setSourcesOpen(true);
+    navigate({ name: "player", type: item.type, metaId: item.id, videoId, stream: stream?.stream });
+  };
 
-  const play = (stream?: RankedStream) =>
-    videoId && navigate({ name: "player", type: item.type, metaId: item.id, videoId, stream: stream?.stream });
-
-  const primaryLabel = (() => {
-    if (!isSeries) return resumeAt ? `Resume · ${formatTime(resumeAt)}` : "Play";
-    if (!next?.video) return "Play";
-    const code = `S${next.video.season}, E${next.video.episode}`;
-    if (next.kind === "resume") return `Resume ${code}`;
-    if (next.kind === "next") return `Play ${code}`;
-    return next.video.season === 1 && next.video.episode === 1 ? "Play First Episode" : `Play ${code}`;
-  })();
-
-  const kind = [isSeries ? "TV Show" : "Movie", ...(item.genres ?? []).slice(0, 2)].join(" · ");
-  const facts = [item.releaseInfo, meta?.runtime?.replace(/(\d+) min/, (_, m) => formatRuntime(Number(m)))].filter(Boolean);
+  const facts = [item.releaseInfo, formatRuntime(meta?.runtime)].filter(Boolean);
 
   return (
     <section className="detail-hero">
       <div className="detail-hero-main">
         {item.logo ? (
-          <Img src={item.logo} alt={item.name} className="detail-logo" loading="eager" />
+          <TitleLogo src={item.logo} alt={item.name} className="detail-logo" loading="eager" />
         ) : (
           <h1 className="t-display detail-title">{item.name}</h1>
         )}
-        <p className="detail-kind t-callout">{kind}</p>
         {item.description && <p className="detail-description t-callout">{item.description}</p>}
         <p className="detail-facts t-callout tabular">
-          {item.imdbRating && <RatingRing value={item.imdbRating} />}
+          {item.imdbRating && <RatingRing value={item.imdbRating} imdbId={item.id} />}
+          <ScoreChips type={item.type} id={item.id} />
           {facts.join(" · ")}
-          {best?.resolution === 2160 && <span className="badge-solid">4K</span>}
-          {best?.dolbyVision ? (
-            <span className="badge-wordmark">Dolby Vision</span>
-          ) : best?.hdr ? (
-            <span className="badge-outline">HDR</span>
-          ) : null}
-          {best?.cached && <span className="badge-outline">Instant</span>}
         </p>
 
         <div className="detail-actions">
@@ -115,18 +171,25 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
             onClick={() => play()}
             onPointerEnter={() => videoId && prefetchStreams(item.type, videoId)}
           >
-            {resumeAt ? <RotateCcw size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
+            {resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
             {primaryLabel}
           </button>
+          {(meta?.trailerYtId || fileTrailer) && (
+            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer({ name: item.name, imdbId: item.id, ytId: meta?.trailerYtId })}>
+              <Trailer size={18} />
+              Trailer
+            </button>
+          )}
           <button
             className="btn btn-glass btn-icon"
             onClick={() => toggle.mutate(item)}
             aria-label={inLibrary ? "Remove from Library" : "Add to Library"}
-            title={inLibrary ? "In Library" : "Add to Library"}
+            title={inLibrary ? "Remove from Library" : "Add to Library"}
             aria-pressed={inLibrary}
           >
-            {inLibrary ? <Check size={20} /> : <Plus size={20} />}
+            <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
           </button>
+          <PlaylistButton item={item} />
           <button
             className="btn btn-glass btn-icon"
             disabled={!videoId}
@@ -134,8 +197,19 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
             aria-label="Choose source"
             title="Choose source"
           >
-            <ListVideo size={19} />
+            <Sources size={19} />
           </button>
+          {item.type === "movie" && <DownloadButton item={item} />}
+          {trailer.visible && (
+            <button
+              className="btn btn-glass btn-icon detail-mute"
+              onClick={trailer.toggleMute}
+              aria-label={trailer.muted ? "Turn trailer sound on" : "Mute trailer"}
+              title={trailer.muted ? "Sound on" : "Mute"}
+            >
+              {trailer.muted ? <VolumeMuted size={20} /> : <Volume size={20} />}
+            </button>
+          )}
         </div>
       </div>
 
@@ -177,21 +251,38 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
   );
 }
 
-function formatRuntime(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return h ? `${h} hr ${m} min` : `${m} min`;
+/** Up to this many seasons show as tabs; more become a dropdown. */
+const MAX_SEASON_TABS = 6;
+
+/** A show below the fold: its episodes, then everything else about it, as a movie's About. */
+function SeriesBody({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => void }) {
+  return (
+    <>
+      <Seasons meta={meta} onSheet={onSheet} />
+      <section className="about about-series">
+        <h2 className="t-title2">About</h2>
+        <TitleDetails meta={meta} />
+      </section>
+    </>
+  );
 }
 
-function Seasons({ meta }: { meta: Meta }) {
+function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => void }) {
   const { navigate } = useRouter();
   const { data: progress } = useProgress(meta.id);
   const seasons = useMemo(() => seasonsOf(meta), [meta]);
   const next = useMemo(() => upNext(meta, progress ?? []), [meta, progress]);
   const [season, setSeason] = useState<number | undefined>();
+  // This page's choice; until you pick one, the default from Settings.
+  const [layoutChoice, setLayout] = useState<EpisodeLayout | undefined>();
   // Kept after closing so the sheet keeps its content while it slides out.
   const [sourcesFor, setSourcesFor] = useState<Video | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  useEffect(() => {
+    if (!sheetOpen) return;
+    onSheet(true);
+    return () => onSheet(false);
+  }, [sheetOpen, onSheet]);
 
   // Open on the season you're actually in, not always season 1 — so wait
   // for watch progress before choosing.
@@ -203,21 +294,54 @@ function Seasons({ meta }: { meta: Meta }) {
   const episodes = meta.videos.filter((v) => v.season === current);
   const map = useMemo(() => progressMap(progress), [progress]);
 
-  const play = (v: Video, stream?: RankedStream) =>
+  const { data: settings } = useSettings();
+  const autoPick = settings?.autoPickSource ?? true;
+  const layout = layoutChoice ?? settings?.episodeLayout ?? "row";
+  const play = (v: Video, stream?: RankedStream) => {
+    // Auto-pick off: choose a source first (a started episode keeps its file).
+    if (!stream && !autoPick && !map.has(v.id)) {
+      setSourcesFor(v);
+      return setSheetOpen(true);
+    }
     navigate({ name: "player", type: "series", metaId: meta.id, videoId: v.id, stream: stream?.stream });
+  };
 
   return (
     <section className="seasons">
       <div className="seasons-bar">
+        <div className="seasons-picker">
+          {seasons.length > MAX_SEASON_TABS ? (
+            // Long-running shows: tabs would scroll off-screen and hide most seasons.
+            <Dropdown
+              label="Season"
+              size="large"
+              value={String(current)}
+              onChange={(v) => setSeason(Number(v))}
+              options={seasons.map((s) => ({ value: String(s), label: seasonLabel(s) }))}
+            />
+          ) : (
+            <Segmented
+              label="Season"
+              variant="large"
+              value={current}
+              onChange={setSeason}
+              options={seasons.map((s) => ({ id: s, label: seasonLabel(s) }))}
+            />
+          )}
+        </div>
         <Segmented
-          label="Season"
-          variant="large"
-          value={current}
-          onChange={setSeason}
-          options={seasons.map((s) => ({ id: s, label: s === 0 ? "Specials" : `Season ${s}` }))}
+          label="Episode layout"
+          value={layout}
+          onChange={setLayout}
+          options={[
+            { id: "row", label: "Row", icon: <LayoutRow size={18} /> },
+            { id: "list", label: "List", icon: <LayoutList size={18} /> },
+          ]}
         />
       </div>
       <EpisodeShelf
+        item={meta}
+        layout={layout}
         episodes={episodes}
         progress={map}
         runtime={meta.runtime}
@@ -227,6 +351,7 @@ function Seasons({ meta }: { meta: Meta }) {
           setSourcesFor(v);
           setSheetOpen(true);
         }}
+        menu={(v) => cardMenu(meta, episodeEntry(meta, v, map.get(v.id)), { episode: true })}
       />
       <Sheet
         open={sheetOpen}
@@ -249,53 +374,3 @@ function Seasons({ meta }: { meta: Meta }) {
   );
 }
 
-/** Movies: the Apple TV "About" + information block below the hero. */
-function About({ meta }: { meta: Meta }) {
-  const info: [string, string | undefined][] = [
-    ["Genre", meta.genres?.join(", ")],
-    ["Released", meta.releaseInfo],
-    ["Runtime", meta.runtime],
-    ["Rating", meta.imdbRating && `★ ${meta.imdbRating}`],
-    ["Director", meta.director?.join(", ")],
-  ];
-  return (
-    <section className="about">
-      <h2 className="t-title2">About</h2>
-      <div className="about-grid">
-        <div className="about-card">
-          <span className="t-headline">{meta.name}</span>
-          <p className="t-callout muted">{meta.description}</p>
-        </div>
-        <dl className="about-info t-callout">
-          {info
-            .filter(([, v]) => v)
-            .map(([k, v]) => (
-              <div key={k}>
-                <dt className="faint">{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-        </dl>
-        {meta.cast?.length ? (
-          <div className="about-cast">
-            <span className="t-headline">Cast</span>
-            <ul className="cast-list">
-              {meta.cast.slice(0, 12).map((name) => (
-                <li key={name} className="cast-chip t-callout">
-                  <span className="cast-avatar" aria-hidden>
-                    {name
-                      .split(" ")
-                      .map((p) => p[0])
-                      .slice(0, 2)
-                      .join("")}
-                  </span>
-                  {name}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
-}

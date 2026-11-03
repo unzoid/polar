@@ -1,6 +1,7 @@
 import { QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
-import type { ContentType, MetaPreview, Progress } from "./types";
+import { sync } from "./account/sync";
+import type { ContentType, MetaPreview, Progress, Settings } from "./types";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,22 +15,28 @@ export const queryClient = new QueryClient({
 });
 
 export const keys = {
-  catalog: (type: ContentType, id: string) => ["catalog", type, id] as const,
+  catalog: (type: ContentType, id: string, genre = "") => ["catalog", type, id, genre] as const,
   meta: (type: ContentType, id: string) => ["meta", type, id] as const,
   streams: (type: ContentType, videoId: string) => ["streams", type, videoId] as const,
   progress: (metaId: string) => ["progress", metaId] as const,
   continue: ["continue"] as const,
+  history: ["history"] as const,
   library: ["library"] as const,
   addons: ["addons"] as const,
   settings: ["settings"] as const,
   search: (q: string) => ["search", q] as const,
+  recommend: (type: ContentType, id: string) => ["recommend", type, id] as const,
 };
 
-export const useCatalog = (type: ContentType, id: string) =>
-  useQuery({ queryKey: keys.catalog(type, id), queryFn: () => api.catalog(type, id) });
+/** `enabled` lets off-screen shelves wait until they're about to be seen. */
+export const useCatalog = (type: ContentType, id: string, genre?: string, enabled = true) =>
+  useQuery({ queryKey: keys.catalog(type, id, genre), queryFn: () => api.catalog(type, id, 0, genre), enabled });
 
-export const useMeta = (type: ContentType, id: string) =>
-  useQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000 });
+export const useRecommend = (type: ContentType, id: string, enabled = true) =>
+  useQuery({ queryKey: keys.recommend(type, id), queryFn: () => api.recommend(type, id), enabled, staleTime: 60 * 60_000 });
+
+export const useMeta = (type: ContentType, id: string, enabled = true) =>
+  useQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000, enabled });
 
 export const useStreams = (type: ContentType, videoId: string | undefined) =>
   useQuery({
@@ -39,11 +46,26 @@ export const useStreams = (type: ContentType, videoId: string | undefined) =>
     staleTime: 10 * 60_000,
   });
 
+/** Scores from the ratings services, once a key is set (re-asks when one is). */
+export function useRatings(type: ContentType, id: string) {
+  const { data: settings } = useSettings();
+  const keyed = !!(settings?.mdblistKey?.trim() || settings?.omdbKey?.trim());
+  return useQuery({
+    queryKey: ["ratings", type, id, settings?.mdblistKey ?? "", settings?.omdbKey ?? ""],
+    queryFn: () => api.ratings(type, id),
+    enabled: keyed && id.startsWith("tt"),
+    staleTime: 6 * 60 * 60_000,
+  });
+}
+
 export const useProgress = (metaId: string) =>
   useQuery({ queryKey: keys.progress(metaId), queryFn: () => api.progressFor(metaId), staleTime: 0 });
 
 export const useContinueWatching = () =>
   useQuery({ queryKey: keys.continue, queryFn: api.continueWatching, staleTime: 0 });
+
+export const useWatchHistory = () =>
+  useQuery({ queryKey: keys.history, queryFn: api.watchHistory, staleTime: 0 });
 
 export const useLibrary = () => useQuery({ queryKey: keys.library, queryFn: api.library, staleTime: 0 });
 
@@ -63,7 +85,10 @@ export function useToggleLibrary() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (item: MetaPreview) => api.toggleLibrary(item),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.library }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.library });
+      sync.schedule();
+    },
   });
 }
 
@@ -74,6 +99,8 @@ export function useSaveProgress() {
     onSuccess: (_, p) => {
       qc.invalidateQueries({ queryKey: keys.progress(p.metaId) });
       qc.invalidateQueries({ queryKey: keys.continue });
+      qc.invalidateQueries({ queryKey: keys.history });
+      sync.schedule();
     },
   });
 }
@@ -103,4 +130,27 @@ export function preloadImage(src?: string) {
   const img = new Image();
   img.decoding = "async";
   img.src = src;
+}
+
+/**
+ * Change settings and save them right away (optimistic: the UI reflects the
+ * change at once, and rolls back if saving fails). For toggles and pickers;
+ * text fields that need an explicit Save use the form in Settings instead.
+ */
+export function useUpdateSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: Partial<Settings>) => {
+      const current = qc.getQueryData<Settings>(keys.settings) ?? (await api.settings());
+      return api.saveSettings({ ...current, ...patch });
+    },
+    onMutate: async (patch) => {
+      await qc.cancelQueries({ queryKey: keys.settings });
+      const previous = qc.getQueryData<Settings>(keys.settings);
+      if (previous) qc.setQueryData(keys.settings, { ...previous, ...patch });
+      return { previous };
+    },
+    onError: (_e, _p, ctx) => ctx?.previous && qc.setQueryData(keys.settings, ctx.previous),
+    onSuccess: (saved) => qc.setQueryData(keys.settings, saved),
+  });
 }

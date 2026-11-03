@@ -1,8 +1,10 @@
-import { useLayoutEffect, useRef } from "react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 
 interface Option<T extends string | number> {
   id: T;
   label: string;
+  /** Shown instead of the label, which becomes the accessible name and tooltip. */
+  icon?: ReactNode;
 }
 
 /**
@@ -73,14 +75,16 @@ export function Segmented<T extends string | number>({
           className="segmented-item t-callout"
           onPointerDown={() => select(o.id)} // respond on press
           onClick={(e) => select(o.id, e.detail === 0)} // detail 0 = keyboard activation
+          aria-label={o.icon ? o.label : undefined}
+          title={o.icon ? o.label : undefined}
         >
-          {o.label}
+          {o.icon ?? o.label}
         </button>
       ))}
       <div className="segmented-active" ref={active} aria-hidden>
         {options.map((o) => (
           <span key={o.id} className="segmented-item t-callout">
-            {o.label}
+            {o.icon ?? o.label}
           </span>
         ))}
       </div>
