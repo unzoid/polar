@@ -44,17 +44,12 @@ jobs:
       - run: bun scripts/fetch-mpv.ts
       - run: cargo test --workspace --locked
       - run: cargo build -p polar-index --features server --locked
-      # Advisory until the existing code is clippy-clean; then drop
-      # continue-on-error so new warnings fail the build.
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
-        continue-on-error: true
 
   fmt:
     name: Rust formatting
     runs-on: ubuntu-latest
-    # Advisory until `cargo fmt --all` has been run once over the codebase.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
