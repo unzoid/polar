@@ -13,7 +13,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# macos-private-api: a transparent window on macOS (mpv draws under the page); no-op elsewhere.
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
 polar-addon.workspace = true
 polar-index.workspace = true

@@ -21,6 +21,8 @@ interface Target {
   entry?: Progress;
   /** Opened on an episode of the show's own page, not a Continue Watching card. */
   episode?: boolean;
+  /** Where "Go to Show" leads, when not the title's own page (an anime's AniList page). */
+  open?: () => void;
   x: number;
   y: number;
   key: number;
@@ -34,20 +36,29 @@ const set = (next: Target | null) => {
   listeners.forEach((l) => l());
 };
 
+/** Where a context-menu event points; from the keyboard (Menu key, Shift+F10) there's no pointer, so at the card. */
+export function menuPoint(e: ReactMouseEvent<HTMLElement>) {
+  let { clientX: x, clientY: y } = e;
+  if (!x && !y) {
+    const r = e.currentTarget.getBoundingClientRect();
+    x = r.left + Math.min(32, r.width / 2);
+    y = r.top + Math.min(32, r.height / 2);
+  }
+  return { x, y };
+}
+
+/** Opens the menu for `item` at `at`, for cards that work out their title first. */
+export function openCardMenu(item: MetaPreview, at: { x: number; y: number }, open?: () => void) {
+  set({ item, open, ...at, key: ++opened });
+}
+
 /** Spread on a card: `<button {...cardMenu(item)}>`. */
 export function cardMenu(item: MetaPreview, entry?: Progress, { episode = false } = {}) {
   return {
     onContextMenu: (e: ReactMouseEvent<HTMLElement>) => {
       e.preventDefault();
       e.stopPropagation();
-      // From the keyboard (Menu key, Shift+F10) there's no pointer: open at the card.
-      let { clientX: x, clientY: y } = e;
-      if (!x && !y) {
-        const r = e.currentTarget.getBoundingClientRect();
-        x = r.left + Math.min(32, r.width / 2);
-        y = r.top + Math.min(32, r.height / 2);
-      }
-      set({ item, entry, episode, x, y, key: ++opened });
+      set({ item, entry, episode, ...menuPoint(e), key: ++opened });
     },
   };
 }
@@ -65,7 +76,7 @@ export function CardMenuHost() {
 }
 
 function OpenMenu({ target }: { target: Target }) {
-  const { item, entry, episode, x, y } = target;
+  const { item, entry, episode, open, x, y } = target;
   const { navigate } = useRouter();
   const a = useTitleActions(item, entry);
   const playlists = usePlaylists();
@@ -98,9 +109,11 @@ function OpenMenu({ target }: { target: Target }) {
             <Item
               icon={<Info />}
               label={a.isSeries ? "Go to Show" : "Go to Movie"}
-              onClick={() => navigate({ name: "detail", type: item.type, id: item.id, preview: item })}
+              onClick={open ?? (() => navigate({ name: "detail", type: item.type, id: item.id, preview: item }))}
             />
-            {a.trailerYtId && <Item icon={<Trailer />} label="Play Trailer" onClick={() => openTrailer(a.trailerYtId!, item.name)} />}
+            {(a.trailerYtId || item.id.startsWith("tt")) && (
+              <Item icon={<Trailer />} label="Play Trailer" onClick={() => openTrailer({ name: item.name, imdbId: item.id, ytId: a.trailerYtId })} />
+            )}
 
             <Menu.Separator className="ctx-menu-sep" />
             {a.episodeUnwatched && <Item icon={<Watched />} label={`Mark ${a.episodeLabel} as Watched`} onClick={a.markEpisodeWatched} />}

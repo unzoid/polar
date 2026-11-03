@@ -23,7 +23,31 @@ import { episodeCode, formatRuntime, seasonLabel } from "../lib/format";
 import { usePlayTarget } from "../lib/playTarget";
 import { prefetchStreams, useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
 import { useRouter } from "../lib/router";
+import { useQuery } from "@tanstack/react-query";
+import { fetchAniZip } from "../lib/anime/anizip";
+import { usePrefs } from "../lib/prefs";
+import { useFileTrailer } from "../lib/trailers";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
+
+/**
+ * An anime reached by its IMDb id (Search, Library, Continue Watching) opens
+ * on its AniList page instead, so the same show always looks the same.
+ */
+function useAnimeRedirect(id: string, genres: string[] | undefined) {
+  const { animeEnabled } = usePrefs();
+  const { replace } = useRouter();
+  const animated = !!genres?.some((g) => /^anim(e|ation)$/i.test(g));
+  const { data: zip } = useQuery({
+    queryKey: ["anizip", "imdb", id],
+    queryFn: () => fetchAniZip({ imdb_id: id }),
+    enabled: animeEnabled && animated && id.startsWith("tt"),
+    staleTime: Infinity,
+  });
+  const anilist = zip?.mappings.anilist_id;
+  useEffect(() => {
+    if (anilist) replace({ name: "anime-detail", id: anilist });
+  }, [anilist, replace]);
+}
 
 /**
  * Title page in the Apple TV layout: the art fills the window, the title
@@ -35,6 +59,7 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   const { data: meta, isError, error } = useMeta(type, id);
   // Render instantly from the catalog preview; fill in when full meta arrives.
   const shown: MetaPreview | undefined = meta ?? preview;
+  useAnimeRedirect(id, shown?.genres);
 
   // The trailer behind the page: only while it's the page on top, and paused
   // once you've scrolled down to read or a sheet or the big trailer is open.
@@ -44,7 +69,7 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   const [sheets, setSheets] = useState(0);
   const onSheet = useCallback((open: boolean) => setSheets((n) => Math.max(0, n + (open ? 1 : -1))), []);
   const bigTrailer = !!useTrailerOpen();
-  const trailer = useBackdropTrailer(meta?.trailerYtId, {
+  const trailer = useBackdropTrailer(id, meta?.trailerYtId, {
     active: onTop,
     paused: scrolledAway || sheets > 0 || bigTrailer,
   });
@@ -107,6 +132,7 @@ function DetailHero({
   const isSeries = item.type === "series";
   const inLibrary = library?.some((l) => l.id === item.id);
   const { next, videoId, resumeAt, label: primaryLabel } = usePlayTarget(item, meta);
+  const { data: fileTrailer } = useFileTrailer(item.id);
 
   // Sources for the primary action load as soon as the page opens, so Play
   // (or the source list) is ready by the time the user reaches for it.
@@ -148,8 +174,8 @@ function DetailHero({
             {resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
             {primaryLabel}
           </button>
-          {meta?.trailerYtId && (
-            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer(meta.trailerYtId!, item.name)}>
+          {(meta?.trailerYtId || fileTrailer) && (
+            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer({ name: item.name, imdbId: item.id, ytId: meta?.trailerYtId })}>
               <Trailer size={18} />
               Trailer
             </button>

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { prefetchMeta, preloadImage } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { MetaPreview, Progress } from "../lib/types";
@@ -31,12 +31,14 @@ function useOpen(item: MetaPreview) {
 export function PosterCard({ item, progress, entry }: { item: MetaPreview; progress?: number; entry?: Progress }) {
   const open = useOpen(item);
   const intent = useIntent(item);
+  // A poster link that doesn't load leaves the name instead of an empty frame.
+  const [broken, setBroken] = useState(false);
 
   return (
     <button className="card card-poster" onClick={open} {...intent} {...cardMenu(item, entry)}>
       <div className="card-frame">
-        <Img src={item.poster} alt="" className="card-img" />
-        {!item.poster && <span className="card-fallback t-headline">{item.name}</span>}
+        {!broken && <Img src={item.poster} alt="" className="card-img" onError={() => setBroken(true)} />}
+        {(!item.poster || broken) && <span className="card-fallback t-headline">{item.name}</span>}
         {progress != null && <ProgressBar fraction={progress} />}
         <CardRating rating={item.imdbRating} placement="poster" />
       </div>

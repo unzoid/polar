@@ -1,8 +1,11 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isMac } from "../lib/platform";
 
 const win = getCurrentWindow();
 
+/** Minimise / maximise / close for Windows' frameless window; macOS has its own traffic lights. */
 export function WindowControls() {
+  if (isMac) return null;
   return (
     <div className="window-controls">
       <button aria-label="Minimize" onClick={() => win.minimize()}>

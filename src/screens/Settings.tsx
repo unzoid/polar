@@ -44,6 +44,7 @@ import { resetPrefs, setPrefs, usePrefs } from "../lib/prefs";
 import { clearRecentSearches } from "../lib/recentSearches";
 import { playSound, SOUND_PACKS } from "../tv/sounds";
 import { setTvMode } from "../tv/tvMode";
+import { isMac } from "../lib/platform";
 import { useControllerDetected, useGamepadConnected, useLastPadPress } from "../tv/gamepad";
 import {
   NAV_ACTIONS,
@@ -913,7 +914,7 @@ function AppearancePage() {
             value={data.reduceMotion ?? "system"}
             onChange={(v) => set({ reduceMotion: v })}
             options={[
-              { value: "system", label: "Match Windows" },
+              { value: "system", label: isMac ? "Match macOS" : "Match Windows" },
               { value: "on", label: "On" },
               { value: "off", label: "Off" },
             ]}
@@ -1037,6 +1038,12 @@ function BrowsingPage() {
         />
       </Card>
       <Card title="Search">
+        <ToggleRow
+          title="Suggest genres"
+          caption="A few genres under the search field before you type"
+          checked={prefs.searchSuggestions}
+          onChange={(v) => setPrefs({ searchSuggestions: v })}
+        />
         <ToggleRow
           title="Remember recent searches"
           checked={prefs.saveRecentSearches}
@@ -1190,10 +1197,10 @@ function AnimePage() {
       </Card>
       <Card title="Episodes" footer="Blurring unwatched pictures and hiding their descriptions are under Browsing → Spoilers, and apply here too.">
         <ToggleRow
-          title="Hide filler episodes"
-          caption="Leave episodes MyAnimeList marks as filler out of the list"
-          checked={prefs.animeHideFiller}
-          onChange={(v) => setPrefs({ animeHideFiller: v })}
+          title="Skip filler episodes"
+          caption="Next Episode and autoplay pass over episodes marked as filler. They stay in the list, marked Filler"
+          checked={prefs.animeSkipFiller}
+          onChange={(v) => setPrefs({ animeSkipFiller: v })}
         />
         <ToggleRow
           title="Hide recap episodes"
@@ -1299,13 +1306,13 @@ function AboutPage() {
       case "current":
         return "You're on the latest version";
       case "available":
-        return `Polar ${s.version} is available`;
+        return `Polarity ${s.version} is available`;
       case "downloading":
-        return `Downloading Polar ${s.version}${s.progress == null ? "…" : ` · ${Math.round(s.progress * 100)}%`}`;
+        return `Downloading Polarity ${s.version}${s.progress == null ? "…" : ` · ${Math.round(s.progress * 100)}%`}`;
       case "ready":
-        return `Polar ${s.version} is downloaded. Restart to finish.`;
+        return `Polarity ${s.version} is downloaded. Restart to finish.`;
       case "installing":
-        return `Installing Polar ${s.version}…`;
+        return `Installing Polarity ${s.version}…`;
       case "error":
         return s.message;
       default:
@@ -1315,12 +1322,12 @@ function AboutPage() {
 
   return (
     <>
-      <Card title="Polar" footer="Updates are signed and come straight from Polar's GitHub releases. Your library, settings and profiles are kept.">
+      <Card title="Polarity" footer="Updates are signed and come straight from Polarity's GitHub releases. Your library, settings and profiles are kept.">
         <PickRow title="Version" caption={status}>
           <span className="settings-row-value settings-version">{version ?? "…"}</span>
         </PickRow>
         <div className="settings-row">
-          <RowText title="Software update" caption={s.phase === "ready" ? "Takes a few seconds; Polar reopens by itself" : undefined} />
+          <RowText title="Software update" caption={s.phase === "ready" ? "Takes a few seconds; Polarity reopens by itself" : undefined} />
           <div className="settings-expand-actions">
             {s.phase === "available" ? (
               <button className="btn btn-primary" onClick={() => void downloadUpdate()}>
@@ -1605,6 +1612,8 @@ function ControllerPage() {
 
 // --- Add-ons ---------------------------------------------------------------
 
+const hintsTried = new Set<string>();
+
 function AddonsPage() {
   const qc = useQueryClient();
   const { data: addons } = useAddons();
@@ -1624,6 +1633,16 @@ function AddonsPage() {
   });
   const remove = useMutation({ mutationFn: api.removeAddon, onSuccess: refresh });
 
+  // Manifests saved before behaviour hints were kept: refetch them once so
+  // the Configure button can show.
+  useEffect(() => {
+    const stale = addons?.filter((a) => a.manifest.behaviorHints == null && !hintsTried.has(a.manifestUrl)) ?? [];
+    if (!stale.length) return;
+    for (const a of stale) hintsTried.add(a.manifestUrl);
+    void Promise.allSettled(stale.map((a) => api.installAddon(a.manifestUrl))).then(refresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addons]);
+
   return (
     <>
       {!!addons?.length && (
@@ -1633,6 +1652,15 @@ function AddonsPage() {
               {a.manifest.description && <p className="settings-expand-text">{a.manifest.description}</p>}
               <p className="settings-expand-text settings-url">{a.manifestUrl}</p>
               <div className="settings-expand-actions">
+                {a.manifest.behaviorHints?.configurable && (
+                  <button
+                    className="btn"
+                    onClick={() => void api.openExternal(a.manifestUrl.replace(/\/manifest\.json$/, "/configure"))}
+                    title="Opens the addon's settings page. Install the new link it gives you to apply them."
+                  >
+                    <Cog size={15} /> Configure
+                  </button>
+                )}
                 <button className="btn btn-danger" onClick={() => remove.mutate(a.manifest.id)} disabled={remove.isPending}>
                   <Trash size={15} /> Remove
                 </button>

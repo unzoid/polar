@@ -2,6 +2,9 @@ mod commands;
 mod controllers;
 mod downloads;
 mod player;
+mod fillers;
+mod streamcheck;
+mod trailers;
 mod introdb;
 mod ratings;
 mod seekr;
@@ -141,6 +144,8 @@ pub fn run() {
             commands::settings_set,
             commands::settings_reset,
             commands::open_external,
+            commands::anime_filler,
+            commands::trailer,
             downloads::downloads_list,
             downloads::download_start,
             downloads::download_pause,

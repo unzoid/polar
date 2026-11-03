@@ -32,9 +32,37 @@
 .anime-unreachable {
   padding-top: calc(var(--nav-h) + 3rem);
 }
-.anime-row-links {
-  display: inline-flex;
-  gap: 1.25rem;
+/* Under the carousel: Schedule and Browse, then a way in by genre or kind of show. */
+.anime-nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  padding: 0.25rem var(--content-start);
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, #000 calc(100% - 4rem), transparent);
+}
+.anime-nav::-webkit-scrollbar {
+  display: none;
+}
+.anime[data-hero="false"] .anime-nav {
+  padding-top: calc(var(--nav-h) + 1.5rem);
+}
+.anime[data-hero="false"] .anime-nav + .home-rows {
+  padding-top: 0;
+}
+.anime-nav-main {
+  color: var(--text);
+}
+.anime-nav-sep {
+  flex: none;
+  width: 1px;
+  height: 1.5rem;
+  margin: 0 0.5rem;
+  background: var(--hairline-strong);
 }
 .anime-row-link {
   display: inline-flex;
@@ -494,11 +522,22 @@
 .anime-related {
   padding-bottom: 3rem;
 }
+/* Side by side, each as wide as its cards: a one-title Watch Order doesn't
+   hold half the page open. The longer list gives way (and scrolls) first. */
 .anime-franchise-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr));
-  gap: 1.75rem;
+  display: flex;
+  gap: 3rem;
   padding: 0 var(--gutter) 0 var(--content-start);
+}
+/* Never squeezed below two cards (or its one). */
+.anime-franchise-col {
+  flex: 0 1 auto;
+  min-width: calc(var(--cards) * var(--poster-w) + (var(--cards) - 1) * 0.875rem);
+}
+@media (max-width: 900px) {
+  .anime-franchise-grid {
+    flex-direction: column;
+  }
 }
 .anime-franchise-grid .row-header {
   padding: 0;
@@ -516,4 +555,13 @@
   .anime-slot-when {
     display: none;
   }
+}
+
+/* Long shows: find an episode, and the capped list's way to the rest. */
+.anime-episode-search {
+  width: 12rem;
+}
+.anime-show-all {
+  display: flex;
+  margin: 1.25rem auto 0;
 }

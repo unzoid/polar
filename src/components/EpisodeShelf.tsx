@@ -148,17 +148,17 @@ function EpisodeCard({
             </span>
           )}
           {inProgress && <ProgressBar fraction={fraction} />}
+          {/* Filler / Recap: on the art, so it's the first thing you see when deciding to skip. */}
+          {v.tag && <span className="episode-tag t-micro">{v.tag}</span>}
         </div>
         {layout === "list" && <span className="episode-number tabular">{v.episode}</span>}
         <div className="episode-card-text">
           {layout === "list" ? (
             // The number column already says which episode it is.
-            (upNext && released) || v.tag ? (
-              <span className="t-micro episode-kicker">{[upNext && released && "Up Next", v.tag].filter(Boolean).join(" · ")}</span>
-            ) : null
+            upNext && released ? <span className="t-micro episode-kicker">Up Next</span> : null
           ) : (
             <span className="t-micro episode-kicker">
-              {[upNext && released ? `Up Next · Episode ${v.episode}` : `Episode ${v.episode}`, v.tag].filter(Boolean).join(" · ")}
+              {upNext && released ? `Up Next · Episode ${v.episode}` : `Episode ${v.episode}`}
             </span>
           )}
           <span className="t-headline episode-card-title">{v.title}</span>

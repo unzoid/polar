@@ -38,6 +38,7 @@ import {
   SubtitlePreview,
   SubtitleSettings,
   applySubtitleStyleToMpv,
+  forgetAssOverride,
   subtitleCueVars,
 } from "../components/player/SubtitleSettings";
 import { MpvMedia, type MediaLike } from "../components/player/mpvMedia";
@@ -49,7 +50,9 @@ import { nextVideo, progressMap, seasonsOf } from "../lib/episodes";
 import { episodeCode, formatDate, formatRemaining, formatTime, isReleased, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
 import { useRouter } from "../lib/router";
-import type { ContentType, Progress, Stream } from "../lib/types";
+import type { ContentType, Progress, Stream, Video } from "../lib/types";
+import { isFiller } from "../lib/anime/filler";
+import { isMac } from "../lib/platform";
 import { watchedFraction } from "../lib/watched";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
@@ -149,9 +152,19 @@ export function Player({
     if (engine !== "mpv") return;
     applySubtitleStyleToMpv(mpv, subStyle, subDelay);
     // mpv may (re)start with the file; apply again once it's loaded.
-    const onLoaded = () => applySubtitleStyleToMpv(mpv, subStyle, subDelay);
+    const onTracks = () => applySubtitleStyleToMpv(mpv, subStyle, subDelay);
+    const onLoaded = () => {
+      forgetAssOverride(mpv);
+      onTracks();
+    };
     mpv.addEventListener("loadedmetadata", onLoaded);
-    return () => mpv.removeEventListener("loadedmetadata", onLoaded);
+    // The track list (and which subtitle is on) arrives after the file opens:
+    // an ASS track is only known to need its styling overridden once it's in.
+    mpv.addEventListener("tracks", onTracks);
+    return () => {
+      mpv.removeEventListener("loadedmetadata", onLoaded);
+      mpv.removeEventListener("tracks", onTracks);
+    };
   }, [engine, mpv, subStyle, subDelay, tracks.subId]); // ASS tracks are restyled differently from plain text
 
   // Optional seek-bar thumbnails (Seekr). Keyed to whole seconds of duration:
@@ -202,7 +215,17 @@ export function Player({
 
   // --- Current / next episode ---------------------------------------------
   const current = meta?.videos.find((v) => v.id === videoId);
-  const next = meta && type === "series" ? nextVideo(meta, videoId) : undefined;
+  const { animeSkipFiller } = usePrefs();
+  // With "Skip filler" on, the next episode that isn't filler; `skipped` says how many were passed over.
+  const { next, skipped } = useMemo(() => {
+    let n = meta && type === "series" ? nextVideo(meta, videoId) : undefined;
+    const skipped: Video[] = [];
+    while (n && animeSkipFiller && isFiller(n.id) && meta) {
+      skipped.push(n);
+      n = nextVideo(meta, n.id);
+    }
+    return { next: n, skipped };
+  }, [meta, type, videoId, animeSkipFiller]);
   const title = meta?.name ?? "";
   const heading = current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
 
@@ -395,7 +418,9 @@ export function Player({
         setError(
           v instanceof MpvMedia
             ? (v.error?.message ?? "This file couldn't be played.")
-            : "This file's format needs mpv. Install mpv and Polar will play it.",
+            : isMac
+              ? "This file's format needs mpv. Install it (brew install mpv) and Polarity will play it."
+              : "This file's format needs mpv. Install mpv and Polarity will play it.",
         );
       }
     },
@@ -886,6 +911,11 @@ export function Player({
               <span className="next-up-kicker">
                 {ended && stillWatching ? "Are you still watching?" : `Up Next · ${episodeCode(next.season, next.episode)}`}
               </span>
+              {skipped.length > 0 && !(ended && stillWatching) && (
+                <span className="next-up-skipping">
+                  Skipping filler: {skipped.length === 1 ? `episode ${skipped[0].episode}` : `episodes ${skipped[0].episode}–${skipped[skipped.length - 1].episode}`}
+                </span>
+              )}
               <span className="next-up-title">{next.title}</span>
               <div className="next-up-actions">
                 <button

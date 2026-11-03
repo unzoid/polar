@@ -688,8 +688,9 @@ button.shortcut-combo:hover {
   width: 140%;
   height: 140%;
   object-fit: cover;
-  filter: blur(36px) saturate(160%) brightness(0.55);
-  opacity: 0.85;
+  /* A hint of the titles inside, not a wash of colour. */
+  filter: blur(40px) saturate(120%) brightness(0.5);
+  opacity: 0.45;
 }
 @media (hover: hover) and (pointer: fine) {
   .library-tile:hover {
@@ -1558,4 +1559,9 @@ button.shortcut-combo:hover {
   .settings .btn-primary:not(:disabled):hover {
     background: color-mix(in oklab, var(--accent) 24%, transparent);
   }
+}
+
+/* Right under the header's line, not a screen's height away. */
+.calendar-empty {
+  padding-top: 0;
 }

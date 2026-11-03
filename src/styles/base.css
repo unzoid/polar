@@ -536,3 +536,57 @@ img[data-logo-tone="dark"] {
   flex: none;
   opacity: 0.85;
 }
+
+/* The page's small pills (the cast's Show button, AnimeDetail): a genre to
+   browse by, Anime's nav strip, the search suggestions. */
+.genre-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 32px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.04);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.genre-chip[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--text-on-light);
+}
+@media (hover: hover) and (pointer: fine) {
+  .genre-chip:not([aria-pressed="true"]):hover {
+    background: rgb(255 255 255 / 0.1);
+    color: var(--text);
+  }
+}
+/* A search field in the same pill (AnimeDetail's episode search). */
+.pill-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 32px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.04);
+  color: var(--text-3);
+  cursor: text;
+}
+.pill-search:focus-within {
+  border-color: var(--hairline-strong);
+}
+.pill-search input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  font-size: 0.8125rem;
+}

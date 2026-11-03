@@ -18,6 +18,8 @@ const FILES = ["mpv.exe", "d3dcompiler_43.dll"];
 const out = join(import.meta.dir, "..", "src-tauri", "vendor", "mpv");
 const wanted = [...FILES, "LICENSE.GPL.txt", "COPYRIGHT.txt"];
 if (wanted.every((f) => existsSync(join(out, f)))) process.exit(0);
+// Only the Windows build ships mpv; on macOS the app uses an installed one (brew install mpv).
+if (process.platform !== "win32") process.exit(0);
 
 async function get(url: string): Promise<Buffer> {
   const res = await fetch(url);

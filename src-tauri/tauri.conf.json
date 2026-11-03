@@ -12,14 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "Polar",
+        "title": "Polarity",
         "width": 1440,
         "height": 900,
         "minWidth": 960,
         "minHeight": 600,
-        "decorations": false,
         "center": true,
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-blink-features=AudioVideoTracks --autoplay-policy=no-user-gesture-required",
         "transparent": true
       }
     ],
@@ -38,13 +36,18 @@
         "form-action": "'none'",
         "frame-src": "https://www.youtube-nocookie.com https://www.youtube.com"
       }
-    }
+    },
+    "macOSPrivateApi": true
   },
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5MDA2MTJDQjMzOTQ5Q0YKUldUUFNUbXpMR0VBV1lvdWtnSm9hRnRBa0VGbDArZUVLV3ZVbWI1R2I5OEg1YTl5bXJxTmZiaEsK",
-      "endpoints": ["https://github.com/unzoid/polar/releases/latest/download/latest.json"],
-      "windows": { "installMode": "passive" }
+      "endpoints": [
+        "https://github.com/unzoid/polar/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   },
   "bundle": {
@@ -58,11 +61,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "vendor/mpv/mpv.exe": "mpv.exe",
-      "vendor/mpv/d3dcompiler_43.dll": "d3dcompiler_43.dll",
-      "vendor/mpv/LICENSE.GPL.txt": "licenses/mpv/LICENSE.GPL.txt",
-      "vendor/mpv/COPYRIGHT.txt": "licenses/mpv/COPYRIGHT.txt"
+    "macOS": {
+      "minimumSystemVersion": "11.0"
     }
   }
 }

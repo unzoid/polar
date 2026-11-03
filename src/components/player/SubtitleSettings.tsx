@@ -1,10 +1,12 @@
+import { isMac } from "../../lib/platform";
 import { Minus, Plus, Reset } from "../icons";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { SubtitleStyle } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvMedia } from "./mpvMedia";
 import { Dropdown } from "../Dropdown";
 
-const DEFAULT_FONT = "Segoe UI Semibold";
+// The platform's own UI face: what the player shows before you pick one.
+const DEFAULT_FONT = isMac ? "Helvetica Neue" : "Segoe UI Semibold";
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   size: 100,
@@ -22,8 +24,11 @@ const complete = (style: SubtitleStyle): Required<SubtitleStyle> =>
   ({ ...DEFAULT_SUBTITLE_STYLE, ...style, font: style.font || DEFAULT_FONT }) as Required<SubtitleStyle>;
 const isDefaultStyle = (style: SubtitleStyle) => JSON.stringify(complete(style)) === JSON.stringify(complete(DEFAULT_SUBTITLE_STYLE));
 
-/** Fonts that ship with Windows, so mpv and the preview both find them. Values are family names. */
-const FONTS = [
+/** Fonts that ship with the OS, so mpv and the preview both find them. Values are family names. */
+const MAC_FONTS = ["Arial", "Avenir Next", "Verdana", "Trebuchet MS", "Futura", "Georgia", "Times New Roman", "Menlo", "Comic Sans MS", "Impact"];
+const FONTS = isMac
+  ? [{ value: DEFAULT_FONT, label: "Helvetica Neue (Default)" }, ...MAC_FONTS.map((f) => ({ value: f, label: f }))]
+  : [
   { value: DEFAULT_FONT, label: "Segoe UI (Default)" },
   { value: "Arial", label: "Arial" },
   { value: "Calibri", label: "Calibri" },
@@ -79,6 +84,11 @@ const alphaHex = (percent: number) =>
 /** mpv colours put alpha first: `#AARRGGBB`. */
 const mpvColor = (hex: string, opacity = 100) => `#${alphaHex(opacity)}${hex.replace("#", "")}`;
 
+/** The `sub-ass-override` last given to each player. */
+const assOverride = new WeakMap<MpvMedia, string>();
+/** A (re)started mpv has its own idea of the override again. */
+export const forgetAssOverride = (mpv: MpvMedia) => assOverride.delete(mpv);
+
 /**
  * Push the style (and this video's delay) to mpv. Embedded ASS subtitles keep
  * their own styling unless the user has changed something, so typeset signs
@@ -94,7 +104,12 @@ export function applySubtitleStyleToMpv(mpv: MpvMedia, saved: SubtitleStyle, del
   const custom = !isDefaultStyle(style);
   const codec = mpv.tracks.find((t) => t.type === "sub" && t.id === mpv.sid)?.codec;
   const ass = codec === "ass" || codec === "ssa";
-  void mpv.set("sub-ass-override", custom && ass ? "force" : "scale");
+  // Only when it changes: each change stalls the stream while mpv re-reads it.
+  const override = custom && ass ? "force" : "scale";
+  if (assOverride.get(mpv) !== override) {
+    assOverride.set(mpv, override);
+    void mpv.set("sub-ass-override", override);
+  }
   void mpv.set("sub-font", style.font);
   void mpv.set("sub-scale", style.size / 100);
   void mpv.set("sub-pos", 100 - style.raise);

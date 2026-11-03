@@ -7,6 +7,7 @@ import { App } from "./App";
 import { queryClient } from "./lib/queries";
 import { isTauri } from "./lib/api";
 import { AccountProvider } from "./lib/account/AccountProvider";
+import { isMac } from "./lib/platform";
 
 // Inter with weight + optical-size axes: large titles get the Display cut automatically.
 import "@fontsource-variable/inter/opsz.css";
@@ -27,14 +28,15 @@ import "./styles/updates.css";
 import { installGamepad } from "./tv/gamepad";
 
 // Font rendering differs by OS; base.css tunes text weight for Windows.
-document.documentElement.dataset.os = navigator.userAgent.includes("Windows") ? "windows" : "other";
+// "mac" also makes room for the traffic lights (shell.css).
+document.documentElement.dataset.os = navigator.userAgent.includes("Windows") ? "windows" : isMac ? "mac" : "other";
 
 const root = createRoot(document.getElementById("root")!);
 
 if (!isTauri) {
   root.render(
     <div className="not-tauri">
-      <p className="t-title2">Polar runs inside its desktop shell.</p>
+      <p className="t-title2">Polarity runs inside its desktop shell.</p>
       <p className="muted t-body">
         Start it with <code>bun run app</code>.
       </p>

@@ -1,0 +1,22 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Polarity",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "center": true,
+        "transparent": true,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 20,
+          "y": 30
+        }
+      }
+    ]
+  }
+}

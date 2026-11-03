@@ -217,12 +217,16 @@ pub fn addons_list(state: State<'_, AppState>) -> Vec<InstalledAddon> {
 pub async fn addon_install(state: State<'_, AppState>, url: String) -> Result<InstalledAddon> {
     let url = url.trim().replace("stremio://", "https://");
     let manifest_url = if url.ends_with("/manifest.json") { url } else { format!("{}/manifest.json", url.trim_end_matches('/')) };
-    let manifest = state.addons.manifest(&manifest_url).await?;
+    let mut manifest = state.addons.manifest(&manifest_url).await?;
+    manifest.behavior_hints.get_or_insert_with(Default::default);
     let addon = InstalledAddon { manifest_url, manifest };
     let saved = addon.clone();
     persist(&state, |d| {
-        d.addons.retain(|a| a.manifest.id != saved.manifest.id);
-        d.addons.push(saved);
+        // Reinstalling (or reconfiguring) keeps the addon's place in the order.
+        match d.addons.iter_mut().find(|a| a.manifest.id == saved.manifest.id) {
+            Some(slot) => *slot = saved,
+            None => d.addons.push(saved),
+        }
     })?;
     Ok(addon)
 }
@@ -478,6 +482,18 @@ pub async fn ratings(state: State<'_, AppState>, ty: String, id: String) -> Resu
 
 /// Opens a web page (e.g. a title on IMDb) in the default browser. Only
 /// https links, so the webview can't use this to launch anything else.
+/// A title's trailer as a playable file (IMDb), or none.
+#[tauri::command]
+pub async fn trailer(imdb_id: String) -> Option<crate::trailers::Trailer> {
+    crate::trailers::imdb_trailer(&imdb_id).await
+}
+
+/// Filler episode numbers from animefillerlist.com, trying each slug in turn.
+#[tauri::command]
+pub async fn anime_filler(slugs: Vec<String>) -> Vec<u32> {
+    crate::fillers::filler_episodes(&slugs).await
+}
+
 #[tauri::command]
 pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
     use tauri_plugin_opener::OpenerExt;

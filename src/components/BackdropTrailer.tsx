@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useSettings } from "../lib/queries";
 import { prefersReducedMotion } from "../lib/reducedMotion";
+import { useFileTrailer } from "../lib/trailers";
 import { youtubeEmbed } from "./Trailer";
 
 /** How long a title's page shows its art before the trailer takes over. */
@@ -8,7 +9,8 @@ const DELAY_MS = 4000;
 const ORIGIN = "https://www.youtube-nocookie.com";
 
 /**
- * A title's trailer playing behind its page, Netflix-style: after a few
+ * A title's trailer playing behind its page, Netflix-style. IMDb's file
+ * (in a plain <video>, up to 1080p) when there is one, YouTube otherwise: after a few
  * seconds on the page the art cross-fades into the trailer (muted unless
  * Settings say otherwise), and back to the art when it ends. Settings →
  * Browsing turns it off.
@@ -19,10 +21,21 @@ const ORIGIN = "https://www.youtube-nocookie.com";
  * open) removes it; `paused` (scrolled down to the episodes, a sheet open)
  * pauses it behind the art.
  */
-export function useBackdropTrailer(ytId: string | undefined, { active, paused = false }: { active: boolean; paused?: boolean }) {
+export function useBackdropTrailer(
+  imdbId: string | undefined,
+  youtubeId: string | undefined,
+  { active, paused = false }: { active: boolean; paused?: boolean },
+) {
   const { data: settings } = useSettings();
-  const enabled = !!ytId && (settings?.trailerAutoplay ?? true) && !prefersReducedMotion();
+  const allowed = (settings?.trailerAutoplay ?? true) && !prefersReducedMotion();
+  const file = useFileTrailer(imdbId, allowed);
+  const fileUrl = file.data?.url;
+  // YouTube only once it's clear IMDb has nothing.
+  const ytId = !fileUrl && !file.isLoading ? youtubeId : undefined;
+  const key = fileUrl ?? ytId;
+  const enabled = !!key && allowed;
   const frame = useRef<HTMLIFrameElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
   const [mounted, setMounted] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [ended, setEnded] = useState(false);
@@ -34,7 +47,7 @@ export function useBackdropTrailer(ytId: string | undefined, { active, paused = 
     setEnded(false);
     setPlaying(false);
     setMounted(false);
-  }, [ytId]);
+  }, [key]);
 
   // Wait a moment on the page; leaving it removes the player (and its sound).
   useEffect(() => {
@@ -59,12 +72,13 @@ export function useBackdropTrailer(ytId: string | undefined, { active, paused = 
 
   useEffect(() => {
     if (!mounted) return;
+    if (video.current) video.current.muted = muted;
     send(muted ? "mute" : "unMute");
   }, [mounted, muted, send]);
 
   // YouTube's player reports its state over postMessage once we say we're listening.
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !ytId) return;
     heard.current = false;
     const onMessage = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow || typeof e.data !== "string") return;
@@ -104,8 +118,16 @@ export function useBackdropTrailer(ytId: string | undefined, { active, paused = 
 
   useEffect(() => {
     if (!mounted) return;
+    const v = video.current;
+    if (v) void (paused ? v.pause() : v.play().catch(() => {}));
     send(paused ? "pauseVideo" : "playVideo");
   }, [paused, mounted, send]);
+
+  const finish = () => {
+    setPlaying(false);
+    // Let the art fade back in before the player goes.
+    window.setTimeout(() => setEnded(true), 900);
+  };
 
   const toggleMute = () => {
     setMuted(!muted);
@@ -119,7 +141,22 @@ export function useBackdropTrailer(ytId: string | undefined, { active, paused = 
   );
   const visible = mounted && playing && !paused;
   const node =
-    mounted && ytId ? (
+    mounted && fileUrl ? (
+      <div className="backdrop-trailer" data-visible={visible} aria-hidden>
+        <video
+          ref={video}
+          src={fileUrl}
+          autoPlay
+          muted={muted}
+          playsInline
+          tabIndex={-1}
+          // Only shows once it's actually playing: a slow start never covers the art with black.
+          onPlaying={() => setPlaying(true)}
+          onEnded={finish}
+          onError={() => setEnded(true)}
+        />
+      </div>
+    ) : mounted && ytId ? (
       <div className="backdrop-trailer" data-visible={visible} aria-hidden>
         <iframe
           ref={frame as RefObject<HTMLIFrameElement>}

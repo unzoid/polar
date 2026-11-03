@@ -21,6 +21,20 @@ pub struct Manifest {
     pub catalogs: Vec<ManifestCatalog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id_prefixes: Option<Vec<String>>,
+    /// `None` only for manifests stored before hints were kept; the app
+    /// refetches those once.
+    #[serde(default)]
+    pub behavior_hints: Option<BehaviorHints>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BehaviorHints {
+    /// The addon serves a settings page at `<base>/configure`.
+    #[serde(default)]
+    pub configurable: bool,
+    #[serde(default)]
+    pub configuration_required: bool,
 }
 
 impl Manifest {

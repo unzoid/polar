@@ -178,6 +178,8 @@ export interface Manifest {
   logo?: string;
   types: string[];
   resources: (string | { name: string })[];
+  /** Null on manifests saved before hints were kept. */
+  behaviorHints?: { configurable: boolean; configurationRequired: boolean } | null;
 }
 
 export interface InstalledAddon {

@@ -3,6 +3,7 @@ import { SORTS, type SourceFilters } from "../lib/sources";
 import type { SourceSort } from "../lib/types";
 import { Close, Filters } from "./icons";
 import { Segmented } from "./Segmented";
+import { Dropdown } from "./Dropdown";
 
 /**
  * The controls over a source list (see lib/sources.ts). One decision is in
@@ -48,6 +49,7 @@ interface Section {
 }
 
 /** Every choice as a labelled row of chips. Quality is left out where the segmented control has it. */
+/** `withQuality`: TV, where everything is chip rows; desktop has its own quality and add-on controls. */
 function sections(f: SourceFilters, withQuality: boolean): Section[] {
   const { filter, facets } = f;
   const out: Section[] = [
@@ -70,7 +72,7 @@ function sections(f: SourceFilters, withQuality: boolean): Section[] {
         })),
       ],
     });
-  if (facets.addons.length > 1)
+  if (withQuality && facets.addons.length > 1)
     out.push({
       label: "Add-on",
       chips: [
@@ -114,7 +116,6 @@ function sections(f: SourceFilters, withQuality: boolean): Section[] {
 function activeFilters(f: SourceFilters) {
   const { filter, facets } = f;
   const out: { key: string; label: string; clear: () => void }[] = [];
-  if (filter.addon) out.push({ key: "addon", label: filter.addon, clear: () => f.set({ addon: null }) });
   if (filter.lang)
     out.push({ key: "lang", label: facets.langs.find((l) => l.key === filter.lang)?.label ?? filter.lang, clear: () => f.set({ lang: null }) });
   if (filter.size) out.push({ key: "size", label: sizeLabel(filter.size), clear: () => f.set({ size: null }) });
@@ -142,6 +143,19 @@ function DesktopBar({ f, note }: { f: SourceFilters; note?: string }) {
         ) : (
           <span />
         )}
+        {facets.addons.length > 1 && (
+          <span className="srcf-addon">
+          <Dropdown
+            label="Add-on"
+            value={filter.addon ?? ""}
+            onChange={(v) => f.set({ addon: v || null })}
+            options={[
+              { value: "", label: "All add-ons" },
+              ...facets.addons.map((a) => ({ value: a.key, label: `${a.label} · ${a.count}` })),
+            ]}
+          />
+          </span>
+        )}
         <Popover.Root>
           <Popover.Trigger className="srcf-filters pressable" aria-label={active.length ? `Filters, ${active.length} on` : "Filters"}>
             <Filters size={16} strokeWidth={2} />
@@ -168,7 +182,7 @@ function DesktopBar({ f, note }: { f: SourceFilters; note?: string }) {
               <Close size={12} />
             </button>
           ))}
-          <button className="srcf-clear" onClick={() => f.set({ addon: null, lang: null, size: null, tags: [] })}>
+          <button className="srcf-clear" onClick={() => f.set({ lang: null, size: null, tags: [] })}>
             Clear All
           </button>
         </div>

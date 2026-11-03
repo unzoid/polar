@@ -46,7 +46,7 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
   const { data: settings } = useSettings();
   const autoPick = settings?.autoPickSource ?? true;
   // The trailer behind the art, while nothing's open over the page.
-  const trailer = useBackdropTrailer(meta?.trailerYtId, { active: active && panels.length === 0 });
+  const trailer = useBackdropTrailer(id, meta?.trailerYtId, { active: active && panels.length === 0 });
 
   /** Play now, or (auto-pick off, nothing to resume) choose a source first. */
   const play = (videoId: string, subtitle: string, opts: { stream?: RankedStream; resumable?: boolean } = {}) => {

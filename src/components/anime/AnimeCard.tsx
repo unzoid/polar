@@ -4,16 +4,42 @@ import { fetchAnime, type AnimeCard as Card } from "../../lib/anime/anilist";
 import { cardFacts, countdown, FORMAT_LABEL, untilAiring, useAnimeScore, useAnimeTitle } from "../../lib/anime/format";
 import { usePrefs } from "../../lib/prefs";
 import { useRouter } from "../../lib/router";
+import { aniZipQuery } from "../../lib/anime/anizip";
+import { menuPoint, openCardMenu } from "../CardMenu";
 import { Img } from "../Img";
 import { Star } from "../icons";
 
+/** Click and right-click for an anime: its page, and the shared title menu. */
+export function useAnimeHandlers() {
+  const { navigate } = useRouter();
+  const qc = useQueryClient();
+  return (item: Card) => ({
+    onClick: () => navigate({ name: "anime-detail", id: item.id, preview: item }),
+    // The menu works on the IMDb title ani.zip links the show to (that's what
+    // the library, playlists and watch history key on).
+    onContextMenu: (e: React.MouseEvent<HTMLElement>) => {
+      e.preventDefault();
+      const at = menuPoint(e);
+      void qc.fetchQuery({ ...aniZipQuery(item.id), staleTime: 30 * 60_000 }).then((zip) => {
+        const imdb = zip?.mappings?.imdb_id;
+        if (!imdb) return;
+        const name = item.title.english ?? item.title.romaji ?? item.title.native ?? "";
+        openCardMenu(
+          { id: imdb, type: item.format === "MOVIE" ? "movie" : "series", name, poster: item.coverImage.extraLarge ?? item.coverImage.large ?? undefined },
+          at,
+          () => navigate({ name: "anime-detail", id: item.id, preview: item }),
+        );
+      });
+    },
+  });
+}
+
 /** Opens an anime's page, warming its data once the pointer rests on the card. */
 export function useOpenAnime(item: Card) {
-  const { navigate } = useRouter();
   const qc = useQueryClient();
   const timer = useRef<number>(undefined);
   return {
-    onClick: () => navigate({ name: "anime-detail", id: item.id, preview: item }),
+    ...useAnimeHandlers()(item),
     onPointerEnter: () => {
       timer.current = window.setTimeout(
         () => qc.prefetchQuery({ queryKey: ["anime", "media", item.id], queryFn: () => fetchAnime(item.id), staleTime: 30 * 60_000 }),
@@ -44,7 +70,6 @@ export function AnimeCard({ item, label }: { item: Card; label?: string }) {
       {...(isAnime ? open : {})}
       disabled={!isAnime}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
-      title={title}
     >
       <div className="card-frame anime-card-frame">
         <Img src={item.coverImage.extraLarge ?? item.coverImage.large ?? undefined} alt="" className="card-img" />
@@ -78,7 +103,6 @@ export function AnimeLandscapeCard({ item, label }: { item: Card; label?: string
       className="card card-landscape anime-card"
       {...open}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
-      title={title}
     >
       <div className="card-frame anime-card-frame">
         <Img src={item.bannerImage ?? item.coverImage.extraLarge ?? undefined} alt="" className="card-img" />

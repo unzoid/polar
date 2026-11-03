@@ -38,7 +38,10 @@ export function upNext(meta: Meta, progress: Progress[]): UpNext {
   if (!video) return { video: firstRegular, kind: "start" };
 
   const fraction = latest.duration ? latest.position / latest.duration : 0;
-  if (fraction < watchedFraction() && latest.position > 30) return { video, resumeAt: latest.position, kind: "resume" };
+  if (fraction < watchedFraction()) {
+    // Unfinished: resume it, or (barely started) play it again from the top.
+    return latest.position > 30 ? { video, resumeAt: latest.position, kind: "resume" } : { video, kind: "next" };
+  }
   const next = nextVideo(meta, video.id);
   return next ? { video: next, kind: "next" } : { video: firstRegular, kind: "start" };
 }

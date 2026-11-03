@@ -560,6 +560,9 @@
 .tv-search-placeholder {
   color: var(--text-3);
 }
+.tv-caret + .tv-search-placeholder {
+  margin-left: 0.1rem;
+}
 .tv-osk-keyboard {
   display: contents;
 }
@@ -684,7 +687,9 @@
 }
 .tv-search-results .tv-rail-track {
   padding-left: 1rem;
-  scroll-padding-inline-start: 1rem;
+  /* The rail's gap, so a scrolled-past card ends right at the pane's edge
+     instead of leaving a sliver beside the keyboard. */
+  scroll-padding-inline-start: 0.9rem;
 }
 .tv-search-results .tv-empty {
   padding: 1rem;
@@ -1958,4 +1963,41 @@
   .tv-caret {
     animation: none;
   }
+}
+
+/* The player's Sources in TV mode: the filter chip rows go under the title,
+   full width, and scroll on their own, so the source list keeps its room
+   (as a row beside the title they spilled over the list). */
+.tv .options-head:has(.srcf-tv) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  /* Its min-height (above) replaces flex's content minimum, so without this
+     the column squeezes the head to 2.6rem and the chips spill over the list. */
+  flex-shrink: 0;
+}
+.tv .options-head:has(.srcf-tv) .source-controls {
+  justify-content: flex-start;
+  min-height: 0;
+}
+.tv .options-head .srcf-tv {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  max-height: 30vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+  /* Room for a focused chip's ring. */
+  padding: 4px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5rem), transparent);
+}
+.tv .options-head .srcf-tv::-webkit-scrollbar {
+  display: none;
+}
+.tv .options-head .srcf-chiprow {
+  align-items: flex-start;
+}
+.tv .options-head .srcf-chiprow-label {
+  padding-top: 0.55em;
 }

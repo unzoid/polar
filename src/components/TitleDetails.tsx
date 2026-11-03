@@ -123,7 +123,7 @@ function titleLinks(meta: Meta) {
   const imdb = imdbUrl(meta.id);
   if (imdb) links.push({ site: "imdb", label: "IMDb", url: imdb });
   if (imdb && meta.type === "movie") links.push({ site: "letterboxd", label: "Letterboxd", url: letterboxdUrl(meta.id) });
-  if (meta.id.startsWith("tt")) links.push({ site: "trakt", label: "Trakt", url: `https://trakt.tv/search/imdb/${meta.id}` });
+  if (meta.id.startsWith("tt")) links.push({ site: "trakt", label: "Trakt", url: `https://app.trakt.tv/${meta.type === "series" ? "shows" : "movies"}/${meta.id}` });
   const tmdb = meta.details?.tmdbId;
   if (tmdb) links.push({ site: "tmdb", label: "TMDB", url: `https://www.themoviedb.org/${meta.type === "series" ? "tv" : "movie"}/${tmdb}` });
   links.push({ site: "rt", label: "Rotten Tomatoes", url: `https://www.rottentomatoes.com/search?search=${encodeURIComponent(meta.name)}` });

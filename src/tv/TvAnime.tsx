@@ -49,7 +49,8 @@ export function TvAnime() {
   const rail = (id: Parameters<typeof visible>[0], title: string, shape: Shape, items?: AnimeCard[]): RailRow[] =>
     visible(id) ? [{ key: id, render: () => <TvAnimeRail title={title} items={items} shape={shape} /> }] : [];
 
-  const rows: RailRow[] = [
+  // Today's airings sit below the first shelves: mostly brand-new shows, often not playable yet.
+  const todayRows: RailRow[] = [
     ...(visible("today") && !today.isError
       ? [
           {
@@ -68,8 +69,14 @@ export function TvAnime() {
           },
         ]
       : []),
+  ];
+  const lead = [
     ...rail("season", `Airing This ${SEASON_LABEL[now.season]}`, "poster", data?.season),
     ...rail("trending", "Trending Now", "poster", data?.trending),
+  ];
+  const rows: RailRow[] = [
+    ...lead,
+    ...todayRows,
     ...rail("upcoming", `Coming in ${SEASON_LABEL[next.season]} ${next.year}`, "poster", data?.upcoming),
     ...rail("top", "Highest Rated", "landscape", data?.top),
     ...rail("popular", "Most Popular", "poster", data?.popular),

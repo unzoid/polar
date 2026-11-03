@@ -17,7 +17,7 @@ export type Route =
   /** An anime's own page, by AniList id. */
   | { name: "anime-detail"; id: number; preview?: AnimeCard }
   | { name: "anime-schedule" }
-  | { name: "anime-browse" }
+  | { name: "anime-browse"; genre?: string; tag?: string }
   | { name: "player"; type: ContentType; metaId: string; videoId: string; stream?: Stream };
 
 export interface Entry {

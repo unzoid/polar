@@ -690,6 +690,11 @@
   letter-spacing: 0.02em;
   color: var(--text-3);
 }
+.next-up-skipping {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(250 204 21 / 0.9);
+}
 .next-up-title {
   font-size: 1.0625rem;
   font-weight: 650;
@@ -911,6 +916,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 
 /* --- Column header with controls (Sources: addon filter + sort). */
 .options-head {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1191,7 +1197,10 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   padding: 0.375rem 0;
   border-bottom: 1px solid rgb(255 255 255 / 0.08);
 }
+/* The text gives way (its caption wraps) so the control keeps its place on the
+   right whatever the caption says: no jumping as the delay's caption changes. */
 .sub-setting-text {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   min-width: 0;

@@ -19,6 +19,7 @@ const ROWS: SettingEntry[] = [
   { title: "Play the next episode automatically", page: "playback", keywords: "autoplay binge" },
   { title: "Countdown", page: "playback", keywords: "autoplay next episode timer seconds up next" },
   { title: "Ask if you're still watching", page: "playback", keywords: "are you still watching sleep timer autoplay stop" },
+  { title: "Suggest genres", page: "browsing", keywords: "search suggestions genres dropdown" },
   { title: "Show Up Next", page: "playback", keywords: "next episode card credits end post-play" },
   { title: "Skip intros", page: "playback", keywords: "opening credits auto skip intro" },
   { title: "Skip recaps", page: "playback", keywords: "previously on auto skip recap" },

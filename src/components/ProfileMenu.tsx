@@ -1,5 +1,6 @@
 import { Menu } from "@base-ui/react/menu";
-import { Edit, Profile, Settings, SignOut } from "./icons";
+import { Calendar, Edit, Profile, Settings, SignOut } from "./icons";
+import { useRouter } from "../lib/router";
 import { useAccount } from "../lib/account/AccountProvider";
 import { openSettings } from "../lib/settingsOverlay";
 import { Avatar } from "./Avatar";
@@ -20,6 +21,7 @@ export function ProfileMenu() {
   const others = me ? account.profiles.filter((p) => p.id !== me.id) : [];
   const name = me?.name ?? "Guest";
   const avatar = me?.avatar ?? GUEST_AVATAR;
+  const { tab } = useRouter();
 
   return (
     <Menu.Root modal={false}>
@@ -49,6 +51,10 @@ export function ProfileMenu() {
               </Menu.Item>
             )}
             {others.length > 0 || me ? <div className="profile-menu-sep" /> : null}
+            <Menu.Item className="profile-menu-item" onClick={() => tab({ name: "calendar" })}>
+              <Calendar />
+              Calendar
+            </Menu.Item>
             <Menu.Item className="profile-menu-item" onClick={() => openSettings()}>
               <Settings />
               Settings

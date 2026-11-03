@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { AnimeCard } from "../components/anime/AnimeCard";
-import { Check, ChevronDown, LayoutList, LayoutRow, Play, Plus, Reset, Sources, Star, Trailer } from "../components/icons";
+import { Check, ChevronDown, LayoutList, LayoutRow, Play, Plus, Reset, Search, Sources, Star, Trailer } from "../components/icons";
 import { EpisodeShelf } from "../components/EpisodeShelf";
+import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { Row } from "../components/Row";
@@ -29,6 +30,7 @@ import {
   useAnimeTitle,
 } from "../lib/anime/format";
 import { useEpisodeFlags } from "../lib/anime/jikan";
+import { rememberFiller } from "../lib/anime/filler";
 import { rememberAltIds } from "../lib/anime/altIds";
 import { formatTime } from "../lib/format";
 import { setPrefs, usePrefs } from "../lib/prefs";
@@ -161,7 +163,12 @@ function usePlayback(anime: Card | Anime) {
       .filter((x) => x.p)
       .sort((a, b) => b.p!.updatedAt - a.p!.updatedAt)[0];
     if (touched) {
-      if (!done(touched.p) && touched.p!.position > 30) return { ep: touched.e, resumeAt: touched.p!.position, kind: "resume" as const };
+      if (!done(touched.p)) {
+        // Unfinished: resume it, or (barely started) play it again from the top.
+        return touched.p!.position > 30
+          ? { ep: touched.e, resumeAt: touched.p!.position, kind: "resume" as const }
+          : { ep: touched.e, resumeAt: undefined, kind: "next" as const };
+      }
       const after = playable.find((e) => e.number > touched.e.number);
       if (after) return { ep: after, resumeAt: undefined, kind: "next" as const };
     }
@@ -246,7 +253,7 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
             {label}
           </button>
           {anime?.trailer?.site === "youtube" && (
-            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer(anime.trailer!.id, name)}>
+            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id })}>
               <Trailer size={18} />
               Trailer
             </button>
@@ -311,12 +318,18 @@ function Body({ anime }: { anime: Anime }) {
 }
 
 const PAGE = 100;
+/** Episodes the list layout shows before "Show all". */
+const LIST_CAP = 12;
+/** More pages than this: a dropdown instead of a row of tabs that runs off the bar. */
+const RANGE_TABS = 4;
+/** Shows longer than this get a search. */
+const SEARCH_FROM = 40;
 
 function Episodes({ anime }: { anime: Anime }) {
   const { navigate } = useRouter();
   const pb = usePlayback(anime);
   const prefs = usePrefs();
-  const { data: flags } = useEpisodeFlags(pb.malId);
+  const { data: flags } = useEpisodeFlags(pb.malId, [anime.title.english, anime.title.romaji]);
   const { data: settings } = useSettings();
   const autoPick = settings?.autoPickSource ?? true;
   // This page's choice; until you pick one, the default from Settings → Browsing.
@@ -328,7 +341,7 @@ function Episodes({ anime }: { anime: Anime }) {
   const hasFiller = !!flags && [...flags.values()].some((f) => f.filler);
   // What the shelf can show: episodes you can play, and the ones still to air.
   const list: Video[] = pb.episodes
-    .filter((e) => (e.video || e.upcoming) && !(prefs.animeHideFiller && flags?.get(e.number)?.filler) && !(prefs.animeHideRecaps && flags?.get(e.number)?.recap))
+    .filter((e) => (e.video || e.upcoming) && !(prefs.animeHideRecaps && flags?.get(e.number)?.recap))
     .map((e) => {
       const f = flags?.get(e.number);
       return {
@@ -343,13 +356,31 @@ function Episodes({ anime }: { anime: Anime }) {
       };
     });
 
+  useEffect(() => {
+    if (flags) rememberFiller(pb.episodes.filter((e) => e.video && flags.get(e.number)?.filler).map((e) => e.video!.id));
+  }, [flags, pb.episodes]);
+
   // Long-running shows: pages of 100, opening on the one you're up to.
   const pages = Math.ceil(list.length / PAGE);
   const [page, setPage] = useState<number | null>(null);
   const upNextId = pb.next.kind !== "start" ? pb.next.ep?.video?.id : undefined;
   const upTo = Math.max(0, list.findIndex((v) => v.id === (pb.next.ep?.video?.id ?? "")));
   const current = Math.min(pages - 1, page ?? Math.floor(upTo / PAGE));
-  const visible = pages > 1 ? list.slice(current * PAGE, current * PAGE + PAGE) : list;
+  const pageList = pages > 1 ? list.slice(current * PAGE, current * PAGE + PAGE) : list;
+
+  // A list of hundreds pushes the rest of the page out of reach: the list
+  // layout shows a stretch from where you're up to, the rest one click away,
+  // and long shows get a search by number or title.
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const q = query.trim().toLowerCase();
+  const searchable = list.length > SEARCH_FROM;
+  const found = q ? list.filter((v) => String(v.episode) === q || v.title?.toLowerCase().includes(q)) : undefined;
+  const capped = layout === "list" && !expanded && !found && pageList.length > LIST_CAP;
+  const from = capped ? Math.max(0, Math.min(pageList.length - LIST_CAP, pageList.findIndex((v) => v.id === pb.next.ep?.video?.id) - 1)) : 0;
+  const visible = found ?? (capped ? pageList.slice(from, from + LIST_CAP) : pageList);
+  // Paging or searching starts collapsed again.
+  useEffect(() => setExpanded(false), [current, q]);
 
   const play = (v: Video, stream?: RankedStream) => {
     if (v.id.startsWith(PENDING) || !pb.metaId) return;
@@ -368,7 +399,21 @@ function Episodes({ anime }: { anime: Anime }) {
     <section className="seasons">
       <div className="seasons-bar">
         <div className="seasons-picker">
-        {pages > 1 ? (
+        {found ? (
+          <h2 className="t-title2 anime-episode-count">
+            {found.length} {found.length === 1 ? "match" : "matches"}
+          </h2>
+        ) : pages > RANGE_TABS ? (
+          <Dropdown
+            label="Episodes"
+            value={String(current)}
+            onChange={(v) => setPage(Number(v))}
+            options={Array.from({ length: pages }, (_, i) => ({
+              value: String(i),
+              label: `Episodes ${list[i * PAGE]?.episode}–${list[Math.min(list.length, (i + 1) * PAGE) - 1]?.episode}`,
+            }))}
+          />
+        ) : pages > 1 ? (
           <div className="anime-ranges" role="tablist" aria-label="Episodes">
             {Array.from({ length: pages }, (_, i) => (
               <button key={i} role="tab" className="anime-range tabular" aria-selected={i === current} onClick={() => setPage(i)}>
@@ -381,10 +426,24 @@ function Episodes({ anime }: { anime: Anime }) {
         )}
         </div>
         <div className="anime-episodes-tools">
+          {searchable && (
+            <label className="pill-search anime-episode-search">
+              <Search size={15} aria-hidden />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Find episode"
+                aria-label="Find an episode by number or title"
+                spellCheck={false}
+                autoComplete="off"
+              />
+            </label>
+          )}
           {hasFiller && (
             <label className="anime-toggle t-callout">
-              <input type="checkbox" className="switch" checked={prefs.animeHideFiller} onChange={(e) => setPrefs({ animeHideFiller: e.target.checked })} />
-              Hide filler
+              <input type="checkbox" className="switch" checked={prefs.animeSkipFiller} onChange={(e) => setPrefs({ animeSkipFiller: e.target.checked })} />
+              Skip filler
             </label>
           )}
           <Segmented
@@ -410,6 +469,12 @@ function Episodes({ anime }: { anime: Anime }) {
           setSheetOpen(true);
         }}
       />
+      {found && !found.length && <p className="empty t-body muted">No episode matches “{query.trim()}”.</p>}
+      {capped && (
+        <button className="btn btn-glass anime-show-all" onClick={() => setExpanded(true)}>
+          Show all {pageList.length} episodes
+        </button>
+      )}
       <Sheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
@@ -481,8 +546,12 @@ function Related({ anime }: { anime: Anime }) {
     <div className="rows anime-related">
       {watchOrderRow && franchiseRow ? (
         <div className="anime-franchise-grid">
-          {watchOrderRow}
-          {franchiseRow}
+          <div className="anime-franchise-col" style={{ "--cards": Math.min(2, watchOrder.length) } as React.CSSProperties}>
+            {watchOrderRow}
+          </div>
+          <div className="anime-franchise-col" style={{ "--cards": Math.min(2, rest.length) } as React.CSSProperties}>
+            {franchiseRow}
+          </div>
         </div>
       ) : (
         <>

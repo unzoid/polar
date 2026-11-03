@@ -50,6 +50,8 @@ export interface Prefs {
   buffer: "small" | "normal" | "large";
   /** Keep the last few searches. */
   saveRecentSearches: boolean;
+  /** Genres under the empty search field. */
+  searchSuggestions: boolean;
   /** Fetch new versions in the background; installing still waits for a restart. */
   autoDownloadUpdates: boolean;
   /** The TV mode button in the navbar (Settings → Controls & TV). */
@@ -74,8 +76,8 @@ export interface Prefs {
   animeTitles: "romaji" | "english" | "native";
   /** Whose voices to list beside the characters. */
   animeVoices: "japanese" | "english";
-  /** Leave filler episodes out of the episode list. */
-  animeHideFiller: boolean;
+  /** Autoplay and Next Episode pass over filler episodes. */
+  animeSkipFiller: boolean;
   /** Show tags that give the story away. */
   animeSpoilerTags: boolean;
 }
@@ -101,6 +103,7 @@ const DEFAULTS: Prefs = {
   deband: false,
   buffer: "normal",
   saveRecentSearches: true,
+  searchSuggestions: true,
   autoDownloadUpdates: true,
   showTvButton: true,
   animeEnabled: true,
@@ -112,7 +115,7 @@ const DEFAULTS: Prefs = {
   animeHideRecaps: false,
   animeTitles: "english",
   animeVoices: "japanese",
-  animeHideFiller: false,
+  animeSkipFiller: false,
   animeSpoilerTags: false,
 };
 
@@ -133,6 +136,7 @@ export const getPrefs = () => prefs;
 export const SYNCED_PREFS = [
   "preferFileChapters",
   "saveRecentSearches",
+  "searchSuggestions",
   "animeEnabled",
   "animeHiddenShelves",
   "animeCardScores",
@@ -142,7 +146,7 @@ export const SYNCED_PREFS = [
   "animeHideRecaps",
   "animeTitles",
   "animeVoices",
-  "animeHideFiller",
+  "animeSkipFiller",
   "animeSpoilerTags",
 ] as const satisfies readonly (keyof Prefs)[];
 

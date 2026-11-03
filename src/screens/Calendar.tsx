@@ -23,10 +23,10 @@ export function Calendar() {
         </div>
       </header>
       {showCount === 0 && !loading && (
-        <p className="empty t-body muted">Add shows to your library, or start watching one, and their new episodes show up here.</p>
+        <p className="empty calendar-empty t-body muted">Add shows to your library, or start watching one, and their new episodes show up here.</p>
       )}
       {showCount > 0 && !loading && !days.length && (
-        <p className="empty t-body muted">Nothing aired in the last week, and nothing's scheduled yet for your shows.</p>
+        <p className="empty calendar-empty t-body muted">Nothing aired in the last week, and nothing's scheduled yet for your shows.</p>
       )}
       {loading && !days.length && (
         <div className="calendar">

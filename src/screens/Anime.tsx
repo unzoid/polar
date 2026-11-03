@@ -1,8 +1,8 @@
 import { useQueries } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AnimeCard, AnimeLandscapeCard, useOpenAnime } from "../components/anime/AnimeCard";
+import { AnimeCard, AnimeLandscapeCard, useAnimeHandlers, useOpenAnime } from "../components/anime/AnimeCard";
 import { Dropdown } from "../components/Dropdown";
-import { ChevronRight, Close, Filters, Play, Search } from "../components/icons";
+import { Calendar, Close, Filters, Grid, Play, Search } from "../components/icons";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { CardSkeleton } from "../components/PosterCard";
@@ -10,6 +10,7 @@ import { Row } from "../components/Row";
 import { Sheet } from "../components/Sheet";
 import {
   ANIME_GENRES,
+  ANIME_TAGS,
   nextSeason,
   seasonOf,
   useAiringSchedule,
@@ -49,6 +50,7 @@ export function Anime() {
   const now = seasonOf();
   const next = nextSeason(now);
   const [index, setIndex] = useState(0);
+  const handlers = useAnimeHandlers();
 
   if (isError && !data) {
     return (
@@ -77,9 +79,18 @@ export function Anime() {
   // A day with nothing on it (or an error) leaves the shelf out rather than showing a stub.
   const showToday = visible("today") && !today.isError && today.slots?.length !== 0;
   const genres = visible("genres");
-
-  // The top shelf, whichever that is, carries the way to Schedule and Browse.
-  const links = <AnimeLinks />;
+  // Today's airings sit below the first shelves: a schedule, not a headline.
+  const todayAt = Math.min(2, on.length);
+  const todayRow = showToday && (
+    <Row key="today" title="Airing Today" shape="landscape">
+      {today.slots
+        ? forShape(today.slots.map((s) => s.media), "landscape").map((m) => {
+            const s = today.slots!.find((x) => x.media.id === m.id)!;
+            return <AnimeLandscapeCard key={s.id} item={m} label={slotLabel(s)} />;
+          })
+        : Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} shape="landscape" />)}
+    </Row>
+  );
 
   return (
     <div className="scroll home anime" data-hero={hasHero}>
@@ -89,31 +100,24 @@ export function Anime() {
           // The set can shrink (a new title language, art that didn't load): never point past its end.
           index={hero.items?.length ? index % hero.items.length : 0}
           setIndex={setIndex}
+          handlers={(item) => {
+            const card = hero.cards.find((a) => item.id === animePreviewId(a));
+            return card ? handlers(card) : { onClick: () => {}, onContextMenu: (e) => e.preventDefault() };
+          }}
           content={(item) => {
             const card = hero.cards.find((a) => item.id === animePreviewId(a));
             return card && <AnimeHeroContent card={card} item={item} />;
           }}
         />
       )}
+      <AnimeNav />
       <div className="rows home-rows">
-        {!showToday && !on.length && !genres && <Row action={links}>{null}</Row>}
-        {showToday && (
-          <Row title="Airing Today" shape="landscape" action={links}>
-            {today.slots
-              ? forShape(today.slots.map((s) => s.media), "landscape").map((m) => {
-                  const s = today.slots!.find((x) => x.media.id === m.id)!;
-                  return <AnimeLandscapeCard key={s.id} item={m} label={slotLabel(s)} />;
-                })
-              : Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} shape="landscape" />)}
-          </Row>
-        )}
-        {on.map((s, i) => (
-          <Shelf key={s.id} title={s.title} shape={s.shape} items={s.items} label={s.label} action={!showToday && i === 0 ? links : undefined} />
-        ))}
-        {genres &&
-          ANIME_GENRES.map((g, i) => (
-            <GenreShelf key={g} genre={g} shape={i % 3 === 0 ? "landscape" : "poster"} action={!showToday && !on.length && i === 0 ? links : undefined} />
-          ))}
+        {on.map((s, i) => [
+          i === todayAt && todayRow,
+          <Shelf key={s.id} title={s.title} shape={s.shape} items={s.items} label={s.label} />,
+        ])}
+        {todayAt === on.length && todayRow}
+        {genres && ANIME_GENRES.map((g, i) => <GenreShelf key={g} genre={g} shape={i % 3 === 0 ? "landscape" : "poster"} />)}
       </div>
     </div>
   );
@@ -121,18 +125,29 @@ export function Anime() {
 
 const animePreviewId = (a: Card) => animePreview(a, null, "english").id;
 
-/** Where the rest of the section lives. */
-function AnimeLinks() {
+/** Where the rest of the section lives: the schedule, the full browser, and a way in by genre or kind of show. */
+function AnimeNav() {
   const { navigate } = useRouter();
   return (
-    <span className="anime-row-links">
-      <button className="anime-row-link" onClick={() => navigate({ name: "anime-schedule" })}>
-        Schedule <ChevronRight size={16} />
+    <nav className="anime-nav" aria-label="Browse anime">
+      <button className="genre-chip anime-nav-main" onClick={() => navigate({ name: "anime-schedule" })}>
+        <Calendar size={15} /> Schedule
       </button>
-      <button className="anime-row-link" onClick={() => navigate({ name: "anime-browse" })}>
-        Browse <ChevronRight size={16} />
+      <button className="genre-chip anime-nav-main" onClick={() => navigate({ name: "anime-browse" })}>
+        <Grid size={15} /> Browse All
       </button>
-    </span>
+      <span className="anime-nav-sep" aria-hidden />
+      {ANIME_GENRES.map((g) => (
+        <button key={g} className="genre-chip" onClick={() => navigate({ name: "anime-browse", genre: g })}>
+          {g}
+        </button>
+      ))}
+      {ANIME_TAGS.map((t) => (
+        <button key={t} className="genre-chip" onClick={() => navigate({ name: "anime-browse", tag: t })}>
+          {t}
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -261,11 +276,15 @@ export const AnimeSchedule = () => (
   </SubPage>
 );
 
-export const AnimeBrowse = () => (
-  <SubPage title="Browse Anime">
-    <BrowseView />
-  </SubPage>
-);
+export function AnimeBrowse() {
+  const { current } = useRouter();
+  const from = current.name === "anime-browse" ? current : undefined;
+  return (
+    <SubPage title={from?.genre ?? from?.tag ?? "Browse Anime"}>
+      <BrowseView genre={from?.genre} tag={from?.tag} />
+    </SubPage>
+  );
+}
 
 // --- Schedule ----------------------------------------------------------------
 
@@ -370,9 +389,11 @@ function FilterField({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-function BrowseView() {
+const NO_FILTERS = { genre: "", tag: "", season: "", year: 0, format: "", status: "" } as const;
+
+function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) {
   const [text, setText] = useState("");
-  const [f, setF] = useState<BrowseFilters>({ search: "", genre: "", season: "", year: 0, format: "", status: "", sort: "POPULARITY_DESC" });
+  const [f, setF] = useState<BrowseFilters>({ ...NO_FILTERS, search: "", genre, tag, sort: "POPULARITY_DESC" });
   useEffect(() => {
     const t = window.setTimeout(() => setF((f) => ({ ...f, search: text.trim() })), 300);
     return () => window.clearTimeout(t);
@@ -399,6 +420,7 @@ function BrowseView() {
   type Active = { label: string; clear: Partial<BrowseFilters> };
   const active = [
     f.genre ? { label: f.genre, clear: { genre: "" } } : null,
+    f.tag ? { label: f.tag, clear: { tag: "" } } : null,
     f.year ? { label: String(f.year), clear: { year: 0 } } : null,
     f.season ? { label: SEASON_LABEL[f.season], clear: { season: "" } } : null,
     f.format ? { label: FORMAT_LABEL[f.format], clear: { format: "" } } : null,
@@ -438,6 +460,9 @@ function BrowseView() {
           <FilterField label="Genre">
             <Dropdown label="Genre" value={f.genre || "any"} onChange={(v) => set({ genre: v === "any" ? "" : v })} options={[{ value: "any", label: "Any" }, ...ANIME_GENRES.map((g) => ({ value: g, label: g }))]} />
           </FilterField>
+          <FilterField label="Kind">
+            <Dropdown label="Kind" value={f.tag || "any"} onChange={(v) => set({ tag: v === "any" ? "" : v })} options={[{ value: "any", label: "Any" }, ...ANIME_TAGS.map((t) => ({ value: t, label: t }))]} />
+          </FilterField>
           <FilterField label="Year">
             <Dropdown label="Year" value={String(f.year || "any")} onChange={(v) => set({ year: v === "any" ? 0 : Number(v) })} options={[{ value: "any", label: "Any" }, ...years.map((y) => ({ value: String(y), label: String(y) }))]} />
           </FilterField>
@@ -451,7 +476,7 @@ function BrowseView() {
             <Dropdown label="Status" value={f.status || "any"} onChange={(v) => set({ status: v === "any" ? "" : (v as MediaStatus) })} options={[{ value: "any", label: "Any" }, ...BROWSE_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))]} />
           </FilterField>
           {active.length > 0 && (
-            <button className="anime-row-link anime-clear" onClick={() => set({ genre: "", season: "", year: 0, format: "", status: "" })}>
+            <button className="anime-row-link anime-clear" onClick={() => set(NO_FILTERS)}>
               Clear all
             </button>
           )}
@@ -466,7 +491,7 @@ function BrowseView() {
             </button>
           ))}
           {active.length > 1 && (
-            <button className="anime-row-link anime-clear" onClick={() => set({ genre: "", season: "", year: 0, format: "", status: "" })}>
+            <button className="anime-row-link anime-clear" onClick={() => set(NO_FILTERS)}>
               Clear all
             </button>
           )}

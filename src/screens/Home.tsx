@@ -81,13 +81,17 @@ export function HeroCarousel({
   index,
   setIndex,
   content,
+  handlers,
 }: {
   items?: MetaPreview[];
   index: number;
   setIndex: (i: number | ((i: number) => number)) => void;
   /** The text block over the art, for a page whose titles open somewhere else (Anime). */
   content?: (item: MetaPreview) => ReactNode;
+  /** What clicking and right-clicking the art does; by default the title's page and its options menu. */
+  handlers?: (item: MetaPreview) => { onClick: () => void; onContextMenu: (e: React.MouseEvent<HTMLElement>) => void };
 }) {
+  const { navigate } = useRouter();
   const [paused, setPaused] = useState(false);
   const hero = useRef<HTMLDivElement>(null);
   const count = items?.length ?? 0;
@@ -120,6 +124,11 @@ export function HeroCarousel({
     );
   }
 
+  const h = handlers?.(item) ?? {
+    onClick: () => navigate({ name: "detail", type: item.type, id: item.id, preview: item }),
+    onContextMenu: cardMenu(item).onContextMenu,
+  };
+
   return (
     <section className="hero" aria-roledescription="carousel">
       {/* The page around the card takes on the art's colours: a heavily
@@ -129,7 +138,15 @@ export function HeroCarousel({
           <AmbientWash key={it.id} src={it.background} current={i === index} />
         ))}
       </div>
-      <div className="hero-card" ref={hero} onPointerEnter={() => setPaused(true)} onPointerLeave={() => setPaused(false)}>
+      <div
+        className="hero-card"
+        ref={hero}
+        onPointerEnter={() => setPaused(true)}
+        onPointerLeave={() => setPaused(false)}
+        // The whole card opens the title, except where its own controls sit.
+        onClick={(e) => !(e.target as Element).closest("button, a") && h.onClick()}
+        onContextMenu={h.onContextMenu}
+      >
         <div className="hero-art">
           {items.map((it, i) => (
             <Img

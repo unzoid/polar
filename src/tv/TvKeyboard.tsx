@@ -84,8 +84,9 @@ export function TvKeyboard({
     <>
       {/* Clickable (focus leaves the on-screen keys), but not a stop for the arrows: tabIndex -1. */}
       <div ref={field} className="tv-search-field" tabIndex={-1} role="textbox" aria-label={placeholder} aria-live="polite" data-nav-keep>
-        {text ? <span>{text}</span> : <span className="tv-search-placeholder">{placeholder}</span>}
-        <span className="tv-caret" aria-hidden />
+        {/* Empty: the caret waits at the start, where typing begins, before the placeholder. */}
+        {text ? <span>{text}</span> : <span className="tv-caret" aria-hidden />}
+        {text ? <span className="tv-caret" aria-hidden /> : <span className="tv-search-placeholder">{placeholder}</span>}
       </div>
       <div ref={keys} className="tv-osk-keyboard">
       <div className="tv-osk-row" data-caps={caps || undefined} data-nav-memory>

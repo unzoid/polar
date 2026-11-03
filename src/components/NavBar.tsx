@@ -2,8 +2,10 @@ import logo from "../assets/polarity-white.png";
 import { ChevronLeft, Close, Search, Tv } from "./icons";
 import { setTvMode } from "../tv/tvMode";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { usePrefs } from "../lib/prefs";
+import { MOD_LABEL } from "../lib/platform";
 import { useSettings } from "../lib/queries";
 import { FOCUS_SEARCH_EVENT, setSearchText, useSearchText } from "../lib/searchQuery";
 import { WindowControls } from "./WindowControls";
@@ -101,8 +103,9 @@ export function NavBar() {
  * you were, and leaving the results page empties it.
  */
 function SearchBox() {
-  const { stack, current, navigate, back } = useRouter();
+  const { stack, current, navigate, back, tab } = useRouter();
   const text = useSearchText();
+  const { searchSuggestions } = usePrefs();
   const input = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const onResults = current.name === "search";
@@ -114,8 +117,15 @@ function SearchBox() {
   // Opened from the keyboard (Ctrl K, "/"): appear instantly, no transition.
   const [instant, setInstant] = useState(resume);
   useEffect(() => {
-    if (!resume) setSearchText("");
+    if (resume) return;
+    setSearchText("");
+    // Arrived on an empty results page (TV mode's search keeps its own text): leave it.
+    if (onResults) {
+      if (stack.length > 1) back();
+      else tab({ name: "home" });
+    }
     // Mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const expand = () => {
@@ -145,7 +155,7 @@ function SearchBox() {
   useEffect(() => {
     if (!open || text) return;
     const onDown = (e: PointerEvent) => {
-      if (!box.current?.contains(e.target as Node)) {
+      if (!box.current?.contains(e.target as Node) && !(e.target as Element).closest?.(".search-suggest")) {
         input.current?.blur();
         setOpen(false);
       }
@@ -170,7 +180,7 @@ function SearchBox() {
       <button
         className="navbar-search-icon"
         aria-label="Search"
-        title="Search (Ctrl K)"
+        title={`Search (${MOD_LABEL} K)`}
         tabIndex={open ? -1 : 0}
         onClick={expand}
       >
@@ -192,12 +202,49 @@ function SearchBox() {
         aria-label="Search"
         tabIndex={open ? 0 : -1}
       />
+      {open && !text && searchSuggestions && <SearchSuggestions pick={change} under={box.current} />}
       {open && text && (
         <button className="navbar-search-clear" aria-label="Clear search" onMouseDown={(e) => e.preventDefault()} onClick={() => change("")}>
           <Close size={16} strokeWidth={2.25} />
         </button>
       )}
     </div>
+  );
+}
+
+/** A handful to start from; every genre is in Movies, Series and Anime → Browse. */
+const SUGGESTED_GENRES = ["Action", "Comedy", "Drama", "Horror", "Sci-Fi", "Thriller", "Romance", "Documentary"];
+const SUGGESTED_ANIME = ["Isekai", "Shounen", "Slice of Life", "Mecha", "Iyashikei", "Psychological"];
+
+/** Under the empty field: genres to search by, one click from their titles. */
+function SearchSuggestions({ pick, under }: { pick: (text: string) => void; under: HTMLElement | null }) {
+  const { animeEnabled } = usePrefs();
+  if (!under) return null;
+  // The field clips everything inside it (its open/close sweep), so this sits on the body.
+  const r = under.getBoundingClientRect();
+  const chips = (list: string[]) =>
+    list.map((g) => (
+      <button key={g} className="genre-chip" tabIndex={-1} onClick={() => pick(g)}>
+        {g}
+      </button>
+    ));
+  return createPortal(
+    // Keeps focus in the field, so it doesn't blur (and close) on the way.
+    <div
+      className="search-suggest"
+      style={{ top: r.bottom + 8, right: window.innerWidth - r.right }}
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <span className="search-suggest-title">Genres</span>
+      <div className="genre-wrap">{chips(SUGGESTED_GENRES)}</div>
+      {animeEnabled && (
+        <>
+          <span className="search-suggest-title">Anime</span>
+          <div className="genre-wrap">{chips(SUGGESTED_ANIME)}</div>
+        </>
+      )}
+    </div>,
+    document.body,
   );
 }
 

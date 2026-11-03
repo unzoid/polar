@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { api } from "../lib/api";
+import { useFileTrailer } from "../lib/trailers";
 import { Close, Trailer as TrailerIcon } from "./icons";
 
 /** YouTube's privacy-enhanced player for a trailer, with YouTube's clutter turned down. */
@@ -21,8 +22,11 @@ export function youtubeEmbed(ytId: string, opts: { muted?: boolean; controls?: b
 export const youtubeUrl = (ytId: string) => `https://www.youtube.com/watch?v=${encodeURIComponent(ytId)}`;
 
 interface Open {
-  ytId: string;
   name: string;
+  /** IMDb id: its trailer plays as a file, in the app's own player. */
+  imdbId?: string;
+  /** YouTube, for when IMDb has none (and for anime AniList only knows on YouTube). */
+  ytId?: string;
 }
 
 let current: Open | null = null;
@@ -33,7 +37,7 @@ const set = (next: Open | null) => {
 };
 
 /** Play a title's trailer over the app (desktop mode; TV mode has its own panel). */
-export const openTrailer = (ytId: string, name: string) => set({ ytId, name });
+export const openTrailer = (open: Open) => set(open);
 export const closeTrailer = () => set(null);
 export const useTrailerOpen = () =>
   useSyncExternalStore(
@@ -59,23 +63,36 @@ export function TrailerHost() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open]);
+  const file = useFileTrailer(open?.imdbId, !!open);
   if (!open) return null;
+  // IMDb first; YouTube once it's clear IMDb has nothing.
+  const waiting = file.isLoading;
+  const url = file.data?.url;
+  const ytId = !waiting && !url ? open.ytId : undefined;
   return (
     <div className="trailer-layer" role="dialog" aria-label={`${open.name} trailer`} onClick={(e) => e.target === e.currentTarget && closeTrailer()}>
       <div className="trailer-box">
-        <iframe
-          className="trailer-video"
-          src={youtubeEmbed(open.ytId)}
-          title={`${open.name} trailer`}
-          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
+        {url ? (
+          <video className="trailer-video" src={url} autoPlay controls playsInline title={`${open.name} trailer`} />
+        ) : ytId ? (
+          <iframe
+            className="trailer-video"
+            src={youtubeEmbed(ytId)}
+            title={`${open.name} trailer`}
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        ) : (
+          <div className="trailer-video trailer-empty t-body muted">{waiting ? "" : "No trailer for this title."}</div>
+        )}
         <div className="trailer-bar">
           <span className="trailer-name t-headline">{open.name}</span>
-          <button className="btn btn-glass" onClick={() => void api.openExternal(youtubeUrl(open.ytId))}>
-            <TrailerIcon size={16} /> Open in YouTube
-          </button>
+          {ytId && (
+            <button className="btn btn-glass" onClick={() => void api.openExternal(youtubeUrl(ytId))}>
+              <TrailerIcon size={16} /> Open in YouTube
+            </button>
+          )}
           <button className="btn btn-glass btn-icon" onClick={closeTrailer} aria-label="Close trailer" title="Close (Esc)">
             <Close size={18} />
           </button>

@@ -88,9 +88,9 @@ const feedPath = join(bundle, "latest.json");
 writeFileSync(feedPath, JSON.stringify(feed, null, 2));
 
 // 4. Publish.
-const body = `Polar for Windows (x64).
+const body = `Polarity for Windows (x64).
 
-**Install:** download \`Polar_${version}_x64-setup.exe\` (recommended) or the \`.msi\`. Already have Polar 0.1.3 or later? It updates itself: you'll be asked to restart when it's ready.
+**Install:** download \`Polar_${version}_x64-setup.exe\` (recommended) or the \`.msi\`. Already have Polarity 0.1.3 or later? It updates itself: you'll be asked to restart when it's ready.
 
 ### What's new
 ${notes}
@@ -102,9 +102,9 @@ writeFileSync(bodyPath, body);
 run("gh", [
   "release", "create", `v${version}`,
   "-R", REPO,
-  "--title", `"Polar ${version}"`,
+  "--title", `"Polarity ${version}"`,
   "--notes-file", `"${bodyPath}"`,
   ...(flags.has("--draft") ? ["--draft"] : []),
   `"${setup}"`, `"${msi}"`, `"${feedPath}"`,
 ]);
-console.log(`\nReleased Polar ${version}. Commit the version bump: git commit -am "Release ${version}"`);
+console.log(`\nReleased Polarity ${version}. Commit the version bump: git commit -am "Release ${version}"`);

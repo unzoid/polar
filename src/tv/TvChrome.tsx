@@ -151,7 +151,7 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
           </button>
           <button className="tv-menu-item" onClick={() => void getCurrentWindow().close()}>
             <Power size={28} />
-            Quit Polar
+            Quit Polarity
           </button>
         </div>
         <button className="tv-menu-close" onClick={onClose} aria-label="Close menu" tabIndex={-1}>

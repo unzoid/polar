@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { settingsChanged } from "./settingsChanges";
+import { isMac, MOD } from "./platform";
 
 /**
  * Keyboard shortcuts, rebindable in Settings → Controls. A binding is a combo
@@ -68,7 +69,7 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   speed: ["r"],
   toggleTv: ["F10"],
   // Letters are stored lower-case (see comboOf); they're shown upper-case.
-  search: ["/", "Ctrl+k"],
+  search: ["/", `${MOD}+k`],
 };
 
 /** Keys that keep their meaning everywhere and can't be bound: Back, and typing into fields. */
@@ -192,9 +193,10 @@ const KEY_LABELS: Record<string, string> = {
   ArrowDown: "↓",
   Space: "Space",
   " ": "Space",
+  ...(isMac ? { Meta: "⌘", Alt: "⌥", Shift: "⇧", Ctrl: "⌃" } : { Meta: "Win" }),
 };
 
-/** "Ctrl+Shift+T" → ["Ctrl", "Shift", "T"], keys as people read them. */
+/** "Ctrl+Shift+T" → ["Ctrl", "Shift", "T"], keys as people read them (⌘ ⌥ ⇧ on a Mac). */
 export function comboLabel(combo: string): string[] {
   return combo.split("+").map((k) => KEY_LABELS[k] ?? (k.length === 1 ? k.toUpperCase() : k));
 }

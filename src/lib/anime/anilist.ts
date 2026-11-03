@@ -315,6 +315,8 @@ export type BrowseSort = "TRENDING_DESC" | "POPULARITY_DESC" | "SCORE_DESC" | "S
 export interface BrowseFilters {
   search: string;
   genre: string;
+  /** An AniList tag (Isekai, Shounen…): the anime-specific kinds genres don't cover. */
+  tag: string;
   season: MediaSeason | "";
   year: number | 0;
   format: MediaFormat | "";
@@ -323,8 +325,9 @@ export interface BrowseFilters {
 }
 
 /** The searchable, filterable grid. Infinite: 36 a page. */
-export function useAnimeBrowse(f: BrowseFilters) {
+export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
   return useInfiniteQuery({
+    enabled,
     queryKey: ["anime", "browse", f],
     staleTime: 15 * 60_000,
     initialPageParam: 1,
@@ -332,15 +335,16 @@ export function useAnimeBrowse(f: BrowseFilters) {
       const vars: Record<string, unknown> = { page: pageParam, sort: f.search ? ["SEARCH_MATCH", f.sort] : [f.sort] };
       if (f.search) vars.search = f.search;
       if (f.genre) vars.genre = f.genre;
+      if (f.tag) vars.tag = f.tag;
       if (f.season) vars.season = f.season;
       if (f.year) vars.year = f.year;
       if (f.format) vars.format = f.format;
       if (f.status) vars.status = f.status;
       const data = await gql<{ Page: { pageInfo: { hasNextPage: boolean }; media: AnimeCard[] } }>(
-        `query ($page: Int, $search: String, $genre: String, $season: MediaSeason, $year: Int, $format: MediaFormat, $status: MediaStatus, $sort: [MediaSort]) {
+        `query ($page: Int, $search: String, $genre: String, $tag: String, $season: MediaSeason, $year: Int, $format: MediaFormat, $status: MediaStatus, $sort: [MediaSort]) {
           Page(page: $page, perPage: 36) {
             pageInfo { hasNextPage }
-            media(type: ANIME, isAdult: false, search: $search, genre: $genre, season: $season, seasonYear: $year, format: $format, status: $status, sort: $sort) { ${CARD} }
+            media(type: ANIME, isAdult: false, search: $search, genre: $genre, tag: $tag, season: $season, seasonYear: $year, format: $format, status: $status, sort: $sort) { ${CARD} }
           }
         }`,
         vars,
@@ -350,6 +354,27 @@ export function useAnimeBrowse(f: BrowseFilters) {
     getNextPageParam: (last, pages) => (last.pageInfo.hasNextPage ? pages.length + 1 : undefined),
   });
 }
+
+/** AniList tags worth browsing by: the anime-specific kinds of show. */
+export const ANIME_TAGS = [
+  "Isekai",
+  "Shounen",
+  "Seinen",
+  "Shoujo",
+  "Josei",
+  "Iyashikei",
+  "Super Power",
+  "Martial Arts",
+  "Military",
+  "School",
+  "Reincarnation",
+  "Time Loop",
+  "Vampire",
+  "Cyberpunk",
+  "Historical",
+  "Survival",
+  "Idol",
+];
 
 /** AniList's genres (stable; the API's GenreCollection minus Ecchi and Hentai). */
 export const ANIME_GENRES = [

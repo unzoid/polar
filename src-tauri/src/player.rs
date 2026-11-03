@@ -5,9 +5,11 @@
 //! plays all of it, so when it's available it becomes the player and the
 //! React UI simply draws on top:
 //!
-//!   * mpv renders into the app window itself (`--wid=<hwnd>`), underneath a
-//!     transparent webview — the page turns transparent while playing.
-//!   * We drive it over its JSON IPC named pipe: commands go in with a
+//!   * mpv renders into the app window itself (`--wid`: the HWND on Windows,
+//!     the window's NSView on macOS), underneath a transparent webview — the
+//!     page turns transparent while playing.
+//!   * We drive it over its JSON IPC (a named pipe on Windows, a Unix socket
+//!     elsewhere): commands go in with a
 //!     `request_id`, replies and property changes come back as lines.
 //!   * Observed properties are forwarded to the UI as `mpv://property`
 //!     events (high-frequency ones throttled), lifecycle events as `mpv://event`.
@@ -26,8 +28,9 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, WriteHalf};
-use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
 use tokio::sync::{oneshot, Mutex};
+
+use ipc::Stream as IpcStream;
 
 use crate::AppState;
 
@@ -71,7 +74,7 @@ type Pending = Arc<StdMutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>
 
 struct Conn {
     child: Child,
-    writer: WriteHalf<NamedPipeClient>,
+    writer: WriteHalf<IpcStream>,
     pending: Pending,
     /// Set before an intentional kill so the reader doesn't report a crash.
     quiet: Arc<AtomicBool>,
@@ -88,28 +91,107 @@ pub struct Mpv {
     tuned: StdMutex<Tune>,
 }
 
-/// mpv.exe: next to our binary (bundled), on PATH, or a standard install.
+/// The mpv executable's file name here.
+const MPV_EXE: &str = if cfg!(windows) { "mpv.exe" } else { "mpv" };
+
+/// mpv: next to our binary (bundled), on PATH, or a standard install.
 pub fn mpv_binary() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            candidates.push(dir.join("mpv.exe"));
+            candidates.push(dir.join(MPV_EXE));
         }
     }
     if let Some(path) = std::env::var_os("PATH") {
-        candidates.extend(std::env::split_paths(&path).map(|p| p.join("mpv.exe")));
+        candidates.extend(std::env::split_paths(&path).map(|p| p.join(MPV_EXE)));
     }
-    for var in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
-        if let Some(base) = std::env::var_os(var).map(PathBuf::from) {
-            candidates.push(base.join("MPV Player").join("mpv.exe"));
-            candidates.push(base.join("mpv").join("mpv.exe"));
-            candidates.push(base.join("Programs").join("mpv").join("mpv.exe"));
+    #[cfg(windows)]
+    {
+        for var in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
+            if let Some(base) = std::env::var_os(var).map(PathBuf::from) {
+                candidates.push(base.join("MPV Player").join("mpv.exe"));
+                candidates.push(base.join("mpv").join("mpv.exe"));
+                candidates.push(base.join("Programs").join("mpv").join("mpv.exe"));
+            }
+        }
+        if let Some(home) = std::env::var_os("USERPROFILE").map(PathBuf::from) {
+            candidates.push(home.join("scoop").join("apps").join("mpv").join("current").join("mpv.exe"));
         }
     }
-    if let Some(home) = std::env::var_os("USERPROFILE").map(PathBuf::from) {
-        candidates.push(home.join("scoop").join("apps").join("mpv").join("current").join("mpv.exe"));
+    // Apps launched from Finder don't get the shell's PATH, so Homebrew's
+    // and MacPorts' bins (and mpv.app) are looked up by name.
+    #[cfg(target_os = "macos")]
+    {
+        candidates.push("/opt/homebrew/bin/mpv".into());
+        candidates.push("/usr/local/bin/mpv".into());
+        candidates.push("/opt/local/bin/mpv".into());
+        candidates.push("/Applications/mpv.app/Contents/MacOS/mpv".into());
+        if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+            candidates.push(home.join("Applications/mpv.app/Contents/MacOS/mpv"));
+        }
     }
     candidates.into_iter().find(|p| p.is_file())
+}
+
+/// The native view mpv draws into (`--wid`).
+fn window_id(window: &WebviewWindow) -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        Ok((window.hwnd().map_err(|e| e.to_string())?.0 as isize).to_string())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Ok((window.ns_view().map_err(|e| e.to_string())? as usize).to_string())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let _ = window;
+        Err("the built-in mpv player isn't supported on this system yet".into())
+    }
+}
+
+/// mpv's IPC transport: a named pipe on Windows, a Unix socket elsewhere.
+mod ipc {
+    #[cfg(windows)]
+    pub type Stream = tokio::net::windows::named_pipe::NamedPipeClient;
+    #[cfg(unix)]
+    pub type Stream = tokio::net::UnixStream;
+
+    /// Where this app instance's mpv listens.
+    pub fn endpoint() -> String {
+        #[cfg(windows)]
+        {
+            format!(r"\\.\pipe\polar-mpv-{}", std::process::id())
+        }
+        #[cfg(unix)]
+        {
+            let path = std::env::temp_dir().join(format!("polar-mpv-{}.sock", std::process::id()));
+            // A socket left by an earlier run with this pid would refuse mpv's bind.
+            let _ = std::fs::remove_file(&path);
+            path.to_string_lossy().into_owned()
+        }
+    }
+
+    pub async fn connect(endpoint: &str) -> std::io::Result<Stream> {
+        #[cfg(windows)]
+        {
+            tokio::net::windows::named_pipe::ClientOptions::new().open(endpoint)
+        }
+        #[cfg(unix)]
+        {
+            tokio::net::UnixStream::connect(endpoint).await
+        }
+    }
+}
+
+/// Rendering: Direct3D 11 on Windows (lighter than Vulkan, zero-copy with
+/// d3d11va); elsewhere mpv's own choice for the platform.
+fn gpu_args() -> Vec<String> {
+    if cfg!(windows) {
+        vec!["--gpu-api=d3d11".into()]
+    } else {
+        Vec::new()
+    }
 }
 
 impl Mpv {
@@ -123,8 +205,8 @@ impl Mpv {
         }
 
         let bin = mpv_binary().ok_or("mpv isn't installed")?;
-        let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
-        let pipe = format!(r"\\.\pipe\polar-mpv-{}", std::process::id());
+        let wid = window_id(window)?;
+        let pipe = ipc::endpoint();
         let shots = std::env::temp_dir().join("polar-mpv");
         let _ = std::fs::create_dir_all(&shots);
         // Compiled shaders persist here, so the first frame after an app
@@ -136,8 +218,8 @@ impl Mpv {
             .join("mpv-shaders");
         let _ = std::fs::create_dir_all(&shader_cache);
 
-        let base: Vec<String> = vec![
-            format!("--wid={hwnd}"),
+        let mut base: Vec<String> = vec![
+            format!("--wid={wid}"),
             format!("--input-ipc-server={pipe}"),
             "--profile=libmpv".into(), // no OSC/OSD/default key bindings — our UI does that
             // Ignore a user's own mpv.conf/scripts: heavy shaders or
@@ -146,9 +228,8 @@ impl Mpv {
             "--idle=yes".into(),
             "--keep-open=yes".into(),
             "--force-window=yes".into(),
-            "--hwdec=auto-safe".into(), // d3d11va: decoded frames stay on the GPU
+            "--hwdec=auto-safe".into(), // d3d11va / videotoolbox: decoded frames stay on the GPU
             "--vo=gpu-next".into(),
-            "--gpu-api=d3d11".into(), // lighter than Vulkan on Windows, and zero-copy with d3d11va
             format!("--gpu-shader-cache-dir={}", shader_cache.display()),
             "--background-color=#000000".into(),
             // Cache: with --cache=yes mpv ignores --demuxer-readahead-secs and
@@ -177,6 +258,7 @@ impl Mpv {
             "--screenshot-jpeg-quality=70".into(),
             format!("--screenshot-directory={}", shots.display()),
         ];
+        base.extend(gpu_args());
 
         let (child, client) = match launch(&bin, &base, true, &pipe).await? {
             Some(ok) => ok,
@@ -261,7 +343,7 @@ async fn launch(
     base: &[String],
     modern: bool,
     pipe: &str,
-) -> Result<Option<(Child, NamedPipeClient)>, String> {
+) -> Result<Option<(Child, IpcStream)>, String> {
     let mut cmd = Command::new(bin);
     cmd.args(base);
     if modern {
@@ -278,7 +360,7 @@ async fn launch(
     // The pipe appears once mpv has initialised.
     let started = Instant::now();
     loop {
-        match ClientOptions::new().open(pipe) {
+        match ipc::connect(pipe).await {
             Ok(c) => return Ok(Some((child, c))),
             Err(_) if modern && matches!(child.try_wait(), Ok(Some(_))) => return Ok(None),
             Err(_) if started.elapsed() < Duration::from_secs(8) => tokio::time::sleep(Duration::from_millis(15)).await,
@@ -292,7 +374,7 @@ async fn launch(
 
 async fn read_loop(
     app: AppHandle,
-    mut reader: BufReader<tokio::io::ReadHalf<NamedPipeClient>>,
+    mut reader: BufReader<tokio::io::ReadHalf<IpcStream>>,
     pending: Pending,
     quiet: Arc<AtomicBool>,
 ) {
@@ -426,6 +508,8 @@ pub async fn mpv_load(
     if !is_web_url(&url) && !downloaded {
         return Err("only http(s) streams and downloads can be played".into());
     }
+    // A service link that's not ready yet, or a status clip in place of the video.
+    let url = if downloaded { url } else { crate::streamcheck::prepare(&url).await? };
     state.mpv.touch();
     state.mpv.ensure(&app, &window).await?;
     let mut options = String::new();

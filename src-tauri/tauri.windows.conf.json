@@ -1,0 +1,25 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Polarity",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "center": true,
+        "transparent": true,
+        "decorations": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-blink-features=AudioVideoTracks --autoplay-policy=no-user-gesture-required"
+      }
+    ]
+  },
+  "bundle": {
+    "resources": {
+      "vendor/mpv/mpv.exe": "mpv.exe",
+      "vendor/mpv/d3dcompiler_43.dll": "d3dcompiler_43.dll",
+      "vendor/mpv/LICENSE.GPL.txt": "licenses/mpv/LICENSE.GPL.txt",
+      "vendor/mpv/COPYRIGHT.txt": "licenses/mpv/COPYRIGHT.txt"
+    }
+  }
+}

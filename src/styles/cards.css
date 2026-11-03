@@ -24,6 +24,7 @@
   border-radius: var(--r-panel);
   overflow: hidden;
   isolation: isolate;
+  cursor: pointer;
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.06),
     0 30px 60px -30px rgb(0 0 0 / 0.8);
@@ -442,7 +443,11 @@
   box-shadow: inset 0 0 0 1px var(--hairline);
   pointer-events: none;
 }
+/* Out of flow: a cover that isn't 2:3 (manga, novels) would otherwise stretch
+   its frame once it loads, shoving the rows below down. */
 .card-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -788,6 +793,14 @@
   border-radius: var(--r-md);
   background: #000;
   box-shadow: 0 30px 80px -20px rgb(0 0 0 / 0.9);
+}
+video.trailer-video {
+  display: block;
+  object-fit: contain;
+}
+.trailer-empty {
+  display: grid;
+  place-items: center;
 }
 .trailer-bar {
   display: flex;

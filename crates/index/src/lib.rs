@@ -245,6 +245,7 @@ impl Indexer {
             types: vec!["movie".into(), "series".into()],
             catalogs,
             id_prefixes: Some(vec!["tt".into()]),
+            behavior_hints: None,
         }
     }
 }

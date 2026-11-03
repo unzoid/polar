@@ -38,13 +38,13 @@ export function UpdateToast({ hidden }: { hidden: boolean }) {
           <span className="tv-prompt-text">
             {s.phase === "available" && (
               <>
-                <strong>Polar {s.version} is available</strong>
+                <strong>Polarity {s.version} is available</strong>
                 <span>You're on an older version.</span>
               </>
             )}
             {s.phase === "downloading" && (
               <>
-                <strong>Downloading Polar {s.version}…</strong>
+                <strong>Downloading Polarity {s.version}…</strong>
                 <span>{s.progress == null ? "Starting" : `${Math.round(s.progress * 100)}%`} · keep watching, it's in the background</span>
                 <span className="update-progress" aria-hidden>
                   <span style={{ transform: `scaleX(${s.progress ?? 0.04})` }} />
@@ -53,14 +53,14 @@ export function UpdateToast({ hidden }: { hidden: boolean }) {
             )}
             {s.phase === "ready" && (
               <>
-                <strong>Polar {s.version} is ready</strong>
+                <strong>Polarity {s.version} is ready</strong>
                 <span>Restart to finish. It takes a few seconds and you'll be right back.</span>
               </>
             )}
             {s.phase === "installing" && (
               <>
-                <strong>Installing Polar {s.version}…</strong>
-                <span>Polar will reopen by itself.</span>
+                <strong>Installing Polarity {s.version}…</strong>
+                <span>Polarity will reopen by itself.</span>
               </>
             )}
           </span>
@@ -117,21 +117,21 @@ export function UpdatePill() {
   if (!("version" in s) || dismissed !== s.version) return null;
   if (s.phase === "available")
     return (
-      <button className="navbar-update pressable" onClick={() => void downloadUpdate()} title={`Download Polar ${s.version}`}>
+      <button className="navbar-update pressable" onClick={() => void downloadUpdate()} title={`Download Polarity ${s.version}`}>
         <span className="navbar-update-dot" aria-hidden />
         Update
       </button>
     );
   if (s.phase === "downloading")
     return (
-      <span className="navbar-update" data-busy title={`Downloading Polar ${s.version}`}>
+      <span className="navbar-update" data-busy title={`Downloading Polarity ${s.version}`}>
         <span className="navbar-update-dot" aria-hidden />
         {s.progress == null ? "Updating…" : `${Math.round(s.progress * 100)}%`}
       </span>
     );
   if (s.phase === "ready")
     return (
-      <button className="navbar-update pressable" onClick={() => void installUpdate()} title={`Install Polar ${s.version} and restart`}>
+      <button className="navbar-update pressable" onClick={() => void installUpdate()} title={`Install Polarity ${s.version} and restart`}>
         <span className="navbar-update-dot" aria-hidden />
         Restart to update
       </button>
@@ -159,7 +159,7 @@ export function WhatsNewSheet() {
     <Sheet
       open={open && !!info}
       onClose={() => setOpen(false)}
-      title={`Updated to Polar ${info?.version ?? ""}`}
+      title={`Updated to Polarity ${info?.version ?? ""}`}
       subtitle={info ? `From ${info.previous}. Everything you had is still here.` : undefined}
     >
       <div className="whats-new">
