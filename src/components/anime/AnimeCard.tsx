@@ -8,7 +8,21 @@ import { aniZipQuery } from "../../lib/anime/anizip";
 import { menuPoint, openCardMenu } from "../CardMenu";
 import { api } from "../../lib/api";
 import { Img } from "../Img";
-import { Star } from "../icons";
+import { Star, Warning } from "../icons";
+
+/**
+ * Settings → Browsing → Mature content, "blur": the art behind dark frosted
+ * glass with a warning and "18+". A warning, not a no-entry sign: the card
+ * still opens.
+ */
+function MatureCover() {
+  return (
+    <span className="card-mature" title="Mature content" aria-label="Mature content">
+      <Warning size={24} />
+      <span className="card-mature-label">18+</span>
+    </span>
+  );
+}
 
 /** Click and right-click for an anime: its page, and the shared title menu. */
 export function useAnimeHandlers() {
@@ -72,12 +86,12 @@ export function AnimeCard({ item, label }: { item: Card; label?: string }) {
   return (
     <button
       className="card card-poster anime-card"
-      data-mature={prefs.matureContent === "blur" && isMature(item) ? "" : undefined}
       {...(isAnime ? open : { onClick: () => void api.openExternal(readOn), title: "Open on MyAnimeList" })}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >
       <div className="card-frame anime-card-frame">
         <Img src={item.coverImage.extraLarge ?? item.coverImage.large ?? undefined} alt="" className="card-img" />
+        {prefs.matureContent === "blur" && isMature(item) && <MatureCover />}
         {!isAnime && <span className="card-kind-badge">{item.format === "NOVEL" ? "Novel" : "Manga"}</span>}
         {score && (
           <span className="card-score card-score-art anime-card-score tabular" title="AniList score">
@@ -109,7 +123,6 @@ export function AnimeLandscapeCard({ item, label }: { item: Card; label?: string
   return (
     <button
       className="card card-landscape anime-card"
-      data-mature={matureContent === "blur" && isMature(item) ? "" : undefined}
       {...open}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >
@@ -117,6 +130,7 @@ export function AnimeLandscapeCard({ item, label }: { item: Card; label?: string
         <Img src={item.bannerImage ?? item.coverImage.extraLarge ?? undefined} alt="" className="card-img" />
         <div className="card-art-scrim" />
         <span className="card-art-title t-title2">{title}</span>
+        {matureContent === "blur" && isMature(item) && <MatureCover />}
       </div>
       <div className="card-caption">
         <span className="card-title t-callout">{title}</span>

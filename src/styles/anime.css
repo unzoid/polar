@@ -18,11 +18,26 @@
   z-index: 1;
   font-size: 0.6875rem;
 }
-/* Settings → Browsing → Mature content: blurred. Scaled so the blur's soft
-   edge stays inside the frame. */
-.anime-card[data-mature] .card-img {
-  filter: blur(18px);
-  transform: scale(1.1);
+/* Settings → Browsing → Mature content: blurred. Dark frosted glass over the
+   whole picture (nothing of it reads through), a warning and "18+". */
+.card-mature {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: inherit;
+  background: rgb(12 12 14 / 0.62);
+  -webkit-backdrop-filter: blur(40px) saturate(120%);
+  backdrop-filter: blur(40px) saturate(120%);
+  color: rgb(255 255 255 / 0.6);
+}
+.card-mature-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 /* A franchise entry that's read, not watched: opens on MyAnimeList. */
 .card-kind-badge {

@@ -48,6 +48,7 @@ export const Instant =icon(S24.BoltIcon, S20.BoltIcon, S16.BoltIcon);
 export const LayoutList = icon(S24.ListBulletIcon, S20.ListBulletIcon, S16.ListBulletIcon);
 export const LayoutRow = icon(S24.ViewColumnsIcon, S20.ViewColumnsIcon, S16.ViewColumnsIcon);
 export const Minus = icon(S24.MinusIcon, S20.MinusIcon, S16.MinusIcon);
+export const Warning = icon(S24.ExclamationTriangleIcon, S20.ExclamationTriangleIcon, S16.ExclamationTriangleIcon);
 export const Pause = icon(S24.PauseIcon, S20.PauseIcon, S16.PauseIcon);
 export const Picture = icon(S24.PhotoIcon, S20.PhotoIcon, S16.PhotoIcon);
 export const PlaylistIcon = icon(S24.ListBulletIcon, S20.ListBulletIcon, S16.ListBulletIcon);
