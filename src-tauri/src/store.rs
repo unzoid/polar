@@ -95,6 +95,9 @@ pub struct Settings {
     pub source_auto_tags: Vec<String>,
     /// Rank sources sharper than this screen below ones that match it.
     pub prefer_screen_resolution: bool,
+    /// Source filters hide what doesn't match; off, matches go first and the
+    /// rest stays below them.
+    pub source_filters_hide: bool,
 
     // --- Services ---
     /// MDBList (mdblist.com) key: Rotten Tomatoes, Metacritic, Letterboxd and Trakt scores.
@@ -216,6 +219,7 @@ impl Default for Settings {
             source_sort: "best".into(),
             source_auto_tags: Vec::new(),
             prefer_screen_resolution: true,
+            source_filters_hide: false,
             mdblist_key: None,
             omdb_key: None,
             subtitle_mode: "always".into(),

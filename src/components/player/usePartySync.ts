@@ -16,8 +16,6 @@ const IN_SYNC = 0.12;
 const NUDGE = 0.3;
 /** Beyond this, seek. */
 const JUMP = 2;
-/** A buffering stall shorter than this doesn't hold the room. */
-const STALL_MS = 1200;
 /** Our own play/pause/seek echoes back from the engine within this. */
 const ECHO_MS = 1500;
 
@@ -74,16 +72,21 @@ export function usePartySync({
     if (missingHint || missingLabel) partyAct({ media: { ...roomMedia, hint: roomMedia.hint ?? hint, label: roomMedia.label ?? label } });
   }, [roomMedia, hint, label]);
 
-  // Not on the room's video yet, loading, or stalled for more than a moment:
-  // ask the room to wait.
+  // Not on the room's video yet, or still loading it: ask the room to wait.
+  // Only then. A stall mid-video catches up on its own (below); holding the
+  // room for it made each catch-up seek a new hold, and play/pause in between
+  // went nowhere.
   const onRoomVideo = !!roomMedia;
   useEffect(() => {
-    if (!inParty) return;
-    if (!onRoomVideo || !started) return setPartyWaiting(true);
-    if (!buffering) return setPartyWaiting(false);
-    const t = window.setTimeout(() => setPartyWaiting(true), STALL_MS);
-    return () => window.clearTimeout(t);
-  }, [inParty, onRoomVideo, started, buffering]);
+    if (inParty) setPartyWaiting(!onRoomVideo || !started);
+  }, [inParty, onRoomVideo, started]);
+
+  const bufferingRef = useRef(buffering);
+  bufferingRef.current = buffering;
+  /** How long a seek here takes to play again (s): catch-up seeks aim that far ahead. */
+  const seekLag = useRef(0.5);
+  /** When the last catch-up seek was made, until it has landed. */
+  const seekSent = useRef<number | null>(null);
 
   useEffect(() => {
     if (!started) synced.current = false;
@@ -96,8 +99,8 @@ export function usePartySync({
       if (m.playbackRate !== r) m.playbackRate = r;
     };
     const seek = (m: MediaLike, t: number) => {
-      if (performance.now() - commanded.current.seekAt < ECHO_MS) return; // let the last one land
-      commanded.current.seekAt = performance.now();
+      if (seekSent.current != null) return; // let the last one land
+      commanded.current.seekAt = seekSent.current = performance.now();
       m.currentTime = t;
     };
     const command = (m: MediaLike, paused: boolean) => {
@@ -111,22 +114,32 @@ export function usePartySync({
       const m = mediaRef.current;
       if (!p || !m || p.media.videoId !== videoId || !startedRef.current || m.ended) return;
       const hold = p.paused || p.held;
+      // Play/pause always follows the room at once, even mid-seek.
+      command(m, hold);
+      synced.current = true;
+      // A seek still loading: measure it once it plays, and judge drift only after.
+      const now = performance.now();
+      if (seekSent.current != null) {
+        if (bufferingRef.current || now - seekSent.current < 300) return;
+        const took = (now - seekSent.current) / 1000;
+        seekLag.current = Math.min(8, Math.max(0.2, seekLag.current * 0.5 + took * 0.5));
+        seekSent.current = null;
+      }
+      if (bufferingRef.current) return; // stalled: the drift is the stall's, not ours to fix yet
       if (hold) {
-        command(m, true);
         setRate(m, 1);
         if (Math.abs(m.currentTime - p.position) > 0.5) seek(m, p.position);
-      } else {
-        const target = expectedPosition(p);
-        if (Number.isFinite(m.duration) && m.duration > 0 && target >= m.duration - 1) return; // let it end on its own
-        const drift = m.currentTime - target;
-        if (Math.abs(drift) > JUMP) {
-          setRate(m, 1);
-          seek(m, target);
-        } else if (Math.abs(drift) > NUDGE) setRate(m, drift > 0 ? 0.95 : 1.05);
-        else if (Math.abs(drift) < IN_SYNC) setRate(m, 1);
-        command(m, false);
+        return;
       }
-      synced.current = true;
+      const target = expectedPosition(p);
+      if (Number.isFinite(m.duration) && m.duration > 0 && target >= m.duration - 1) return; // let it end on its own
+      const drift = m.currentTime - target;
+      if (Math.abs(drift) > JUMP) {
+        setRate(m, 1);
+        // Aim where the room will be by the time this seek plays.
+        seek(m, target + seekLag.current);
+      } else if (Math.abs(drift) > NUDGE) setRate(m, drift > 0 ? 0.95 : 1.05);
+      else if (Math.abs(drift) < IN_SYNC) setRate(m, 1);
     };
     tick();
     const t = window.setInterval(tick, 250);

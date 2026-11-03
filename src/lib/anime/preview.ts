@@ -1,6 +1,6 @@
 import type { MetaPreview } from "../types";
 import type { AnimeCard } from "./anilist";
-import { anizipImage, type AniZip } from "./anizip";
+import { animeArt, type AniZip } from "./anizip";
 import { cleanDescription, pickTitle } from "./format";
 
 const ID_PREFIX = "anilist:";
@@ -19,8 +19,7 @@ export function animePreview(a: AnimeCard, zip: AniZip | null | undefined, title
     type: a.format === "MOVIE" ? "movie" : "series",
     name: pickTitle(a.title, titles),
     poster: a.coverImage.extraLarge ?? a.coverImage.large ?? undefined,
-    background: anizipImage(zip, "Fanart") ?? a.bannerImage ?? a.coverImage.extraLarge ?? undefined,
-    logo: anizipImage(zip, "Clearlogo"),
+    ...animeArt(a, zip),
     description: cleanDescription(a.description)[0],
     releaseInfo: String(a.seasonYear ?? a.startDate?.year ?? "") || undefined,
     genres: a.genres,

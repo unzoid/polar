@@ -565,6 +565,56 @@
   height: 28px;
   padding: 0 0.75rem;
 }
+/* Recent searches: full-width rows above the genre chips. */
+.search-suggest-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.search-suggest-clear {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-3);
+  transition: color 150ms ease;
+}
+.search-recent {
+  display: grid;
+  margin: -0.25rem -0.5rem 0.25rem;
+}
+.search-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 34px;
+  padding: 0 0.5rem;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.search-recent-item > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-recent-item > svg {
+  flex: none;
+  color: var(--text-3);
+}
+@media (hover: hover) and (pointer: fine) {
+  .search-recent-item:hover {
+    background: rgb(255 255 255 / 0.06);
+    color: var(--text);
+  }
+  .search-suggest-clear:hover {
+    color: var(--text);
+  }
+}
 .genre-wrap {
   display: flex;
   flex-wrap: wrap;

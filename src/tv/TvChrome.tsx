@@ -1,7 +1,8 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
-import { Close, Desktop, Power, Profile, Search, Settings, Tv, Users } from "../components/icons";
+import { Close, Desktop, Power, Profile, Search, Settings, Tv, Users, WatchParty } from "../components/icons";
+import { partyAvailable, setJoinPartyOpen } from "../lib/party/party";
 import { useAccount } from "../lib/account/AccountProvider";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { usePrefs } from "../lib/prefs";
@@ -125,6 +126,18 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
             <button className="tv-menu-item" onClick={() => account.switchProfile("pick")}>
               <Users size={28} />
               Switch Profile
+            </button>
+          )}
+          {account.enabled && account.status === "ready" && partyAvailable() && (
+            <button
+              className="tv-menu-item"
+              onClick={() => {
+                onClose();
+                setJoinPartyOpen(true);
+              }}
+            >
+              <WatchParty size={28} />
+              Join Watch Party
             </button>
           )}
           {account.enabled && account.status === "guest" && (

@@ -1,5 +1,5 @@
 import { Menu } from "@base-ui/react/menu";
-import { Calendar, Edit, Profile, Settings, SignOut, Users } from "./icons";
+import { Calendar, Edit, Profile, Settings, SignOut, WatchParty } from "./icons";
 import { partyAvailable, setJoinPartyOpen } from "../lib/party/party";
 import { useRouter } from "../lib/router";
 import { useAccount } from "../lib/account/AccountProvider";
@@ -54,7 +54,7 @@ export function ProfileMenu() {
             {others.length > 0 || me ? <div className="profile-menu-sep" /> : null}
             {me && partyAvailable() && (
               <Menu.Item className="profile-menu-item" onClick={() => setJoinPartyOpen(true)}>
-                <Users />
+                <WatchParty />
                 Join Watch Party
               </Menu.Item>
             )}

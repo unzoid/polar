@@ -30,6 +30,9 @@ pub struct StreamQuality {
     pub languages: Vec<&'static str>,
     /// Release details worth filtering on: "Remux", "Atmos", "HDR10+", "10-bit"…
     pub tags: Vec<&'static str>,
+    /// Who made or carried the file: the release group ("SubsPlease", "FLUX",
+    /// "site"), else the site the add-on found it on ("site").
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -106,7 +109,51 @@ pub fn parse_quality(stream: &Stream) -> StreamQuality {
         direct: stream.url.is_some(),
         languages: languages(&text),
         tags: TAGS.iter().filter(|(_, re)| re.is_match(&text)).map(|(tag, _)| *tag).collect(),
+        source: release_source(stream),
     }
+}
+
+/// "[SubsPlease] Show - 01 (1080p).mkv": anime groups lead in brackets.
+static GROUP_LEAD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[([^\]\[]{2,24})\]").unwrap());
+/// "Movie.2024.1080p.WEB-DL.H.264-FLUX[rartv].mkv": scene groups trail a dash.
+static GROUP_TAIL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"-([A-Za-z0-9][A-Za-z0-9_]{1,19})(?:\s*\[[^\]]*\])*(?:\.(?:mkv|mp4|avi|ts|m2ts|webm))?\s*$").unwrap()
+});
+/// site writes its name as a tag instead: "Movie (2024) [1080p] [site.MX]".
+static site: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\[site(?:\.\w+)?\]|\bYIFY\b").unwrap());
+/// addon and friends: "👤 213 💾 12.4 GB ⚙️ site".
+/// Run on what follows the ⚙ (its emoji variation selector first).
+static SITE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\x{FE0F}?\s*([^\n👤💾⚙🌐]+)").unwrap());
+/// Dash-words that end release names without being a group.
+const NOT_GROUPS: &[&str] = &["DL", "RIP", "WEB", "HD", "SDR", "HDR", "X264", "X265", "H264", "H265", "AAC", "DDP", "AC3", "DTS"];
+
+/// Who made or carried the file (see `StreamQuality::source`).
+fn release_source(stream: &Stream) -> Option<String> {
+    let release = [&stream.title, &stream.description]
+        .into_iter()
+        .flatten()
+        .find_map(|t| t.lines().next().map(str::trim).filter(|l| !l.is_empty()))
+        .unwrap_or_default();
+    let group = GROUP_LEAD
+        .captures(release)
+        .map(|c| c[1].trim().to_string())
+        .filter(|g| !g.chars().all(|c| c.is_ascii_digit() || c == 'p'))
+        .or_else(|| site.is_match(release).then(|| "site".to_string()))
+        .or_else(|| {
+            GROUP_TAIL
+                .captures(release)
+                .map(|c| c[1].to_string())
+                .filter(|g| !NOT_GROUPS.contains(&g.to_ascii_uppercase().as_str()) && !g.chars().all(|c| c.is_ascii_digit()))
+        });
+    group.or_else(|| {
+        let text = [&stream.title, &stream.description].into_iter().flatten().map(String::as_str).collect::<Vec<_>>().join("\n");
+        text.contains('⚙')
+            .then(|| text.split('⚙').nth(1))
+            .flatten()
+            .and_then(|rest| SITE.captures(rest))
+            .map(|c| c[1].trim().to_string())
+            .filter(|s| !s.is_empty())
+    })
 }
 
 /// Release tags, in the order they're shown.
@@ -416,6 +463,19 @@ mod tests {
             content_id: Some("abc".into()),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn finds_who_made_the_file() {
+        let src = |title: &str| parse_quality(&stream("addon\n1080p", title)).source;
+        assert_eq!(src("[SubsPlease] Kurogane Rite - 47 (1080p) [A1B2C3D4].mkv\n👤 300 💾 1.4 GB ⚙️ site").as_deref(), Some("SubsPlease"));
+        assert_eq!(src("Movie.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX\n👤 40 💾 6 GB ⚙️ site").as_deref(), Some("FLUX"));
+        assert_eq!(src("Movie.2024.2160p.BluRay.x265-SPARKS[rartv]\n👤 9 ⚙️ site").as_deref(), Some("SPARKS"));
+        assert_eq!(src("Movie (2024) [1080p] [WEBRip] [5.1] [site.MX]\n👤 900 💾 2 GB ⚙️ site").as_deref(), Some("site"));
+        // No group in the name: the site it came from.
+        assert_eq!(src("Show S01E01 1080p WEB-DL\n👤 12 💾 1 GB ⚙️ site").as_deref(), Some("site"));
+        // "-DL" ends WEB-DL, it isn't a group; nothing else to go on.
+        assert_eq!(src("Show.S01E01.1080p.WEB-DL"), None);
     }
 
     #[test]

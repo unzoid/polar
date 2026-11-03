@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrefs } from "../prefs";
 
 /**
@@ -205,6 +205,76 @@ export function useAnimeGenre(genre: string, enabled: boolean) {
           { genre },
         )
       ).Page.media,
+  });
+}
+
+// --- Seasons ---------------------------------------------------------------
+
+/** One step along a franchise: the entry, and where its prequel and sequel lead. */
+interface ChainLink extends AnimeCard {
+  relations: { edges: { relationType: RelationType; node: { id: number; type?: string | null; format?: MediaFormat | null } }[] };
+}
+
+/** Kinds of entry that count as a "season" of a franchise. OVAs, specials and recaps don't. */
+const SEASON_FORMATS = new Set<MediaFormat>(["TV", "TV_SHORT", "ONA", "MOVIE"]);
+/** Long franchises (Ginbou, Kotodama) have many entries; nobody's has this many. */
+const MAX_HOPS = 20;
+
+export interface AnimeSeason {
+  card: AnimeCard;
+  label: string;
+}
+
+/**
+ * A franchise's main entries in watch order, so its seasons can sit side by
+ * side like a show's. AniList only links each entry to its direct prequel and
+ * sequel, so the chain is walked one hop at a time both ways (each hop cached
+ * for a day). OVAs and specials along the way are stepped through, not listed.
+ */
+export function useAnimeSeasons(anime: Anime | undefined) {
+  const client = useQueryClient();
+  return useQuery({
+    queryKey: ["anime", "seasons", anime?.id],
+    enabled: !!anime,
+    staleTime: 6 * 60 * 60_000,
+    queryFn: async (): Promise<AnimeSeason[]> => {
+      const link = (id: number) =>
+        client.fetchQuery({
+          queryKey: ["anime", "link", id],
+          staleTime: 24 * 60 * 60_000,
+          queryFn: async () =>
+            (
+              await gql<{ Media: ChainLink }>(
+                `query ($id: Int) { Media(id: $id, type: ANIME) { ${CARD} relations { edges { relationType(version: 2) node { id type format } } } } }`,
+                { id },
+              )
+            ).Media,
+        });
+      const root = anime as unknown as ChainLink;
+      const seen = new Set([root.id]);
+      const walk = async (from: ChainLink, way: "PREQUEL" | "SEQUEL") => {
+        const out: ChainLink[] = [];
+        let at = from;
+        for (let hop = 0; hop < MAX_HOPS; hop++) {
+          const next = at.relations.edges
+            .filter((e) => e.relationType === way && e.node.type !== "MANGA" && !seen.has(e.node.id))
+            // Several prequels (a film and a series): follow the series.
+            .sort((a, b) => Number(!SEASON_FORMATS.has(a.node.format!)) - Number(!SEASON_FORMATS.has(b.node.format!)))[0];
+          if (!next) break;
+          seen.add(next.node.id);
+          at = await link(next.node.id);
+          out.push(at);
+        }
+        return out;
+      };
+      const [before, after] = await Promise.all([walk(root, "PREQUEL"), walk(root, "SEQUEL")]);
+      const chain = [...before.reverse(), root, ...after].filter((n) => SEASON_FORMATS.has(n.format!));
+      let season = 0;
+      return chain.map((card) => ({
+        card,
+        label: card.format === "MOVIE" ? "Movie" : `Season ${++season}`,
+      }));
+    },
   });
 }
 

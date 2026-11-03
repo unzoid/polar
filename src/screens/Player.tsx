@@ -61,7 +61,7 @@ import { useAccount } from "../lib/account/AccountProvider";
 import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
-import { Users } from "../components/icons";
+import { WatchParty } from "../components/icons";
 
 const win = getCurrentWindow();
 const SAVE_EVERY = 5000;
@@ -555,11 +555,13 @@ export function Player({
   // regardless of the view.
   const sourceFilters = useSourceFilters(streams.data?.streams, settings);
   const hiddenSources = streams.data?.hidden ?? 0;
-  const sourceItems: OptionItem[] = sourceFilters.view.map(({ r }, n) => {
+  const sourceItems: OptionItem[] = sourceFilters.view.map(({ r, match }, n) => {
     const row = sourceRow(r);
     return {
       id: String(rankedStreams.indexOf(r)),
-      label: n === 0 && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
+      label: n === 0 && match && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
+      // Filters that only order the list: what doesn't match follows under its own heading.
+      heading: n === sourceFilters.matched && !match ? "Other sources" : undefined,
       detail: [row.size, row.detail].filter(Boolean).join(" · "),
       badge: r.quality.lowQualitySource
         ? { text: "CAM", tone: "bad" as const }
@@ -853,7 +855,7 @@ export function Player({
           <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />
           {canParty && (
             <ActionButton
-              icon={<Users size={22} />}
+              icon={<WatchParty size={22} />}
               label={party ? `Watch Party (${party.members.length})` : "Watch Party"}
               onClick={() => setOptions("party")}
             />

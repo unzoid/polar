@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ANIME_GENRES,
+  fetchAnime,
   nextSeason,
   seasonOf,
   useAiringToday,
@@ -10,6 +11,7 @@ import {
   type AnimeCard,
 } from "../lib/anime/anilist";
 import { aniZipQuery, fetchAniZip, useAniZip } from "../lib/anime/anizip";
+import { findImdbId } from "../lib/anime/search";
 import { countdown, SEASON_LABEL, untilAiring, useAnimeScore } from "../lib/anime/format";
 import { animePreview } from "../lib/anime/preview";
 import { useShelfVisible } from "../lib/anime/shelves";
@@ -105,7 +107,7 @@ function TvGenreRail({ genre, enabled, shape }: { genre: string; enabled: boolea
   return <TvAnimeRail title={genre} items={data} shape={shape} />;
 }
 
-function TvAnimeRail({
+export function TvAnimeRail({
   title,
   items,
   shape,
@@ -187,14 +189,16 @@ export function TvAnimeDetail({ id }: { id: number }) {
   const [missing, setMissing] = useState(false);
   useEffect(() => {
     let live = true;
-    void fetchAniZip({ anilist_id: id })
-      .catch(() => null)
-      .then((z) => {
-        if (!live) return;
-        const imdb = z?.mappings.imdb_id;
-        if (imdb) replace({ name: "detail", type: z.mappings.type?.toLowerCase() === "movie" ? "movie" : "series", id: imdb });
-        else setMissing(true);
-      });
+    void (async () => {
+      const z = await fetchAniZip({ anilist_id: id }).catch(() => null);
+      // As on desktop: IMDb, else Kitsu, else the same title on Cinemeta (new seasons ani.zip can't link yet).
+      let target = z?.mappings.imdb_id ?? (z?.mappings.kitsu_id ? `kitsu:${z.mappings.kitsu_id}` : null);
+      const movie = z?.mappings.type?.toLowerCase() === "movie";
+      if (!target) target = await fetchAnime(id).then(findImdbId, () => null);
+      if (!live) return;
+      if (target) replace({ name: "detail", type: movie ? "movie" : "series", id: target });
+      else setMissing(true);
+    })();
     return () => {
       live = false;
     };

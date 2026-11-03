@@ -13,7 +13,7 @@ import { Dropdown } from "./Dropdown";
  *   [ All | 4K | 1080p | 720p ]                      [⚙ Filters 2]
  *   Dolby Vision ✕   English ✕                          Clear All
  *
- * The popover holds sort, add-on, audio, size and the feature tags as rows of
+ * The popover holds sort, add-on, audio, source, size and the feature tags as rows of
  * chips. Whatever is narrowing the list (including tags Settings switched on
  * by themselves) shows under the bar, each one a tap away from gone.
  *
@@ -88,6 +88,14 @@ function sections(f: SourceFilters, withQuality: boolean): Section[] {
         ...facets.langs.map((l) => ({ key: l.key, label: l.label, count: l.count, on: filter.lang === l.key, pick: () => f.set({ lang: l.key }) })),
       ],
     });
+  if (facets.sources.length > 1)
+    out.push({
+      label: "Source",
+      chips: [
+        { key: "", label: "Any", on: !filter.source, pick: () => f.set({ source: null }) },
+        ...facets.sources.map((x) => ({ key: x.key, label: x.label, count: x.count, on: filter.source === x.key, pick: () => f.set({ source: x.key }) })),
+      ],
+    });
   if (facets.maxGb > 2)
     out.push({
       label: "Size",
@@ -118,6 +126,7 @@ function activeFilters(f: SourceFilters) {
   const out: { key: string; label: string; clear: () => void }[] = [];
   if (filter.lang)
     out.push({ key: "lang", label: facets.langs.find((l) => l.key === filter.lang)?.label ?? filter.lang, clear: () => f.set({ lang: null }) });
+  if (filter.source) out.push({ key: "source", label: filter.source, clear: () => f.set({ source: null }) });
   if (filter.size) out.push({ key: "size", label: sizeLabel(filter.size), clear: () => f.set({ size: null }) });
   for (const t of filter.tags)
     out.push({ key: `tag:${t}`, label: facets.tags.find((x) => x.key === t)?.label ?? t, clear: () => f.toggleTag(t) });
@@ -182,7 +191,7 @@ function DesktopBar({ f, note }: { f: SourceFilters; note?: string }) {
               <Close size={12} />
             </button>
           ))}
-          <button className="srcf-clear" onClick={() => f.set({ lang: null, size: null, tags: [] })}>
+          <button className="srcf-clear" onClick={() => f.set({ lang: null, size: null, source: null, tags: [] })}>
             Clear All
           </button>
         </div>

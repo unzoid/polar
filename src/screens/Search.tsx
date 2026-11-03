@@ -3,12 +3,14 @@ import { useDeferredValue, useEffect, useState } from "react";
 import { AnimeCard } from "../components/anime/AnimeCard";
 import { PosterCard, PosterSkeleton } from "../components/PosterCard";
 import { Row } from "../components/Row";
-import { ANIME_GENRES, ANIME_TAGS, useAnimeBrowse, type AnimeCard as Card } from "../lib/anime/anilist";
+import type { AnimeCard as Card } from "../lib/anime/anilist";
+import { useAnimeResults, withoutAnime } from "../lib/anime/search";
 import { api } from "../lib/api";
 import { BROWSE_GENRES, genreOf } from "../lib/genres";
 import { usePrefs } from "../lib/prefs";
 import { useSearch } from "../lib/queries";
 import { useSearchText } from "../lib/searchQuery";
+import { addRecentSearch } from "../lib/recentSearches";
 import type { ContentType, MetaPreview } from "../lib/types";
 
 /**
@@ -37,13 +39,15 @@ export function Search() {
   if (text.trim().length < 2) return <div className="scroll search-page" />;
 
   // Titles without art are almost always stubs nobody's looking for.
-  const movies = data?.movies.filter((m) => m.poster);
-  const series = data?.series.filter((m) => m.poster);
+  // An anime shows once, as the anime (AniList), not again as a series or movie.
+  const movies = withoutAnime(data?.movies.filter((m) => m.poster), anime.items);
+  const series = withoutAnime(data?.series.filter((m) => m.poster), anime.items);
   const waiting = !hasQuery || !data;
   const nothing = !waiting && !genre && !movies!.length && !series!.length && !anime.items?.length && !anime.loading;
 
   return (
-    <div className="scroll search-page">
+    // Opening a result counts as running the search (Recent, in the search field).
+    <div className="scroll search-page" onClickCapture={(e) => (e.target as HTMLElement).closest(".card") && addRecentSearch(deferred)}>
       <div className="rows search-rows">
         {genre && BROWSE_GENRES.movie.includes(genre) && <GenreRow type="movie" genre={genre} />}
         {genre && BROWSE_GENRES.series.includes(genre) && <GenreRow type="series" genre={genre} />}
@@ -54,22 +58,6 @@ export function Search() {
       {nothing && <p className="empty t-body muted">Nothing found for “{deferred}”.</p>}
     </div>
   );
-}
-
-/** AniList's answer: a genre or kind of show if the search names one, otherwise a title search. */
-function useAnimeResults(query: string) {
-  const lower = query.toLowerCase();
-  const genre = ANIME_GENRES.find((g) => g.toLowerCase() === lower);
-  const tag = genre ? undefined : ANIME_TAGS.find((t) => t.toLowerCase() === lower);
-  const q = useAnimeBrowse(
-    { search: genre || tag ? "" : query, genre: genre ?? "", tag: tag ?? "", season: "", year: 0, format: "", status: "", sort: "POPULARITY_DESC" },
-    !!query,
-  );
-  return {
-    title: genre || tag ? `${genre ?? tag} Anime` : "Anime",
-    items: q.data?.pages[0]?.media,
-    loading: !!query && q.isLoading,
-  };
 }
 
 function GenreRow({ type, genre }: { type: ContentType; genre: string }) {

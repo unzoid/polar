@@ -106,6 +106,8 @@ export interface StreamQuality {
   languages?: string[];
   /** "Remux", "Atmos", "HDR10+", "10-bit"… */
   tags?: string[];
+  /** The release group ("SubsPlease", "FLUX"), else the site it came from ("site"). */
+  source?: string | null;
 }
 
 export interface RankedStream {
@@ -257,6 +259,8 @@ export interface Settings {
   sourceAutoTags?: string[];
   /** Rank sources sharper than this screen below ones that match it. */
   preferScreenResolution?: boolean;
+  /** Source filters hide what doesn't match (else matches go first, the rest below). */
+  sourceFiltersHide?: boolean;
 
   // Services
   mdblistKey?: string | null;

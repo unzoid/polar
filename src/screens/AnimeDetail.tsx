@@ -13,8 +13,8 @@ import { StreamList } from "../components/StreamList";
 import { SwapIcon } from "../components/SwapIcon";
 import { openTrailer } from "../components/Trailer";
 import { api } from "../lib/api";
-import { useAnime, type Anime, type AnimeCard as Card, type RelationType } from "../lib/anime/anilist";
-import { anizipImage, episodeTitle, matchVideo, regularEpisodes, useAniZip, type AniZipEpisode } from "../lib/anime/anizip";
+import { useAnime, useAnimeSeasons, type Anime, type AnimeCard as Card, type RelationType } from "../lib/anime/anilist";
+import { animeArt, episodeTitle, matchVideo, regularEpisodes, useAniZip, type AniZipEpisode } from "../lib/anime/anizip";
 import { rememberAnimeEpisode } from "../lib/anime/aniskip";
 import {
   cleanDescription,
@@ -32,6 +32,7 @@ import {
 import { useEpisodeFlags } from "../lib/anime/jikan";
 import { rememberFiller } from "../lib/anime/filler";
 import { rememberAltIds } from "../lib/anime/altIds";
+import { useImdbFallback } from "../lib/anime/search";
 import { formatTime } from "../lib/format";
 import { setPrefs, usePrefs } from "../lib/prefs";
 import { useLibrary, useMeta, useProgress, useSettings, useToggleLibrary } from "../lib/queries";
@@ -57,7 +58,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   if (isError && !shown) return <p className="empty t-body muted">Couldn't load this anime from AniList. Try again in a minute.</p>;
   if (!shown) return <div className="detail-loading skeleton" />;
 
-  const art = anizipImage(zip, "Fanart") ?? shown.bannerImage ?? shown.coverImage.extraLarge ?? undefined;
+  const { background: art, logo } = animeArt(shown, zip);
 
   return (
     <div className="detail anime-detail" style={{ "--cover": shown.coverImage.color ?? undefined } as React.CSSProperties}>
@@ -67,7 +68,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
         <div className="detail-bg-scrim" />
       </div>
       <div className="scroll detail-scroll" ref={scroller}>
-        <Hero item={shown} anime={anime} logo={anizipImage(zip, "Clearlogo")} name={title(shown.title)} />
+        <Hero item={shown} anime={anime} logo={logo} name={title(shown.title)} />
         {anime && <Body anime={anime} />}
       </div>
     </div>
@@ -92,8 +93,11 @@ interface Ep {
 function usePlayback(anime: Card | Anime) {
   const { data: zip } = useAniZip(anime.id);
   const isMovie = anime.format === "MOVIE";
-  const imdb = zip?.mappings.imdb_id ?? undefined;
   const kitsu = zip?.mappings.kitsu_id;
+  // ani.zip has it but can't link it (new seasons often): find it on Cinemeta by title.
+  const unlinked = zip !== undefined && !zip?.mappings.imdb_id && !kitsu;
+  const { data: foundImdb } = useImdbFallback(anime, unlinked);
+  const imdb = zip?.mappings.imdb_id ?? foundImdb ?? undefined;
   // The app's id for this show: its IMDb page, or (for the many with none) its Kitsu id, which the stream addons know.
   const metaId = imdb ?? (kitsu ? `kitsu:${kitsu}` : undefined);
   const { data: meta, isLoading: metaLoading } = useMeta(isMovie ? "movie" : "series", metaId ?? "", !!metaId);
@@ -105,10 +109,12 @@ function usePlayback(anime: Card | Anime) {
     if (isMovie) return [];
     const now = Date.now();
     const videos = meta?.videos ?? [];
+    // A Kitsu show's videos are numbered like the anime's; an IMDb one's are matched by air date.
+    const videoFor = (e: AniZipEpisode) =>
+      !videos.length ? undefined : imdb ? matchVideo(e, videos) : videos.find((v) => v.episode === Number(e.episode));
     const fromZip = regularEpisodes(zip).map((e: AniZipEpisode): Ep => {
       const airDate = e.airDateUtc ?? e.airDate ?? e.airdate;
-      // A Kitsu show's videos are numbered like ani.zip's; an IMDb one's are matched by air date.
-      const video = !videos.length ? undefined : imdb ? matchVideo(e, videos) : videos.find((v) => v.episode === Number(e.episode));
+      const video = videoFor(e);
       return {
         number: Number(e.episode),
         title: episodeTitle(e, animeTitles),
@@ -122,16 +128,26 @@ function usePlayback(anime: Card | Anime) {
     });
     const list = fromZip.length
       ? fromZip
-      : Array.from({ length: anime.episodes ?? Math.max(0, (anime.nextAiringEpisode?.episode ?? 1) - 1) }, (_, i): Ep => ({ number: i + 1, upcoming: false }));
+      : Array.from({ length: anime.episodes ?? Math.max(0, (anime.nextAiringEpisode?.episode ?? 1) - 1) }, (_, i): Ep => ({
+          number: i + 1,
+          upcoming: false,
+          video: videoFor({ episode: String(i + 1) } as AniZipEpisode),
+        }));
     // Episodes AniList has scheduled that ani.zip doesn't list yet.
     const scheduled = "airingSchedule" in anime ? anime.airingSchedule.nodes : [];
     const have = new Set(list.map((e) => e.number));
     for (const s of scheduled) {
-      if (!have.has(s.episode)) list.push({ number: s.episode, airDate: new Date(s.airingAt * 1000).toISOString(), upcoming: s.airingAt * 1000 > now });
+      const airDate = new Date(s.airingAt * 1000).toISOString();
+      const upcoming = s.airingAt * 1000 > now;
+      // Airing shows ani.zip hasn't caught up with: the aired ones still need
+      // their video, or they'd be dropped from the shelf as unplayable.
+      const video = upcoming ? undefined : videoFor({ episode: String(s.episode), airDateUtc: airDate } as AniZipEpisode);
+      if (!have.has(s.episode)) list.push({ number: s.episode, airDate, upcoming, video });
       else {
         const e = list.find((x) => x.number === s.episode)!;
-        if (s.airingAt * 1000 > now) e.upcoming = true;
-        e.airDate ??= new Date(s.airingAt * 1000).toISOString();
+        if (upcoming) e.upcoming = true;
+        e.airDate ??= airDate;
+        e.video ??= video;
       }
     }
     return list.sort((a, b) => a.number - b.number);
@@ -305,10 +321,21 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
  */
 function Body({ anime }: { anime: Anime }) {
   const isMovie = anime.format === "MOVIE";
+  const hasSeasons = useHasSeasons(anime);
   const hasRelated = anime.relations.edges.length > 0 || anime.recommendations.nodes.some((n) => !!n.mediaRecommendation);
   return (
     <>
       {!isMovie && <Episodes anime={anime} />}
+      {/* A film in a franchise: the seasons bar alone, to get back to the series. */}
+      {isMovie && hasSeasons && (
+        <section className="seasons">
+          <div className="seasons-bar">
+            <div className="seasons-picker">
+              <SeasonTabs anime={anime} />
+            </div>
+          </div>
+        </section>
+      )}
       {anime.characters.edges.length > 0 && <Characters anime={anime} />}
       <h2 className="t-title2 anime-section-title">Details</h2>
       <Details anime={anime} />
@@ -337,6 +364,7 @@ function Episodes({ anime }: { anime: Anime }) {
   const layout = layoutChoice ?? settings?.episodeLayout ?? "row";
   const [sourcesFor, setSourcesFor] = useState<Video | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const hasSeasons = useHasSeasons(anime);
 
   const hasFiller = !!flags && [...flags.values()].some((f) => f.filler);
   // What the shelf can show: episodes you can play, and the ones still to air.
@@ -346,12 +374,12 @@ function Episodes({ anime }: { anime: Anime }) {
       const f = flags?.get(e.number);
       return {
         id: e.video?.id ?? `${PENDING}${e.number}`,
-        title: e.title ?? `Episode ${e.number}`,
+        title: e.title ?? e.video?.title ?? `Episode ${e.number}`,
         season: 1,
         episode: e.number,
         released: e.airDate ?? e.video?.released,
-        thumbnail: e.image,
-        overview: e.overview,
+        thumbnail: e.image ?? e.video?.thumbnail,
+        overview: e.overview ?? e.video?.overview,
         tag: f?.filler ? "Filler" : f?.recap ? "Recap" : undefined,
       };
     });
@@ -392,13 +420,27 @@ function Episodes({ anime }: { anime: Anime }) {
   };
 
   if (!list.length) {
-    return <p className="empty t-body muted anime-no-episodes">{pb.zip === undefined ? "Loading episodes…" : "No episodes to play yet."}</p>;
+    const empty = <p className="empty t-body muted anime-no-episodes">{pb.zip === undefined ? "Loading episodes…" : "No episodes to play yet."}</p>;
+    // A season that hasn't started yet still sits among the others.
+    return hasSeasons ? (
+      <section className="seasons">
+        <div className="seasons-bar">
+          <div className="seasons-picker">
+            <SeasonTabs anime={anime} />
+          </div>
+        </div>
+        {empty}
+      </section>
+    ) : (
+      empty
+    );
   }
 
   return (
     <section className="seasons">
       <div className="seasons-bar">
         <div className="seasons-picker">
+        {hasSeasons && !found && <SeasonTabs anime={anime} />}
         {found ? (
           <h2 className="t-title2 anime-episode-count">
             {found.length} {found.length === 1 ? "match" : "matches"}
@@ -421,7 +463,7 @@ function Episodes({ anime }: { anime: Anime }) {
               </button>
             ))}
           </div>
-        ) : (
+        ) : hasSeasons ? null : (
           <h2 className="t-title2 anime-episode-count">Episodes</h2>
         )}
         </div>
@@ -499,6 +541,77 @@ function Episodes({ anime }: { anime: Anime }) {
 /** Id prefix for an episode that's scheduled but has nothing to play yet. */
 const PENDING = "anime-pending:";
 
+/** More entries than this: a dropdown, as for a show's seasons. */
+const MAX_SEASON_TABS = 6;
+
+/**
+ * The franchise's seasons (and films) as tabs, like a show's: switching opens
+ * that entry in place of this one, so Back still leaves the franchise.
+ * Nothing when this entry has no seasons around it, or isn't one itself (an OVA).
+ */
+function SeasonTabs({ anime }: { anime: Anime }) {
+  const { replace } = useRouter();
+  const { data: seasons } = useAnimeSeasons(anime);
+  const title = useAnimeTitle();
+  if (!seasons || seasons.length < 2 || !seasons.some((s) => s.card.id === anime.id)) return null;
+  const labels = distinctLabels(seasons.map((s) => title(s.card.title)), seasons.map((s) => s.label));
+  const go = (id: number) => {
+    if (id === anime.id) return;
+    replace({ name: "anime-detail", id, preview: seasons.find((s) => s.card.id === id)?.card });
+  };
+  return seasons.length > MAX_SEASON_TABS ? (
+    <Dropdown
+      label="Season"
+      size="large"
+      value={String(anime.id)}
+      onChange={(v) => go(Number(v))}
+      options={seasons.map((s, i) => ({ value: String(s.card.id), label: labels[i] }))}
+    />
+  ) : (
+    <Segmented
+      label="Season"
+      variant="large"
+      value={anime.id}
+      onChange={go}
+      options={seasons.map((s, i) => ({ id: s.card.id, label: labels[i] }))}
+    />
+  );
+}
+
+const word = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+/**
+ * What tells each entry apart: its title minus the words it shares with the
+ * first one ("Tower of Glass Season 3 Part 2" → "Season 3 Part 2",
+ * "Ember Hunter: Hikari no Tsurugi Entertainment District Arc" →
+ * "Entertainment District Arc"). The first entry, or one whose title adds
+ * nothing, gets its place instead ("Season 1", "Movie").
+ */
+function distinctLabels(titles: string[], fallbacks: string[]) {
+  const base = (titles[0] ?? "").split(/\s+/).map(word).filter(Boolean);
+  return titles.map((t, i) => {
+    if (i === 0) return fallbacks[0];
+    const words = t.split(/\s+/);
+    let n = 0;
+    let b = 0;
+    // Skip words that are only punctuation ("-"), then match the franchise name word by word.
+    while (n < words.length && b < base.length) {
+      const w = word(words[n]);
+      if (!w) n++;
+      else if (w === base[b]) (n++, b++);
+      else break;
+    }
+    const rest = b > 0 ? words.slice(n).join(" ").replace(/^[\s:\-–—~|,.]+/, "").trim() : "";
+    return rest || fallbacks[i];
+  });
+}
+
+/** Whether SeasonTabs will show for this entry. */
+function useHasSeasons(anime: Anime) {
+  const { data: seasons } = useAnimeSeasons(anime);
+  return !!seasons && seasons.length > 1 && seasons.some((s) => s.card.id === anime.id);
+}
+
 /** Watch order first (prequels, sequels, the main story), then everything else. */
 const RELATION_ORDER: RelationType[] = [
   "PREQUEL",
@@ -517,7 +630,10 @@ const RELATION_ORDER: RelationType[] = [
 ];
 
 function Related({ anime }: { anime: Anime }) {
-  const edges = [...anime.relations.edges].sort(
+  // Entries already in the season tabs above aren't repeated here.
+  const { data: seasons } = useAnimeSeasons(anime);
+  const tabbed = new Set(useHasSeasons(anime) ? (seasons ?? []).map((s) => s.card.id) : []);
+  const edges = [...anime.relations.edges].filter((e) => !tabbed.has(e.node.id)).sort(
     (a, b) =>
       RELATION_ORDER.indexOf(a.relationType) - RELATION_ORDER.indexOf(b.relationType) ||
       (a.node.startDate?.year ?? 9999) - (b.node.startDate?.year ?? 9999),

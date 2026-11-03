@@ -150,6 +150,7 @@ function CategoryRows({ id }: { id: CategoryId }) {
             onChange={(v) => set({ stillWatchingAfter: v })}
           />
           <Row label="Skip Intros" choices={onOff} value={s.autoSkip} onChange={(v) => set({ autoSkip: v })} />
+          <Row label="Crop Black Bars" choices={onOff} value={prefs.autocrop} onChange={(v) => pref({ autocrop: v })} />
           <Row label="Resume Where You Left Off" choices={onOff} value={s.resumePlayback} onChange={(v) => set({ resumePlayback: v })} />
           <Row
             label="Seek Step"
@@ -174,6 +175,7 @@ function CategoryRows({ id }: { id: CategoryId }) {
           />
           <Row label="Hide CAM Recordings" choices={onOff} value={s.hideCam} onChange={(v) => set({ hideCam: v })} />
           <Row label="Sort Sources By" choices={SORTS} value={s.sourceSort} onChange={(v) => set({ sourceSort: v })} />
+          <Row label="Filters Hide Other Sources" choices={onOff} value={s.sourceFiltersHide ?? false} onChange={(v) => set({ sourceFiltersHide: v })} />
         </>
       );
     case "browsing":

@@ -69,6 +69,25 @@ export function useAniZip(anilistId: number, enabled = true) {
 export const anizipImage = (z: AniZip | null | undefined, type: "Fanart" | "Clearlogo" | "Banner" | "Poster") =>
   z?.images?.find((i) => i.coverType === type)?.url;
 
+/**
+ * This entry's logo and backdrop. ani.zip's come from the whole TVDB series,
+ * so every season, movie and OVA of a franchise would share one logo and one
+ * picture: only the first season keeps them. The rest use AniList's own
+ * banner for that entry, and their title as text.
+ */
+export function animeArt(
+  a: { format?: string | null; bannerImage?: string | null; coverImage: { extraLarge?: string | null } },
+  z: AniZip | null | undefined,
+) {
+  const season = regularEpisodes(z)[0]?.seasonNumber;
+  const franchise = a.format !== "MOVIE" && (season == null || season <= 1);
+  const own = a.bannerImage ?? a.coverImage.extraLarge ?? undefined;
+  return {
+    background: (franchise ? anizipImage(z, "Fanart") : undefined) ?? own ?? anizipImage(z, "Fanart"),
+    logo: franchise ? anizipImage(z, "Clearlogo") : undefined,
+  };
+}
+
 /** The regular episodes (not specials), in order. */
 export function regularEpisodes(z: AniZip | null | undefined): AniZipEpisode[] {
   if (!z) return [];

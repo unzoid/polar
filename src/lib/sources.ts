@@ -110,7 +110,7 @@ export function sourceRow(r: RankedStream) {
   return {
     title: r.label.replace(/ · [\d.]+ [MG]B$/, ""),
     size: r.quality.sizeBytes ? formatBytes(r.quality.sizeBytes) : null,
-    detail: [r.addon, languagesShort(r.quality.languages), r.quality.sources != null ? `${r.quality.sources} peers` : null]
+    detail: [r.addon, r.quality.source, languagesShort(r.quality.languages), r.quality.sources != null ? `${r.quality.sources} peers` : null]
       .filter(Boolean)
       .join(" · "),
   };
@@ -163,14 +163,28 @@ export interface SourceFilter {
   /** GB, inclusive; null = any. Sources of unknown size always pass. */
   size: [number, number] | null;
   tags: string[];
+  /** Release group or site (StreamQuality.source). */
+  source: string | null;
 }
 
-export const NO_FILTER: SourceFilter = { addon: null, res: null, lang: null, size: null, tags: [] };
+export const NO_FILTER: SourceFilter = { addon: null, res: null, lang: null, size: null, tags: [], source: null };
+
+/**
+ * Whether a source has this audio language. "Multi-audio" (MULTI, Dual Audio)
+ * releases rarely list what's inside, but almost always carry the original
+ * and English: they count for every language, so asking for Japanese still
+ * finds the dual-audio anime release. The Multi-audio choice itself is only those.
+ */
+function hasLanguage(r: RankedStream, code: string) {
+  const langs = langsOf(r);
+  return langs.includes(code) || (code !== "multi" && langs.includes("multi"));
+}
 
 export function matches(r: RankedStream, f: SourceFilter, skip?: keyof SourceFilter) {
   if (skip !== "addon" && f.addon && r.addon !== f.addon) return false;
   if (skip !== "res" && f.res && resKey(r) !== f.res) return false;
-  if (skip !== "lang" && f.lang && !langsOf(r).some((l) => l === f.lang)) return false;
+  if (skip !== "lang" && f.lang && !hasLanguage(r, f.lang)) return false;
+  if (skip !== "source" && f.source && r.quality.source !== f.source) return false;
   if (skip !== "size" && f.size && r.quality.sizeBytes) {
     const gb = r.quality.sizeBytes / GB;
     if (gb < f.size[0] - 0.05 || gb > f.size[1] + 0.05) return false;
@@ -239,15 +253,21 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
   const screen = useMemo(screenResolution, []);
   const screenRes = useMemo(screenResKey, []);
   const preferScreen = settings?.preferScreenResolution ?? true;
+  // Settings → Sources: filters narrow the list, or only order it.
+  const hide = settings?.sourceFiltersHide ?? false;
   const all = streams ?? [];
 
   const view = useMemo(() => {
     const cmp = compareBy(sort, screen, preferScreen);
     return all
       .map((r, i) => ({ r, i }))
-      .filter(({ r }) => matches(r, filter))
-      .sort((a, b) => cmp(a.r, b.r) || a.i - b.i);
-  }, [all, filter, sort, screen, preferScreen]);
+      .map((x) => ({ ...x, match: matches(x.r, filter) }))
+      .filter((x) => !hide || x.match)
+      // Without hiding, what matches comes first and the rest follows, each in sort order.
+      .sort((a, b) => Number(b.match) - Number(a.match) || cmp(a.r, b.r) || a.i - b.i);
+  }, [all, filter, sort, screen, preferScreen, hide]);
+  /** How many of `view`, from the top, match the filters (the rest are "other sources"). */
+  const matched = view.filter((x) => x.match).length;
 
   const facets = useMemo(() => {
     const count = <K extends string>(skip: keyof SourceFilter, keyOf: (r: RankedStream) => K[]) => {
@@ -256,20 +276,27 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
       return m;
     };
     const addons = count("addon", (r) => [r.addon]);
+    const sourceCounts = count("source", (r) => (r.quality.source ? [r.quality.source] : []));
     const resCounts = count("res", (r) => [resKey(r)]);
-    const langs = count("lang", langsOf);
+    // Multi-audio sources count toward every language (as they match it).
+    const langCodes = [...new Set(all.flatMap(langsOf))];
+    const langs = new Map(langCodes.map((c) => [c, all.filter((r) => matches(r, filter, "lang") && hasLanguage(r, c)).length]));
     // Tags narrow together (all of them must match): count within what's shown.
     const tagCounts = new Map<string, number>();
-    for (const { r } of view) for (const t of new Set(tagsOf(r))) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
-    const base = view.length;
+    for (const { r, match } of view) if (match) for (const t of new Set(tagsOf(r))) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+    const base = matched;
     const sizes = all.map((r) => r.quality.sizeBytes ?? 0).filter((b) => b > 0);
     const maxGb = sizes.length ? Math.ceil(Math.max(...sizes) / GB) : 0;
     return {
       addons: [...new Set(all.map((r) => r.addon))].map((a) => ({ key: a, label: a, count: addons.get(a) ?? 0 })),
+      // Most sources first; a group with one file isn't much of a choice, but stays findable.
+      sources: [...new Set(all.flatMap((r) => (r.quality.source ? [r.quality.source] : [])))]
+        .map((k) => ({ key: k, label: k, count: sourceCounts.get(k) ?? 0 }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
       res: (["2160", "1080", "720", "other"] as ResKey[])
         .filter((k) => all.some((r) => resKey(r) === k))
         .map((k) => ({ key: k, label: RES_LABELS[k], count: resCounts.get(k) ?? 0 })),
-      langs: [...new Set(all.flatMap(langsOf))]
+      langs: langCodes
         .map((code) => ({ key: code, label: languageLabel(code), count: langs.get(code) ?? 0 }))
         .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
       // A tag every listed source has filters nothing; leave it out unless it's on.
@@ -281,7 +308,7 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
   }, [all, filter, view]);
 
   const active =
-    !!filter.addon || !!filter.res || !!filter.lang || !!filter.size || filter.tags.length > 0;
+    !!filter.addon || !!filter.res || !!filter.lang || !!filter.size || !!filter.source || filter.tags.length > 0;
 
   return {
     filter,
@@ -294,6 +321,9 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
     setSort,
     /** The visible sources, each with its index in the ranked list (ids stay stable). */
     view,
+    matched,
+    /** Filters order the list rather than hide (Settings → Sources). */
+    soft: !hide,
     total: all.length,
     facets,
     screenRes,

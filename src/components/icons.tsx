@@ -76,6 +76,7 @@ export const Filters = icon(S24.AdjustmentsHorizontalIcon, S20.AdjustmentsHorizo
 export const Fire =icon(S24.FireIcon, S20.FireIcon, S16.FireIcon);
 export const Watched = icon(S24.CheckCircleIcon, S20.CheckCircleIcon, S16.CheckCircleIcon);
 export const Users = icon(S24.UsersIcon, S20.UsersIcon, S16.UsersIcon);
+export const WatchParty = icon(S24.UserGroupIcon, S20.UserGroupIcon, S16.UserGroupIcon);
 export const Volume = icon(S24.SpeakerWaveIcon, S20.SpeakerWaveIcon, S16.SpeakerWaveIcon);
 export const VolumeMuted = icon(S24.SpeakerXMarkIcon, S20.SpeakerXMarkIcon, S16.SpeakerXMarkIcon);
 

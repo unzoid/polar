@@ -2001,3 +2001,22 @@
 .tv .options-head .srcf-chiprow-label {
   padding-top: 0.55em;
 }
+
+/* Join a Watch Party: above the pages and the menu, like the card menu. */
+.tv-join {
+  z-index: 40;
+}
+.tv-join-error {
+  min-height: 1.4em;
+  margin: 0.75rem 0 0;
+  font-size: 1rem;
+  color: var(--danger);
+  transition: opacity var(--dur-fast) ease;
+}
+.tv-join-error[data-shown="false"] {
+  opacity: 0;
+}
+.tv-join .tv-search-field > span:not(.tv-caret, .tv-search-placeholder) {
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}

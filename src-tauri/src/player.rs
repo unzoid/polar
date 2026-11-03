@@ -692,6 +692,8 @@ pub async fn mpv_load(
     if let Some(s) = start.filter(|s| *s > 1.0) {
         options = format!("start={s:.2}");
     }
+    // A new file is measured afresh (autocrop): drop the last one's crop.
+    state.mpv.request(json!(["set_property", "video-crop", ""])).await.ok();
     state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await?;
     state.mpv.request(json!(["set_property", "pause", false])).await?;
     state.mpv.set_visible(true).await;
@@ -728,6 +730,10 @@ pub struct Tune {
     pub deband: bool,
     /// Read-ahead: "small", "normal" or "large".
     pub buffer: BufferSize,
+    /// Crop black bars burnt into the picture (a 2.39:1 film inside a 16:9
+    /// file), so it fills a wide screen. See [`autocrop`].
+    #[serde(default)]
+    pub autocrop: bool,
 }
 
 #[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq)]
@@ -741,7 +747,7 @@ pub enum BufferSize {
 /// What the launch arguments in `Mpv::ensure` amount to.
 impl Default for Tune {
     fn default() -> Self {
-        Self { dialogue_boost: false, volume_leveling: false, hwdec: true, deband: false, buffer: BufferSize::Normal }
+        Self { dialogue_boost: false, volume_leveling: false, hwdec: true, deband: false, buffer: BufferSize::Normal, autocrop: false }
     }
 }
 
@@ -758,6 +764,16 @@ impl Tune {
         chain.join(",")
     }
 
+    /// Hardware decoding. Measuring the bars needs the decoded frames in
+    /// memory, so with autocrop on they're copied back from the GPU.
+    fn hwdec_mode(&self) -> &'static str {
+        match (self.hwdec, self.autocrop) {
+            (false, _) => "no",
+            (true, false) => "auto-safe",
+            (true, true) => "auto-copy-safe",
+        }
+    }
+
     /// (seconds ahead, max bytes) for the demuxer cache.
     fn cache(&self) -> (u32, &'static str) {
         match self.buffer {
@@ -771,7 +787,7 @@ impl Tune {
 /// Apply [`Tune`] to the running mpv. Takes effect immediately (audio
 /// filters, decoding, debanding) or from the next read-ahead (cache).
 #[tauri::command]
-pub async fn mpv_tune(state: State<'_, AppState>, tune: Tune) -> Result<(), String> {
+pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) -> Result<(), String> {
     if state.mpv.conn.lock().await.is_none() {
         return Ok(());
     }
@@ -783,8 +799,16 @@ pub async fn mpv_tune(state: State<'_, AppState>, tune: Tune) -> Result<(), Stri
     if was.audio_filters() != tune.audio_filters() {
         mpv.request(json!(["set_property", "af", tune.audio_filters()])).await?;
     }
-    if was.hwdec != tune.hwdec {
-        mpv.request(json!(["set_property", "hwdec", if tune.hwdec { "auto-safe" } else { "no" }])).await?;
+    if was.hwdec_mode() != tune.hwdec_mode() {
+        mpv.request(json!(["set_property", "hwdec", tune.hwdec_mode()])).await?;
+    }
+    if was.autocrop != tune.autocrop {
+        if tune.autocrop {
+            mpv.request(json!(["vf", "add", CROPDETECT])).await?;
+        } else {
+            mpv.request(json!(["vf", "remove", "@autocrop"])).await?;
+            mpv.request(json!(["set_property", "video-crop", ""])).await?;
+        }
     }
     if was.deband != tune.deband {
         mpv.request(json!(["set_property", "deband", tune.deband])).await?;
@@ -795,7 +819,51 @@ pub async fn mpv_tune(state: State<'_, AppState>, tune: Tune) -> Result<(), Stri
         mpv.request(json!(["set_property", "demuxer-max-bytes", bytes])).await?;
     }
     *mpv.tuned.lock().unwrap() = tune;
+    if tune.autocrop && !was.autocrop {
+        tauri::async_runtime::spawn(autocrop(app));
+    }
     Ok(())
+}
+
+/// Finds the picture's edges: the largest area brighter than near-black seen
+/// so far in this file (it only ever grows, so a dark scene can't crop into
+/// a bright one later). `limit` is a fraction, so it holds for 10-bit HDR too.
+const CROPDETECT: &str = "@autocrop:lavfi=[cropdetect=limit=0.09:round=2:reset=0]";
+
+/// While autocrop is on: read cropdetect's answer every second and crop to
+/// it once it's believable. Bars thinner than 2% aren't worth losing pixels
+/// over; an area under 40% of the frame is a dark scene, not a picture.
+/// Each file starts uncropped (mpv_load) and is measured afresh.
+async fn autocrop(app: AppHandle) {
+    let mut last: Option<(String, String)> = None; // (file, crop applied)
+    loop {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let state = app.state::<AppState>();
+        let mpv = &state.mpv;
+        if !mpv.tuned.lock().unwrap().autocrop {
+            return;
+        }
+        let get = |name: &'static str| mpv.request(json!(["get_property", name]));
+        let (Ok(path), Ok(meta), Ok(w), Ok(h)) = (get("path").await, get("vf-metadata/autocrop").await, get("video-params/w").await, get("video-params/h").await)
+        else {
+            continue;
+        };
+        let (Some(path), Some(full_w), Some(full_h)) = (path.as_str().map(str::to_string), w.as_f64(), h.as_f64()) else {
+            continue;
+        };
+        let num = |k: &str| meta.get(format!("lavfi.cropdetect.{k}")).and_then(Value::as_str).and_then(|v| v.parse::<f64>().ok());
+        let (Some(cw), Some(ch), Some(cx), Some(cy)) = (num("w"), num("h"), num("x"), num("y")) else {
+            continue;
+        };
+        let worth = cw > 0.0 && ch > 0.0 && (cw <= full_w * 0.98 || ch <= full_h * 0.98) && cw * ch >= full_w * full_h * 0.4;
+        let crop = if worth { format!("{cw}x{ch}+{cx}+{cy}") } else { String::new() };
+        if last.as_ref() == Some(&(path.clone(), crop.clone())) {
+            continue;
+        }
+        if mpv.request(json!(["set_property", "video-crop", crop])).await.is_ok() {
+            last = Some((path, crop));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -804,7 +872,7 @@ mod tests {
 
     #[test]
     fn tune_builds_fixed_filters() {
-        let t = Tune { dialogue_boost: true, volume_leveling: true, hwdec: true, deband: false, buffer: BufferSize::Large };
+        let t = Tune { dialogue_boost: true, volume_leveling: true, hwdec: true, deband: false, buffer: BufferSize::Large, autocrop: false };
         assert!(t.audio_filters().starts_with("lavfi=[pan=stereo") && t.audio_filters().contains("dynaudnorm"));
         let off = Tune { dialogue_boost: false, volume_leveling: false, ..t };
         assert_eq!(off.audio_filters(), "");

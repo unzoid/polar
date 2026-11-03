@@ -12,7 +12,7 @@ import {
 import { Avatar } from "../Avatar";
 import { BusyLabel } from "../BusyLabel";
 import { Spinner } from "../Spinner";
-import { Check, Users } from "../icons";
+import { Check, WatchParty } from "../icons";
 
 type Me = Pick<Member, "name" | "avatar">;
 
@@ -25,7 +25,7 @@ export function PartyStart({ onStart, me }: { onStart: () => void; me: Me }) {
         for the whole room.
       </p>
       <button className="btn btn-primary party-start" onClick={onStart}>
-        <Users size={18} /> Start a Watch Party
+        <WatchParty size={18} /> Start a Watch Party
       </button>
       <div className="party-or" aria-hidden>
         <span>or join one</span>
@@ -114,12 +114,15 @@ export function PartyMembers({ party }: { party: PartyState }) {
   );
 }
 
-/** A code field that joins as soon as the code is complete. */
-export function JoinForm({ me, onJoined }: { me: Me; onJoined?: () => void }) {
+/**
+ * Entering a party code, for the desktop field and TV mode's on-screen
+ * keyboard alike: normalised as typed, and joined as soon as it's complete.
+ */
+export function useJoinParty(me: Me, onJoined?: () => void) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const submit = (value: string) => {
+  const submit = (value = code) => {
     if (busy) return;
     if (value.length < CODE_LENGTH) return setError("Party codes are 6 letters and numbers.");
     setBusy(true);
@@ -135,12 +138,25 @@ export function JoinForm({ me, onJoined }: { me: Me; onJoined?: () => void }) {
       },
     );
   };
+  const change = (text: string) => {
+    const v = normalizeCode(text);
+    setCode(v);
+    setError(null);
+    // Typed or pasted in full: no need to press anything.
+    if (v.length === CODE_LENGTH && v !== code) submit(v);
+  };
+  return { code, change, submit, busy, error };
+}
+
+/** A code field that joins as soon as the code is complete. */
+export function JoinForm({ me, onJoined }: { me: Me; onJoined?: () => void }) {
+  const { code, change, submit, busy, error } = useJoinParty(me, onJoined);
   return (
     <form
       className="party-join"
       onSubmit={(e) => {
         e.preventDefault();
-        submit(code);
+        submit();
       }}
     >
       <input
@@ -152,13 +168,7 @@ export function JoinForm({ me, onJoined }: { me: Me; onJoined?: () => void }) {
         maxLength={CODE_LENGTH + 8} // room for pasted spaces and dashes
         value={code}
         data-invalid={!!error}
-        onChange={(e) => {
-          const v = normalizeCode(e.target.value);
-          setCode(v);
-          setError(null);
-          // Typed or pasted in full: no need to press anything.
-          if (v.length === CODE_LENGTH && v !== code) submit(v);
-        }}
+        onChange={(e) => change(e.target.value)}
       />
       <button className="btn btn-glass party-join-btn" type="submit" disabled={busy || !code} aria-busy={busy}>
         <BusyLabel busy={busy}>Join</BusyLabel>

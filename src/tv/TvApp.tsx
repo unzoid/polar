@@ -26,6 +26,8 @@ import { TvAnime, TvAnimeDetail } from "./TvAnime";
 import { TvDetail } from "./TvDetail";
 import { TvCalendar, TvDiscover, TvHome, TvLibrary, TvSearch } from "./TvScreens";
 import { TvSettings } from "./TvSettings";
+import { TvJoinParty } from "./TvJoinParty";
+import { useJoinPartyOpen } from "../lib/party/party";
 
 function TvScreen({ route }: { route: Route }) {
   switch (route.name) {
@@ -77,6 +79,7 @@ export function TvApp() {
   const pageEls = useRef(new Map<number, HTMLElement>());
   const { data: settings } = useSettings();
   const tabs = useTvTabs();
+  const joinPartyOpen = useJoinPartyOpen();
 
   useEffect(installFocusMemory, []);
   useEffect(installPointerFocus, []);
@@ -224,6 +227,7 @@ export function TvApp() {
         {atRoot && <TvNav onMenu={() => setMenuOpen(true)} />}
         {!playing && <TvCardMenuHost />}
         {menuOpen && <TvMenu onClose={() => setMenuOpen(false)} />}
+        {joinPartyOpen && !playing && <TvJoinParty />}
         <TvHints />
         {!playing && (
           <button className="tv-exit" tabIndex={-1} onClick={() => setTvMode(false)}>

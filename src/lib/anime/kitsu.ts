@@ -1,7 +1,7 @@
 import type { ContentType, Meta, Video } from "../types";
 import { getPrefs } from "../prefs";
 import { fetchAnime } from "./anilist";
-import { anizipImage, episodeTitle, fetchAniZip, regularEpisodes } from "./anizip";
+import { animeArt, episodeTitle, fetchAniZip, regularEpisodes } from "./anizip";
 import { cleanDescription, pickTitle } from "./format";
 
 /**
@@ -51,8 +51,7 @@ export async function kitsuMeta(type: ContentType, id: string): Promise<Meta> {
     type,
     name: pickTitle(anime.title, lang),
     poster: anime.coverImage.extraLarge ?? anime.coverImage.large ?? undefined,
-    background: anizipImage(zip, "Fanart") ?? anime.bannerImage ?? undefined,
-    logo: anizipImage(zip, "Clearlogo"),
+    ...animeArt(anime, zip),
     description: cleanDescription(anime.description).join("\n\n") || undefined,
     releaseInfo: String(anime.seasonYear ?? anime.startDate?.year ?? "") || undefined,
     genres: anime.genres,

@@ -44,6 +44,8 @@ const ROWS: SettingEntry[] = [
   { title: "Hide Sources Containing", page: "sources", keywords: "keywords exclude words filter hc 3d" },
   { title: "Sort by", page: "sources", keywords: "source list order sort" },
   { title: "Match my screen", page: "sources", keywords: "resolution display 4k 1080p recommended monitor" },
+  { title: "Crop black bars", page: "advanced", keywords: "autocrop crop letterbox black bars ultrawide 21:9 aspect" },
+  { title: "Filters hide other sources", page: "sources", keywords: "filter strict soft sort order language audio source group" },
   { title: "Turn On When Available", page: "sources", keywords: "dolby vision hdr remux atmos tags filters automatic" },
 
   // Subtitles & Audio

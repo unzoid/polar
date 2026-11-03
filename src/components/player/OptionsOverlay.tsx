@@ -1,5 +1,5 @@
 import { Check, Close } from "../icons";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
 import type { MediaLike } from "./mpvMedia";
@@ -18,6 +18,8 @@ export interface OptionItem {
   /** Trailing tag. With `icon`, the icon is shown and `text` becomes its label. */
   badge?: { text: string; tone?: "good" | "bad"; icon?: ReactNode };
   icon?: ReactNode;
+  /** Starts a group: a small heading above this row ("Other sources"). */
+  heading?: string;
   disabled?: boolean;
 }
 
@@ -151,7 +153,10 @@ export function OptionsOverlay({
                 {col.options.length === 0 && col.empty && <p className="options-empty">{col.empty}</p>}
                 <div role="radiogroup" aria-label={col.title} className="options-list">
                   {col.options.map((o) => (
-                    <Row key={o.id} item={o} selected={o.id === col.value} onSelect={col.onSelect} />
+                    <Fragment key={o.id}>
+                      {o.heading && <p className="options-group">{o.heading}</p>}
+                      <Row item={o} selected={o.id === col.value} onSelect={col.onSelect} />
+                    </Fragment>
                   ))}
                 </div>
               </>

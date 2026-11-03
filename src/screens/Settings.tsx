@@ -691,6 +691,12 @@ function SourcesPage() {
           checked={data.preferScreenResolution ?? true}
           onChange={(v) => set({ preferScreenResolution: v })}
         />
+        <ToggleRow
+          title="Filters hide other sources"
+          caption="Off: sources matching your filters come first and the rest stay below them, so a missing language or size never leaves you with nothing to pick"
+          checked={data.sourceFiltersHide ?? false}
+          onChange={(v) => set({ sourceFiltersHide: v })}
+        />
       </Card>
 
       <Card
@@ -1244,6 +1250,13 @@ function AdvancedPage() {
           checked={prefs.deband}
           disabled={hasMpv === false}
           onChange={(v) => setPrefs({ deband: v })}
+        />
+        <ToggleRow
+          title="Crop black bars"
+          caption="Some files carry black bars inside the picture. This finds and trims them so the film fills a wide or ultrawide screen. Uses a little more CPU."
+          checked={prefs.autocrop}
+          disabled={hasMpv === false}
+          onChange={(v) => setPrefs({ autocrop: v })}
         />
         <PickRow title="Buffer" caption="How far ahead to load. Larger rides out a patchy connection but uses more memory.">
           <Dropdown

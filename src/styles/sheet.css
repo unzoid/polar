@@ -191,10 +191,24 @@
   flex: 0 1 11rem;
   min-width: 6rem;
 }
+/* One height and one edge for the bar's three controls: the quality switch,
+   the add-on dropdown and Filters line up as a set. */
+.srcf-bar .segmented {
+  padding: 2px;
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+}
+.srcf-bar .segmented-item {
+  height: 32px; /* + 2px padding each side = 36px */
+}
+.srcf-bar .segmented-active {
+  inset: 2px;
+}
 /* Pill-shaped and as tall as Filters beside it. */
 .srcf-addon .select-trigger {
   width: 100%;
-  height: 34px;
+  height: 36px;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
   padding: 0 0.625rem 0 0.875rem;
   border-radius: var(--r-pill);
 }
@@ -203,10 +217,11 @@
   align-items: center;
   gap: 0.4375rem;
   flex: none;
-  height: 34px;
+  height: 36px;
   padding: 0 0.875rem 0 0.75rem;
   border-radius: var(--r-pill);
   background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
   color: var(--text);
   font-size: 0.875rem;
   font-weight: 600;

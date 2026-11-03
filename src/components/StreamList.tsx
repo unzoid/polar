@@ -65,7 +65,9 @@ export function StreamList({
     );
   }
 
-  const shown = f.view.map(({ r }) => r);
+  // What matches the filters; with filters that only order (Settings → Sources), the rest follows it.
+  const shown = f.view.slice(0, f.matched).map(({ r }) => r);
+  const others = f.view.slice(f.matched).map(({ r }) => r);
   const grouped = f.sort === "best";
   const [best, ...rest] = shown;
 
@@ -95,6 +97,14 @@ export function StreamList({
         </>
       )}
       {!grouped && shown.map((s) => <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} onPick={onPick} />)}
+      {others.length > 0 && (
+        <>
+          <div className="stream-group-label t-micro faint">Other Sources</div>
+          {others.map((s) => (
+            <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} onPick={onPick} />
+          ))}
+        </>
+      )}
 
       {hidden > 0 && <p className="stream-failed t-caption faint">{hidden} more hidden by Settings → Sources</p>}
       {data.failed.length > 0 && (

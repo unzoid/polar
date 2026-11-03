@@ -10,7 +10,7 @@ import type { MpvMedia } from "./mpvMedia";
  * (player.rs `Tune`).
  */
 export function useMpvTune(mpv: MpvMedia | null) {
-  const { dialogueBoost, volumeLeveling, hwdec, deband, buffer } = usePrefs();
+  const { dialogueBoost, volumeLeveling, hwdec, deband, autocrop, buffer } = usePrefs();
 
   useEffect(() => {
     if (!mpv) return;
@@ -19,7 +19,7 @@ export function useMpvTune(mpv: MpvMedia | null) {
       const track = mpv.tracks.find((t) => t.type === "audio" && t.id === mpv.aid);
       const surround = (track?.["demux-channel-count"] ?? 0) > 2;
       void invoke("mpv_tune", {
-        tune: { dialogueBoost: dialogueBoost && surround, volumeLeveling, hwdec, deband, buffer },
+        tune: { dialogueBoost: dialogueBoost && surround, volumeLeveling, hwdec, deband, autocrop, buffer },
       }).catch(() => {});
     };
     apply();
@@ -29,5 +29,5 @@ export function useMpvTune(mpv: MpvMedia | null) {
       mpv.removeEventListener("loadedmetadata", apply);
       mpv.removeEventListener("tracks", apply);
     };
-  }, [mpv, dialogueBoost, volumeLeveling, hwdec, deband, buffer]);
+  }, [mpv, dialogueBoost, volumeLeveling, hwdec, deband, autocrop, buffer]);
 }

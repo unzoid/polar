@@ -1,5 +1,6 @@
 import logo from "../assets/polarity-white.png";
-import { ChevronLeft, Close, Search, Tv } from "./icons";
+import { ChevronLeft, Close, Search, Speed, Tv } from "./icons";
+import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../lib/recentSearches";
 import { setTvMode } from "../tv/tvMode";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -192,6 +193,7 @@ function SearchBox() {
         onChange={(e) => change(e.target.value)}
         onBlur={() => !text && setOpen(false)}
         onKeyDown={(e) => {
+          if (e.key === "Enter") return addRecentSearch(text);
           if (e.key !== "Escape") return;
           e.stopPropagation();
           if (text) change("");
@@ -216,9 +218,13 @@ function SearchBox() {
 const SUGGESTED_GENRES = ["Action", "Comedy", "Drama", "Horror", "Sci-Fi", "Thriller", "Romance", "Documentary"];
 const SUGGESTED_ANIME = ["Isekai", "Shounen", "Slice of Life", "Mecha", "Iyashikei", "Psychological"];
 
-/** Under the empty field: genres to search by, one click from their titles. */
+/** The recent searches shown above the genres. */
+const RECENT_SHOWN = 3;
+
+/** Under the empty field: your last searches, then genres to search by, one click from their titles. */
 function SearchSuggestions({ pick, under }: { pick: (text: string) => void; under: HTMLElement | null }) {
   const { animeEnabled } = usePrefs();
+  const recent = useRecentSearches().slice(0, RECENT_SHOWN);
   if (!under) return null;
   // The field clips everything inside it (its open/close sweep), so this sits on the body.
   const r = under.getBoundingClientRect();
@@ -235,6 +241,24 @@ function SearchSuggestions({ pick, under }: { pick: (text: string) => void; unde
       style={{ top: r.bottom + 8, right: window.innerWidth - r.right }}
       onMouseDown={(e) => e.preventDefault()}
     >
+      {recent.length > 0 && (
+        <>
+          <div className="search-suggest-head">
+            <span className="search-suggest-title">Recent</span>
+            <button className="search-suggest-clear" tabIndex={-1} onClick={clearRecentSearches}>
+              Clear
+            </button>
+          </div>
+          <div className="search-recent">
+            {recent.map((r) => (
+              <button key={r} className="search-recent-item" tabIndex={-1} onClick={() => pick(r)}>
+                <Speed size={16} aria-hidden />
+                <span>{r}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <span className="search-suggest-title">Genres</span>
       <div className="genre-wrap">{chips(SUGGESTED_GENRES)}</div>
       {animeEnabled && (

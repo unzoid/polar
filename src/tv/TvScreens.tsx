@@ -26,6 +26,9 @@ import { episodeCode } from "../lib/format";
 import { useRouter } from "../lib/router";
 import { TvBrowse, TvCard, TvContinueRail, TvItemsRail, TvRail, TvShelfRail, type RailRow } from "./TvRails";
 import { TvKeyboard } from "./TvKeyboard";
+import { TvAnimeRail } from "./TvAnime";
+import { useAnimeResults, withoutAnime } from "../lib/anime/search";
+import { usePrefs } from "../lib/prefs";
 import { byDay, dayLabel, useCalendar } from "../lib/calendar";
 
 const NO_TITLES: MetaPreview[] = [];
@@ -200,7 +203,13 @@ export function TvSearch() {
   }, [text]);
 
   const searching = query.length > 1;
-  const empty = searching && data && !isPlaceholderData && !data.movies.length && !data.series.length;
+  // Anime from AniList, as on desktop; a show that's anime shows once, as the anime.
+  const { animeEnabled } = usePrefs();
+  const anime = useAnimeResults(animeEnabled && searching ? query : "");
+  const movies = withoutAnime(data?.movies, anime.items);
+  const series = withoutAnime(data?.series, anime.items);
+  const empty =
+    searching && data && !isPlaceholderData && !movies!.length && !series!.length && !anime.loading && !anime.items?.length;
 
   // Enter (or a recent search): search now, and go to the first result once it's in.
   const pendingFocus = useRef<string | null>(null);
@@ -275,8 +284,11 @@ export function TvSearch() {
         {searching && !data && <TvItemsRail title="Results" items={undefined} shape="poster" />}
         {searching && data && (
           <>
-            <TvItemsRail title="Movies" items={data.movies} shape="poster" />
-            <TvItemsRail title="Series" items={data.series} shape="poster" />
+            <TvItemsRail title="Movies" items={movies} shape="poster" />
+            <TvItemsRail title="Series" items={series} shape="poster" />
+            {animeEnabled && (anime.loading || !!anime.items?.length) && (
+              <TvAnimeRail title={anime.title} items={anime.items} shape="poster" />
+            )}
           </>
         )}
         {empty && <p className="tv-empty">Nothing found for “{query}”.</p>}

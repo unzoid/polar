@@ -2,13 +2,15 @@ import { useEffect, useRef } from "react";
 import { useAccount } from "../../lib/account/AccountProvider";
 import { leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty } from "../../lib/party/party";
 import { useRouter } from "../../lib/router";
-import { Sheet } from "../Sheet";
+import { Dialog } from "@base-ui/react/dialog";
+import { Close, WatchParty } from "../icons";
 import { JoinForm } from "./PartyUI";
+import { useTvMode } from "../../tv/tvMode";
 
 /**
  * The watch party's place in navigation: goes wherever the room goes (joining,
  * someone putting on the next episode) and leaves the room when you leave the
- * player. Also hosts the "Join a Watch Party" sheet.
+ * player. Also hosts the "Join a Watch Party" dialog.
  */
 export function PartyHost() {
   const party = useParty();
@@ -43,15 +45,26 @@ export function PartyHost() {
   useEffect(() => () => leaveParty(), []);
 
   const open = useJoinPartyOpen();
+  // TV mode asks on its own on-screen keyboard (TvJoinParty).
+  const tv = useTvMode();
   const { profile } = useAccount();
+  // A centred dialog: one short question, not a place you browse.
   return (
-    <Sheet
-      open={open && !!profile}
-      onClose={() => setJoinPartyOpen(false)}
-      title="Join a Watch Party"
-      subtitle="Enter the code a friend shared with you."
-    >
-      {profile && <JoinForm me={profile} onJoined={() => setJoinPartyOpen(false)} />}
-    </Sheet>
+    <Dialog.Root open={open && !!profile && !tv} onOpenChange={(o) => !o && setJoinPartyOpen(false)}>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="party-dialog-scrim" />
+        <Dialog.Popup className="party-dialog">
+          <div className="party-dialog-icon" aria-hidden>
+            <WatchParty size={22} />
+          </div>
+          <Dialog.Title className="party-dialog-title">Join a Watch Party</Dialog.Title>
+          <Dialog.Description className="party-dialog-text">Enter the code a friend shared with you.</Dialog.Description>
+          {profile && <JoinForm me={profile} onJoined={() => setJoinPartyOpen(false)} />}
+          <Dialog.Close className="party-dialog-close pressable" aria-label="Close">
+            <Close size={18} />
+          </Dialog.Close>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

@@ -46,6 +46,8 @@ export interface Prefs {
   hwdec: boolean;
   /** mpv: smooth colour banding. */
   deband: boolean;
+  /** mpv: crop black bars burnt into the picture, so it fills wide screens. */
+  autocrop: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
   /** Keep the last few searches. */
@@ -101,6 +103,7 @@ const DEFAULTS: Prefs = {
   volumeLeveling: false,
   hwdec: true,
   deband: false,
+  autocrop: false,
   buffer: "normal",
   saveRecentSearches: true,
   searchSuggestions: true,
