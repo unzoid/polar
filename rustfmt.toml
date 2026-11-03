@@ -1,0 +1,4 @@
+# Matches the codebase's existing style: one-line chains and struct literals
+# up to 120 columns, instead of rustfmt's narrower defaults.
+max_width = 120
+use_small_heuristics = "Max"
