@@ -115,6 +115,9 @@ struct Conn {
     closed: Arc<AtomicBool>,
 }
 
+/// An autocrop run's number and the channel its observed properties go to.
+type CropSink = (u64, mpsc::UnboundedSender<(u64, Value)>);
+
 #[derive(Default)]
 pub struct Mpv {
     conn: Mutex<Option<Conn>>,
@@ -132,7 +135,7 @@ pub struct Mpv {
     autocrop_run: AtomicU64,
     /// Where the reader sends autocrop's observed properties: the running
     /// task's number and channel ([`CROP_OBSERVE_BASE`]).
-    crop_events: StdMutex<Option<(u64, mpsc::UnboundedSender<(u64, Value)>)>>,
+    crop_events: StdMutex<Option<CropSink>>,
 }
 
 /// The mpv executable's file name here.

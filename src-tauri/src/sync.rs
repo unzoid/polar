@@ -57,7 +57,7 @@ pub fn space_import_local(state: State<'_, AppState>, space: String) -> Result<(
     save(&state, |d| {
         let local = d.spaces.get(LOCAL_SPACE).cloned().unwrap_or_default();
         let target = d.spaces.entry(space).or_default();
-        let library = local.library.values().map(|i| present(i)).collect();
+        let library = local.library.values().map(present).collect();
         merge(target, library, local.progress.into_values().collect());
         // Everything imported still has to reach the server.
         target.pushed_at = 0;

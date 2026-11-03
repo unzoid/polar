@@ -331,7 +331,7 @@ type Shared<'a> = State<'a, Arc<Downloads>>;
 #[tauri::command]
 pub fn downloads_list(downloads: Shared<'_>) -> Vec<Download> {
     let mut items = downloads.inner.lock().unwrap().items.clone();
-    items.sort_by(|a, b| b.added_at.cmp(&a.added_at));
+    items.sort_by_key(|i| std::cmp::Reverse(i.added_at));
     items
 }
 

@@ -246,7 +246,7 @@ pub fn library_list(state: State<'_, AppState>) -> Vec<LibraryItem> {
     let store = state.store.lock().unwrap();
     let Some(space) = store.data.space() else { return Vec::new() };
     let mut items: Vec<_> = space.library.values().cloned().collect();
-    items.sort_by(|a, b| b.added_at.cmp(&a.added_at));
+    items.sort_by_key(|i| std::cmp::Reverse(i.added_at));
     items
 }
 
@@ -319,7 +319,7 @@ pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
         .filter(|p| !p.finished(watched) && p.position > 30.0)
         .cloned()
         .collect();
-    items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    items.sort_by_key(|i| std::cmp::Reverse(i.updated_at));
     items.truncate(20);
     items
 }
@@ -339,7 +339,7 @@ pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
         }
     }
     let mut items: Vec<Progress> = latest.into_values().cloned().collect();
-    items.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    items.sort_by_key(|i| std::cmp::Reverse(i.updated_at));
     items.truncate(200);
     items
 }
