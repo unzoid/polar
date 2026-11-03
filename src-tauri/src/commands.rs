@@ -480,8 +480,6 @@ pub async fn ratings(state: State<'_, AppState>, ty: String, id: String) -> Resu
 
 // --- External links ------------------------------------------------------
 
-/// Opens a web page (e.g. a title on IMDb) in the default browser. Only
-/// https links, so the webview can't use this to launch anything else.
 /// A title's trailer as a playable file (IMDb), or none.
 #[tauri::command]
 pub async fn trailer(imdb_id: String) -> Option<crate::trailers::Trailer> {
@@ -494,6 +492,8 @@ pub async fn anime_filler(slugs: Vec<String>) -> Vec<u32> {
     crate::fillers::filler_episodes(&slugs).await
 }
 
+/// Opens a web page (e.g. a title on IMDb) in the default browser. Only
+/// https links, so the webview can't use this to launch anything else.
 #[tauri::command]
 pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
     use tauri_plugin_opener::OpenerExt;

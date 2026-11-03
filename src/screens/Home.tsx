@@ -138,6 +138,8 @@ export function HeroCarousel({
           <AmbientWash key={it.id} src={it.background} current={i === index} />
         ))}
       </div>
+      <div className="hero-stage">
+      {count > 1 && <HeroPeek item={items[(index - 1 + count) % count]} side="prev" onClick={() => setIndex((index - 1 + count) % count)} />}
       <div
         className="hero-card"
         ref={hero}
@@ -190,7 +192,22 @@ export function HeroCarousel({
           <ChevronRight size={22} />
         </button>
       </div>
+      {count > 1 && <HeroPeek item={items[(index + 1) % count]} side="next" onClick={() => setIndex((index + 1) % count)} />}
+      </div>
     </section>
+  );
+}
+
+/**
+ * On a window much wider than the card (ultrawide), the featured titles
+ * before and after it, dimmed at its sides, the way a carousel continues.
+ * Hidden by CSS everywhere else.
+ */
+function HeroPeek({ item, side, onClick }: { item: MetaPreview; side: "prev" | "next"; onClick: () => void }) {
+  return (
+    <button className="hero-peek" data-side={side} onClick={onClick} aria-label={`${side === "prev" ? "Previous" : "Next"} featured: ${item.name}`} tabIndex={-1}>
+      <Img key={item.id} src={item.background} alt="" className="hero-peek-img" />
+    </button>
   );
 }
 

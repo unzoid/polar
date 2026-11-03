@@ -23,8 +23,13 @@ export function Row({
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const update = () =>
-      setEdges({ start: el.scrollLeft < 4, end: el.scrollLeft + el.clientWidth > el.scrollWidth - 4 });
+    // Same edges, same object: a new one on every scroll event would
+    // re-render the shelf and all its cards for each frame scrolled.
+    const update = () => {
+      const start = el.scrollLeft < 4;
+      const end = el.scrollLeft + el.clientWidth > el.scrollWidth - 4;
+      setEdges((e) => (e.start === start && e.end === end ? e : { start, end }));
+    };
     update();
     el.addEventListener("scroll", update, { passive: true });
     const ro = new ResizeObserver(update);

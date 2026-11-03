@@ -13,6 +13,9 @@ export function useAnimeTitle() {
   return (t: AnimeTitle) => pickTitle(t, animeTitles);
 }
 
+/** Fan service: AniList's Ecchi genre (its adult titles are never asked for). */
+export const isMature = (a: { genres?: string[] | null }) => !!a.genres?.includes("Ecchi");
+
 export const FORMAT_LABEL: Record<MediaFormat, string> = {
   TV: "TV",
   TV_SHORT: "TV Short",

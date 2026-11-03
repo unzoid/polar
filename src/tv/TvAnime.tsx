@@ -12,7 +12,7 @@ import {
 } from "../lib/anime/anilist";
 import { aniZipQuery, fetchAniZip, useAniZip } from "../lib/anime/anizip";
 import { findImdbId } from "../lib/anime/search";
-import { countdown, SEASON_LABEL, untilAiring, useAnimeScore } from "../lib/anime/format";
+import { countdown, isMature, SEASON_LABEL, untilAiring, useAnimeScore } from "../lib/anime/format";
 import { animePreview } from "../lib/anime/preview";
 import { useShelfVisible } from "../lib/anime/shelves";
 import { usePrefs } from "../lib/prefs";
@@ -118,10 +118,14 @@ export function TvAnimeRail({
   shape: Shape;
   chip?: (a: AnimeCard) => string | undefined;
 }) {
+  const { matureContent } = usePrefs();
   if (!items) return <TvSkeletonRail title={title} shape={shape} />;
-  if (!items.length) return null;
-  const banners = items.filter((a) => a.bannerImage);
-  const shown = shape === "landscape" && banners.length >= 6 ? banners : items;
+  // TV has no blur: the stage would show the art full-size the moment the
+  // card has focus, so "blur" leaves it out here too.
+  const kept = matureContent === "show" ? items : items.filter((a) => !isMature(a));
+  if (!kept.length) return null;
+  const banners = kept.filter((a) => a.bannerImage);
+  const shown = shape === "landscape" && banners.length >= 6 ? banners : kept;
   return (
     <TvRail title={title}>
       {shown.map((a, i) => (

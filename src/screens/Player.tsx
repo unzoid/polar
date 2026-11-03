@@ -196,7 +196,9 @@ export function Player({
   const hideTimer = useRef<number>(undefined);
   const overControls = useRef(false);
   const poke = useCallback((instant = false) => {
-    setChrome({ visible: true, instant });
+    // Called on every pointer move: keep the same object when nothing changed,
+    // or the whole player re-renders for each pixel the mouse travels.
+    setChrome((c) => (c.visible && c.instant === instant ? c : { visible: true, instant }));
     window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => {
       if (!overControls.current) setChrome({ visible: false, instant: false });

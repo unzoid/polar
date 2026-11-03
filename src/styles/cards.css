@@ -18,9 +18,12 @@
   position: relative;
   padding: calc(var(--nav-h) + 0.75rem) var(--gutter) 0 var(--content-start);
 }
+.hero {
+  --hero-h: clamp(420px, 68vh, 760px);
+}
 .hero-card {
   position: relative;
-  height: clamp(420px, 68vh, 760px);
+  height: var(--hero-h);
   border-radius: var(--r-panel);
   overflow: hidden;
   isolation: isolate;
@@ -31,6 +34,57 @@
 }
 .hero-placeholder {
   display: block;
+}
+/* The card and, on ultrawide, its neighbours. Past 2:1 the card stops
+   growing (a backdrop is 16:9; stretched wider it's all crop) and the
+   titles before and after it show at its sides. */
+.hero-stage {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+.hero-stage > .hero-card {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.hero-peek {
+  display: none;
+}
+@media (min-aspect-ratio: 2/1) {
+  .hero-stage > .hero-card {
+    flex: 0 1 auto;
+    width: calc(var(--hero-h, 76vh) * 2.1);
+  }
+  .hero-peek {
+    display: block;
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    border-radius: var(--r-panel);
+    overflow: hidden;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity var(--dur-fast) ease;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .hero-peek:hover {
+      opacity: 0.6;
+    }
+  }
+  .hero-peek-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* Each shows the edge nearest the card, as if the shelf went on. */
+  .hero-peek[data-side="prev"] .hero-peek-img {
+    object-position: right 22%;
+  }
+  .hero-peek[data-side="next"] .hero-peek-img {
+    object-position: left 22%;
+  }
 }
 /* Static blur (rendered once); only opacity changes when the art does. */
 .hero-ambient {
@@ -197,8 +251,11 @@
 .home-rows {
   z-index: 1;
 }
+.home .hero {
+  --hero-h: clamp(480px, 76vh, 880px);
+}
 .home .hero-card {
-  height: clamp(480px, 76vh, 880px);
+  height: var(--hero-h);
 }
 .home .hero-content {
   width: min(640px, 50vw);
@@ -315,8 +372,8 @@
 /* A quiet version: half the radius, a faint tint, an ellipse that's tallest
    at the middle of the edge and fades before the corners of the art. */
 .row-paddle {
-  --edge-strength: 0.5;
-  --edge-tint: 0.18;
+  --edge-strength: 0.85;
+  --edge-tint: 0.42;
 }
 .row-paddle[data-dir="prev"] {
   left: 0;
@@ -330,6 +387,9 @@
 .row-paddle svg {
   position: relative;
   opacity: var(--edge-shown);
+  /* Bright art behind the edge (a sky, a white cover) would swallow a bare
+     white chevron. */
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.7));
   transition:
     opacity var(--dur-fast) ease,
     transform var(--dur-press) var(--ease-out);
@@ -575,11 +635,12 @@
   color: var(--score-tone, #f5c518);
 }
 /* Over artwork: on a small dark pill so it reads over anything. */
+/* A solid chip, no backdrop blur: there's one on every poster, and a grid
+   of them would each re-blur the art under them on every scrolled frame. */
 .card-score-art {
   padding: 0.36em 0.5em;
   border-radius: 6px;
-  background: rgb(0 0 0 / 0.62);
-  backdrop-filter: blur(8px);
+  background: rgb(0 0 0 / 0.72);
   color: #fff;
   pointer-events: none;
 }

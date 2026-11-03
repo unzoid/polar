@@ -1043,6 +1043,20 @@ function BrowsingPage() {
           onChange={(v) => update.mutate({ hideEpisodeDescriptions: v })}
         />
       </Card>
+      <Card title="Family">
+        <PickRow title="Mature content" caption="Ecchi anime: fan service, suggestive art. Explicit titles never show">
+          <Dropdown
+            label="Mature content"
+            value={prefs.matureContent}
+            onChange={(v) => setPrefs({ matureContent: v })}
+            options={[
+              { value: "show", label: "Show" },
+              { value: "blur", label: "Blur posters" },
+              { value: "hide", label: "Hide" },
+            ]}
+          />
+        </PickRow>
+      </Card>
       <Card title="Search">
         <ToggleRow
           title="Suggest genres"

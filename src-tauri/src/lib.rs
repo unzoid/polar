@@ -3,6 +3,7 @@ mod controllers;
 mod downloads;
 mod player;
 mod fillers;
+mod imdb;
 mod streamcheck;
 mod trailers;
 mod introdb;

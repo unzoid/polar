@@ -59,6 +59,9 @@ export interface Prefs {
   /** The TV mode button in the navbar (Settings → Controls & TV). */
   showTvButton: boolean;
 
+  /** Ecchi anime (AniList's adult titles never show): as is, blurred, or left out. Synced. */
+  matureContent: "show" | "blur" | "hide";
+
   // Anime:
   /** The Anime section at all: off removes its tab in desktop and TV mode. */
   animeEnabled: boolean;
@@ -109,6 +112,7 @@ const DEFAULTS: Prefs = {
   searchSuggestions: true,
   autoDownloadUpdates: true,
   showTvButton: true,
+  matureContent: "show",
   animeEnabled: true,
   animeHiddenShelves: "",
   animeCardScores: true,
@@ -140,6 +144,7 @@ export const SYNCED_PREFS = [
   "preferFileChapters",
   "saveRecentSearches",
   "searchSuggestions",
+  "matureContent",
   "animeEnabled",
   "animeHiddenShelves",
   "animeCardScores",

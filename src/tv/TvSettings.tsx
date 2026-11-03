@@ -54,6 +54,11 @@ const languages =(none: string): Choice<string>[] => [
   ...PREFERRED_LANGUAGES.map((code) => ({ value: code, label: languageName(code) ?? code })),
 ];
 
+const MATURE: Choice<Prefs["matureContent"]>[] = [
+  { value: "show", label: "Show" },
+  { value: "hide", label: "Hide" },
+];
+
 const ANIME_TITLES: Choice<Prefs["animeTitles"]>[] = [
   { value: "english", label: "English" },
   { value: "romaji", label: "Romaji" },
@@ -189,6 +194,12 @@ function CategoryRows({ id }: { id: CategoryId }) {
             choices={RATING_POSITIONS}
             value={s.cardRatingPosition ?? "poster"}
             onChange={(v) => set({ cardRatingPosition: v })}
+          />
+          <Row
+            label="Mature Anime"
+            choices={MATURE}
+            value={prefs.matureContent === "show" ? ("show" as const) : ("hide" as const)}
+            onChange={(v) => pref({ matureContent: v })}
           />
           <Row label="Calendar" choices={onOff} value={s.showCalendar ?? false} onChange={(v) => set({ showCalendar: v })} />
           <Row label="Continue Watching" choices={onOff} value={s.showContinueWatching} onChange={(v) => set({ showContinueWatching: v })} />

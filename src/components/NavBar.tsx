@@ -1,8 +1,9 @@
 import logo from "../assets/polarity-white.png";
-import { ChevronLeft, Close, Search, Speed, Tv } from "./icons";
+import { Menu } from "@base-ui/react/menu";
+import { ChevronDown, ChevronLeft, Close, Search, Speed, Tv } from "./icons";
 import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../lib/recentSearches";
 import { setTvMode } from "../tv/tvMode";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { usePrefs } from "../lib/prefs";
@@ -69,19 +70,7 @@ export function NavBar() {
       <button className="navbar-brand" onClick={() => tab({ name: "home" })} aria-label="Polarity home">
         <img className="brand-logo" src={logo} alt="Polarity" draggable={false} />
       </button>
-      <nav className="navbar-links" aria-label="Primary">
-        {links.map((l) => (
-          <button
-            key={l.label}
-            className="navbar-link"
-            aria-current={isActive(l.route) ? "page" : undefined}
-            onPointerDown={(e) => e.button === 0 && tab(l.route)} // respond on press
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && tab(l.route)}
-          >
-            {l.label}
-          </button>
-        ))}
-      </nav>
+      <NavLinks links={links} isActive={isActive} open={tab} />
       <div className="navbar-actions">
         <UpdatePill />
         <SearchBox />
@@ -95,6 +84,79 @@ export function NavBar() {
       </div>
       <WindowControls />
     </header>
+  );
+}
+
+/**
+ * The tabs, as many as fit; the rest go in a "More" menu at the end, so a
+ * narrow window never cuts one in half. Every tab stays rendered (the
+ * overflowing ones invisible) so their widths can be measured.
+ */
+function NavLinks({ links, isActive, open }: { links: typeof LINKS; isActive: (r: TabRoute) => boolean; open: (r: TabRoute) => void }) {
+  const nav = useRef<HTMLElement>(null);
+  const more = useRef<HTMLButtonElement>(null);
+  const [fit, setFit] = useState(links.length);
+
+  useLayoutEffect(() => {
+    const el = nav.current;
+    if (!el) return;
+    const measure = () => {
+      const tabs = [...el.querySelectorAll<HTMLElement>(":scope > .navbar-link:not(.navbar-more)")];
+      const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+      const widths = tabs.map((t) => t.offsetWidth + gap);
+      const room = el.clientWidth;
+      if (widths.reduce((a, b) => a + b, 0) - gap <= room) return setFit(tabs.length);
+      let used = (more.current?.offsetWidth ?? 90) + gap;
+      let n = 0;
+      while (n < widths.length && used + widths[n] <= room) used += widths[n++];
+      setFit(n);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [links]);
+
+  const rest = links.slice(fit);
+  return (
+    <nav ref={nav} className="navbar-links" aria-label="Primary" data-tauri-drag-region>
+      {links.map((l, i) => (
+        <button
+          key={l.label}
+          className="navbar-link"
+          data-overflow={i >= fit || undefined}
+          aria-hidden={i >= fit || undefined}
+          tabIndex={i >= fit ? -1 : undefined}
+          aria-current={isActive(l.route) ? "page" : undefined}
+          onPointerDown={(e) => e.button === 0 && open(l.route)} // respond on press
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && open(l.route)}
+        >
+          {l.label}
+        </button>
+      ))}
+      <Menu.Root modal={false}>
+        <Menu.Trigger
+          ref={more}
+          className="navbar-link navbar-more"
+          data-overflow={rest.length ? undefined : true}
+          aria-current={rest.some((l) => isActive(l.route)) ? "page" : undefined}
+        >
+          {rest.find((l) => isActive(l.route))?.label ?? "More"}
+          <ChevronDown size={14} />
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner sideOffset={8} align="start" className="select-positioner">
+            <Menu.Popup className="profile-menu">
+              {rest.map((l) => (
+                <Menu.Item key={l.label} className="profile-menu-item" onClick={() => open(l.route)}>
+                  {l.label}
+                </Menu.Item>
+              ))}
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
+    </nav>
   );
 }
 

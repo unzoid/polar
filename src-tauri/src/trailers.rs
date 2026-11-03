@@ -4,12 +4,8 @@
 //! after a day, so callers shouldn't keep them longer than a few hours.
 //! "No trailer" is `None`, never an error: the app falls back to YouTube.
 
-use std::time::Duration;
-
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
-const API: &str = "https://api.graphql.imdb.com/";
 const QUERY: &str = "query ($id: ID!) { title(id: $id) { primaryVideos(first: 10) { edges { node {
   name { value } contentType { id } runtime { value }
   playbackURLs { displayName { value } videoMimeType url } } } } } }";
@@ -23,14 +19,6 @@ pub struct Trailer {
     pub quality: String,
 }
 
-#[derive(Deserialize)]
-struct Resp {
-    data: Option<Data>,
-}
-#[derive(Deserialize)]
-struct Data {
-    title: Option<Title>,
-}
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Title {
@@ -85,28 +73,8 @@ fn quality_rank(label: &str) -> u32 {
 }
 
 pub async fn imdb_trailer(imdb_id: &str) -> Option<Trailer> {
-    let valid = imdb_id.len() > 2 && imdb_id.starts_with("tt") && imdb_id[2..].bytes().all(|b| b.is_ascii_digit());
-    if !valid {
-        return None;
-    }
-    let http = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(10))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        .build()
-        .ok()?;
-    let resp: Resp = http
-        .post(API)
-        // Without it the API answers 403.
-        .header("x-imdb-client-name", "imdb-web-next-localized")
-        .json(&json!({ "query": QUERY, "variables": { "id": imdb_id } }))
-        .send()
-        .await
-        .ok()?
-        .json()
-        .await
-        .ok()?;
-    pick(resp.data?.title?.primary_videos.edges.into_iter().map(|e| e.node).collect())
+    let title: Title = crate::imdb::title(QUERY, imdb_id).await?;
+    pick(title.primary_videos.edges.into_iter().map(|e| e.node).collect())
 }
 
 /// A real trailer over a clip or a teaser: trailers first, then the best

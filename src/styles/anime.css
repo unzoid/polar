@@ -18,6 +18,29 @@
   z-index: 1;
   font-size: 0.6875rem;
 }
+/* Settings → Browsing → Mature content: blurred. Scaled so the blur's soft
+   edge stays inside the frame. */
+.anime-card[data-mature] .card-img {
+  filter: blur(18px);
+  transform: scale(1.1);
+}
+/* A franchise entry that's read, not watched: opens on MyAnimeList. */
+.card-kind-badge {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  z-index: 1;
+  padding: 0.36em 0.55em;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.72);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
 /* A landscape card whose show has no banner gets its portrait cover cropped, not a taller card. */
 .card-landscape.anime-card .card-img {
   position: absolute;

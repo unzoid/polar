@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { fetchAnime, type AnimeCard as Card } from "../../lib/anime/anilist";
-import { cardFacts, countdown, FORMAT_LABEL, untilAiring, useAnimeScore, useAnimeTitle } from "../../lib/anime/format";
+import { cardFacts, countdown, FORMAT_LABEL, isMature, untilAiring, useAnimeScore, useAnimeTitle } from "../../lib/anime/format";
 import { usePrefs } from "../../lib/prefs";
 import { useRouter } from "../../lib/router";
 import { aniZipQuery } from "../../lib/anime/anizip";
 import { menuPoint, openCardMenu } from "../CardMenu";
+import { api } from "../../lib/api";
 import { Img } from "../Img";
 import { Star } from "../icons";
 
@@ -62,17 +63,22 @@ export function AnimeCard({ item, label }: { item: Card; label?: string }) {
   const prefs = usePrefs();
   const next = prefs.animeCardCountdown ? item.nextAiringEpisode : undefined;
   const score = useAnimeScore()(prefs.animeCardScores ? item.averageScore : undefined);
+  // A manga or novel in a franchise has no page here: it opens on MyAnimeList
+  // (AniList when MAL doesn't list it), badged so it doesn't pass for a show.
   const isAnime = item.type !== "MANGA";
+  if (prefs.matureContent === "hide" && isMature(item)) return null;
+  const readOn = item.idMal ? `https://myanimelist.net/manga/${item.idMal}` : `https://anilist.co/manga/${item.id}`;
 
   return (
     <button
       className="card card-poster anime-card"
-      {...(isAnime ? open : {})}
-      disabled={!isAnime}
+      data-mature={prefs.matureContent === "blur" && isMature(item) ? "" : undefined}
+      {...(isAnime ? open : { onClick: () => void api.openExternal(readOn), title: "Open on MyAnimeList" })}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >
       <div className="card-frame anime-card-frame">
         <Img src={item.coverImage.extraLarge ?? item.coverImage.large ?? undefined} alt="" className="card-img" />
+        {!isAnime && <span className="card-kind-badge">{item.format === "NOVEL" ? "Novel" : "Manga"}</span>}
         {score && (
           <span className="card-score card-score-art anime-card-score tabular" title="AniList score">
             <Star size={11} />
@@ -98,9 +104,12 @@ export function AnimeCard({ item, label }: { item: Card; label?: string }) {
 export function AnimeLandscapeCard({ item, label }: { item: Card; label?: string }) {
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
+  const { matureContent } = usePrefs();
+  if (matureContent === "hide" && isMature(item)) return null;
   return (
     <button
       className="card card-landscape anime-card"
+      data-mature={matureContent === "blur" && isMature(item) ? "" : undefined}
       {...open}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >

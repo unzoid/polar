@@ -694,6 +694,7 @@ pub async fn mpv_load(
     }
     // A new file is measured afresh (autocrop): drop the last one's crop.
     state.mpv.request(json!(["set_property", "video-crop", ""])).await.ok();
+    state.mpv.request(json!(["set_property", "sub-ass-video-aspect-override", 0])).await.ok();
     state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await?;
     state.mpv.request(json!(["set_property", "pause", false])).await?;
     state.mpv.set_visible(true).await;
@@ -808,6 +809,7 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
         } else {
             mpv.request(json!(["vf", "remove", "@autocrop"])).await?;
             mpv.request(json!(["set_property", "video-crop", ""])).await?;
+            mpv.request(json!(["set_property", "sub-ass-video-aspect-override", 0])).await.ok();
         }
     }
     if was.deband != tune.deband {
@@ -825,17 +827,24 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
     Ok(())
 }
 
-/// Finds the picture's edges: the largest area brighter than near-black seen
-/// so far in this file (it only ever grows, so a dark scene can't crop into
-/// a bright one later). `limit` is a fraction, so it holds for 10-bit HDR too.
-const CROPDETECT: &str = "@autocrop:lavfi=[cropdetect=limit=0.09:round=2:reset=0]";
+/// Finds the picture's edges: the largest area brighter than near-black in
+/// the last second or so (24 frames), measured afresh each time. `limit` is
+/// a fraction, so it holds for 10-bit HDR too.
+const CROPDETECT: &str = "@autocrop:lavfi=[cropdetect=limit=0.09:round=2:reset=24]";
+
+/// A second's measurement has to win this many times before it's applied.
+const CROP_VOTES: u32 = 3;
 
 /// While autocrop is on: read cropdetect's answer every second and crop to
-/// it once it's believable. Bars thinner than 2% aren't worth losing pixels
-/// over; an area under 40% of the frame is a dark scene, not a picture.
-/// Each file starts uncropped (mpv_load) and is measured afresh.
+/// the one seen most often in this file. One bright full-frame shot (a studio
+/// logo, an intro) or a dark scene can't decide it on its own, and it no
+/// longer matters where in the file you start or seek to. Bars thinner than
+/// 2% aren't worth losing pixels over; an area under 40% of the frame is a
+/// dark scene, not a picture. Each file starts uncropped (mpv_load).
 async fn autocrop(app: AppHandle) {
-    let mut last: Option<(String, String)> = None; // (file, crop applied)
+    let mut file = String::new();
+    let mut votes: HashMap<String, u32> = HashMap::new(); // crop ("" = none) → seconds seen
+    let mut applied: Option<String> = None;
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
         let state = app.state::<AppState>();
@@ -851,17 +860,36 @@ async fn autocrop(app: AppHandle) {
         let (Some(path), Some(full_w), Some(full_h)) = (path.as_str().map(str::to_string), w.as_f64(), h.as_f64()) else {
             continue;
         };
+        if path != file {
+            file = path;
+            votes.clear();
+            applied = None;
+        }
+        // Paused, the same frames would vote again and again.
+        if get("pause").await.ok().and_then(|v| v.as_bool()).unwrap_or(false) {
+            continue;
+        }
         let num = |k: &str| meta.get(format!("lavfi.cropdetect.{k}")).and_then(Value::as_str).and_then(|v| v.parse::<f64>().ok());
         let (Some(cw), Some(ch), Some(cx), Some(cy)) = (num("w"), num("h"), num("x"), num("y")) else {
             continue;
         };
-        let worth = cw > 0.0 && ch > 0.0 && (cw <= full_w * 0.98 || ch <= full_h * 0.98) && cw * ch >= full_w * full_h * 0.4;
-        let crop = if worth { format!("{cw}x{ch}+{cx}+{cy}") } else { String::new() };
-        if last.as_ref() == Some(&(path.clone(), crop.clone())) {
+        if cw <= 0.0 || ch <= 0.0 || cw * ch < full_w * full_h * 0.4 {
+            continue; // a dark scene: says nothing about the bars
+        }
+        let barred = cw <= full_w * 0.98 || ch <= full_h * 0.98;
+        let seen = if barred { format!("{cw}x{ch}+{cx}+{cy}") } else { String::new() };
+        *votes.entry(seen).or_default() += 1;
+        let Some((best, &n)) = votes.iter().max_by_key(|(_, n)| **n) else { continue };
+        if n < CROP_VOTES || applied.as_ref() == Some(best) {
             continue;
         }
+        let crop = best.clone();
+        // libass lays subtitles out for the video's shape; told the cropped
+        // one, it stretches them sideways. Keep the uncropped shape.
+        let aspect = if crop.is_empty() { json!(0) } else { get("video-params/aspect").await.unwrap_or(json!(0)) };
+        mpv.request(json!(["set_property", "sub-ass-video-aspect-override", aspect])).await.ok();
         if mpv.request(json!(["set_property", "video-crop", crop])).await.is_ok() {
-            last = Some((path, crop));
+            applied = Some(crop);
         }
     }
 }

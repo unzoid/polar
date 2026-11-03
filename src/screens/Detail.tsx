@@ -24,7 +24,7 @@ import { usePlayTarget } from "../lib/playTarget";
 import { prefetchStreams, useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { fetchAniZip } from "../lib/anime/anizip";
+import { anilistForImdb } from "../lib/anime/search";
 import { usePrefs } from "../lib/prefs";
 import { useFileTrailer } from "../lib/trailers";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
@@ -33,17 +33,17 @@ import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video
  * An anime reached by its IMDb id (Search, Library, Continue Watching) opens
  * on its AniList page instead, so the same show always looks the same.
  */
-function useAnimeRedirect(id: string, genres: string[] | undefined) {
+function useAnimeRedirect(id: string, item: MetaPreview | undefined) {
   const { animeEnabled } = usePrefs();
   const { replace } = useRouter();
-  const animated = !!genres?.some((g) => /^anim(e|ation)$/i.test(g));
-  const { data: zip } = useQuery({
-    queryKey: ["anizip", "imdb", id],
-    queryFn: () => fetchAniZip({ imdb_id: id }),
+  const animated = !!item?.genres?.some((g) => /^anim(e|ation)$/i.test(g));
+  const year = Number(item?.releaseInfo?.match(/\d{4}/)?.[0]) || undefined;
+  const { data: anilist } = useQuery({
+    queryKey: ["anime", "for-imdb", id],
+    queryFn: () => anilistForImdb(id, { type: item!.type, name: item!.name, year }),
     enabled: animeEnabled && animated && id.startsWith("tt"),
     staleTime: Infinity,
   });
-  const anilist = zip?.mappings.anilist_id;
   useEffect(() => {
     if (anilist) replace({ name: "anime-detail", id: anilist });
   }, [anilist, replace]);
@@ -59,7 +59,7 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   const { data: meta, isError, error } = useMeta(type, id);
   // Render instantly from the catalog preview; fill in when full meta arrives.
   const shown: MetaPreview | undefined = meta ?? preview;
-  useAnimeRedirect(id, shown?.genres);
+  useAnimeRedirect(id, shown);
 
   // The trailer behind the page: only while it's the page on top, and paused
   // once you've scrolled down to read or a sheet or the big trailer is open.

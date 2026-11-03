@@ -139,15 +139,27 @@
   font-weight: 750;
   letter-spacing: -0.02em;
 }
-/* The tabs give way first: when the bar runs out of room they scroll
-   sideways instead of pushing the actions and window buttons off-screen. */
+/* The tabs give way first: when the bar runs out of room the last ones move
+   into "More" (NavBar.tsx NavLinks) instead of pushing the actions and window
+   buttons off-screen. It takes the free width so it can tell how much there is. */
 .navbar-links {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 0.25rem;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: hidden;
+}
+/* Out of room: kept in the layout's measurements, but not drawn or clickable. */
+.navbar-link[data-overflow] {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+.navbar-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 .navbar-links::-webkit-scrollbar {
   display: none;
