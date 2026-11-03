@@ -20,7 +20,7 @@
 //! hidden under opaque pages) so the next title starts instantly; it's shut
 //! down after a few idle minutes (to give its memory back) and when the app exits.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::process::Child;
 #[cfg(not(target_os = "macos"))]
@@ -32,7 +32,7 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, WriteHalf};
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex};
 
 use ipc::Stream as IpcStream;
 
@@ -124,6 +124,15 @@ pub struct Mpv {
     /// What mpv is currently tuned to, so `mpv_tune` only sends changes:
     /// re-setting `hwdec` to the same value can still reinitialise decoding.
     tuned: StdMutex<Tune>,
+    /// Bumped on every `mpv_load`, so autocrop measures each load afresh
+    /// (the same URL played again included).
+    loads: AtomicU64,
+    /// Bumped each time an autocrop loop starts; an older loop sees it and
+    /// stops, so switching autocrop off and on quickly can't leave two running.
+    autocrop_run: AtomicU64,
+    /// Where the reader sends autocrop's observed properties: the running
+    /// task's number and channel ([`CROP_OBSERVE_BASE`]).
+    crop_events: StdMutex<Option<(u64, mpsc::UnboundedSender<(u64, Value)>)>>,
 }
 
 /// The mpv executable's file name here.
@@ -575,6 +584,12 @@ async fn read_loop(
 
         match msg.get("event").and_then(Value::as_str) {
             Some("property-change") => {
+                if let Some(id) = msg.get("id").and_then(Value::as_u64).filter(|id| *id >= CROP_OBSERVE_BASE) {
+                    if let Some((_, tx)) = app.state::<AppState>().mpv.crop_events.lock().unwrap().as_ref() {
+                        let _ = tx.send((id, msg.get("data").cloned().unwrap_or(Value::Null)));
+                    }
+                    continue;
+                }
                 let name = msg.get("name").and_then(Value::as_str).unwrap_or_default().to_owned();
                 if let Some((_, every)) = THROTTLED.iter().find(|(n, _)| *n == name) {
                     let now = Instant::now();
@@ -693,8 +708,8 @@ pub async fn mpv_load(
         options = format!("start={s:.2}");
     }
     // A new file is measured afresh (autocrop): drop the last one's crop.
-    state.mpv.request(json!(["set_property", "video-crop", ""])).await.ok();
-    state.mpv.request(json!(["set_property", "sub-ass-video-aspect-override", 0])).await.ok();
+    state.mpv.loads.fetch_add(1, Ordering::SeqCst);
+    state.mpv.request(json!(["set_property", "video-zoom", 0])).await.ok();
     state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await?;
     state.mpv.request(json!(["set_property", "pause", false])).await?;
     state.mpv.set_visible(true).await;
@@ -808,9 +823,13 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
             mpv.request(json!(["vf", "add", CROPDETECT])).await?;
         } else {
             mpv.request(json!(["vf", "remove", "@autocrop"])).await?;
-            mpv.request(json!(["set_property", "video-crop", ""])).await?;
-            mpv.request(json!(["set_property", "sub-ass-video-aspect-override", 0])).await.ok();
+            mpv.request(json!(["set_property", "video-zoom", 0])).await?;
         }
+        // Dialogue placed and sized by the window rather than the (zoomed)
+        // picture, so cropping never moves, grows or stretches it. See
+        // [`zoom_for`]. Positioned signs still follow the picture.
+        mpv.request(json!(["set_property", "sub-ass-force-margins", tune.autocrop])).await?;
+        mpv.request(json!(["set_property", "sub-ass-scale-with-window", tune.autocrop])).await?;
     }
     if was.deband != tune.deband {
         mpv.request(json!(["set_property", "deband", tune.deband])).await?;
@@ -822,75 +841,339 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
     }
     *mpv.tuned.lock().unwrap() = tune;
     if tune.autocrop && !was.autocrop {
-        tauri::async_runtime::spawn(autocrop(app));
+        let run = mpv.autocrop_run.fetch_add(1, Ordering::SeqCst) + 1;
+        tauri::async_runtime::spawn(autocrop(app, run));
     }
     Ok(())
 }
 
-/// Finds the picture's edges: the largest area brighter than near-black in
-/// the last second or so (24 frames), measured afresh each time. `limit` is
-/// a fraction, so it holds for 10-bit HDR too.
-const CROPDETECT: &str = "@autocrop:lavfi=[cropdetect=limit=0.09:round=2:reset=24]";
+/// Finds the picture's edges in each frame (`reset=1`: no memory between
+/// frames; [`CropTracker`] does the remembering): rows and columns whose
+/// average is above `limit` (a fraction of the signal range) are picture.
+/// It needs decoded frames in memory, hence `Tune::hwdec_mode`'s copy-back.
+const CROPDETECT: &str = "@autocrop:lavfi=[cropdetect=limit=0.09:round=2:reset=1]";
 
-/// A second's measurement has to win this many times before it's applied.
-const CROP_VOTES: u32 = 3;
+/// The same for HDR (PQ or HLG). Dark picture sits much nearer black in an
+/// HDR signal, so at 0.09 the dim rows next to the bars of a dark shot read
+/// as bar, by different amounts at top and bottom, and the uneven bars were
+/// rightly not believed. Measured on a 4K HDR10 episode: 0.09 gave bars of
+/// 306 and 416 px, 0.07 gave 264 and 282 (the real ones are ~264), while a
+/// dark full-frame shot still read as full frame.
+const CROPDETECT_HDR: &str = "@autocrop:lavfi=[cropdetect=limit=0.07:round=2:reset=1]";
 
-/// While autocrop is on: read cropdetect's answer every second and crop to
-/// the one seen most often in this file. One bright full-frame shot (a studio
-/// logo, an intro) or a dark scene can't decide it on its own, and it no
-/// longer matters where in the file you start or seek to. Bars thinner than
-/// 2% aren't worth losing pixels over; an area under 40% of the frame is a
-/// dark scene, not a picture. Each file starts uncropped (mpv_load).
-async fn autocrop(app: AppHandle) {
-    let mut file = String::new();
-    let mut votes: HashMap<String, u32> = HashMap::new(); // crop ("" = none) → seconds seen
-    let mut applied: Option<String> = None;
+/// The cropdetect filter for video with this `video-params/gamma`.
+fn cropdetect_for(gamma: Option<&str>) -> &'static str {
+    match gamma {
+        Some("pq" | "hlg") => CROPDETECT_HDR,
+        _ => CROPDETECT,
+    }
+}
+
+/// Property-change ids from here up are autocrop's own observations: the
+/// reader hands them to the running [`autocrop`] task instead of the UI.
+const CROP_OBSERVE_BASE: u64 = 1 << 32;
+
+/// What [`autocrop`] needs to know about the video and the window.
+#[derive(Debug, Clone, Copy)]
+struct CropGeometry {
+    /// Frame size in video pixels, and as displayed (non-square pixels).
+    size: (i64, i64),
+    display: (i64, i64),
+    window: (i64, i64),
+    /// The cropdetect filter this video needs ([`cropdetect_for`]).
+    filter: &'static str,
+}
+
+async fn crop_geometry(mpv: &Mpv) -> Option<CropGeometry> {
+    let params = mpv.request(json!(["get_property", "video-params"])).await.ok()?;
+    let osd = mpv.request(json!(["get_property", "osd-dimensions"])).await.ok()?;
+    let int = |v: &Value, k: &str| v.get(k).and_then(Value::as_i64).filter(|n| *n > 0);
+    Some(CropGeometry {
+        size: (int(&params, "w")?, int(&params, "h")?),
+        display: (int(&params, "dw")?, int(&params, "dh")?),
+        window: (int(&osd, "w")?, int(&osd, "h")?),
+        filter: cropdetect_for(params.get("gamma").and_then(Value::as_str)),
+    })
+}
+
+/// cropdetect's reading from `vf-metadata/autocrop`.
+fn cropdetect_reading(meta: &Value) -> Option<Rect> {
+    let num = |k: &str| meta.get(format!("lavfi.cropdetect.{k}")).and_then(Value::as_str).and_then(|v| v.parse::<i64>().ok());
+    Some(Rect { w: num("w")?, h: num("h")?, x: num("x")?, y: num("y")? })
+}
+
+/// While autocrop is on: mpv reports cropdetect's reading whenever it
+/// changes, and the playback position once per displayed frame, observed in
+/// that order so each frame's reading arrives before its tick. Every frame
+/// goes to [`CropTracker`] and the zoom follows at once. Readings run a
+/// frame ahead of the screen (mpv filters a frame before showing it), so a
+/// switch the tracker believes straight away lands on the cut. While paused
+/// no frames come and nothing changes, except keeping the zoom right for
+/// the window.
+async fn autocrop(app: AppHandle, run: u64) {
+    let meta_id = CROP_OBSERVE_BASE + run * 2;
+    let frame_id = meta_id + 1;
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    {
+        let state = app.state::<AppState>();
+        *state.mpv.crop_events.lock().unwrap() = Some((run, tx));
+        let _ = state.mpv.request(json!(["observe_property", meta_id, "vf-metadata/autocrop"])).await;
+        let _ = state.mpv.request(json!(["observe_property", frame_id, "time-pos"])).await;
+    }
+    let mut tracker = CropTracker::default();
+    let mut reading: Option<Rect> = None;
+    let mut geometry: Option<(CropGeometry, Instant)> = None;
+    let mut sent: Option<(u64, f64)> = None; // (load, video-zoom) last set on mpv
+    let mut filter = CROPDETECT; // what mpv_tune added
     loop {
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        let event = tokio::time::timeout(Duration::from_millis(500), rx.recv()).await;
         let state = app.state::<AppState>();
         let mpv = &state.mpv;
-        if !mpv.tuned.lock().unwrap().autocrop {
+        if !mpv.tuned.lock().unwrap().autocrop || mpv.autocrop_run.load(Ordering::SeqCst) != run {
+            break;
+        }
+        let frame = match event {
+            Ok(None) => break, // a newer run took over
+            Ok(Some((id, data))) if id == meta_id => {
+                reading = cropdetect_reading(&data);
+                continue;
+            }
+            Ok(Some((id, data))) if id == frame_id => data.is_number(),
+            Ok(Some(_)) => continue,
+            Err(_) => false, // nothing for 500 ms: paused
+        };
+        let load = mpv.loads.load(Ordering::SeqCst);
+        // The window changes size (fullscreen) and the video rarely does:
+        // re-read them 4 times a second, and on every idle tick.
+        if !frame || geometry.is_none_or(|(_, at)| at.elapsed() >= Duration::from_millis(250)) {
+            geometry = crop_geometry(mpv).await.map(|g| (g, Instant::now()));
+        }
+        let Some((g, _)) = geometry else {
+            continue; // between files: nothing to measure
+        };
+        // HDR and SDR need different thresholds: swap the filter when the video's changes.
+        if g.filter != filter {
+            if !mpv.tuned.lock().unwrap().autocrop {
+                break;
+            }
+            mpv.request(json!(["vf", "remove", "@autocrop"])).await.ok();
+            if mpv.request(json!(["vf", "add", g.filter])).await.is_ok() {
+                filter = g.filter;
+                reading = None;
+            }
+            continue;
+        }
+        if frame {
+            tracker.update(load, g.size, g.display, reading);
+        }
+        let zoom = zoom_for(tracker.bars(load), g.size, g.display, g.window);
+        if zoom_changed(sent, load, zoom) && mpv.request(json!(["set_property", "video-zoom", zoom])).await.is_ok() {
+            sent = Some((load, zoom));
+        }
+    }
+    let state = app.state::<AppState>();
+    {
+        let mut slot = state.mpv.crop_events.lock().unwrap();
+        if slot.as_ref().is_some_and(|(r, _)| *r == run) {
+            *slot = None;
+        }
+    }
+    let _ = state.mpv.request(json!(["unobserve_property", meta_id])).await;
+    let _ = state.mpv.request(json!(["unobserve_property", frame_id])).await;
+}
+
+/// Whether `zoom` is worth sending after `sent`. Like madVR's "disable
+/// scaling if image size changes by only 2 lines or less", a size change
+/// under 1% isn't worth a visible jump; going back to no zoom always is.
+fn zoom_changed(sent: Option<(u64, f64)>, load: u64, zoom: f64) -> bool {
+    match sent {
+        Some((l, s)) if l == load => {
+            if zoom == 0.0 {
+                s != 0.0
+            } else {
+                ((zoom - s) * std::f64::consts::LN_2).abs() >= 0.01
+            }
+        }
+        _ => true,
+    }
+}
+
+/// The `video-zoom` (log2 of the scale) that makes the picture inside `bars`
+/// (each side's thickness: top and bottom, left and right, in video pixels)
+/// fill the window as far as its shape allows.
+///
+/// Zoom rather than `video-crop`: mpv lays ASS subtitles out over the
+/// displayed video, and a crop changes that area's shape, which stretches
+/// dialogue in any script with `LayoutResX/Y` (most anime releases). A zoom
+/// keeps the shape; with `sub-ass-force-margins` and
+/// `sub-ass-scale-with-window` dialogue then stays put at its normal size.
+fn zoom_for((v, h): (i64, i64), (w, hgt): (i64, i64), (dw, dh): (i64, i64), (win_w, win_h): (i64, i64)) -> f64 {
+    if v <= 0 && h <= 0 {
+        return 0.0;
+    }
+    let (sx, sy) = (dw as f64 / w as f64, dh as f64 / hgt as f64);
+    let fit = |pw: f64, ph: f64| (win_w as f64 / pw).min(win_h as f64 / ph);
+    let full = fit(dw as f64, dh as f64);
+    let picture = fit((w - 2 * h) as f64 * sx, (hgt - 2 * v) as f64 * sy);
+    (picture / full).log2().max(0.0)
+}
+
+/// A picture area in video pixels, as cropdetect reports it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Rect {
+    w: i64,
+    h: i64,
+    x: i64,
+    y: i64,
+}
+
+/// Frames kept to judge the bars by (half a second at 24 fps).
+const CROP_HISTORY: usize = 12;
+/// Frames bar edges must hold still for before they're cropped: bars this
+/// file has shown before, and bars that leave a common picture shape. Any
+/// other shape needs [`CROP_HISTORY`].
+const KNOWN_FRAMES: usize = 2;
+const COMMON_FRAMES: usize = 4;
+/// How far apart (pixels) readings of the same bar edge may be. A real bar's
+/// edge is crisp and found on the same row every frame; dark picture content
+/// fades out at a different row from one frame to the next.
+const EDGE_SLACK: i64 = 4;
+/// Picture shapes films and shows are made in. Bars that leave one of these
+/// are believed sooner than bars that leave an odd shape.
+const COMMON_ASPECTS: &[f64] = &[1.33, 1.37, 1.43, 1.5, 1.66, 1.78, 1.85, 1.9, 2.0, 2.2, 2.35, 2.39, 2.4, 2.55, 2.76];
+
+/// Which bars to remove, from cropdetect's per-frame readings, in the spirit
+/// of madVR's black bar detection. It changes both ways, quickly, and is
+/// careful only where a mistake would cut picture off:
+///
+///  * Picture showing up where a bar was cropped: un-crop on the first frame
+///    when that goes back to full frame or to bars this file has shown (a
+///    16:9 shot after a letterboxed one), otherwise after 2 frames, so a
+///    stray frame doesn't (subtitles burnt into a bar still do).
+///  * Bars appearing or getting thicker: crop once the bar edges have sat on
+///    the same rows for [`KNOWN_FRAMES`] if this file has shown those bars
+///    before, [`COMMON_FRAMES`] for a common picture shape, and
+///    [`CROP_HISTORY`] for an odd one. Opposite bars must be even, as
+///    letterboxing is; a dark scene lit on one side isn't a bar. The picture
+///    must be at least 40% of the frame.
+///  * Black frames (fades) say nothing either way.
+///  * Bars thinner than 1% a side aren't worth cropping.
+///
+/// Each axis is judged on its own, so a dark vignette at the sides doesn't
+/// hold up cropping the letterbox.
+#[derive(Debug, Default)]
+struct CropTracker {
+    /// The `Mpv::loads` and frame size these readings belong to.
+    load: u64,
+    full: (i64, i64),
+    /// Bar thickness per frame, `[top, bottom, left, right]`, oldest first.
+    recent: VecDeque<[i64; 4]>,
+    /// Bars removed now: (top and bottom, left and right).
+    shown: (i64, i64),
+    /// Bar thicknesses cropped earlier in this load, per axis.
+    known: [Vec<i64>; 2],
+}
+
+impl CropTracker {
+    /// The bars to remove for `load`: none before its first reading.
+    fn bars(&self, load: u64) -> (i64, i64) {
+        if load == self.load {
+            self.shown
+        } else {
+            (0, 0)
+        }
+    }
+
+    /// Feed one frame's reading (`None` if cropdetect had nothing).
+    /// `display` is the frame's display size, for non-square pixels.
+    fn update(&mut self, load: u64, full: (i64, i64), display: (i64, i64), reading: Option<Rect>) {
+        if load != self.load || full != self.full {
+            *self = CropTracker { load, full, ..Default::default() };
+        }
+        let (fw, fh) = full;
+        // An all-black frame comes back as an empty or inside-out area.
+        let Some(r) = reading.filter(|r| r.w > 0 && r.h > 0 && r.x >= 0 && r.y >= 0 && r.x + r.w <= fw && r.y + r.h <= fh) else {
             return;
-        }
-        let get = |name: &'static str| mpv.request(json!(["get_property", name]));
-        let (Ok(path), Ok(meta), Ok(w), Ok(h)) = (get("path").await, get("vf-metadata/autocrop").await, get("video-params/w").await, get("video-params/h").await)
-        else {
-            continue;
         };
-        let (Some(path), Some(full_w), Some(full_h)) = (path.as_str().map(str::to_string), w.as_f64(), h.as_f64()) else {
-            continue;
+        if self.recent.len() == CROP_HISTORY {
+            self.recent.pop_front();
+        }
+        self.recent.push_back([r.y, fh - r.y - r.h, r.x, fw - r.x - r.w]);
+
+        let shown = [self.shown.0, self.shown.1];
+        let mut next = shown;
+        for axis in 0..2 {
+            if let Some(thinner) = self.revealed(axis, shown[axis]) {
+                next[axis] = thinner;
+            } else if let Some(bars) = self.settled(axis, shown, display) {
+                next[axis] = bars;
+            }
+        }
+        for axis in 0..2 {
+            if next[axis] > shown[axis] && !self.known[axis].iter().any(|k| (k - next[axis]).abs() <= EDGE_SLACK) {
+                self.known[axis].push(next[axis]);
+            }
+        }
+        self.shown = (next[0], next[1]);
+    }
+
+    /// Picture inside the cropped bars on `axis` (0: top/bottom, 1:
+    /// left/right): the bar size that shows it. The newest frame is enough
+    /// when it goes back to no bars or to bars this file has shown; anything
+    /// else needs the last 2 frames to agree there's picture there.
+    fn revealed(&self, axis: usize, shown: i64) -> Option<i64> {
+        let dim = if axis == 0 { self.full.1 } else { self.full.0 };
+        let mut last = self.recent.iter().rev().map(|r| r[2 * axis].min(r[2 * axis + 1]));
+        let newest = last.next().filter(|&t| t < shown - EDGE_SLACK)?;
+        let newest = if newest * 100 < dim { 0 } else { newest };
+        if newest == 0 || self.known[axis].iter().any(|k| (k - newest).abs() <= EDGE_SLACK) {
+            return Some(newest);
+        }
+        let before = last.next().filter(|&t| t < shown - EDGE_SLACK)?;
+        Some(newest.min(before))
+    }
+
+    /// A new bar size on `axis` that recent frames agree on, if they've
+    /// agreed for long enough to believe it.
+    fn settled(&self, axis: usize, shown: [i64; 2], (dw, dh): (i64, i64)) -> Option<i64> {
+        let (fw, fh) = self.full;
+        let dim = if axis == 0 { fh } else { fw };
+        let even = ((dim as f64 * 0.02).round() as i64).max(EDGE_SLACK);
+        let edge = |n: usize, side: usize| self.recent.iter().rev().take(n).map(move |r| r[2 * axis + side]);
+        // How many of the latest frames the bar edges have held still for.
+        let held = [KNOWN_FRAMES, COMMON_FRAMES, CROP_HISTORY]
+            .into_iter()
+            .take_while(|&n| {
+                self.recent.len() >= n
+                    && (0..2).all(|side| edge(n, side).max().unwrap_or(0) - edge(n, side).min().unwrap_or(0) <= EDGE_SLACK)
+            })
+            .last()?;
+        let (a, b) = (edge(held, 0).min().unwrap_or(0), edge(held, 1).min().unwrap_or(0));
+        if (a - b).abs() > even {
+            return None;
+        }
+        let bars = if a.min(b) * 100 >= dim { a.min(b) } else { 0 };
+        if (bars - shown[axis]).abs() <= EDGE_SLACK {
+            return None;
+        }
+        let mut both = shown;
+        both[axis] = bars;
+        let (pw, ph) = (fw - 2 * both[1], fh - 2 * both[0]);
+        if pw * ph * 10 < fw * fh * 4 {
+            return None;
+        }
+        if bars < shown[axis] {
+            return Some(bars); // thinner bars: nothing more is cut off
+        }
+        let shape = (pw as f64 * dw as f64 / fw as f64) / (ph as f64 * dh as f64 / fh as f64);
+        let needed = if self.known[axis].iter().any(|k| (k - bars).abs() <= EDGE_SLACK) {
+            KNOWN_FRAMES
+        } else if COMMON_ASPECTS.iter().any(|c| (shape / c - 1.0).abs() <= 0.02) {
+            COMMON_FRAMES
+        } else {
+            CROP_HISTORY
         };
-        if path != file {
-            file = path;
-            votes.clear();
-            applied = None;
-        }
-        // Paused, the same frames would vote again and again.
-        if get("pause").await.ok().and_then(|v| v.as_bool()).unwrap_or(false) {
-            continue;
-        }
-        let num = |k: &str| meta.get(format!("lavfi.cropdetect.{k}")).and_then(Value::as_str).and_then(|v| v.parse::<f64>().ok());
-        let (Some(cw), Some(ch), Some(cx), Some(cy)) = (num("w"), num("h"), num("x"), num("y")) else {
-            continue;
-        };
-        if cw <= 0.0 || ch <= 0.0 || cw * ch < full_w * full_h * 0.4 {
-            continue; // a dark scene: says nothing about the bars
-        }
-        let barred = cw <= full_w * 0.98 || ch <= full_h * 0.98;
-        let seen = if barred { format!("{cw}x{ch}+{cx}+{cy}") } else { String::new() };
-        *votes.entry(seen).or_default() += 1;
-        let Some((best, &n)) = votes.iter().max_by_key(|(_, n)| **n) else { continue };
-        if n < CROP_VOTES || applied.as_ref() == Some(best) {
-            continue;
-        }
-        let crop = best.clone();
-        // libass lays subtitles out for the video's shape; told the cropped
-        // one, it stretches them sideways. Keep the uncropped shape.
-        let aspect = if crop.is_empty() { json!(0) } else { get("video-params/aspect").await.unwrap_or(json!(0)) };
-        mpv.request(json!(["set_property", "sub-ass-video-aspect-override", aspect])).await.ok();
-        if mpv.request(json!(["set_property", "video-crop", crop])).await.is_ok() {
-            applied = Some(crop);
-        }
+        (held >= needed).then_some(bars)
     }
 }
 
@@ -905,6 +1188,166 @@ mod tests {
         let off = Tune { dialogue_boost: false, volume_leveling: false, ..t };
         assert_eq!(off.audio_filters(), "");
         assert_eq!(t.cache(), (300, "768MiB"));
+    }
+
+    const HD: (i64, i64) = (1920, 1080);
+    /// A 2.40:1 picture letterboxed in 16:9.
+    const SCOPE: Rect = Rect { w: 1920, h: 800, x: 0, y: 140 };
+    const FULL: Rect = Rect { w: 1920, h: 1080, x: 0, y: 0 };
+
+    /// Feed `readings` (one per frame) to `t` for load 1; the bars after each.
+    fn feed(t: &mut CropTracker, readings: &[Option<Rect>]) -> Vec<(i64, i64)> {
+        readings
+            .iter()
+            .map(|r| {
+                t.update(1, HD, HD, *r);
+                t.bars(1)
+            })
+            .collect()
+    }
+
+    /// cropdetect's `WxH+X+Y`, as mpv reports it.
+    fn rect(s: &str) -> Option<Rect> {
+        let (w, rest) = s.split_once('x')?;
+        let mut n = rest.split('+').map(|v| v.parse::<i64>().ok());
+        Some(Rect { w: w.parse().ok()?, h: n.next()??, x: n.next()??, y: n.next()?? })
+    }
+
+    #[test]
+    fn follows_a_real_clip_frame_by_frame() {
+        let frames: Vec<(f64, Option<Rect>)> = include_str!("testdata/autocrop_frames.txt")
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .filter_map(|l| {
+                let (t, r) = l.split_once(' ')?;
+                Some((t.parse().ok()?, rect(r)))
+            })
+            .collect();
+        assert!(frames.len() > 500);
+        let mut t = CropTracker::default();
+        let shown: Vec<(f64, (i64, i64))> = frames
+            .iter()
+            .map(|(time, r)| {
+                t.update(1, HD, HD, *r);
+                (*time, t.bars(1))
+            })
+            .collect();
+        // Only ever the letterbox or nothing: the vignette's sides are never cropped.
+        assert!(shown.iter().all(|(_, b)| *b == (0, 0) || *b == (140, 0)), "{shown:?}");
+        let at = |from: f64, to: f64| shown.iter().filter(move |(time, _)| *time >= from && *time < to).map(|(_, b)| *b);
+        let frame = 1.0 / 24.0;
+        // New bars at 3.958 s (the reading for the 4.0 s frame): cropped 4 frames later.
+        assert!(at(3.958 + 3.0 * frame + 0.001, 9.95).all(|b| b == (140, 0)), "{shown:?}");
+        // Back to full frame at 9.958 s: on that very frame, so it lands on the cut.
+        assert!(at(9.958, 13.95).all(|b| b == (0, 0)), "{shown:?}");
+        // The dark letterbox: bars seen before, cropped 2 frames after they first show.
+        let first = frames.iter().find(|(time, r)| *time > 14.0 && r.is_some_and(|r| r.y == 140 && r.h == 800)).unwrap().0;
+        assert!(at(first + frame + 0.001, 19.95).all(|b| b == (140, 0)), "{shown:?}");
+        assert!(at(19.958, 99.0).all(|b| b == (0, 0)), "{shown:?}");
+    }
+
+    #[test]
+    fn finds_the_bars_of_a_dark_hdr_shot() {
+        // 4K HDR10, cropdetect at CROPDETECT_HDR's limit, sampled every 100 ms;
+        // the letterboxed shot starts at 174.0 s.
+        let uhd = (3840, 2160);
+        let mut t = CropTracker::default();
+        let mut shown = Vec::new();
+        for l in include_str!("testdata/autocrop_hdr.txt").lines().filter(|l| !l.starts_with('#')) {
+            let Some((time, r)) = l.split_once(' ') else { continue };
+            t.update(1, uhd, uhd, rect(r));
+            shown.push((time.parse::<f64>().unwrap(), t.bars(1)));
+        }
+        assert!(shown.iter().filter(|(time, _)| *time < 174.0).all(|(_, b)| *b == (0, 0)));
+        let cropped: Vec<_> = shown.iter().filter(|(time, _)| *time >= 175.0).map(|(_, b)| *b).collect();
+        assert!(!cropped.is_empty() && cropped.iter().all(|&(v, h)| (262..=268).contains(&v) && h == 0), "{shown:?}");
+        assert_eq!(cropdetect_for(Some("pq")), CROPDETECT_HDR);
+        assert_eq!(cropdetect_for(Some("hlg")), CROPDETECT_HDR);
+        assert_eq!(cropdetect_for(Some("bt.1886")), CROPDETECT);
+        assert_eq!(cropdetect_for(None), CROPDETECT);
+    }
+
+    #[test]
+    fn crops_in_a_few_frames_and_known_bars_sooner() {
+        let mut t = CropTracker::default();
+        assert_eq!(feed(&mut t, &[Some(FULL); 6]).last(), Some(&(0, 0)));
+        assert_eq!(feed(&mut t, &[Some(SCOPE); 3]).last(), Some(&(0, 0)));
+        assert_eq!(feed(&mut t, &[Some(SCOPE)]).last(), Some(&(140, 0)), "4 frames");
+        assert_eq!(feed(&mut t, &[Some(FULL)]).last(), Some(&(0, 0)), "1 frame back to full");
+        assert_eq!(feed(&mut t, &[Some(SCOPE)]).last(), Some(&(0, 0)));
+        assert_eq!(feed(&mut t, &[Some(SCOPE)]).last(), Some(&(140, 0)), "the same bars again: 2 frames");
+    }
+
+    #[test]
+    fn a_flash_in_a_bar_or_black_frames_change_nothing() {
+        let mut t = CropTracker::default();
+        feed(&mut t, &[Some(SCOPE); 5]);
+        let flash = Rect { w: 1920, h: 960, x: 0, y: 60 };
+        let black = Rect { w: -1918, h: -1078, x: 1920, y: 1080 };
+        let readings = [Some(flash), Some(SCOPE), None, Some(black), Some(black), Some(flash), Some(SCOPE)];
+        assert!(feed(&mut t, &readings).iter().all(|b| *b == (140, 0)));
+    }
+
+    #[test]
+    fn dark_scenes_in_full_frame_need_longer_for_odd_shapes() {
+        let mut t = CropTracker::default();
+        feed(&mut t, &[Some(FULL); 3]);
+        // Dark at top and bottom, evenly, holding still: a 2.13:1 shape, which films aren't made in.
+        let dark = Rect { w: 1920, h: 900, x: 0, y: 90 };
+        assert!(feed(&mut t, &[Some(dark); 11]).iter().all(|b| *b == (0, 0)));
+        assert_eq!(feed(&mut t, &[Some(dark)]).last(), Some(&(90, 0)), "after 1.2 s");
+        // Lit on one side only: never bars.
+        let lopsided = Rect { w: 1920, h: 900, x: 0, y: 30 };
+        let mut t = CropTracker::default();
+        assert!(feed(&mut t, &[Some(lopsided); 20]).iter().all(|b| *b == (0, 0)));
+    }
+
+    #[test]
+    fn subtitles_burnt_into_a_bar_are_shown() {
+        let mut t = CropTracker::default();
+        feed(&mut t, &[Some(SCOPE); 5]);
+        let subtitles = Rect { w: 1920, h: 880, x: 0, y: 140 }; // 60 px of bar left below them
+        assert_eq!(feed(&mut t, &[Some(subtitles); 2]).last(), Some(&(60, 0)));
+        assert_eq!(feed(&mut t, &[Some(SCOPE); 3]).last(), Some(&(140, 0)), "cropped again once they're gone");
+    }
+
+    #[test]
+    fn each_load_starts_over() {
+        let mut t = CropTracker::default();
+        feed(&mut t, &[Some(SCOPE); 5]);
+        assert_eq!(t.bars(1), (140, 0));
+        assert_eq!(t.bars(2), (0, 0), "a new load shows nothing cropped before its first frame");
+        t.update(2, HD, HD, Some(SCOPE));
+        assert_eq!(t.bars(2), (0, 0));
+        // A different frame size within one load (a new video track) too.
+        feed(&mut t, &[Some(SCOPE); 5]);
+        t.update(1, (3840, 2160), (3840, 2160), Some(SCOPE));
+        assert_eq!(t.bars(1), (0, 0));
+    }
+
+    #[test]
+    fn zoom_fills_the_window_only_as_far_as_the_picture_allows() {
+        let ultrawide = (2000, 837);
+        assert_eq!(zoom_for((0, 0), HD, HD, ultrawide), 0.0);
+        // A 2.40:1 picture on a 2.39:1 window: limited by the width.
+        let z = zoom_for((140, 0), HD, HD, ultrawide);
+        assert!((2f64.powf(z) - (2000.0 / 1920.0) / (837.0 / 1080.0)).abs() < 1e-9, "{z}");
+        // On a 16:9 window the letterbox already fits: nothing to zoom.
+        assert_eq!(zoom_for((140, 0), HD, HD, (1920, 1080)), 0.0);
+        // Cropping the sides of a picture that's already pillarboxed changes nothing.
+        assert_eq!(zoom_for((0, 240), HD, HD, ultrawide), 0.0);
+        // Anamorphic 1440x1080 shown as 1920x1080: same as square pixels.
+        assert!((zoom_for((140, 0), (1440, 1080), HD, ultrawide) - z).abs() < 1e-9);
+    }
+
+    #[test]
+    fn small_zoom_changes_are_skipped() {
+        assert!(zoom_changed(None, 1, 0.0));
+        assert!(zoom_changed(Some((1, 0.4)), 2, 0.4), "a new load");
+        assert!(!zoom_changed(Some((1, 0.4)), 1, 0.405));
+        assert!(zoom_changed(Some((1, 0.4)), 1, 0.43));
+        assert!(zoom_changed(Some((1, 0.01)), 1, 0.0), "back to none always");
+        assert!(!zoom_changed(Some((1, 0.0)), 1, 0.0));
     }
 
     #[test]
