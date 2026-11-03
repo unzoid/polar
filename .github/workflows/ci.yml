@@ -22,3 +22,23 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run build
+
+  rust:
+    name: Rust tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # tauri-build needs ../dist to exist, and on Windows the bundled mpv
+      # files listed in tauri.windows.conf.json (fetch-mpv is a no-op on macOS).
+      - run: bun install --frozen-lockfile
+      - run: bunx vite build
+      - run: bun scripts/fetch-mpv.ts
+      - run: cargo test --workspace --locked
+      - run: cargo build -p polar-index --features server --locked
