@@ -102,6 +102,7 @@ const ROWS: SettingEntry[] = [
   { title: "List every show", page: "anime", keywords: "anime schedule shorts regional all" },
   { title: "Hide filler episodes", page: "anime", keywords: "anime filler canon skip" },
   { title: "Hide recap episodes", page: "anime", keywords: "anime recap skip" },
+  { title: "Hide 4K sources", page: "anime", keywords: "anime 4k 2160p upscale ai sources quality" },
   { title: "Show spoiler tags", page: "anime", keywords: "anime tags spoilers anilist" },
 
   // Controls & TV

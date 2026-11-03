@@ -34,6 +34,9 @@ export interface MpvTrack {
   "demux-channel-count"?: number;
 }
 
+/** How long time reports are ignored after a seek is sent, at most, if mpv never says it started. */
+const SEEK_STALE_MS = 1000;
+
 /**
  * An mpv-backed stand-in for an HTMLVideoElement.
  *
@@ -57,6 +60,16 @@ export class MpvMedia extends EventTarget implements MediaLike {
   private vol = 1;
   private isMuted = false;
   private loaded = false;
+  /** A seek mpv hasn't started yet: time reports from before it are stale. */
+  private seekPending = false;
+  private seekStarted = false;
+
+  /**
+   * Seek to the exact frame instead of the keyframe before it. Off, seeks are
+   * instant but can land seconds early; a watch party turns it on, or every
+   * catch-up seek lands short, looks like drift, and seeks again.
+   */
+  exactSeeks = false;
 
   tracks: MpvTrack[] = [];
   /** Container chapters, when the file has any. */
@@ -100,6 +113,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
   load(url: string, start?: number) {
     this.loaded = false;
     this.isEnded = false;
+    this.seekPending = this.seekStarted = false;
     this.error = null;
     this.time = start ?? 0;
     this.stamp = performance.now();
@@ -135,7 +149,11 @@ export class MpvMedia extends EventTarget implements MediaLike {
   set currentTime(t: number) {
     this.time = t;
     this.stamp = performance.now();
-    void this.command("seek", t, "absolute+keyframes").catch(() => {});
+    this.seekPending = true;
+    this.seekStarted = false;
+    void this.command("seek", t, this.exactSeeks ? "absolute+exact" : "absolute+keyframes").catch(() => {
+      this.seekPending = false;
+    });
     this.emit("seeking"); // as a <video> does when its currentTime is set
   }
   get duration() {
@@ -199,6 +217,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
   private onProperty(name: string, data: unknown) {
     switch (name) {
       case "time-pos":
+        // Still the old position, reported before mpv picked the seek up: keep the target.
+        if (this.seekPending && !this.seekStarted && performance.now() - this.stamp < SEEK_STALE_MS) break;
         if (typeof data === "number") {
           this.time = data;
           this.stamp = performance.now();
@@ -228,8 +248,13 @@ export class MpvMedia extends EventTarget implements MediaLike {
         this.emit(this.buffering ? "waiting" : "playing");
         break;
       case "seeking":
-        if (data === true) this.emit("waiting");
-        else if (!this.buffering) this.emit("playing");
+        if (data === true) {
+          if (this.seekPending) this.seekStarted = true;
+          this.emit("waiting");
+        } else {
+          if (this.seekStarted) this.seekPending = this.seekStarted = false;
+          if (!this.buffering) this.emit("playing");
+        }
         break;
       case "eof-reached":
         if (data === true && this.loaded) {

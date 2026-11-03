@@ -103,10 +103,10 @@ export function PartyMembers({ party }: { party: PartyState }) {
                 {m.id === party.me && <span className="muted"> (You)</span>}
               </span>
               <span className="party-member-detail">
-                {m.waiting ? "Loading…" : m.id === party.hostId ? "Host" : "Watching"}
+                {m.away ? "Browsing" : m.waiting ? "Loading…" : m.id === party.hostId ? "Host" : "Watching"}
               </span>
             </span>
-            {m.waiting && <Spinner size={16} label="Loading" />}
+            {m.waiting && !m.away && <Spinner size={16} label="Loading" />}
           </motion.li>
         ))}
       </AnimatePresence>
@@ -218,7 +218,7 @@ export function PartyBadge({ party, onOpen }: { party: PartyState; onOpen: () =>
  */
 export function PartyHold({ party, videoId }: { party: PartyState; videoId: string }) {
   const pb = party.playback;
-  const waiters = party.members.filter((m) => m.waiting && m.id !== party.me);
+  const waiters = party.members.filter((m) => m.waiting && !m.away && m.id !== party.me);
   const text =
     party.error
       ? "Watch party unavailable"

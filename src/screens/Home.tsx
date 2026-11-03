@@ -335,10 +335,15 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
         }
       }}
     >
-      <div className="card-frame">
+      <div className="card-frame card-frame-resume">
         <Img src={p.background ?? p.poster} alt="" className="card-img" />
         <div className="card-art-scrim" />
         {logo ? <TitleLogo src={logo} alt={p.name} className="card-logo" /> : <span className="card-art-title t-title2">{p.name}</span>}
+        {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a progressive blur. */}
+        <div className="card-resume">
+          <ProgressBar fraction={fraction} />
+          <span className="card-resume-left tabular">{formatRemaining(p.position, p.duration)}</span>
+        </div>
         <button
           type="button"
           className="card-play"
@@ -350,14 +355,12 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
         >
           <Play size={20} fill="currentColor" />
         </button>
-        <ProgressBar fraction={fraction} />
       </div>
-      {/* Always shown: it's where you are, not a description. */}
+      {/* Always shown: it's what you're watching, not a description. */}
       <div className="card-caption card-caption-keep">
         <span className="card-title t-callout">
           {p.season != null ? `${episodeCode(p.season, p.episode)} · ${p.episodeTitle ?? p.name}` : p.name}
         </span>
-        <span className="t-caption faint tabular">{formatRemaining(p.position, p.duration)}</span>
       </div>
     </div>
   );

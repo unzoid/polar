@@ -26,6 +26,7 @@ import {
   type MediaStatus,
 } from "../lib/anime/anilist";
 import { aniZipQuery } from "../lib/anime/anizip";
+import { oneFranchiseEach } from "../lib/anime/search";
 import { countdown, FORMAT_LABEL, SEASON_LABEL, STATUS_LABEL, untilAiring, useAnimeTitle } from "../lib/anime/format";
 import { animePreview } from "../lib/anime/preview";
 import { useShelfVisible, type AnimeShelfId } from "../lib/anime/shelves";
@@ -414,7 +415,8 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: thisYear + 2 - 1970 }, (_, i) => thisYear + 1 - i);
   const seen = new Set<number>();
-  const items = (q.data?.pages.flatMap((p) => p.media) ?? []).filter((m) => !seen.has(m.id) && seen.add(m.id));
+  const listed = (q.data?.pages.flatMap((p) => p.media) ?? []).filter((m) => !seen.has(m.id) && seen.add(m.id));
+  const items = f.search ? oneFranchiseEach(listed) : listed;
   const [panel, setPanel] = useState(false);
   // What's narrowing the list, each with a way to take it off again.
   type Active = { label: string; clear: Partial<BrowseFilters> };

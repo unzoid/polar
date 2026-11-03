@@ -85,6 +85,8 @@ export interface Prefs {
   animeSkipFiller: boolean;
   /** Show tags that give the story away. */
   animeSpoilerTags: boolean;
+  /** Leave 4K sources out for anime: nearly all are AI upscales of a 1080p master. */
+  animeNo4k: boolean;
 }
 
 const DEFAULTS: Prefs = {
@@ -124,6 +126,7 @@ const DEFAULTS: Prefs = {
   animeVoices: "japanese",
   animeSkipFiller: false,
   animeSpoilerTags: false,
+  animeNo4k: true,
 };
 
 const STORAGE = "polar.prefs";
@@ -156,6 +159,7 @@ export const SYNCED_PREFS = [
   "animeVoices",
   "animeSkipFiller",
   "animeSpoilerTags",
+  "animeNo4k",
 ] as const satisfies readonly (keyof Prefs)[];
 
 export function setPrefs(patch: Partial<Prefs>, { quiet = false } = {}) {

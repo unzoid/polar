@@ -1229,6 +1229,12 @@ function AnimePage() {
           onChange={(v) => setPrefs({ animeHideRecaps: v })}
         />
         <ToggleRow
+          title="Hide 4K sources"
+          caption="Anime is almost never made in 4K: nearly all of those releases are AI upscales of the 1080p master"
+          checked={prefs.animeNo4k}
+          onChange={(v) => setPrefs({ animeNo4k: v })}
+        />
+        <ToggleRow
           title="Show spoiler tags"
           caption="Tags that give away the story, on an anime's Details"
           checked={prefs.animeSpoilerTags}

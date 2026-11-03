@@ -1,7 +1,8 @@
 import { Popover } from "@base-ui/react/popover";
+import { useLayoutEffect, useRef, useState } from "react";
 import { SORTS, type SourceFilters } from "../lib/sources";
 import type { SourceSort } from "../lib/types";
-import { Close, Filters } from "./icons";
+import { Close, Filters, Search } from "./icons";
 import { Segmented } from "./Segmented";
 import { Dropdown } from "./Dropdown";
 
@@ -68,7 +69,7 @@ function sections(f: SourceFilters, withQuality: boolean): Section[] {
           label: r.key === f.screenRes ? `${r.label} ★` : r.label,
           count: r.count,
           on: filter.res === r.key,
-          pick: () => f.set({ res: r.key }),
+          pick: () => f.set({ res: filter.res === r.key ? null : r.key }),
         })),
       ],
     });
@@ -77,7 +78,7 @@ function sections(f: SourceFilters, withQuality: boolean): Section[] {
       label: "Add-on",
       chips: [
         { key: "", label: "All", on: !filter.addon, pick: () => f.set({ addon: null }) },
-        ...facets.addons.map((a) => ({ key: a.key, label: a.label, count: a.count, on: filter.addon === a.key, pick: () => f.set({ addon: a.key }) })),
+        ...facets.addons.map((a) => ({ key: a.key, label: a.label, count: a.count, on: filter.addon === a.key, pick: () => f.set({ addon: filter.addon === a.key ? null : a.key }) })),
       ],
     });
   if (facets.langs.length > 1)
@@ -85,7 +86,7 @@ function sections(f: SourceFilters, withQuality: boolean): Section[] {
       label: "Audio",
       chips: [
         { key: "", label: "Any", on: !filter.lang, pick: () => f.set({ lang: null }) },
-        ...facets.langs.map((l) => ({ key: l.key, label: l.label, count: l.count, on: filter.lang === l.key, pick: () => f.set({ lang: l.key }) })),
+        ...facets.langs.map((l) => ({ key: l.key, label: l.label, count: l.count, on: filter.lang === l.key, pick: () => f.set({ lang: filter.lang === l.key ? null : l.key }) })),
       ],
     });
   if (facets.sources.length > 1)
@@ -93,7 +94,7 @@ function sections(f: SourceFilters, withQuality: boolean): Section[] {
       label: "Source",
       chips: [
         { key: "", label: "Any", on: !filter.source, pick: () => f.set({ source: null }) },
-        ...facets.sources.map((x) => ({ key: x.key, label: x.label, count: x.count, on: filter.source === x.key, pick: () => f.set({ source: x.key }) })),
+        ...facets.sources.map((x) => ({ key: x.key, label: x.label, count: x.count, on: filter.source === x.key, pick: () => f.set({ source: filter.source === x.key ? null : x.key }) })),
       ],
     });
   if (facets.maxGb > 2)
@@ -103,7 +104,7 @@ function sections(f: SourceFilters, withQuality: boolean): Section[] {
         key: p.label,
         label: p.label,
         on: sameRange(filter.size, p.range),
-        pick: () => f.set({ size: p.range }),
+        pick: () => f.set({ size: sameRange(filter.size, p.range) ? null : p.range }),
       })),
     });
   if (facets.tags.length > 0)
@@ -175,7 +176,7 @@ function DesktopBar({ f, note }: { f: SourceFilters; note?: string }) {
             <Popover.Positioner className="select-positioner" sideOffset={8} align="end">
               <Popover.Popup className="srcf-popover">
                 {sections(f, false).map((s) => (
-                  <ChipRow key={s.label} {...s} />
+                  <ChipRow key={s.label} {...s} collapsible />
                 ))}
                 {note && <p className="srcf-popover-note">{note}</p>}
               </Popover.Popup>
@@ -213,18 +214,78 @@ function TvBar({ f, note }: { f: SourceFilters; note?: string }) {
   );
 }
 
-function ChipRow({ label, chips }: Section) {
+/** Rows of chips a choice shows before folding the rest away (desktop popover). */
+const FOLD_ROWS = 3;
+/** More chips than this: a search beside the label. */
+const SEARCH_FROM = 10;
+
+/**
+ * One choice as a labelled row of chips. `collapsible` (the desktop popover):
+ * past three rows the rest fold behind "Show all", and long rows get a search
+ * beside their label. TV keeps every chip in reach of the remote.
+ */
+function ChipRow({ label, chips, collapsible = false }: Section & { collapsible?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [folds, setFolds] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const q = query.trim().toLowerCase();
+  // Searching keeps what's on in view, so it can still be switched off.
+  const shown = q ? chips.filter((c) => c.on || c.label.toLowerCase().includes(q)) : chips;
+  const searchable = collapsible && chips.length > SEARCH_FROM;
+
+  // Whether the chips run past FOLD_ROWS rows: measured, since chip widths vary.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!collapsible || !el) return;
+    const measure = () => {
+      const first = el.firstElementChild as HTMLElement | null;
+      if (!first) return setFolds(false);
+      const gap = parseFloat(getComputedStyle(el).rowGap) || 0;
+      const max = FOLD_ROWS * first.offsetHeight + (FOLD_ROWS - 1) * gap;
+      el.style.setProperty("--fold-height", `${max}px`);
+      setFolds(el.scrollHeight > max + 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [collapsible, shown.length]);
+
+  const folded = folds && !open && !q;
   return (
     <div className="srcf-chiprow" role="group" aria-label={label}>
-      <span className="srcf-chiprow-label">{label}</span>
-      <div className="srcf-chips">
-        {chips.map((c) => (
+      <div className="srcf-chiprow-head">
+        <span className="srcf-chiprow-label">{label}</span>
+        {searchable && (
+          <label className="srcf-chiprow-search">
+            <Search size={13} aria-hidden />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search"
+              aria-label={`Search ${label.toLowerCase()}`}
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </label>
+        )}
+      </div>
+      <div className="srcf-chips" ref={box} data-folded={folded || undefined}>
+        {shown.map((c) => (
           <button key={c.key} className="source-chip" aria-pressed={c.on} onClick={c.pick}>
             {c.label}
             {c.count != null && <span className="srcf-count tabular">{c.count}</span>}
           </button>
         ))}
       </div>
+      {q && !shown.length && <p className="srcf-chiprow-empty">Nothing matches “{query.trim()}”.</p>}
+      {folds && !q && (
+        <button className="srcf-chiprow-more" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {open ? "Show less" : `Show all ${chips.length}`}
+        </button>
+      )}
     </div>
   );
 }

@@ -288,7 +288,9 @@
   gap: 1rem;
   /* Starts exactly where the episode cards start, so the selected pill's edge
      lines up with the first card instead of overhanging it. */
-  padding: 0 var(--gutter) 0 var(--content-start);
+  /* The air under the bar is the bar's, not the picker's, so the tools on the
+     right centre on the tabs rather than on the tabs plus that gap. */
+  padding: 0 var(--gutter) 1.25rem var(--content-start);
 }
 .seasons-bar > .segmented {
   background: transparent;
@@ -307,20 +309,37 @@
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 4px 0 0.5rem;
+  /* Room for the focus ring, which overflow would clip. */
+  padding: 4px 0;
 }
-.seasons-picker::-webkit-scrollbar {
+.seasons-picker::-webkit-scrollbar,
+.seasons-tabs::-webkit-scrollbar {
   display: none;
+}
+/* An anime franchise's seasons: a row of their own above the episode bar, so
+   long arc names all show instead of running under the tools. */
+.seasons-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px var(--gutter) 4px var(--content-start);
+  margin-bottom: 0.75rem;
+}
+.seasons-tabs > .segmented {
+  width: max-content;
+}
+/* Sharing the bar with the tools (no episode ranges): the bar gives the edges. */
+.seasons-bar > .seasons-tabs {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  margin: 0;
 }
 .segmented[data-variant="large"] .segmented-item[aria-selected="false"] {
   color: rgb(245 245 247 / 0.55);
 }
-/* Roomier tabs, and air between them and the episode row. */
+/* Roomier tabs. */
 .segmented[data-variant="large"] .segmented-item {
   padding: 0 1.5rem;
-}
-.seasons-picker {
-  padding-bottom: 1.25rem;
 }
 
 /* --- Episode lockup */
@@ -902,44 +921,35 @@
   font-weight: 650;
   color: var(--text);
 }
-.score-chip-mark {
-  font-size: 1rem;
-  line-height: 1;
+.score-chip-icon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  flex: none;
 }
-.score-chip-box {
+/* Apple TV's format badges: tiny, outlined, quiet. Short ones (4K, CC) are
+   boxes; long ones (Dolby Vision) the same box in smaller type. */
+.format-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+}
+.format-badge {
   display: inline-grid;
   place-items: center;
-  min-width: 1.75rem;
-  height: 1.5rem;
+  height: 0.9375rem;
   padding: 0 0.25rem;
-  border-radius: 4px;
-  background: #66cc33;
-  color: #fff;
-  font-size: 0.8125rem;
-  font-weight: 750;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgb(245 245 247 / 0.5);
+  color: rgb(245 245 247 / 0.75);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
 }
-.score-chip-box[data-tone="mid"] {
-  background: #ffcc33;
-  color: #111;
-}
-.score-chip-box[data-tone="low"] {
-  background: #ff3b30;
-}
-.score-chip-lb {
-  display: inline-flex;
-  gap: 2px;
-}
-.score-chip-lb i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #ff8000;
-}
-.score-chip-lb i:nth-child(2) {
-  background: #00e054;
-}
-.score-chip-lb i:nth-child(3) {
-  background: #40bcf4;
+.format-badge[data-long] {
+  font-size: 0.5rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 @media (prefers-reduced-motion: reduce) {

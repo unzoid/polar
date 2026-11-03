@@ -68,6 +68,8 @@ export interface PartyPresence {
   joinedAt: number;
   /** Loading or buffering: the room holds until they catch up. */
   waiting: boolean;
+  /** Out of the player, browsing for what's next: still in the room, but it doesn't wait for them. */
+  away?: boolean;
 }
 
 /** A live watch-party room: small messages to everyone in it, and who's there. */

@@ -16,9 +16,32 @@ export function useAnimeResults(query: string) {
   const items = q.data?.pages[0]?.media;
   return {
     title: genre || tag ? `${genre ?? tag} Anime` : "Anime",
-    items: items && !genre && !tag ? byRelevance(items, query) : items,
+    items: items && !genre && !tag ? oneFranchiseEach(byRelevance(items, query)) : items,
     loading: !!query && q.isLoading,
   };
+}
+
+/**
+ * A search answers with every season of a franchise (Paleblade, then each part
+ * of Hundred-Night Ash War): keep the first of each, in the order given.
+ * Its page has the rest as season tabs. Entries count as one franchise when
+ * one is the other's prequel or sequel, directly or through the others.
+ */
+export function oneFranchiseEach(items: AnimeCard[]): AnimeCard[] {
+  const root = new Map<number, number>(items.map((a) => [a.id, a.id]));
+  const find = (id: number): number => {
+    const up = root.get(id)!;
+    if (up === id) return id;
+    const top = find(up);
+    root.set(id, top);
+    return top;
+  };
+  for (const a of items) for (const b of a.chain ?? []) if (root.has(b)) root.set(find(b), find(a.id));
+  const seen = new Set<number>();
+  return items.filter((a) => {
+    const r = find(a.id);
+    return !seen.has(r) && !!seen.add(r);
+  });
 }
 
 const norm = (s?: string | null) => (s ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");

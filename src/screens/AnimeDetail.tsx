@@ -1,3 +1,4 @@
+import { useQueries } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { AnimeCard } from "../components/anime/AnimeCard";
@@ -13,8 +14,9 @@ import { StreamList } from "../components/StreamList";
 import { SwapIcon } from "../components/SwapIcon";
 import { openTrailer } from "../components/Trailer";
 import { api } from "../lib/api";
-import { useAnime, useAnimeSeasons, type Anime, type AnimeCard as Card, type RelationType } from "../lib/anime/anilist";
-import { animeArt, episodeTitle, matchVideo, regularEpisodes, useAniZip, type AniZipEpisode } from "../lib/anime/anizip";
+import { useAnime, useAnimeSeasons, type Anime, type AnimeCard as Card, type AnimeSeason, type RelationType } from "../lib/anime/anilist";
+import { animeArt, aniZipQuery, episodeTitle, matchVideo, regularEpisodes, useAniZip, type AniZipEpisode } from "../lib/anime/anizip";
+import { rememberStill } from "../lib/anime/stills";
 import { rememberAnimeEpisode } from "../lib/anime/aniskip";
 import {
   cleanDescription,
@@ -45,11 +47,22 @@ import { watchedFraction } from "../lib/watched";
  * stills and the link to the app's sources. Its episodes play through the
  * same IMDb-keyed streams, player and watch history as everything else, so
  * Continue Watching and Up Next just work.
+ *
+ * One page per franchise: AniList splits a show into an entry per season (or
+ * cour), and the page opens at one of them with the rest as season tabs.
+ * Switching swaps the hero, episodes and details in place, keeping the
+ * scroll position and Back, like a show's seasons.
  */
 export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
-  const { data: anime, isError } = useAnime(id);
-  const shown: Card | undefined = anime ?? preview;
-  const { data: zip } = useAniZip(id);
+  const [activeId, setActiveId] = useState(id);
+  const { data: opened } = useAnime(id);
+  const { data: chain } = useAnimeSeasons(opened);
+  const seasons = chain && chain.length > 1 && chain.some((s) => s.card.id === id) ? chain : undefined;
+  // While a season loads, the last one stays on screen (dimmed) so the page keeps its height and place.
+  const { data: loaded, isError } = useAnime(activeId, { keepPrevious: true });
+  const anime = loaded?.id === activeId ? loaded : undefined;
+  const shown: Card | undefined = anime ?? seasons?.find((s) => s.card.id === activeId)?.card ?? (activeId === id ? preview : loaded);
+  const { data: zip } = useAniZip(activeId);
   const title = useAnimeTitle();
 
   const scroller = useRef<HTMLDivElement>(null);
@@ -59,6 +72,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   if (!shown) return <div className="detail-loading skeleton" />;
 
   const { background: art, logo } = animeArt(shown, zip);
+  const franchise = seasons && { seasons, active: activeId, select: setActiveId };
 
   return (
     <div className="detail anime-detail" style={{ "--cover": shown.coverImage.color ?? undefined } as React.CSSProperties}>
@@ -69,10 +83,17 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
       </div>
       <div className="scroll detail-scroll" ref={scroller}>
         <Hero item={shown} anime={anime} logo={logo} name={title(shown.title)} />
-        {anime && <Body anime={anime} />}
+        {loaded && <Body anime={loaded} franchise={franchise} switching={!anime} />}
       </div>
     </div>
   );
+}
+
+/** The franchise's seasons, which one is showing, and how to show another. */
+interface Franchise {
+  seasons: AnimeSeason[];
+  active: number;
+  select: (id: number) => void;
 }
 
 // --- Playback model ------------------------------------------------------------
@@ -156,6 +177,7 @@ function usePlayback(anime: Card | Anime) {
   // AniSkip needs MyAnimeList's numbering, which the player can't know: leave it for every episode.
   // Stream addons know an IMDb-matched episode by its Kitsu id too: leave that, so both are asked.
   useEffect(() => {
+    for (const e of episodes) if (e.video && e.image) rememberStill(e.video.id, e.image);
     if (malId) for (const e of episodes) if (e.video) rememberAnimeEpisode(e.video.id, malId, e.number);
     if (imdb && kitsu) {
       for (const e of episodes) if (e.video) rememberAltIds(e.video.id, [`kitsu:${kitsu}:${e.number}`]);
@@ -319,28 +341,25 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
  * Everything below the hero on one page, as a show's own: the episodes in a
  * shelf (or a list, your choice), then the cast, details and franchise links.
  */
-function Body({ anime }: { anime: Anime }) {
+function Body({ anime, franchise, switching }: { anime: Anime; franchise?: Franchise; switching: boolean }) {
   const isMovie = anime.format === "MOVIE";
-  const hasSeasons = useHasSeasons(anime);
   const hasRelated = anime.relations.edges.length > 0 || anime.recommendations.nodes.some((n) => !!n.mediaRecommendation);
+  // This page's choice, kept across seasons; until you pick one, the default from Settings → Browsing.
+  const [layout, setLayout] = useState<EpisodeLayout | undefined>();
   return (
-    <>
-      {!isMovie && <Episodes anime={anime} />}
-      {/* A film in a franchise: the seasons bar alone, to get back to the series. */}
-      {isMovie && hasSeasons && (
+    <div className="anime-body" data-switching={switching || undefined}>
+      {!isMovie && <Episodes key={anime.id} anime={anime} franchise={franchise} layoutChoice={layout} onLayout={setLayout} />}
+      {/* A film in a franchise: the season tabs alone, to get back to the series. */}
+      {isMovie && franchise && (
         <section className="seasons">
-          <div className="seasons-bar">
-            <div className="seasons-picker">
-              <SeasonTabs anime={anime} />
-            </div>
-          </div>
+          <SeasonTabs franchise={franchise} />
         </section>
       )}
       {anime.characters.edges.length > 0 && <Characters anime={anime} />}
       <h2 className="t-title2 anime-section-title">Details</h2>
       <Details anime={anime} />
-      {hasRelated && <Related anime={anime} />}
-    </>
+      {hasRelated && <Related anime={anime} franchise={franchise} />}
+    </div>
   );
 }
 
@@ -352,19 +371,27 @@ const RANGE_TABS = 4;
 /** Shows longer than this get a search. */
 const SEARCH_FROM = 40;
 
-function Episodes({ anime }: { anime: Anime }) {
+function Episodes({
+  anime,
+  franchise,
+  layoutChoice,
+  onLayout,
+}: {
+  anime: Anime;
+  franchise?: Franchise;
+  layoutChoice?: EpisodeLayout;
+  onLayout: (l: EpisodeLayout) => void;
+}) {
   const { navigate } = useRouter();
   const pb = usePlayback(anime);
   const prefs = usePrefs();
   const { data: flags } = useEpisodeFlags(pb.malId, [anime.title.english, anime.title.romaji]);
   const { data: settings } = useSettings();
   const autoPick = settings?.autoPickSource ?? true;
-  // This page's choice; until you pick one, the default from Settings → Browsing.
-  const [layoutChoice, setLayout] = useState<EpisodeLayout | undefined>();
   const layout = layoutChoice ?? settings?.episodeLayout ?? "row";
   const [sourcesFor, setSourcesFor] = useState<Video | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const hasSeasons = useHasSeasons(anime);
+  useFranchiseStills(franchise ? franchise.seasons.map((s) => s.card.id) : [anime.id], pb.metaId, pb.meta?.videos);
 
   const hasFiller = !!flags && [...flags.values()].some((f) => f.filler);
   // What the shelf can show: episodes you can play, and the ones still to air.
@@ -422,13 +449,9 @@ function Episodes({ anime }: { anime: Anime }) {
   if (!list.length) {
     const empty = <p className="empty t-body muted anime-no-episodes">{pb.zip === undefined ? "Loading episodes…" : "No episodes to play yet."}</p>;
     // A season that hasn't started yet still sits among the others.
-    return hasSeasons ? (
+    return franchise ? (
       <section className="seasons">
-        <div className="seasons-bar">
-          <div className="seasons-picker">
-            <SeasonTabs anime={anime} />
-          </div>
-        </div>
+        <SeasonTabs franchise={franchise} />
         {empty}
       </section>
     ) : (
@@ -436,12 +459,8 @@ function Episodes({ anime }: { anime: Anime }) {
     );
   }
 
-  return (
-    <section className="seasons">
-      <div className="seasons-bar">
-        <div className="seasons-picker">
-        {hasSeasons && !found && <SeasonTabs anime={anime} />}
-        {found ? (
+  // Ranges, a match count, or the "Episodes" heading: what sits left of the tools.
+  const picker = found ? (
           <h2 className="t-title2 anime-episode-count">
             {found.length} {found.length === 1 ? "match" : "matches"}
           </h2>
@@ -463,10 +482,10 @@ function Episodes({ anime }: { anime: Anime }) {
               </button>
             ))}
           </div>
-        ) : hasSeasons ? null : (
+        ) : franchise ? null : (
           <h2 className="t-title2 anime-episode-count">Episodes</h2>
-        )}
-        </div>
+        );
+  const tools = (
         <div className="anime-episodes-tools">
           {searchable && (
             <label className="pill-search anime-episode-search">
@@ -491,14 +510,32 @@ function Episodes({ anime }: { anime: Anime }) {
           <Segmented
             label="Episode layout"
             value={layout}
-            onChange={setLayout}
+            onChange={onLayout}
             options={[
               { id: "row", label: "Row", icon: <LayoutRow size={18} /> },
               { id: "list", label: "List", icon: <LayoutList size={18} /> },
             ]}
           />
         </div>
-      </div>
+  );
+
+  return (
+    <section className="seasons">
+      {franchise && !picker ? (
+        // Nothing to page through: the tools share the season tabs' row, right above the episodes.
+        <div className="seasons-bar">
+          <SeasonTabs franchise={franchise} />
+          {tools}
+        </div>
+      ) : (
+        <>
+          {franchise && <SeasonTabs franchise={franchise} />}
+          <div className="seasons-bar">
+            <div className="seasons-picker">{picker}</div>
+            {tools}
+          </div>
+        </>
+      )}
       <EpisodeShelf
         layout={layout}
         episodes={visible}
@@ -545,37 +582,51 @@ const PENDING = "anime-pending:";
 const MAX_SEASON_TABS = 6;
 
 /**
- * The franchise's seasons (and films) as tabs, like a show's: switching opens
- * that entry in place of this one, so Back still leaves the franchise.
- * Nothing when this entry has no seasons around it, or isn't one itself (an OVA).
+ * The franchise's seasons (and films) as tabs, like a show's, on a row of
+ * their own so long names (Paleblade's arcs) all show. Switching swaps the
+ * page's season in place.
  */
-function SeasonTabs({ anime }: { anime: Anime }) {
-  const { replace } = useRouter();
-  const { data: seasons } = useAnimeSeasons(anime);
+function SeasonTabs({ franchise: { seasons, active, select } }: { franchise: Franchise }) {
   const title = useAnimeTitle();
-  if (!seasons || seasons.length < 2 || !seasons.some((s) => s.card.id === anime.id)) return null;
   const labels = distinctLabels(seasons.map((s) => title(s.card.title)), seasons.map((s) => s.label));
-  const go = (id: number) => {
-    if (id === anime.id) return;
-    replace({ name: "anime-detail", id, preview: seasons.find((s) => s.card.id === id)?.card });
-  };
-  return seasons.length > MAX_SEASON_TABS ? (
-    <Dropdown
-      label="Season"
-      size="large"
-      value={String(anime.id)}
-      onChange={(v) => go(Number(v))}
-      options={seasons.map((s, i) => ({ value: String(s.card.id), label: labels[i] }))}
-    />
-  ) : (
-    <Segmented
-      label="Season"
-      variant="large"
-      value={anime.id}
-      onChange={go}
-      options={seasons.map((s, i) => ({ id: s.card.id, label: labels[i] }))}
-    />
+  return (
+    <div className="seasons-tabs">
+      {seasons.length > MAX_SEASON_TABS ? (
+        <Dropdown
+          label="Season"
+          size="large"
+          value={String(active)}
+          onChange={(v) => select(Number(v))}
+          options={seasons.map((s, i) => ({ value: String(s.card.id), label: labels[i] }))}
+        />
+      ) : (
+        <Segmented label="Season" variant="large" value={active} onChange={select} options={seasons.map((s, i) => ({ id: s.card.id, label: labels[i] }))} />
+      )}
+    </div>
   );
+}
+
+/**
+ * Stills for every season's episodes, for the player's episode list
+ * (lib/anime/stills.ts): the metadata addon's are missing past season one
+ * for most anime. Only entries ani.zip links to this same IMDb show count.
+ */
+function useFranchiseStills(ids: number[], metaId: string | undefined, videos: Video[] | undefined) {
+  const imdb = metaId?.startsWith("tt") ? metaId : undefined;
+  const zips = useQueries({ queries: ids.map((id) => ({ ...aniZipQuery(id), enabled: !!imdb })) });
+  const loaded = zips.map((z) => z.dataUpdatedAt).join();
+  useEffect(() => {
+    if (!imdb || !videos?.length) return;
+    for (const { data: zip } of zips) {
+      if (zip?.mappings.imdb_id !== imdb) continue;
+      for (const e of regularEpisodes(zip)) {
+        const v = e.image ? matchVideo(e, videos) : undefined;
+        if (v) rememberStill(v.id, e.image!);
+      }
+    }
+    // `loaded` stands in for `zips`, a new array every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, imdb, videos]);
 }
 
 const word = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
@@ -603,13 +654,15 @@ function distinctLabels(titles: string[], fallbacks: string[]) {
     }
     const rest = b > 0 ? words.slice(n).join(" ").replace(/^[\s:\-–—~|,.]+/, "").trim() : "";
     return rest || fallbacks[i];
+  }).map((label, i, all) => {
+    // An arc's later parts name only what's new ("Hundred-Night Ash War - The Parting" →
+    // "The Parting"), unless what they share is only a number ("Season 3" → "Season 3 Part 2").
+    const arc = all
+      .slice(1, i)
+      .filter((p) => !/^(season|part|cour|movie)\b/i.test(p) && label.startsWith(`${p} `))
+      .sort((a, b) => b.length - a.length)[0];
+    return (arc && label.slice(arc.length).replace(/^[\s:\-–—~|,.]+/, "").trim()) || label;
   });
-}
-
-/** Whether SeasonTabs will show for this entry. */
-function useHasSeasons(anime: Anime) {
-  const { data: seasons } = useAnimeSeasons(anime);
-  return !!seasons && seasons.length > 1 && seasons.some((s) => s.card.id === anime.id);
 }
 
 /** Watch order first (prequels, sequels, the main story), then everything else. */
@@ -629,10 +682,9 @@ const RELATION_ORDER: RelationType[] = [
   "ADAPTATION",
 ];
 
-function Related({ anime }: { anime: Anime }) {
+function Related({ anime, franchise }: { anime: Anime; franchise?: Franchise }) {
   // Entries already in the season tabs above aren't repeated here.
-  const { data: seasons } = useAnimeSeasons(anime);
-  const tabbed = new Set(useHasSeasons(anime) ? (seasons ?? []).map((s) => s.card.id) : []);
+  const tabbed = new Set((franchise?.seasons ?? []).map((s) => s.card.id));
   const edges = [...anime.relations.edges].filter((e) => !tabbed.has(e.node.id)).sort(
     (a, b) =>
       RELATION_ORDER.indexOf(a.relationType) - RELATION_ORDER.indexOf(b.relationType) ||

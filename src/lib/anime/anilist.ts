@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrefs } from "../prefs";
 
 /**
@@ -68,6 +68,8 @@ export interface AnimeCard {
   nextAiringEpisode?: { episode: number; airingAt: number; timeUntilAiring: number } | null;
   /** Only on the shelves that show a synopsis (LISTED), and the anime's own page. */
   description?: string | null;
+  /** Its direct prequels and sequels: only on search results, to show a franchise once. */
+  chain?: number[];
 }
 
 export interface AnimeTag {
@@ -278,8 +280,18 @@ export function useAnimeSeasons(anime: Anime | undefined) {
   });
 }
 
-export function useAnime(id: number) {
-  return useQuery({ queryKey: ["anime", "media", id], staleTime: 30 * 60_000, queryFn: () => fetchAnime(id) });
+/**
+ * An anime's full page data. `keepPrevious`: while another entry loads, keep
+ * answering with the last one (a franchise page switching seasons in place
+ * shouldn't collapse to a skeleton and lose its scroll position).
+ */
+export function useAnime(id: number, { keepPrevious = false } = {}) {
+  return useQuery({
+    queryKey: ["anime", "media", id],
+    staleTime: 30 * 60_000,
+    queryFn: () => fetchAnime(id),
+    placeholderData: keepPrevious ? keepPreviousData : undefined,
+  });
 }
 
 export async function fetchAnime(id: number): Promise<Anime> {
@@ -410,16 +422,25 @@ export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
       if (f.year) vars.year = f.year;
       if (f.format) vars.format = f.format;
       if (f.status) vars.status = f.status;
-      const data = await gql<{ Page: { pageInfo: { hasNextPage: boolean }; media: AnimeCard[] } }>(
+      type Hit = AnimeCard & { relations?: { edges: { relationType: RelationType; node: { id: number } }[] } };
+      const data = await gql<{ Page: { pageInfo: { hasNextPage: boolean }; media: Hit[] } }>(
         `query ($page: Int, $search: String, $genre: String, $tag: String, $season: MediaSeason, $year: Int, $format: MediaFormat, $status: MediaStatus, $sort: [MediaSort]) {
           Page(page: $page, perPage: 36) {
             pageInfo { hasNextPage }
-            media(type: ANIME, isAdult: false, search: $search, genre: $genre, tag: $tag, season: $season, seasonYear: $year, format: $format, status: $status, sort: $sort) { ${CARD} }
+            media(type: ANIME, isAdult: false, search: $search, genre: $genre, tag: $tag, season: $season, seasonYear: $year, format: $format, status: $status, sort: $sort) {
+              ${CARD} ${f.search ? "relations { edges { relationType(version: 2) node { id } } }" : ""}
+            }
           }
         }`,
         vars,
       );
-      return data.Page;
+      // A search shows each franchise once (oneFranchiseEach): keep just the prequel/sequel links it needs.
+      const media = data.Page.media.map(({ relations, ...card }): AnimeCard =>
+        relations
+          ? { ...card, chain: relations.edges.filter((e) => e.relationType === "PREQUEL" || e.relationType === "SEQUEL").map((e) => e.node.id) }
+          : card,
+      );
+      return { ...data.Page, media };
     },
     getNextPageParam: (last, pages) => (last.pageInfo.hasNextPage ? pages.length + 1 : undefined),
   });

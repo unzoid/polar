@@ -1,7 +1,11 @@
 import { QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { api } from "./api";
 import { sync } from "./account/sync";
-import type { ContentType, MetaPreview, Progress, Settings } from "./types";
+import { fetchAniZip } from "./anime/anizip";
+import { isKitsuId } from "./anime/kitsu";
+import { usePrefs } from "./prefs";
+import type { ContentType, MetaPreview, Progress, Settings, StreamsResult } from "./types";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,13 +42,45 @@ export const useRecommend = (type: ContentType, id: string, enabled = true) =>
 export const useMeta = (type: ContentType, id: string, enabled = true) =>
   useQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000, enabled });
 
-export const useStreams = (type: ContentType, videoId: string | undefined) =>
-  useQuery({
+export function useStreams(type: ContentType, videoId: string | undefined) {
+  const anime = useIsAnime(videoId);
+  const { animeNo4k } = usePrefs();
+  const no4k = anime && animeNo4k;
+  const select = useCallback(
+    (d: StreamsResult): StreamsResult => {
+      // Settings → Anime: 4K anime is nearly always an AI upscale. Counted as hidden, like Settings' other source filters.
+      const kept = no4k ? d.streams.filter((r) => (r.quality.resolution ?? 0) < 2160) : d.streams;
+      return {
+        ...d,
+        hidden: (d.hidden ?? 0) + d.streams.length - kept.length,
+        // Sources that say nothing about their audio have the original's: fansub
+        // releases (SubsPlease, Erai-raws) never name their Japanese audio.
+        streams: kept.map((r) => (r.quality.languages?.length ? r : { ...r, quality: { ...r.quality, languages: ["ja"] } })),
+      };
+    },
+    [no4k],
+  );
+  return useQuery({
     queryKey: keys.streams(type, videoId ?? ""),
     queryFn: () => api.streams(type, videoId!),
     enabled: !!videoId,
     staleTime: 10 * 60_000,
+    select: anime ? select : undefined,
   });
+}
+
+/** Whether a video is anime: a Kitsu id, or an IMDb show ani.zip knows. */
+function useIsAnime(videoId: string | undefined) {
+  const imdb = videoId?.startsWith("tt") ? videoId.split(":")[0] : undefined;
+  const { data: anime } = useQuery({
+    queryKey: ["anizip", "imdb", imdb],
+    queryFn: async () => !!(await fetchAniZip({ imdb_id: imdb! })),
+    enabled: !!imdb,
+    staleTime: 24 * 60 * 60_000,
+    gcTime: 24 * 60 * 60_000,
+  });
+  return !!videoId && (isKitsuId(videoId) || !!anime);
+}
 
 /** Scores from the ratings services, once a key is set (re-asks when one is). */
 export function useRatings(type: ContentType, id: string) {

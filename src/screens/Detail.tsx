@@ -3,7 +3,7 @@ import { useFoldSnap } from "../lib/useFoldSnap";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
 import { cardMenu } from "../components/CardMenu";
-import { ScoreChips, TitleDetails } from "../components/TitleDetails";
+import { FormatBadges, ScoreChips, TitleDetails } from "../components/TitleDetails";
 import { openTrailer, useTrailerOpen } from "../components/Trailer";
 import { episodeEntry } from "../lib/watched";
 import { EpisodeShelf } from "../components/EpisodeShelf";
@@ -160,8 +160,9 @@ function DetailHero({
         {item.description && <p className="detail-description t-callout">{item.description}</p>}
         <p className="detail-facts t-callout tabular">
           {item.imdbRating && <RatingRing value={item.imdbRating} imdbId={item.id} />}
+          {facts.length > 0 && <span>{facts.join(" · ")}</span>}
           <ScoreChips type={item.type} id={item.id} />
-          {facts.join(" · ")}
+          <FormatBadges type={item.type} videoId={videoId} />
         </p>
 
         <div className="detail-actions">

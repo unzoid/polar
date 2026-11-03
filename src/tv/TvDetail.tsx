@@ -7,6 +7,7 @@ import { addToPlaylist, createPlaylist, removeFromPlaylist, renamePlaylist, useP
 import { TitleLogo } from "../components/TitleLogo";
 import { ProgressBar } from "../components/PosterCard";
 import { Still } from "../components/StillPlaceholder";
+import { stillFor } from "../lib/anime/stills";
 import { StreamList } from "../components/StreamList";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
 import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel } from "../lib/format";
@@ -419,7 +420,7 @@ function EpisodesPanel({
                 onClick={() => onPlay(v, !!p)}
               >
                 <span className="tv-episode-still">
-                  <Still src={v.thumbnail} />
+                  <Still src={stillFor(v.id) ?? v.thumbnail} />
                   {fraction > 0 && !watched && <ProgressBar fraction={fraction} />}
                   {watched && (
                     <span className="tv-episode-watched" aria-label="Watched">

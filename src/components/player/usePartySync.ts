@@ -3,12 +3,13 @@ import {
   expectedPosition,
   getParty,
   partyAct,
+  setPartyAway,
   setPartyWaiting,
   useParty,
   type PartyMedia,
   type StreamHint,
 } from "../../lib/party/party";
-import type { MediaLike } from "./mpvMedia";
+import { isMpv, type MediaLike } from "./mpvMedia";
 
 /** Within this, leave it alone. */
 const IN_SYNC = 0.12;
@@ -80,6 +81,23 @@ export function usePartySync({
   useEffect(() => {
     if (inParty) setPartyWaiting(!onRoomVideo || !started);
   }, [inParty, onRoomVideo, started]);
+
+  // In the player, or out browsing (the party goes on; the room stops waiting for you).
+  useEffect(() => {
+    if (!inParty) return;
+    setPartyAway(false);
+    return () => setPartyAway(true);
+  }, [inParty]);
+
+  // Seeks land on the exact frame asked for: a keyframe seek can land seconds
+  // short, which reads as drift and seeks again — the room rubber-banding.
+  useEffect(() => {
+    if (!inParty || !isMpv(media)) return;
+    media.exactSeeks = true;
+    return () => {
+      media.exactSeeks = false;
+    };
+  }, [inParty, media]);
 
   const bufferingRef = useRef(buffering);
   bufferingRef.current = buffering;
@@ -170,6 +188,8 @@ export function usePartySync({
       const p = room();
       if (!p || performance.now() - commanded.current.seekAt < ECHO_MS) return;
       if (Math.abs(media.currentTime - expectedPosition(p)) < JUMP) return;
+      // Our own seek, still loading: let it land before judging drift, as for a catch-up seek.
+      seekSent.current = performance.now();
       partyAct({ position: media.currentTime });
     };
     media.addEventListener("play", onPlayPause);

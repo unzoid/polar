@@ -12,10 +12,13 @@
  * - Stream URLs never leave the device (service links carry API keys): only a
  *   hint — the p2p hash and release name — so others pick the same file
  *   from their own add-ons.
+ * - Leaving the player isn't leaving the room: a member who's browsing is
+ *   "away" (not waited for), and whatever anyone puts on next brings them back.
  */
 import { useSyncExternalStore } from "react";
 import { backend, type PartyLink, type PartyPresence } from "../account";
 import { formatTime } from "../format";
+import { partyChime } from "./sounds";
 import type { ContentType, Stream } from "../types";
 
 export interface StreamHint {
@@ -220,6 +223,13 @@ export function setPartyWaiting(waiting: boolean) {
   link?.track(self);
 }
 
+/** Out of the player (or back in it): the room carries on without waiting. */
+export function setPartyAway(away: boolean) {
+  if (!self || !!self.away === away) return;
+  self = { ...self, away, waiting: away ? false : self.waiting };
+  link?.track(self);
+}
+
 // --- Join sheet (opened from the profile menu) -------------------------------
 
 let joinOpen = false;
@@ -338,8 +348,12 @@ function presence(list: Member[]) {
   const after = new Set(members.map((m) => m.id));
   // The first list is who was already there: not news.
   if (presenceSeen) {
-    members.filter((m) => !before.has(m.id) && m.id !== self!.id).forEach((m) => note(m, "joined"));
-    state.members.filter((m) => !after.has(m.id) && m.id !== self!.id).forEach((m) => note(m, "left"));
+    const joined = members.filter((m) => !before.has(m.id) && m.id !== self!.id);
+    const left = state.members.filter((m) => !after.has(m.id) && m.id !== self!.id);
+    joined.forEach((m) => note(m, "joined"));
+    left.forEach((m) => note(m, "left"));
+    if (joined.length) partyChime("join");
+    else if (left.length) partyChime("leave");
   }
   presenceSeen = true;
   update({ members, hostId: members[0]?.id ?? null });
@@ -352,11 +366,11 @@ function hostDuty() {
   if (!state || !self || !p || state.hostId !== self.id) return;
   const now = Date.now();
   for (const m of state.members) {
-    if (m.waiting) waitingSince.set(m.id, waitingSince.get(m.id) ?? now);
+    if (m.waiting && !m.away) waitingSince.set(m.id, waitingSince.get(m.id) ?? now);
     else waitingSince.delete(m.id);
   }
   for (const id of waitingSince.keys()) if (!state.members.some((m) => m.id === id)) waitingSince.delete(id);
-  const hold = state.members.some((m) => m.waiting && now - waitingSince.get(m.id)! < HOLD_MAX_MS);
+  const hold = state.members.some((m) => waitingSince.has(m.id) && now - waitingSince.get(m.id)! < HOLD_MAX_MS);
   if (hold !== p.held) partyAct({ held: hold });
 }
 

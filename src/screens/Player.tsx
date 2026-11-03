@@ -62,9 +62,12 @@ import { getParty, partyAvailable, partyPosition, startParty, streamHint, usePar
 import { usePartySync } from "../components/player/usePartySync";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { WatchParty } from "../components/icons";
+import { stillFor } from "../lib/anime/stills";
 
 const win = getCurrentWindow();
 const SAVE_EVERY = 5000;
+/** In a watch party, how long a source gets to start before the next one is tried. */
+const PARTY_START_MS = 20_000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 /** How long the player layer takes to fade back to the page (matches player.css). */
 export const PLAYER_EXIT_MS = 260;
@@ -363,6 +366,20 @@ export function Player({
     if (videoRef.current) videoRef.current.playbackRate = inParty ? 1 : rate;
   }, [rate, source.state, media, inParty]);
 
+  // In a party, a source that won't start keeps the whole room waiting: move
+  // on to the next one, as picking another source by hand would.
+  const sourceNext = source.next;
+  useEffect(() => {
+    if (!inParty || started || source.state.status !== "ready") return;
+    const t = window.setTimeout(() => {
+      if (!sourceNext()) return;
+      setNotice("That source was slow to start. Trying the next best one.");
+      window.setTimeout(() => setNotice(null), 3500);
+    }, PARTY_START_MS);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new attempt is a new source.state
+  }, [inParty, started, source.state]);
+
   // Fullscreen carries over from the previous episode; Settings → Playback
   // can also start every video in it.
   const fullscreenApplied = useRef(false);
@@ -543,7 +560,7 @@ export function Player({
           : fraction > 0 && fraction < watchedFraction() && p
             ? formatRemaining(p.position, p.duration)
             : formatDate(v.released),
-        thumbnail: v.thumbnail ?? "",
+        thumbnail: stillFor(v.id) ?? v.thumbnail ?? "",
         progress: fraction < watchedFraction() ? fraction : undefined,
         badge: fraction >= watchedFraction() ? { text: "Watched" } : undefined,
         disabled: !released,
@@ -950,7 +967,7 @@ export function Player({
             transition={{ duration: 0.3, ease: ease.drawer }}
           >
             <div className="next-up-still">
-              <Img src={next.thumbnail ?? meta?.background} alt="" />
+              <Img src={stillFor(next.id) ?? next.thumbnail ?? meta?.background} alt="" />
             </div>
             <div className="next-up-text">
               <span className="next-up-kicker">

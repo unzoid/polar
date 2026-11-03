@@ -380,6 +380,16 @@
   gap: 1rem;
   margin-bottom: 1rem;
 }
+/* Switching seasons: the last season's episodes and details stay, dimmed, until
+   the new one's arrive (the tabs stay live, to pick again). */
+.anime-body > :not(.seasons),
+.anime-body .seasons > :not(.seasons-tabs) {
+  transition: opacity var(--dur-base) ease;
+}
+.anime-body[data-switching] > :not(.seasons),
+.anime-body[data-switching] .seasons > :not(.seasons-tabs) {
+  opacity: 0.4;
+}
 .anime-section-title {
   margin: 1.5rem 0 1rem;
   padding: 0 var(--gutter) 0 var(--content-start);

@@ -1,7 +1,8 @@
 import { api } from "../lib/api";
 import { formatDate, formatRuntime } from "../lib/format";
 import { usePersonPhoto } from "../lib/personPhoto";
-import { useRatings } from "../lib/queries";
+import { useQuery } from "@tanstack/react-query";
+import { useRatings, useStreams } from "../lib/queries";
 import type { ContentType, ExternalRatings, Meta } from "../lib/types";
 import { letterboxdUrl } from "./CardMenu";
 import { BrandIcon } from "./BrandIcon";
@@ -176,45 +177,68 @@ function ScoreCards({ ratings }: { ratings?: ExternalRatings }) {
   );
 }
 
-/** Small scores beside the rating in a title's hero (Rotten Tomatoes, Metacritic, Letterboxd). */
+/**
+ * The Tomatometer beside a title's facts, as Apple TV shows it: a small
+ * tomato (or splat, when rotten) and the percentage. The other scores
+ * (audience, Metacritic, Letterboxd) are in the score cards further down.
+ */
 export function ScoreChips({ type, id }: { type: ContentType; id: string }) {
   const { data: r } = useRatings(type, id);
-  if (!r) return null;
+  if (r?.rottenTomatoes == null) return null;
+  const ok = fresh(r.rottenTomatoes);
   return (
-    <>
-      {r.rottenTomatoes != null && (
-        <span className="score-chip" data-tone={fresh(r.rottenTomatoes) ? "fresh" : "rotten"} title="Rotten Tomatoes Tomatometer">
-          <span className="score-chip-mark" aria-hidden>
-            {fresh(r.rottenTomatoes) ? "🍅" : "🟢"}
-          </span>
-          <span className="tabular">{r.rottenTomatoes}%</span>
+    <span className="score-chip" title={`Rotten Tomatoes: ${ok ? "Fresh" : "Rotten"}`}>
+      {ok ? <Tomato /> : <Splat />}
+      <span className="tabular">{r.rottenTomatoes}%</span>
+    </span>
+  );
+}
+
+const Tomato = () => (
+  <svg className="score-chip-icon" viewBox="0 0 16 16" aria-hidden>
+    <circle cx="8" cy="9" r="6.25" fill="#fa320a" />
+    <path d="M8 3.6c-.9-1.3-2.4-1.6-3.4-1.1 1 .3 1.6.9 1.9 1.6-1.2-.2-2.2.2-2.8 1 1.3-.2 2.4.1 3.1.8.3-.6.7-.9 1.2-1 .5.1.9.4 1.2 1 .7-.7 1.8-1 3.1-.8-.6-.8-1.6-1.2-2.8-1 .4-.8 1-1.3 1.9-1.6-1-.5-2.5-.2-3.4 1.1Z" fill="#00912d" />
+  </svg>
+);
+
+const Splat = () => (
+  <svg className="score-chip-icon" viewBox="0 0 16 16" aria-hidden>
+    <path
+      d="M8.2 1.5c.7 1.6.4 2.6 1.3 2.8 1 .2 1.6-1.4 3-1.2-.5 1.4-1.6 2-1 2.8.7.8 2.2-.2 3.1.6-1.3.8-2.4.6-2.3 1.6 0 1 1.7 1.3 1.7 2.6-1.4-.3-2-1.4-2.9-.8-.8.6.2 2.2-.6 3.2-.9-1.2-.6-2.5-1.6-2.6-1 0-1.2 1.6-2.6 2 .2-1.5 1.3-2.1.7-2.9-.6-.8-2.2.2-3.4-.5 1.2-.8 2.5-.8 2.5-1.7 0-.9-1.6-1-2.3-2.3 1.5 0 2.2.9 3 .4.8-.6.1-2 .4-3.5 1 .9 1 2.2 1.9 2.1.8-.1.6-1.5 1.8-3.7Z"
+      fill="#0ac855"
+    />
+  </svg>
+);
+
+/**
+ * What the sources for this title offer, as Apple TV's small outlined
+ * badges: 4K, Dolby Vision (or HDR), Dolby Atmos, and CC when the subtitle
+ * add-ons have subtitles. Read off the sources you can actually play (the
+ * same, cached lookup the player makes), so a badge is a promise it keeps.
+ */
+export function FormatBadges({ type, videoId }: { type: ContentType; videoId?: string }) {
+  const { data: streams } = useStreams(type, videoId);
+  const { data: subs } = useQuery({
+    queryKey: ["subtitles", type, videoId],
+    queryFn: () => api.subtitles(type, videoId!),
+    enabled: !!videoId,
+    staleTime: 60 * 60_000,
+  });
+  const playable = (streams?.streams ?? []).filter((r) => !r.quality.lowQualitySource).map((r) => r.quality);
+  const badges = [
+    playable.some((q) => (q.resolution ?? 0) >= 2160) && "4K",
+    playable.some((q) => q.dolbyVision) ? "Dolby Vision" : playable.some((q) => q.hdr) && "HDR",
+    playable.some((q) => q.tags?.some((t) => t.toLowerCase() === "atmos")) && "Dolby Atmos",
+    !!subs?.length && "CC",
+  ].filter((b): b is string => !!b);
+  if (!badges.length) return null;
+  return (
+    <span className="format-badges">
+      {badges.map((b) => (
+        <span key={b} className="format-badge" data-long={b.length > 3 || undefined}>
+          {b}
         </span>
-      )}
-      {r.audience != null && (
-        <span className="score-chip" title="Rotten Tomatoes audience score">
-          <span className="score-chip-mark" aria-hidden>
-            🍿
-          </span>
-          <span className="tabular">{r.audience}%</span>
-        </span>
-      )}
-      {r.metacritic != null && (
-        <span className="score-chip" data-kind="mc" title="Metacritic">
-          <span className="score-chip-box tabular" data-tone={r.metacritic >= 61 ? "good" : r.metacritic >= 40 ? "mid" : "low"}>
-            {r.metacritic}
-          </span>
-        </span>
-      )}
-      {r.letterboxd != null && (
-        <span className="score-chip" title="Letterboxd average">
-          <span className="score-chip-lb" aria-hidden>
-            <i />
-            <i />
-            <i />
-          </span>
-          <span className="tabular">{r.letterboxd.toFixed(1)}</span>
-        </span>
-      )}
-    </>
+      ))}
+    </span>
   );
 }

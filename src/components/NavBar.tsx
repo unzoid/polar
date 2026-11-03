@@ -13,6 +13,8 @@ import { FOCUS_SEARCH_EVENT, setSearchText, useSearchText } from "../lib/searchQ
 import { WindowControls } from "./WindowControls";
 import { ProfileMenu } from "./ProfileMenu";
 import { UpdatePill } from "./Updates";
+import { useParty } from "../lib/party/party";
+import { PartyBadge } from "./party/PartyUI";
 
 const LINKS: { route: TabRoute; label: string }[] = [
   { route: { name: "home" }, label: "Home" },
@@ -73,6 +75,7 @@ export function NavBar() {
       <NavLinks links={links} isActive={isActive} open={tab} />
       <div className="navbar-actions">
         <UpdatePill />
+        <NavParty />
         <SearchBox />
         {showTvButton && (
           <button className="navbar-icon pressable" aria-label="TV mode" title="TV mode" onClick={() => setTvMode(true)}>
@@ -85,6 +88,15 @@ export function NavBar() {
       <WindowControls />
     </header>
   );
+}
+
+/** Still in a watch party while browsing: who's in it, and the way back to what the room is watching. */
+function NavParty() {
+  const party = useParty();
+  const { navigate } = useRouter();
+  const m = party?.playback?.media;
+  if (!party || !m) return null;
+  return <PartyBadge party={party} onOpen={() => navigate({ name: "player", type: m.type, metaId: m.metaId, videoId: m.videoId })} />;
 }
 
 /**

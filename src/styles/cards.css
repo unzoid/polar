@@ -710,6 +710,62 @@
   transform-origin: left;
 }
 
+/* Continue Watching: the time left on the picture, Apple TV style. A strip
+   along the bottom blurs the art progressively (sharp at its top edge,
+   fully blurred at the bottom) under a short bar and "23m left". */
+.card-resume {
+  position: absolute;
+  inset: auto 0 0;
+  height: 34%;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0 0.875rem 0.75rem;
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+  overflow: hidden;
+  /* Keeps the blur layer (z-index -1) above the art, under the text. */
+  isolation: isolate;
+  pointer-events: none;
+}
+.card-resume::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.45), transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  mask-image: linear-gradient(to top, #000 45%, transparent);
+}
+.card-resume .progress-track {
+  position: relative;
+  inset: auto;
+  flex: none;
+  width: 1.75rem;
+  height: 3px;
+  margin-bottom: 0.28rem;
+  background: rgb(255 255 255 / 0.35);
+}
+.card-resume .progress-fill {
+  background: #fff;
+}
+.card-resume-left {
+  position: relative;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.85);
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+}
+/* The logo sits above the strip instead of under it. */
+.card-frame-resume .card-logo {
+  bottom: 30%;
+}
+.card-frame-resume .card-art-title {
+  bottom: 28%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Keep the shadow/opacity feedback, drop the movement. */
   .card:hover .card-frame,

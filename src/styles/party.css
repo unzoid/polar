@@ -298,6 +298,17 @@
   width: 1.625rem;
   border-radius: var(--r-pill);
 }
+/* Out of the player (browsing between shows): the same notes, over the app. */
+.party-float {
+  position: fixed;
+  left: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 60;
+  pointer-events: none;
+}
+.party-float .party-notes {
+  position: static;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .party-notes {
