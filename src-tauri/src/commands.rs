@@ -148,10 +148,16 @@ pub async fn streams(
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum Playable {
     /// Plays in the built-in player.
-    Url { url: String },
+    Url {
+        url: String,
+    },
     /// Needs a browser (e.g. YouTube trailers, "watch on" links).
-    External { url: String },
-    Unsupported { reason: String },
+    External {
+        url: String,
+    },
+    Unsupported {
+        reason: String,
+    },
 }
 
 /// Turn a stream into something playable. p2ps go through the configured
@@ -181,7 +187,9 @@ pub async fn resolve(state: &AppState, stream: Stream) -> Playable {
             .is_ok();
         if !reachable {
             return Playable::Unsupported {
-                reason: "p2p streams need a bridge. Start Stremio's server, or wait for the built-in engine.".into(),
+                reason:
+                    "p2p streams need a bridge. Start Stremio's server, or wait for the built-in engine."
+                        .into(),
             };
         }
         let file = stream.file_idx.map(|f| f.to_string()).unwrap_or_else(|| "-1".into());
@@ -216,7 +224,8 @@ pub fn addons_list(state: State<'_, AppState>) -> Vec<InstalledAddon> {
 #[tauri::command]
 pub async fn addon_install(state: State<'_, AppState>, url: String) -> Result<InstalledAddon> {
     let url = url.trim().replace("stremio://", "https://");
-    let manifest_url = if url.ends_with("/manifest.json") { url } else { format!("{}/manifest.json", url.trim_end_matches('/')) };
+    let manifest_url =
+        if url.ends_with("/manifest.json") { url } else { format!("{}/manifest.json", url.trim_end_matches('/')) };
     let mut manifest = state.addons.manifest(&manifest_url).await?;
     manifest.behavior_hints.get_or_insert_with(Default::default);
     let addon = InstalledAddon { manifest_url, manifest };
@@ -314,11 +323,8 @@ pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
             *slot = p;
         }
     }
-    let mut items: Vec<Progress> = latest
-        .into_values()
-        .filter(|p| !p.finished(watched) && p.position > 30.0)
-        .cloned()
-        .collect();
+    let mut items: Vec<Progress> =
+        latest.into_values().filter(|p| !p.finished(watched) && p.position > 30.0).cloned().collect();
     items.sort_by_key(|i| std::cmp::Reverse(i.updated_at));
     items.truncate(20);
     items
@@ -405,10 +411,8 @@ pub struct SubtitleOption {
 /// External subtitles from every installed addon that serves them.
 #[tauri::command]
 pub async fn subtitles(state: State<'_, AppState>, ty: String, video_id: String) -> Result<Vec<SubtitleOption>> {
-    let addons: Vec<InstalledAddon> = installed(&state)
-        .into_iter()
-        .filter(|a| a.manifest.serves("subtitles", &ty, &video_id))
-        .collect();
+    let addons: Vec<InstalledAddon> =
+        installed(&state).into_iter().filter(|a| a.manifest.serves("subtitles", &ty, &video_id)).collect();
     let client = &state.addons;
     let results = join_all(addons.iter().map(|a| async {
         let res = tokio::time::timeout(ADDON_TIMEOUT, client.subtitles(&a.manifest_url, &ty, &video_id)).await;

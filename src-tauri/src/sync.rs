@@ -151,12 +151,7 @@ fn present(i: &LibraryItem) -> SyncLibraryItem {
 fn merge(s: &mut Space, library: Vec<SyncLibraryItem>, progress: Vec<Progress>) -> bool {
     let mut changed = false;
     for item in library {
-        let local = s
-            .library
-            .get(&item.id)
-            .map(|i| i.added_at)
-            .max(s.removed.get(&item.id).copied())
-            .unwrap_or(0);
+        let local = s.library.get(&item.id).map(|i| i.added_at).max(s.removed.get(&item.id).copied()).unwrap_or(0);
         if item.updated_at <= local {
             continue;
         }

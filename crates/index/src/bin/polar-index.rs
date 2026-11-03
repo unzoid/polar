@@ -16,9 +16,7 @@ use tower_http::cors::CorsLayer;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()))
-        .init();
+    tracing_subscriber::fmt().with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into())).init();
 
     let indexer = Arc::new(Indexer::new(IndexConfig {
         tmdb_key: std::env::var("TMDB_API_KEY").ok(),

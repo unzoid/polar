@@ -42,9 +42,7 @@ impl AddonClient {
 
     /// `https://x/manifest.json` → `https://x`
     pub fn base_url(manifest_url: &str) -> &str {
-        manifest_url
-            .trim_end_matches('/')
-            .trim_end_matches("/manifest.json")
+        manifest_url.trim_end_matches('/').trim_end_matches("/manifest.json")
     }
 
     pub async fn manifest(&self, manifest_url: &str) -> Result<Manifest, AddonError> {
@@ -66,9 +64,7 @@ impl AddonClient {
     pub async fn meta(&self, base: &str, ty: &str, id: &str) -> Result<Meta, AddonError> {
         let url = resource_url(base, "meta", ty, id, &[]);
         let raw: RawMetaResponse = self.get_json(&url).await?;
-        raw.meta
-            .into_meta()
-            .ok_or_else(|| AddonError::Decode(format!("meta {id} has no name")))
+        raw.meta.into_meta().ok_or_else(|| AddonError::Decode(format!("meta {id} has no name")))
     }
 
     pub async fn streams(&self, base: &str, ty: &str, id: &str) -> Result<Vec<Stream>, AddonError> {
@@ -100,11 +96,7 @@ pub fn resource_url(base: &str, resource: &str, ty: &str, id: &str, extra: &[(&s
     if extra.is_empty() {
         format!("{base}/{resource}/{ty}/{id}.json")
     } else {
-        let extra = extra
-            .iter()
-            .map(|(k, v)| format!("{k}={}", urlencoding::encode(v)))
-            .collect::<Vec<_>>()
-            .join("&");
+        let extra = extra.iter().map(|(k, v)| format!("{k}={}", urlencoding::encode(v))).collect::<Vec<_>>().join("&");
         format!("{base}/{resource}/{ty}/{id}/{extra}.json")
     }
 }
@@ -200,11 +192,7 @@ impl RawMeta {
 
     pub fn into_meta(self) -> Option<Meta> {
         let (preview, rest) = self.split()?;
-        let mut videos: Vec<Video> = rest
-            .videos
-            .into_iter()
-            .filter_map(|v| v.normalise(&preview.id))
-            .collect();
+        let mut videos: Vec<Video> = rest.videos.into_iter().filter_map(|v| v.normalise(&preview.id)).collect();
         videos.sort_by_key(|v| (v.season, v.episode));
         Some(Meta {
             preview,
@@ -247,7 +235,9 @@ impl RawMeta {
             })
             .unwrap_or_default();
         let countries = match self.country {
-            Some(serde_json::Value::String(s)) => s.split(',').map(|c| c.trim().to_owned()).filter(|c| !c.is_empty()).collect(),
+            Some(serde_json::Value::String(s)) => {
+                s.split(',').map(|c| c.trim().to_owned()).filter(|c| !c.is_empty()).collect()
+            }
             Some(serde_json::Value::Array(a)) => a.into_iter().filter_map(|c| c.as_str().map(str::to_owned)).collect(),
             _ => Vec::new(),
         };
@@ -289,11 +279,7 @@ impl RawVideo {
         let episode = self.episode.or(self.number)?;
         Some(Video {
             id: self.id.unwrap_or_else(|| format!("{meta_id}:{season}:{episode}")),
-            title: self
-                .name
-                .or(self.title)
-                .filter(|t| !t.is_empty())
-                .unwrap_or_else(|| format!("Episode {episode}")),
+            title: self.name.or(self.title).filter(|t| !t.is_empty()).unwrap_or_else(|| format!("Episode {episode}")),
             season,
             episode,
             released: self.released.or(self.first_aired),

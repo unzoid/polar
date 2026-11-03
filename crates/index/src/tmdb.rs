@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::cache::TtlCache;
-use crate::{IndexError, Result, curate};
+use crate::{curate, IndexError, Result};
 
 const API: &str = "https://api.themoviedb.org/3";
 const IMG: &str = "https://image.tmdb.org/t/p";
@@ -39,11 +39,7 @@ impl Tmdb {
     }
 
     async fn get<T: serde::de::DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<T> {
-        let mut req = self
-            .http
-            .get(format!("{API}{path}"))
-            .query(&[("language", self.language.as_str())])
-            .query(query);
+        let mut req = self.http.get(format!("{API}{path}")).query(&[("language", self.language.as_str())]).query(query);
         // v4 read tokens are JWTs; v3 keys are 32 hex chars.
         req = if self.key.starts_with("eyJ") {
             req.bearer_auth(&self.key)
@@ -65,7 +61,8 @@ impl Tmdb {
         if let Some(name) = genre {
             let genre_id = genre_id(ty, name).ok_or(IndexError::NotFound)?.to_string();
             let page = page.to_string();
-            let (sort, min_votes) = if id == "top_rated" { ("vote_average.desc", "300") } else { ("popularity.desc", "0") };
+            let (sort, min_votes) =
+                if id == "top_rated" { ("vote_average.desc", "300") } else { ("popularity.desc", "0") };
             let list: Paged = self
                 .get(
                     &format!("/discover/{kind}"),
@@ -136,9 +133,7 @@ impl Tmdb {
     }
 
     async fn find(&self, ty: &str, imdb_id: &str) -> Result<u64> {
-        let found: Value = self
-            .get(&format!("/find/{imdb_id}"), &[("external_source", "imdb_id")])
-            .await?;
+        let found: Value = self.get(&format!("/find/{imdb_id}"), &[("external_source", "imdb_id")]).await?;
         let bucket = if ty == "series" { "tv_results" } else { "movie_results" };
         found[bucket][0]["id"].as_u64().ok_or(IndexError::NotFound)
     }
@@ -163,9 +158,7 @@ impl Tmdb {
         if let Some(hit) = self.imdb_ids.get(&key) {
             return Ok(hit);
         }
-        let ids: ExternalIds = self
-            .get(&format!("/{}/{tmdb_id}/external_ids", tmdb_kind(ty)), &[])
-            .await?;
+        let ids: ExternalIds = self.get(&format!("/{}/{tmdb_id}/external_ids", tmdb_kind(ty)), &[]).await?;
         let imdb = ids.imdb_id.filter(|i| i.starts_with("tt"));
         self.imdb_ids.insert(key, imdb.clone());
         Ok(imdb)
@@ -178,10 +171,7 @@ impl Tmdb {
         let d: Value = self
             .get(
                 &format!("/{kind}/{tmdb_id}"),
-                &[
-                    ("append_to_response", "credits,videos,images"),
-                    ("include_image_language", "en,null"),
-                ],
+                &[("append_to_response", "credits,videos,images"), ("include_image_language", "en,null")],
             )
             .await?;
 
@@ -211,7 +201,8 @@ impl Tmdb {
             for n in chunk {
                 let Some(eps) = value[format!("season/{n}")]["episodes"].as_array() else { continue };
                 for ep in eps {
-                    let (Some(season), Some(episode)) = (ep["season_number"].as_u64(), ep["episode_number"].as_u64()) else {
+                    let (Some(season), Some(episode)) = (ep["season_number"].as_u64(), ep["episode_number"].as_u64())
+                    else {
                         continue;
                     };
                     videos.push(Video {
@@ -262,7 +253,11 @@ fn genre_id(ty: &str, name: &str) -> Option<u32> {
 }
 
 fn tmdb_kind(ty: &str) -> &'static str {
-    if ty == "series" { "tv" } else { "movie" }
+    if ty == "series" {
+        "tv"
+    } else {
+        "movie"
+    }
 }
 
 fn str_of(v: &Value) -> Option<String> {
@@ -304,28 +299,19 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
         .map(|m| format!("{m} min"));
 
     let names = |v: &Value, take: usize| -> Vec<String> {
-        v.as_array()
-            .map(|a| a.iter().filter_map(|p| str_of(&p["name"])).take(take).collect())
-            .unwrap_or_default()
+        v.as_array().map(|a| a.iter().filter_map(|p| str_of(&p["name"])).take(take).collect()).unwrap_or_default()
     };
     let director = if is_series {
         names(&d["created_by"], 3)
     } else {
         d["credits"]["crew"]
             .as_array()
-            .map(|crew| {
-                crew.iter()
-                    .filter(|c| c["job"] == "Director")
-                    .filter_map(|c| str_of(&c["name"]))
-                    .collect()
-            })
+            .map(|crew| crew.iter().filter(|c| c["job"] == "Director").filter_map(|c| str_of(&c["name"])).collect())
             .unwrap_or_default()
     };
 
     let trailer_yt_id = d["videos"]["results"].as_array().and_then(|v| {
-        v.iter()
-            .find(|v| v["site"] == "YouTube" && v["type"] == "Trailer")
-            .and_then(|v| str_of(&v["key"]))
+        v.iter().find(|v| v["site"] == "YouTube" && v["type"] == "Trailer").and_then(|v| str_of(&v["key"]))
     });
 
     let people = d["credits"]["cast"]
@@ -344,15 +330,15 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
         })
         .unwrap_or_default();
     let list = |v: &Value, key: &str, take: usize| -> Vec<String> {
-        v.as_array()
-            .map(|a| a.iter().filter_map(|x| str_of(&x[key])).take(take).collect())
-            .unwrap_or_default()
+        v.as_array().map(|a| a.iter().filter_map(|x| str_of(&x[key])).take(take).collect()).unwrap_or_default()
     };
     let writers: Vec<String> = d["credits"]["crew"]
         .as_array()
         .map(|crew| {
             let mut names: Vec<String> = Vec::new();
-            for c in crew.iter().filter(|c| matches!(c["job"].as_str(), Some("Screenplay" | "Writer" | "Story" | "Novel"))) {
+            for c in
+                crew.iter().filter(|c| matches!(c["job"].as_str(), Some("Screenplay" | "Writer" | "Story" | "Novel")))
+            {
                 if let Some(n) = str_of(&c["name"]).filter(|n| !names.contains(n)) {
                     names.push(n);
                 }
@@ -362,10 +348,7 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
         .unwrap_or_default();
     let mut countries = list(&d["production_countries"], "name", 3);
     if countries.is_empty() {
-        countries = d["origin_country"]
-            .as_array()
-            .map(|a| a.iter().filter_map(str_of).collect())
-            .unwrap_or_default();
+        countries = d["origin_country"].as_array().map(|a| a.iter().filter_map(str_of).collect()).unwrap_or_default();
     }
     let positive = |v: &Value| v.as_u64().filter(|n| *n > 0);
     let details = MetaDetails {
@@ -437,10 +420,7 @@ impl Item {
             background: self.backdrop_path.map(|p| format!("{IMG}/w1280{p}")),
             logo: None,
             description: self.overview.filter(|o| !o.is_empty()),
-            release_info: self
-                .release_date
-                .or(self.first_air_date)
-                .and_then(|d| d.get(..4).map(str::to_owned)),
+            release_info: self.release_date.or(self.first_air_date).and_then(|d| d.get(..4).map(str::to_owned)),
             imdb_rating: self.vote_average.filter(|r| *r > 0.0).map(|r| format!("{r:.1}")),
             genres: Vec::new(),
         }

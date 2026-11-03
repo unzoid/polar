@@ -153,8 +153,7 @@ impl Indexer {
                 // Pools for the seed's two main genres, plus the general one
                 // so close matches outside those genres still surface.
                 let seed = self.meta(ty, id).await?.preview;
-                let genres: Vec<Option<String>> =
-                    seed.genres.iter().take(2).cloned().map(Some).chain([None]).collect();
+                let genres: Vec<Option<String>> = seed.genres.iter().take(2).cloned().map(Some).chain([None]).collect();
                 let lists = futures::future::join_all(genres.iter().map(|g| {
                     let g = g.as_deref();
                     self.pooled(format!("{ty}/{}", g.unwrap_or("")), c.pool(ty, g))
@@ -238,10 +237,7 @@ impl Indexer {
             name: "Polar Index".into(),
             description: Some("Movie and series catalogs with full episode metadata.".into()),
             logo: None,
-            resources: vec![
-                ManifestResource::Name("catalog".into()),
-                ManifestResource::Name("meta".into()),
-            ],
+            resources: vec![ManifestResource::Name("catalog".into()), ManifestResource::Name("meta".into())],
             types: vec!["movie".into(), "series".into()],
             catalogs,
             id_prefixes: Some(vec!["tt".into()]),

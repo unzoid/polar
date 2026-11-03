@@ -306,7 +306,11 @@ pub struct Progress {
 
 impl Progress {
     pub fn fraction(&self) -> f64 {
-        if self.duration > 0.0 { (self.position / self.duration).clamp(0.0, 1.0) } else { 0.0 }
+        if self.duration > 0.0 {
+            (self.position / self.duration).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
     }
 
     /// Past the watched threshold (Settings → Playback), e.g. 0.92.
@@ -408,8 +412,5 @@ impl Store {
 }
 
 pub fn now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or_default()
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or_default()
 }

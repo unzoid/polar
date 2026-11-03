@@ -49,7 +49,8 @@ pub async fn prepare(url: &str) -> Result<String, String> {
             return Ok(res.url().to_string());
         }
         // Not found / gone / forbidden won't change by waiting.
-        if matches!(status, StatusCode::NOT_FOUND | StatusCode::GONE | StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED) {
+        if matches!(status, StatusCode::NOT_FOUND | StatusCode::GONE | StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED)
+        {
             return Err(format!("The source answered {status}. Choose another source."));
         }
         last = Some(status);
@@ -62,11 +63,8 @@ pub async fn prepare(url: &str) -> Result<String, String> {
 
 /// A small video where a whole episode or film should be.
 fn is_placeholder(res: &reqwest::Response) -> bool {
-    let video = res
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|t| t.starts_with("video/"));
+    let video =
+        res.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|t| t.starts_with("video/"));
     video && total_size(res).is_some_and(|n| n < PLACEHOLDER_MAX_BYTES)
 }
 

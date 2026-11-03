@@ -42,9 +42,7 @@ impl Manifest {
     pub fn serves(&self, resource: &str, ty: &str, id: &str) -> bool {
         self.resources.iter().any(|r| match r {
             ManifestResource::Name(name) => {
-                name == resource
-                    && self.types.iter().any(|t| t == ty)
-                    && prefix_match(self.id_prefixes.as_deref(), id)
+                name == resource && self.types.iter().any(|t| t == ty) && prefix_match(self.id_prefixes.as_deref(), id)
             }
             ManifestResource::Full { name, types, id_prefixes } => {
                 name == resource

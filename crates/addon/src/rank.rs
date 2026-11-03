@@ -48,16 +48,13 @@ pub struct RankedStream {
 
 static RES: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(2160p|4k|uhd|1440p|1080p|720p|576p|480p)\b").unwrap());
-static SIZE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)(\d+(?:[.,]\d+)?)\s?(TB|GB|MB)\b").unwrap());
+static SIZE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)(\d+(?:[.,]\d+)?)\s?(TB|GB|MB)\b").unwrap());
 static sources: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"👤\s?(\d+)").unwrap());
 static HDR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bHDR(10\+?)?\b").unwrap());
-static DV: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b(DV|DoVi|Dolby\s?Vision)\b").unwrap());
+static DV: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(DV|DoVi|Dolby\s?Vision)\b").unwrap());
 static CACHED: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)(\[(RD|AD|PM|TB|DL|ED|OC)\+\]|⚡|instant)").unwrap());
-static CAM: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b(CAM|CAMRIP|HDCAM|TS|TELESYNC|HDTS|TC)\b").unwrap());
+static CAM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(CAM|CAMRIP|HDCAM|TS|TELESYNC|HDTS|TC)\b").unwrap());
 
 pub fn parse_quality(stream: &Stream) -> StreamQuality {
     let text = [&stream.name, &stream.title, &stream.description]
@@ -125,7 +122,8 @@ static site: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\[site(?:\.\w+)
 /// Run on what follows the ⚙ (its emoji variation selector first).
 static SITE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\x{FE0F}?\s*([^\n👤💾⚙🌐]+)").unwrap());
 /// Dash-words that end release names without being a group.
-const NOT_GROUPS: &[&str] = &["DL", "RIP", "WEB", "HD", "SDR", "HDR", "X264", "X265", "H264", "H265", "AAC", "DDP", "AC3", "DTS"];
+const NOT_GROUPS: &[&str] =
+    &["DL", "RIP", "WEB", "HD", "SDR", "HDR", "X264", "X265", "H264", "H265", "AAC", "DDP", "AC3", "DTS"];
 
 /// Who made or carried the file (see `StreamQuality::source`).
 fn release_source(stream: &Stream) -> Option<String> {
@@ -140,13 +138,17 @@ fn release_source(stream: &Stream) -> Option<String> {
         .filter(|g| !g.chars().all(|c| c.is_ascii_digit() || c == 'p'))
         .or_else(|| site.is_match(release).then(|| "site".to_string()))
         .or_else(|| {
-            GROUP_TAIL
-                .captures(release)
-                .map(|c| c[1].to_string())
-                .filter(|g| !NOT_GROUPS.contains(&g.to_ascii_uppercase().as_str()) && !g.chars().all(|c| c.is_ascii_digit()))
+            GROUP_TAIL.captures(release).map(|c| c[1].to_string()).filter(|g| {
+                !NOT_GROUPS.contains(&g.to_ascii_uppercase().as_str()) && !g.chars().all(|c| c.is_ascii_digit())
+            })
         });
     group.or_else(|| {
-        let text = [&stream.title, &stream.description].into_iter().flatten().map(String::as_str).collect::<Vec<_>>().join("\n");
+        let text = [&stream.title, &stream.description]
+            .into_iter()
+            .flatten()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join("\n");
         text.contains('⚙')
             .then(|| text.split('⚙').nth(1))
             .flatten()
@@ -398,7 +400,11 @@ impl StreamFilter {
                     return false;
                 }
                 // Several words ("hard coded") match as a phrase; one word must match a whole word.
-                if ex.contains(char::is_whitespace) { text.contains(&ex) } else { words.contains(&ex.as_str()) }
+                if ex.contains(char::is_whitespace) {
+                    text.contains(&ex)
+                } else {
+                    words.contains(&ex.as_str())
+                }
             });
             if hit {
                 return false;
@@ -425,13 +431,7 @@ pub fn rank_streams_filtered(
         .filter(|(_, s)| s.url.is_some() || s.content_id.is_some() || s.yt_id.is_some())
         .map(|(addon, stream)| {
             let quality = parse_quality(&stream);
-            RankedStream {
-                score: score(&quality),
-                label: label(&quality),
-                quality,
-                addon,
-                stream,
-            }
+            RankedStream { score: score(&quality), label: label(&quality), quality, addon, stream }
         })
         .collect();
     ranked.sort_by(|a, b| b.score.total_cmp(&a.score));
@@ -468,8 +468,14 @@ mod tests {
     #[test]
     fn finds_who_made_the_file() {
         let src = |title: &str| parse_quality(&stream("addon\n1080p", title)).source;
-        assert_eq!(src("[SubsPlease] Kurogane Rite - 47 (1080p) [A1B2C3D4].mkv\n👤 300 💾 1.4 GB ⚙️ site").as_deref(), Some("SubsPlease"));
-        assert_eq!(src("Movie.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX\n👤 40 💾 6 GB ⚙️ site").as_deref(), Some("FLUX"));
+        assert_eq!(
+            src("[SubsPlease] Kurogane Rite - 47 (1080p) [A1B2C3D4].mkv\n👤 300 💾 1.4 GB ⚙️ site").as_deref(),
+            Some("SubsPlease")
+        );
+        assert_eq!(
+            src("Movie.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX\n👤 40 💾 6 GB ⚙️ site").as_deref(),
+            Some("FLUX")
+        );
         assert_eq!(src("Movie.2024.2160p.BluRay.x265-SPARKS[rartv]\n👤 9 ⚙️ site").as_deref(), Some("SPARKS"));
         assert_eq!(src("Movie (2024) [1080p] [WEBRip] [5.1] [site.MX]\n👤 900 💾 2 GB ⚙️ site").as_deref(), Some("site"));
         // No group in the name: the site it came from.
@@ -514,7 +520,10 @@ mod tests {
     fn cams_sink_to_the_bottom() {
         let ranked = rank_streams([
             ("a".into(), stream("addon 1080p", "Movie.2024.HDCAM.x264 👤 900")),
-            ("a".into(), Stream { content_id: Some("def".into()), ..stream("addon 720p", "Movie.2024.720p.WEB 👤 12") }),
+            (
+                "a".into(),
+                Stream { content_id: Some("def".into()), ..stream("addon 720p", "Movie.2024.720p.WEB 👤 12") },
+            ),
         ]);
         assert!(ranked[0].label.starts_with("720p"));
     }
@@ -523,25 +532,35 @@ mod tests {
     fn filters_hide_and_count() {
         let all = || {
             vec![
-                ("a".to_string(), Stream { content_id: Some("1".into()), ..stream("T 4k", "Movie.2160p.HC.x265 💾 30 GB") }),
-                ("a".to_string(), Stream { content_id: Some("2".into()), ..stream("T 1080p", "Movie.1080p.WEB 💾 4 GB") }),
+                (
+                    "a".to_string(),
+                    Stream { content_id: Some("1".into()), ..stream("T 4k", "Movie.2160p.HC.x265 💾 30 GB") },
+                ),
+                (
+                    "a".to_string(),
+                    Stream { content_id: Some("2".into()), ..stream("T 1080p", "Movie.1080p.WEB 💾 4 GB") },
+                ),
                 ("a".to_string(), Stream { content_id: Some("3".into()), ..stream("T 720p", "Movie.HDCAM.720p") }),
                 ("a".to_string(), Stream { content_id: Some("4".into()), ..stream("Direct", "Movie") }),
             ]
         };
-        let (kept, hidden) = rank_streams_filtered(all(), &StreamFilter { max_resolution: Some(1080), ..Default::default() });
+        let (kept, hidden) =
+            rank_streams_filtered(all(), &StreamFilter { max_resolution: Some(1080), ..Default::default() });
         assert_eq!((kept.len(), hidden), (3, 1));
 
-        let (kept, hidden) = rank_streams_filtered(all(), &StreamFilter { max_size_bytes: Some(10_000_000_000), ..Default::default() });
+        let (kept, hidden) =
+            rank_streams_filtered(all(), &StreamFilter { max_size_bytes: Some(10_000_000_000), ..Default::default() });
         assert_eq!((kept.len(), hidden), (3, 1));
 
         let (kept, _) = rank_streams_filtered(all(), &StreamFilter { hide_cam: true, ..Default::default() });
         assert!(kept.iter().all(|r| !r.quality.low_quality_source));
 
         // Whole words only: "hc" hides the HC release but not "Direct" etc.
-        let (kept, hidden) = rank_streams_filtered(all(), &StreamFilter { exclude_words: vec!["hc".into()], ..Default::default() });
+        let (kept, hidden) =
+            rank_streams_filtered(all(), &StreamFilter { exclude_words: vec!["hc".into()], ..Default::default() });
         assert_eq!((kept.len(), hidden), (3, 1));
-        let (_, hidden) = rank_streams_filtered(all(), &StreamFilter { exclude_words: vec!["ire".into()], ..Default::default() });
+        let (_, hidden) =
+            rank_streams_filtered(all(), &StreamFilter { exclude_words: vec!["ire".into()], ..Default::default() });
         assert_eq!(hidden, 0);
     }
 }
