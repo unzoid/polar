@@ -90,6 +90,17 @@ pub struct Settings {
     pub exclude_keywords: String,
     /// How the source list is sorted when it opens.
     pub source_sort: String,
+    /// Tag filters (e.g. "dv", "hdr", "remux") the source list turns on by
+    /// itself whenever some source has that tag.
+    pub source_auto_tags: Vec<String>,
+    /// Rank sources sharper than this screen below ones that match it.
+    pub prefer_screen_resolution: bool,
+
+    // --- Services ---
+    /// MDBList (mdblist.com) key: Rotten Tomatoes, Metacritic, Letterboxd and Trakt scores.
+    pub mdblist_key: Option<String>,
+    /// OMDb (omdbapi.com) key: Rotten Tomatoes and Metacritic scores.
+    pub omdb_key: Option<String>,
 
     // --- Subtitles ---
     /// "always": use the preferred subtitle language whenever there is one.
@@ -114,6 +125,14 @@ pub struct Settings {
     pub hide_episode_descriptions: bool,
     /// Where the app opens: "home", "library", "movies" or "series".
     pub start_page: String,
+    /// Play a title's trailer behind its page after a few seconds there.
+    pub trailer_autoplay: bool,
+    /// Those trailers start with sound.
+    pub trailer_sound: bool,
+    /// Where a card's IMDb rating sits: "poster" (on the art) or "below" it.
+    pub card_rating_position: String,
+    /// The Calendar section: upcoming episodes of your shows. Opt-in.
+    pub show_calendar: bool,
 }
 
 /// Subtitle appearance. Applies to every video; the timing offset (delay) is
@@ -195,6 +214,10 @@ impl Default for Settings {
             hide_cam: true,
             exclude_keywords: String::new(),
             source_sort: "best".into(),
+            source_auto_tags: Vec::new(),
+            prefer_screen_resolution: true,
+            mdblist_key: None,
+            omdb_key: None,
             subtitle_mode: "always".into(),
             accent_color: "#0A84FF".into(),
             theme: "dark".into(),
@@ -205,6 +228,10 @@ impl Default for Settings {
             hide_episode_thumbs: false,
             hide_episode_descriptions: false,
             start_page: "home".into(),
+            trailer_autoplay: true,
+            trailer_sound: false,
+            card_rating_position: "poster".into(),
+            show_calendar: false,
         }
     }
 }

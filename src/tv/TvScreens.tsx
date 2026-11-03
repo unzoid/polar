@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Desktop, Speed } from "../components/icons";
+import { Speed } from "../components/icons";
 import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../lib/recentSearches";
 import { playSound } from "./sounds";
 import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/queries";
@@ -10,7 +10,6 @@ import {
   shelfKey,
   todaysShelves,
   trendingPicks,
-  useLibraryRecommendations,
   useSeeds,
   useShownAbove,
   useTrending,
@@ -22,9 +21,12 @@ import { useBack, usePageActive } from "./shell";
 import { focusWhenReady } from "./spatial";
 import { usePlaylistItem } from "../components/Playlists";
 import { usePlaylists, type PlaylistItem } from "../lib/playlists";
+import { localStream, useDownloads } from "../lib/downloads";
+import { episodeCode } from "../lib/format";
+import { useRouter } from "../lib/router";
 import { TvBrowse, TvCard, TvContinueRail, TvItemsRail, TvRail, TvShelfRail, type RailRow } from "./TvRails";
-import { setTvMode } from "./tvMode";
 import { TvKeyboard } from "./TvKeyboard";
+import { byDay, dayLabel, useCalendar } from "../lib/calendar";
 
 const NO_TITLES: MetaPreview[] = [];
 
@@ -87,14 +89,17 @@ export function TvDiscover({ type }: { type: ContentType }) {
   return <TvBrowse rows={rows} />;
 }
 
-/** Library: what you've saved, what you've watched, then titles like them — as rails under the stage. */
+/** Library: your downloads, what you've saved, what you've watched and your playlists, as rails under the stage. */
 export function TvLibrary() {
   const { data: saved } = useLibrary();
   const { data: history } = useWatchHistory();
+  const { data: downloads } = useDownloads();
   const playlists = usePlaylists();
-  const { forYou } = useLibraryRecommendations();
+  const { navigate } = useRouter();
+  // Only what's here to watch: a download still coming down can't play yet.
+  const ready = (downloads ?? []).filter((d) => d.state === "done");
 
-  if (saved?.length === 0 && history?.length === 0 && playlists.length === 0) {
+  if (saved?.length === 0 && history?.length === 0 && playlists.length === 0 && !ready.length) {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Library</h1>
@@ -104,6 +109,23 @@ export function TvLibrary() {
   }
 
   const rows: RailRow[] = [
+    {
+      key: "downloads",
+      render: () =>
+        ready.length ? (
+          <TvRail title="Downloads">
+            {ready.map((d) => (
+              <TvCard
+                key={d.id}
+                item={{ id: d.metaId, type: d.type, name: d.name, poster: d.poster, background: d.thumbnail ?? d.background, logo: d.logo }}
+                shape="landscape"
+                chip={[d.season != null && d.episode != null ? episodeCode(d.season, d.episode) : null, d.quality].filter(Boolean).join(" · ")}
+                onOpen={() => navigate({ name: "player", type: d.type, metaId: d.metaId, videoId: d.id, stream: localStream(d) })}
+              />
+            ))}
+          </TvRail>
+        ) : null,
+    },
     { key: "saved", render: () => <TvItemsRail title="Saved" items={saved} shape="poster" /> },
     {
       key: "watched",
@@ -128,8 +150,6 @@ export function TvLibrary() {
           </TvRail>
         ),
       })),
-    // One row of suggestions, last: the library stays about your titles.
-    { key: "for-you", render: () => <TvItemsRail title="More Like Your Library" items={forYou} shape="poster" /> },
   ];
   return <TvBrowse rows={rows} />;
 }
@@ -302,15 +322,42 @@ function TvGenreResults({ genre }: { genre: string }) {
 }
 const NO_IDS = new Set<string>();
 
-/** Settings are a desk job: they stay in desktop mode. */
-export function TvSettingsNote() {
-  return (
-    <div className="tv-note">
-      <h1 className="tv-heading">Settings</h1>
-      <p className="tv-empty">Settings are available in desktop mode.</p>
-      <button className="tv-pill" data-nav-default onClick={() => setTvMode(false)}>
-        <Desktop size={26} /> Switch to Desktop Mode
-      </button>
-    </div>
-  );
+/** The Calendar (when it's on): one rail per day, last week first, then what's coming. */
+export function TvCalendar() {
+  const { entries, loading, showCount } = useCalendar();
+  const days = useMemo(() => byDay(entries), [entries]);
+
+  if (!loading && !days.length) {
+    return (
+      <div className="tv-note">
+        <h1 className="tv-heading">Calendar</h1>
+        <p className="tv-empty">
+          {showCount === 0
+            ? "Add shows to your library, or start watching one, and their new episodes show up here."
+            : "Nothing aired in the last week, and nothing's scheduled yet for your shows."}
+        </p>
+      </div>
+    );
+  }
+
+  const rows: RailRow[] = days.map((d) => {
+    const label = dayLabel(d.day);
+    return {
+      key: String(d.day),
+      render: () => (
+        <TvRail title={`${label.name} · ${label.date}`}>
+          {d.entries.map(({ show, video }) => (
+            <TvCard
+              key={video.id}
+              item={show}
+              shape="landscape"
+              kicker={label.past ? "Aired" : label.today ? "Today" : "Coming up"}
+              chip={`S${video.season}, E${video.episode}`}
+            />
+          ))}
+        </TvRail>
+      ),
+    };
+  });
+  return <TvBrowse rows={rows} />;
 }

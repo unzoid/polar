@@ -1,19 +1,22 @@
 import { useEffect } from "react";
 import { MotionConfig } from "motion/react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { usePrefs } from "./lib/prefs";
+import { getPrefs, usePrefs } from "./lib/prefs";
 import type { Settings as SettingsT } from "./lib/types";
 import { NavBar } from "./components/NavBar";
 import { PlayerLayer, usePlayerLayer } from "./components/PlayerLayer";
 import { useSettings } from "./lib/queries";
-import { RouterProvider, useRouter, type Route } from "./lib/router";
+import { rootTab, RouterProvider, useRouter, type Route } from "./lib/router";
 import { focusSearch } from "./lib/searchQuery";
 import { Home } from "./screens/Home";
 import { Discover } from "./screens/Discover";
 import { Library } from "./screens/Library";
+import { Calendar } from "./screens/Calendar";
 import { Search } from "./screens/Search";
 import { Settings } from "./screens/Settings";
 import { Detail } from "./screens/Detail";
+import { Anime, AnimeBrowse, AnimeSchedule } from "./screens/Anime";
+import { AnimeDetail } from "./screens/AnimeDetail";
 import { AuthScreen } from "./screens/account/AuthScreen";
 import { OnboardingScreen } from "./screens/account/OnboardingScreen";
 import { ProfilesScreen } from "./screens/account/ProfilesScreen";
@@ -23,6 +26,8 @@ import { ControllerToast } from "./tv/TvChrome";
 import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
 import { actionFor } from "./lib/keybinds";
 import { SettingsOverlay } from "./components/SettingsOverlay";
+import { CardMenuHost } from "./components/CardMenu";
+import { TrailerHost } from "./components/Trailer";
 import { isSettingsOpen } from "./lib/settingsOverlay";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
@@ -35,12 +40,22 @@ function Screen({ route }: { route: Route }) {
       return <Discover type={route.type} />;
     case "library":
       return <Library />;
+    case "calendar":
+      return <Calendar />;
     case "search":
       return <Search />;
     case "settings":
       return <Settings initialPage={route.page} />;
     case "detail":
       return <Detail type={route.type} id={route.id} preview={route.preview} />;
+    case "anime":
+      return <Anime />;
+    case "anime-detail":
+      return <AnimeDetail id={route.id} preview={route.preview} />;
+    case "anime-schedule":
+      return <AnimeSchedule />;
+    case "anime-browse":
+      return <AnimeBrowse />;
     case "player":
       return null; // rendered as a full-window layer below
   }
@@ -107,7 +122,15 @@ function MainApp() {
   }, [settings]);
 
   // Interface size is this screen's, so it's a device pref.
-  const { uiScale } = usePrefs();
+  const { uiScale, animeEnabled } = usePrefs();
+
+  // Anime turned off (here or on another device) while you're in it: nothing to stay on.
+  const { stack, tab } = useRouter();
+  const inAnime = rootTab(stack).name === "anime";
+  useEffect(() => {
+    if (inAnime && !animeEnabled) tab({ name: "home" });
+  }, [inAnime, animeEnabled, tab]);
+
   useEffect(() => {
     void getCurrentWebview()
       .setZoom(uiScale > 0 ? uiScale : 1)
@@ -117,6 +140,21 @@ function MainApp() {
 
   // Look for a new version shortly after launch, then every few hours (TV mode too).
   useEffect(() => startUpdateChecks(), []);
+
+  // The webview's own right-click menu (Save image as, Copy image link…) has no
+  // place in the app. Titles open their own options instead (CardMenu); text
+  // fields and selected text keep the native one for copy and paste.
+  useEffect(() => {
+    const onMenu = (e: MouseEvent) => {
+      if (e.defaultPrevented) return;
+      const t = e.target instanceof Element ? e.target : null;
+      if (t?.closest("input, textarea, [contenteditable=''], [contenteditable='true']")) return;
+      if (window.getSelection()?.toString().trim()) return;
+      e.preventDefault();
+    };
+    document.addEventListener("contextmenu", onMenu);
+    return () => document.removeEventListener("contextmenu", onMenu);
+  }, []);
 
   // Switching modes works from anywhere, the player included (Settings → Controls to rebind).
   useEffect(() => {
@@ -146,6 +184,8 @@ function startRoute(page: SettingsT["startPage"] | undefined): Route {
       return { name: "discover", type: "movie" };
     case "series":
       return { name: "discover", type: "series" };
+    case "anime":
+      return getPrefs().animeEnabled ? { name: "anime" } : { name: "home" };
     default:
       return { name: "home" };
   }
@@ -180,6 +220,7 @@ function DesktopApp() {
       data-card-titles={settings?.showCardTitles ?? true}
       data-card-details={settings?.showCardDetails ?? true}
       data-card-ratings={settings?.showCardRatings ?? false}
+      data-rating-position={settings?.cardRatingPosition ?? "poster"}
       data-rating-colors={settings?.ratingColors ?? false}
       data-player-leaving={leaving}
     >
@@ -202,6 +243,8 @@ function DesktopApp() {
       <WhatsNewSheet />
       <PlayerLayer player={player} leaving={leaving} />
       <SettingsOverlay />
+      {!playing && <CardMenuHost />}
+      <TrailerHost />
     </div>
   );
 }

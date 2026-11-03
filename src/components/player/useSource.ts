@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { useProgress, useStreams } from "../../lib/queries";
+import { useProgress, useSettings, useStreams } from "../../lib/queries";
+import { autoPickOrder } from "../../lib/sources";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
 
 export type SourceState =
@@ -31,6 +32,7 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
 
   const needsRanking = !picked && saved !== undefined && !saved?.stream;
   const streams = useStreams(type, needsRanking ? videoId : undefined);
+  const { data: settings } = useSettings();
 
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   useEffect(() => {
@@ -39,16 +41,16 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
     if (saved === undefined) return;
     if (saved?.stream) return setCandidates([{ stream: saved.stream }]);
     if (streams.data) {
+      // Best match for this screen, narrowed by the source preferences in Settings when they leave something.
       setCandidates(
-        streams.data.streams
-          .filter((s) => !s.quality.lowQualitySource)
+        autoPickOrder(streams.data.streams, settings)
           .slice(0, 5)
           .map((s) => ({ stream: s.stream, label: s.label })),
       );
     } else if (streams.isError) {
       setCandidates([]);
     }
-  }, [candidates, picked, saved, streams.data, streams.isError]);
+  }, [candidates, picked, saved, streams.data, streams.isError, settings]);
 
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<SourceState>({ status: "searching" });

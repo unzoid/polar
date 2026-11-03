@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import { altIdsFor } from "./anime/altIds";
+import { isKitsuId, kitsuMeta } from "./anime/kitsu";
 import type {
   ContentType,
+  ExternalRatings,
   InstalledAddon,
   LibraryItem,
   Meta,
@@ -36,9 +39,10 @@ export const api = {
   recommend: (type: ContentType, id: string) => invoke<MetaPreview[]>("recommend", { ty: type, id }),
   search: (query: string) =>
     invoke<{ movies: MetaPreview[]; series: MetaPreview[] }>("search", { query }),
-  meta: (type: ContentType, id: string) => invoke<Meta>("meta", { ty: type, id }),
+  // Anime with no IMDb page carry a Kitsu id; no metadata addon serves those, so they're built from AniList.
+  meta: (type: ContentType, id: string) => (isKitsuId(id) ? kitsuMeta(type, id) : invoke<Meta>("meta", { ty: type, id })),
   streams: (type: ContentType, videoId: string) =>
-    invoke<StreamsResult>("streams", { ty: type, videoId }),
+    invoke<StreamsResult>("streams", { ty: type, videoId, altIds: altIdsFor(videoId) ?? null }),
   resolveStream: (stream: Stream) => invoke<Playable>("resolve_stream", { stream }),
   subtitles: (type: ContentType, videoId: string) =>
     invoke<SubtitleOption[]>("subtitles", { ty: type, videoId }),
@@ -47,6 +51,8 @@ export const api = {
     invoke<SeekTrack | null>("seek_previews", { videoId, durationMs }),
   skipSegments: (videoId: string) => invoke<SkipSegments>("skip_segments", { videoId }),
   seekrValidate: (key: string) => invoke<string | null>("seekr_validate", { key }),
+  /** Rotten Tomatoes, Metacritic, Letterboxd… (empty without a ratings key in Settings → Services). */
+  ratings: (type: ContentType, id: string) => invoke<ExternalRatings>("ratings", { ty: type, id }),
 
   addons: () => invoke<InstalledAddon[]>("addons_list"),
   installAddon: (url: string) => invoke<InstalledAddon>("addon_install", { url }).then(changed),

@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from "./icons";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { EdgeBlur } from "./EdgeBlur";
 
 /**
  * A horizontal shelf. Native scrolling (wheel, trackpad momentum, scroll-snap)
@@ -49,12 +50,14 @@ export function Row({
       )}
       <div className="row-viewport" data-start={edges.start} data-end={edges.end}>
         <button className="row-paddle" data-dir="prev" onClick={() => page(-1)} aria-label="Scroll left" tabIndex={-1}>
+          <EdgeBlur />
           <ChevronLeft size={22} />
         </button>
         <div className="row-scroller" ref={scroller}>
           {children}
         </div>
         <button className="row-paddle" data-dir="next" onClick={() => page(1)} aria-label="Scroll right" tabIndex={-1}>
+          <EdgeBlur />
           <ChevronRight size={22} />
         </button>
       </div>

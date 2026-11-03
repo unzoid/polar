@@ -53,7 +53,9 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding-left: calc(var(--gutter) - 0.5rem);
+  /* The wordmark's ink lines up with the page's content edge (the hero card,
+     row titles): the brand button pads its glyphs by 0.5rem. */
+  padding-left: calc(var(--content-start) - 0.5rem);
 }
 .navbar::before {
   content: "";
@@ -63,20 +65,70 @@
   background: linear-gradient(to bottom, rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.15) 55%, transparent);
   pointer-events: none;
 }
-.navbar-bg {
+/* Once the page scrolls under it, the bar is a progressive blur, as on iOS:
+   what passes beneath is most out of focus at the top edge and sharpens to
+   nothing a little below the bar, with no solid fill and no hard line.
+   Stacked layers, each blurrier than the last and masked to a thinner band
+   at the top; a light tint keeps the tabs readable over bright art. */
+.navbar-fade {
   position: absolute;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: calc(var(--nav-h) + 2.75rem);
   z-index: -1;
-  background: var(--bg);
-  box-shadow: 0 1px 0 var(--hairline);
-  opacity: 0;
-  transition: opacity var(--dur-base) ease;
   pointer-events: none;
 }
-.navbar[data-scrolled="true"] .navbar-bg {
+/* The fade is on each layer, not the container: opacity on a parent would
+   cut the layers' blur off from the page behind it. */
+.navbar-fade::before,
+.navbar-fade i {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity var(--dur-base) ease;
+}
+.navbar-fade::before {
+  content: "";
+  background: rgb(0 0 0 / 0.5);
+}
+/* The shape is a wide ellipse hanging from the top edge, not a straight
+   band: the blur is deepest in the middle and its lower edge curves up
+   toward the corners, like the soft cut-out around a phone's status bar. */
+.navbar-fade::before,
+.navbar-fade i {
+  --fade: radial-gradient(ellipse 125% 100% at 50% 0%, #000 var(--solid), transparent var(--end));
+  -webkit-mask-image: var(--fade);
+  mask-image: var(--fade);
+}
+.navbar-fade::before {
+  --solid: 0%;
+  --end: 92%;
+}
+.navbar[data-scrolled="true"] .navbar-fade::before,
+.navbar[data-scrolled="true"] .navbar-fade i {
   opacity: 1;
 }
+.navbar-fade i:nth-child(1) {
+  backdrop-filter: blur(2px);
+  --solid: 45%;
+  --end: 100%;
+}
+.navbar-fade i:nth-child(2) {
+  backdrop-filter: blur(6px);
+  --solid: 32%;
+  --end: 82%;
+}
+.navbar-fade i:nth-child(3) {
+  backdrop-filter: blur(14px);
+  --solid: 20%;
+  --end: 64%;
+}
+.navbar-fade i:nth-child(4) {
+  backdrop-filter: blur(28px);
+  --solid: 0%;
+  --end: 44%;
+}
 .navbar-brand {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 0.625rem;
@@ -87,16 +139,27 @@
   font-weight: 750;
   letter-spacing: -0.02em;
 }
+/* The tabs give way first: when the bar runs out of room they scroll
+   sideways instead of pushing the actions and window buttons off-screen. */
 .navbar-links {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.navbar-links::-webkit-scrollbar {
+  display: none;
 }
 /* Netflix-style pills: the current section sits on a soft grey pill, and
    hovering any other link previews a fainter one. */
 .navbar-link {
+  flex: none;
   height: 40px;
   padding: 0 1.125rem;
+  white-space: nowrap;
+  touch-action: manipulation;
   border-radius: var(--r-pill);
   font-size: 1rem;
   font-weight: 500;
@@ -112,6 +175,7 @@
   background: rgb(255 255 255 / 0.2);
 }
 .navbar-actions {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 1.5rem;
@@ -120,6 +184,7 @@
 }
 /* Right side: plain white icons, Netflix-style — no chrome around them. */
 .navbar-icon {
+  flex: none;
   display: grid;
   place-items: center;
   width: 40px;
@@ -129,8 +194,25 @@
     transform var(--dur-press) var(--ease-out),
     opacity var(--dur-fast) ease;
 }
+/* Hidden, Back folds away to the left so the wordmark sits at the edge; when
+   there's somewhere to go back to it slides in and the wordmark makes room.
+   One element in the bar, so animating its margin is cheap. */
 .navbar-back {
   margin-right: 0.25rem;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    opacity var(--dur-fast) ease,
+    margin-left 220ms var(--ease-out);
+}
+.navbar-back[data-shown="false"] {
+  margin-left: calc(-40px - 0.5rem);
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .navbar-back {
+    transition: opacity var(--dur-fast) ease;
+  }
 }
 @media (hover: hover) and (pointer: fine) {
   .navbar-link:not([aria-current="page"]):hover {
@@ -147,10 +229,16 @@
    full width; closed, it's clipped down to the icon's circle. Opening moves
    only clip-path and transform (no layout), and is instant from the keyboard. */
 .navbar-search {
+  /* Scales with the window. Closed, only the icon's 40px takes up room (the
+     negative margin pulls the clipped-away rest out of the layout), so it
+     never squeezes the bar; the field opens leftwards over the free space. */
+  --search-w: clamp(200px, 24vw, 300px);
   position: relative;
+  flex: none;
   display: flex;
   align-items: center;
-  width: 300px;
+  width: var(--search-w);
+  margin-left: calc(40px - var(--search-w));
   height: 40px;
   padding-left: 40px;
   border-radius: var(--r-pill);
@@ -163,6 +251,7 @@
     box-shadow 160ms ease;
 }
 .navbar-search[data-open="true"] {
+  margin-left: 0;
   clip-path: inset(0 round 20px);
   background: rgb(0 0 0 / 0.55);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
@@ -177,7 +266,7 @@
   width: 40px;
   height: 40px;
   color: var(--text);
-  transform: translateX(260px);
+  transform: translateX(calc(var(--search-w) - 40px));
   transition:
     transform 220ms var(--ease-out),
     opacity var(--dur-fast) ease;
@@ -241,6 +330,75 @@
   width: 40px;
   height: 36px;
   border-radius: 10px;
+}
+
+/* --- Smaller windows. The bar tightens in steps instead of overflowing:
+   spacing first, then the secondary buttons, then the tabs scroll. */
+@media (max-width: 1100px) {
+  .navbar-brand {
+    margin-right: 0.75rem;
+  }
+  .navbar-link {
+    padding: 0 0.875rem;
+  }
+  .navbar-actions {
+    gap: 0.75rem;
+    margin-right: 0.75rem;
+  }
+}
+@media (max-width: 860px) {
+  .navbar {
+    padding-left: 0.75rem;
+  }
+  .navbar-brand {
+    padding: 0 0.25rem;
+    margin-right: 0.25rem;
+  }
+  .navbar-link {
+    height: 36px;
+    padding: 0 0.75rem;
+    font-size: 0.9375rem;
+  }
+  .navbar-actions {
+    gap: 0.25rem;
+    margin-right: 0.5rem;
+  }
+  .navbar-icon,
+  .navbar-search-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .navbar-search {
+    --search-w: clamp(180px, 34vw, 260px);
+    height: 36px;
+    padding-left: 36px;
+    margin-left: calc(36px - var(--search-w));
+    clip-path: inset(0 0 0 calc(100% - 36px) round 18px);
+  }
+  .navbar-search[data-open="true"] {
+    margin-left: 0;
+    clip-path: inset(0 round 18px);
+  }
+  .navbar-search-icon {
+    transform: translateX(calc(var(--search-w) - 36px));
+  }
+  .navbar-search[data-open="true"] .navbar-search-icon {
+    transform: none;
+  }
+  .navbar .window-controls {
+    margin-right: 0.25rem;
+    padding-left: 0.375rem;
+  }
+  .navbar .window-controls button {
+    width: 34px;
+  }
+}
+@media (max-width: 700px) {
+  /* The wordmark and the idle Back slot make room for the tabs. */
+  .navbar-brand,
+  .navbar-back[data-shown="false"] {
+    display: none;
+  }
 }
 
 .window-controls {
@@ -364,4 +522,12 @@
   .page-pushed {
     animation-duration: 150ms;
   }
+}
+
+.brand-logo {
+  display: block;
+  height: 38px;
+  width: auto;
+  user-select: none;
+  pointer-events: none;
 }

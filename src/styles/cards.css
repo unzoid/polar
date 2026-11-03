@@ -303,37 +303,99 @@
   top: 14px;
   bottom: 56px;
   z-index: 2;
-  width: 44px;
+  width: 72px;
   display: grid;
   place-items: center;
   color: var(--text);
-  opacity: 0;
-  transition: opacity var(--dur-fast) ease;
+  /* Shown through a variable, never opacity on the button itself: opacity
+     on a parent would cut the edge blur's layers off from the cards behind. */
+  --edge-shown: 0;
+}
+/* A quiet version: half the radius, a faint tint, an ellipse that's tallest
+   at the middle of the edge and fades before the corners of the art. */
+.row-paddle {
+  --edge-strength: 0.5;
+  --edge-tint: 0.18;
 }
 .row-paddle[data-dir="prev"] {
   left: 0;
-  background: linear-gradient(to right, rgb(10 10 10 / 0.8), transparent);
+  --edge-at: ellipse 100% 65% at 0% 50%;
 }
 .row-paddle[data-dir="next"] {
   right: 0;
-  background: linear-gradient(to left, rgb(10 10 10 / 0.8), transparent);
+  --edge-at: ellipse 100% 65% at 100% 50%;
 }
 /* Paging a shelf: the chevron gives under the press, like the player's glyphs. */
 .row-paddle svg {
-  transition: transform var(--dur-press) var(--ease-out);
+  position: relative;
+  opacity: var(--edge-shown);
+  transition:
+    opacity var(--dur-fast) ease,
+    transform var(--dur-press) var(--ease-out);
 }
 .row-paddle:active svg {
   transform: scale(0.92);
 }
 @media (hover: hover) and (pointer: fine) {
   .row-viewport:hover .row-paddle {
-    opacity: 1;
+    --edge-shown: 1;
   }
 }
 .row-viewport[data-start="true"] .row-paddle[data-dir="prev"],
 .row-viewport[data-end="true"] .row-paddle[data-dir="next"] {
-  opacity: 0;
+  --edge-shown: 0;
   pointer-events: none;
+}
+
+/* --- Edge blur: the navbar's progressive blur, pointed any way. Stacked
+   layers, each blurrier than the last and masked to a thinner band at the
+   edge named by --edge-at, so what's beneath goes softly out of focus with
+   no grey wash and no hard line. --edge-shown fades every layer at once. */
+.edge-blur {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* Like the navbar's, each band is an ellipse hanging from the edge, not a
+   straight strip: deepest at the middle of the edge, curving away toward the
+   corners, so there's no square of blur. --edge-at is the ellipse's centre
+   and size (e.g. "ellipse 100% 70% at 0% 50%" for a left edge); --edge-strength
+   scales every layer's radius for a subtler variant. */
+.edge-blur::before,
+.edge-blur i {
+  position: absolute;
+  inset: 0;
+  opacity: var(--edge-shown, 1);
+  transition: opacity var(--dur-fast) ease;
+  --fade: radial-gradient(var(--edge-at, ellipse 125% 100% at 50% 100%), #000 var(--solid), transparent var(--end));
+  -webkit-mask-image: var(--fade);
+  mask-image: var(--fade);
+}
+.edge-blur::before {
+  content: "";
+  background: rgb(0 0 0 / var(--edge-tint, 0.3));
+  --solid: 0%;
+  --end: 92%;
+}
+.edge-blur i:nth-child(1) {
+  backdrop-filter: blur(calc(2px * var(--edge-strength, 1)));
+  --solid: 45%;
+  --end: 100%;
+}
+.edge-blur i:nth-child(2) {
+  backdrop-filter: blur(calc(6px * var(--edge-strength, 1)));
+  --solid: 32%;
+  --end: 82%;
+}
+.edge-blur i:nth-child(3) {
+  backdrop-filter: blur(calc(14px * var(--edge-strength, 1)));
+  --solid: 20%;
+  --end: 64%;
+}
+.edge-blur i:nth-child(4) {
+  backdrop-filter: blur(calc(28px * var(--edge-strength, 1)));
+  --solid: 0%;
+  --end: 44%;
 }
 
 /* ==========================================================================
@@ -472,6 +534,49 @@
   padding: 0 2px;
   font-size: 0.75rem;
 }
+/* Settings → Browsing → Rating position: only the badge in the chosen spot shows. */
+.app[data-rating-position="poster"] .card-rating[data-placement="below"],
+.app:not([data-rating-position="poster"]) .card-rating[data-placement="poster"] {
+  display: none !important;
+}
+/* On the poster: top-right corner, as anime scores are. */
+.app[data-card-ratings="true"] .card-rating[data-placement="poster"] {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 1;
+  min-height: 0;
+  padding: 0;
+  font-size: 0.6875rem;
+  pointer-events: none;
+}
+
+/* A score as a star and a number: IMDb ratings and AniList scores alike. */
+.card-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  font-weight: 650;
+  line-height: 1;
+  color: var(--text-2);
+}
+.card-score svg {
+  width: 1.1em;
+  height: 1.1em;
+  color: var(--score-tone, #f5c518);
+}
+/* Over artwork: on a small dark pill so it reads over anything. */
+.card-score-art {
+  padding: 0.36em 0.5em;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.62);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  pointer-events: none;
+}
+/* Settings → Browsing → Colour-code IMDb ratings: the star takes the band's colour. */
+.app[data-rating-colors="true"] .card-score[data-tone="good"] { --score-tone: #6fcf86; }
+.app[data-rating-colors="true"] .card-score[data-tone="low"] { --score-tone: #e8786e; }
 .card-title {
   font-weight: 600;
   white-space: nowrap;
@@ -551,4 +656,148 @@
     animation: none;
     transform: none;
   }
+}
+
+/* --- A title's right-click menu (CardMenu.tsx). */
+.ctx-menu {
+  min-width: 230px;
+  max-width: 320px;
+  padding: 0.3125rem;
+  border-radius: var(--r-md);
+  background: var(--glass-heavy);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: 0 0 0 1px var(--glass-edge), var(--glass-highlight), 0 18px 48px rgb(0 0 0 / 0.5);
+  font-family: var(--font);
+  color: var(--text);
+  outline: none;
+}
+.ctx-menu-head {
+  display: grid;
+  gap: 0.0625rem;
+  padding: 0.375rem 0.625rem 0.5rem;
+}
+.ctx-menu-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.ctx-menu-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.ctx-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--r-xs);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+.ctx-menu-item > span:not(.ctx-menu-check, .ctx-menu-meta) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctx-menu-item > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  opacity: 0.85;
+}
+.ctx-menu-item[data-highlighted],
+.ctx-menu-item[data-popup-open] {
+  background: rgb(255 255 255 / 0.1);
+  color: var(--text);
+}
+.ctx-menu-item[data-disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+.ctx-menu-item > .ctx-menu-chevron {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  opacity: 0.6;
+}
+.ctx-menu-check {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+}
+.ctx-menu-check svg {
+  width: 15px;
+  height: 15px;
+}
+.ctx-menu-meta {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.ctx-menu-sep {
+  height: 1px;
+  margin: 0.3125rem 0.375rem;
+  background: var(--hairline);
+}
+.ctx-menu-sep:first-child,
+.ctx-menu-sep + .ctx-menu-sep {
+  display: none;
+}
+
+/* --- Trailer over the app (Trailer.tsx). */
+.trailer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--nav-h) * 0.6) var(--gutter) var(--gutter);
+  background: rgb(0 0 0 / 0.78);
+  backdrop-filter: blur(14px);
+  animation: trailer-in 220ms var(--ease-out);
+}
+@keyframes trailer-in {
+  from {
+    opacity: 0;
+  }
+}
+.trailer-box {
+  display: grid;
+  gap: 0.875rem;
+  width: min(100%, calc((100vh - var(--nav-h) * 0.6 - var(--gutter) - 4rem) * 16 / 9), 1400px);
+}
+.trailer-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: var(--r-md);
+  background: #000;
+  box-shadow: 0 30px 80px -20px rgb(0 0 0 / 0.9);
+}
+.trailer-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.trailer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

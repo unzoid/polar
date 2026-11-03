@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, Edit, Episodes, Play, PlaylistIcon, Plus, Reset, Sources } from "../components/icons";
+import { useBackdropTrailer } from "../components/BackdropTrailer";
+import { TitleDetails } from "../components/TitleDetails";
+import { Info } from "../components/icons";
 import { addToPlaylist, createPlaylist, removeFromPlaylist, renamePlaylist, usePlaylists } from "../lib/playlists";
-import { Img } from "../components/Img";
+import { TitleLogo } from "../components/TitleLogo";
 import { ProgressBar } from "../components/PosterCard";
 import { Still } from "../components/StillPlaceholder";
 import { StreamList } from "../components/StreamList";
@@ -19,6 +22,7 @@ import { Facts, TvBackdrop, titleFacts } from "./TvStage";
 
 type Panel =
   | { kind: "episodes" }
+  | { kind: "details" }
   | { kind: "sources"; videoId: string; subtitle: string }
   | { kind: "playlists" }
   /** Name a playlist: rename `playlistId`, or create one holding the title. */
@@ -41,6 +45,8 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
 
   const { data: settings } = useSettings();
   const autoPick = settings?.autoPickSource ?? true;
+  // The trailer behind the art, while nothing's open over the page.
+  const trailer = useBackdropTrailer(meta?.trailerYtId, { active: active && panels.length === 0 });
 
   /** Play now, or (auto-pick off, nothing to resume) choose a source first. */
   const play = (videoId: string, subtitle: string, opts: { stream?: RankedStream; resumable?: boolean } = {}) => {
@@ -61,11 +67,13 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
   }
 
   return (
-    <div className="tv-detail">
-      <TvBackdrop src={shown.background} className="tv-detail-art" />
+    <div className="tv-detail" data-trailer={trailer.visible}>
+      <TvBackdrop src={shown.background} className="tv-detail-art">
+        {trailer.node}
+      </TvBackdrop>
       <div className="tv-detail-body">
         {shown.logo ? (
-          <Img src={shown.logo} alt={shown.name} className="tv-detail-logo" loading="eager" />
+          <TitleLogo src={shown.logo} alt={shown.name} className="tv-detail-logo" loading="eager" />
         ) : (
           <h1 className="tv-detail-title">{shown.name}</h1>
         )}
@@ -90,6 +98,8 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
             onPlay={(v, resumable) => play(v.id, episodeLine(v), { resumable })}
             onSources={(v) => push({ kind: "sources", videoId: v.id, subtitle: episodeLine(v) })}
           />
+        ) : p.kind === "details" && meta ? (
+          <DetailsPanel key={i} meta={meta} />
         ) : p.kind === "playlists" ? (
           <PlaylistsPanel
             key={i}
@@ -151,6 +161,7 @@ function Actions({
         disabled={!videoId}
         onClick={() => videoId && push({ kind: "sources", videoId, subtitle })}
       />
+      {meta && <ActionPill icon={<Info size={26} />} label="Details" onClick={() => push({ kind: "details" })} />}
       <ActionPill
         icon={inLibrary ? <Check size={26} /> : <Plus size={26} />}
         label={inLibrary ? "In Library" : "Add to Library"}
@@ -368,7 +379,7 @@ function EpisodesPanel({
   return (
     <div className="tv-panel tv-episodes" ref={ref} data-nav-scope role="dialog" aria-label="Episodes">
       <aside className="tv-episodes-side">
-        {meta.logo ? <Img src={meta.logo} alt={meta.name} className="tv-panel-logo" /> : <h2 className="tv-panel-title">{meta.name}</h2>}
+        {meta.logo ? <TitleLogo src={meta.logo} alt={meta.name} className="tv-panel-logo" /> : <h2 className="tv-panel-title">{meta.name}</h2>}
         <div className="tv-seasons" ref={seasonList} data-nav-scroll="center" data-nav-memory data-nav-prefer-entry>
           {seasons.map((s) => (
             <button
@@ -438,6 +449,38 @@ function EpisodesPanel({
   );
 }
 
+/** Cast, scores and the facts, full screen. The links out are buttons like any other. */
+function DetailsPanel({ meta }: { meta: Meta }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(ref);
+  return (
+    <div className="tv-panel tv-sources tv-details" ref={ref} data-nav-scope role="dialog" aria-label="Details">
+      <header className="tv-sources-head">
+        <h2 className="tv-heading">{meta.name}</h2>
+        <p className="tv-sources-sub">Details</p>
+      </header>
+      {/* Focusable, so the arrows scroll it even where there's nothing to press. */}
+      <div
+        className="tv-scroll tv-sources-list tv-details-body"
+        data-nav-scroll
+        tabIndex={0}
+        data-nav-default
+        onKeyDown={(e) => {
+          // On the page itself, up and down read on; at the end, down reaches the links.
+          if (e.target !== e.currentTarget || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
+          const el = e.currentTarget;
+          const down = e.key === "ArrowDown";
+          if (down ? el.scrollTop + el.clientHeight >= el.scrollHeight - 4 : el.scrollTop <= 0) return;
+          e.preventDefault();
+          el.scrollBy({ top: (down ? 1 : -1) * el.clientHeight * 0.4, behavior: "smooth" });
+        }}
+      >
+        <TitleDetails meta={meta} links={false} />
+      </div>
+    </div>
+  );
+}
+
 function SourcesPanel({
   type,
   videoId,
@@ -458,7 +501,7 @@ function SourcesPanel({
         <p className="tv-sources-sub">{subtitle}</p>
       </header>
       <div className="tv-scroll tv-sources-list" data-nav-scroll="center">
-        <StreamList type={type} videoId={videoId} onPick={onPick} />
+        <StreamList type={type} videoId={videoId} onPick={onPick} tv />
       </div>
     </div>
   );

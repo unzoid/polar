@@ -46,6 +46,18 @@ export const useStreams = (type: ContentType, videoId: string | undefined) =>
     staleTime: 10 * 60_000,
   });
 
+/** Scores from the ratings services, once a key is set (re-asks when one is). */
+export function useRatings(type: ContentType, id: string) {
+  const { data: settings } = useSettings();
+  const keyed = !!(settings?.mdblistKey?.trim() || settings?.omdbKey?.trim());
+  return useQuery({
+    queryKey: ["ratings", type, id, settings?.mdblistKey ?? "", settings?.omdbKey ?? ""],
+    queryFn: () => api.ratings(type, id),
+    enabled: keyed && id.startsWith("tt"),
+    staleTime: 6 * 60 * 60_000,
+  });
+}
+
 export const useProgress = (metaId: string) =>
   useQuery({ queryKey: keys.progress(metaId), queryFn: () => api.progressFor(metaId), staleTime: 0 });
 

@@ -16,6 +16,8 @@ export const springs = {
   ui: { type: "spring", bounce: 0, duration: 0.4 },
   /** Sheets opened by a button press — no momentum, so no bounce. */
   sheet: { type: "spring", bounce: 0, duration: 0.35 },
+  /** A step settling into place (sign-in): a hint of overshoot, nothing more. */
+  settle: { type: "spring", bounce: 0.15, duration: 0.45 },
 } satisfies Record<string, Transition>;
 
 /**

@@ -368,15 +368,20 @@
   scroll-padding-inline-start: var(--tv-gutter);
 }
 /* IMDb badges sit just under the posters; the rail makes room for them. */
-.tv[data-card-ratings="true"] .tv-rail-track:has(.card-rating) {
+.tv[data-card-ratings="true"]:not([data-rating-position="poster"]) .tv-rail-track:has(.card-rating) {
   padding-bottom: 3.4rem;
 }
-.app.tv[data-card-ratings="true"] .card-rating {
+.app.tv[data-card-ratings="true"] .card-rating[data-placement="below"] {
   position: absolute;
   top: calc(100% + 0.6rem);
   left: 0;
   min-height: 0;
   padding: 0;
+  font-size: 0.85rem;
+}
+.app.tv[data-card-ratings="true"] .card-rating[data-placement="poster"] {
+  top: 0.6rem;
+  right: 0.6rem;
   font-size: 0.85rem;
 }
 
@@ -822,6 +827,106 @@
   justify-content: center;
   transform-origin: center;
 }
+
+/* --- Settings ------------------------------------------------------------- */
+.tv-settings {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  padding: 0 max(4rem, calc((100% - 56rem) / 2));
+}
+/* The list scrolls on its own; focus keeps the row clear of the navbar and the exit pill. */
+.tv-settings-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  padding: 9rem 0.5rem 8rem;
+  scroll-padding: 8rem 0 7rem;
+  mask-image: linear-gradient(to bottom, transparent 5rem, #000 8rem, #000 calc(100% - 5rem), transparent);
+  animation: tv-settings-list-in 260ms var(--ease-out);
+}
+@keyframes tv-settings-list-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-settings-list {
+    animation-name: fade-in;
+  }
+}
+.tv-settings-list > .tv-heading {
+  margin-left: 1.25rem;
+}
+.tv-settings-eyebrow {
+  margin: 0 0 0.35rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.tv-settings-chevron {
+  flex: none;
+  opacity: 0.5;
+}
+.tv-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  min-height: 3.5rem;
+  padding: 0 1.25rem;
+  border-radius: 0.9rem;
+  font-size: 1.15rem;
+  text-align: left;
+  color: var(--text);
+  transition:
+    background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+.tv .tv-settings-row:focus {
+  outline: none;
+  background: var(--pill-light);
+  color: var(--text-on-light);
+}
+.tv-settings-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: none;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.tv-settings-row:focus .tv-settings-value {
+  color: inherit;
+}
+.tv-settings-value > span {
+  min-width: 9rem;
+  text-align: center;
+}
+.tv-settings-value[data-on="true"] > span {
+  color: var(--accent, inherit);
+}
+.tv-settings-row:focus .tv-settings-value[data-on="true"] > span {
+  color: inherit;
+}
+.tv-settings-value svg {
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+.tv-settings-row:focus .tv-settings-value svg {
+  opacity: 0.7;
+}
+.tv-settings-row:focus .tv-settings-value svg[data-dim="true"] {
+  opacity: 0.2;
+}
 .tv-pill-skeleton {
   display: block;
   width: 18rem;
@@ -1054,6 +1159,22 @@
   min-height: 0;
   width: min(56rem, 100%);
   padding: 0.5rem 0.5rem 2rem;
+}
+/* A title's Details: the desktop block, given the whole width. */
+.tv-details .tv-details-body {
+  width: min(88rem, 100%);
+  outline: none;
+}
+.tv-details .details {
+  padding-top: 0.5rem;
+  border-top: 0;
+}
+.tv-details .people {
+  grid-auto-columns: 9rem;
+}
+.tv-details .person-photo {
+  width: 7.5rem;
+  height: 7.5rem;
 }
 /* Add to Playlist: one row per playlist, ticked if the title is in it. */
 .tv-playlist-list {
@@ -1657,34 +1778,6 @@
 }
 .tv-card-menu-item:disabled {
   opacity: 0.4;
-}
-
-/* The trailer, full screen; its buttons sit below the video so it's never covered. */
-.tv-trailer {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  padding: 2.5rem var(--tv-gutter);
-  background: #000;
-  animation: tv-panel-in 280ms var(--ease-out);
-}
-.tv-trailer-video {
-  width: min(100%, calc((100vh - 10rem) * 16 / 9));
-  aspect-ratio: 16 / 9;
-  border: 0;
-  border-radius: var(--tv-radius);
-  background: #111;
-}
-.tv-trailer-bar {
-  display: flex;
-  gap: 1rem;
-}
-.tv-trailer-bar .tv-pill {
-  min-width: 0;
 }
 
 /* --- Controller hints & glyphs -------------------------------------------------------------- */

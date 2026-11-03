@@ -42,6 +42,8 @@ const ROWS: SettingEntry[] = [
   { title: "Hide cinema recordings", page: "sources", keywords: "cam telesync ts filter" },
   { title: "Hide Sources Containing", page: "sources", keywords: "keywords exclude words filter hc 3d" },
   { title: "Sort by", page: "sources", keywords: "source list order sort" },
+  { title: "Match my screen", page: "sources", keywords: "resolution display 4k 1080p recommended monitor" },
+  { title: "Turn On When Available", page: "sources", keywords: "dolby vision hdr remux atmos tags filters automatic" },
 
   // Subtitles & Audio
   { title: "Audio", page: "subtitles", keywords: "audio language dub" },
@@ -78,11 +80,29 @@ const ROWS: SettingEntry[] = [
   { title: "Show titles", page: "browsing", keywords: "cards names" },
   { title: "Show details", page: "browsing", keywords: "cards year" },
   { title: "Show IMDb ratings", page: "browsing", keywords: "cards rating score badge imdb posters" },
+  { title: "Rating position", page: "browsing", keywords: "imdb badge on poster under corner overlay" },
+  { title: "Play trailers on title pages", page: "browsing", keywords: "trailer autoplay background video youtube" },
+  { title: "With sound", page: "browsing", keywords: "trailer muted audio volume" },
+  { title: "Show the Calendar", page: "browsing", keywords: "calendar upcoming episodes schedule air dates new" },
   { title: "Colour-code IMDb ratings", page: "browsing", keywords: "color colour rating score badge imdb yellow green red" },
   { title: "Default layout", page: "browsing", keywords: "episodes list grid" },
 
+  // Anime
+  { title: "Show Anime", page: "anime", keywords: "anime section tab hide remove turn off disable" },
+  { title: "Anime titles", page: "anime", keywords: "anime romaji english japanese native names language" },
+  { title: "Voice actors", page: "anime", keywords: "anime dub sub seiyuu japanese english characters" },
+  { title: "Shelves", page: "anime", keywords: "anime rows featured carousel airing today season trending upcoming top rated popular movies genres" },
+  { title: "Show scores", page: "anime", keywords: "anime anilist rating badge cards posters" },
+  { title: "Score format", page: "anime", keywords: "anime anilist rating percent out of ten" },
+  { title: "Show airing countdowns", page: "anime", keywords: "anime next episode timer cards posters" },
+  { title: "List every show", page: "anime", keywords: "anime schedule shorts regional all" },
+  { title: "Hide filler episodes", page: "anime", keywords: "anime filler canon skip" },
+  { title: "Hide recap episodes", page: "anime", keywords: "anime recap skip" },
+  { title: "Show spoiler tags", page: "anime", keywords: "anime tags spoilers anilist" },
+
   // Controls & TV
   { title: "TV mode", page: "controls", keywords: "couch fullscreen remote" },
+  { title: "TV mode button in the top bar", page: "controls", keywords: "tv navbar hide show button icon" },
   { title: "Interface sounds", page: "controls", keywords: "audio clicks" },
   { title: "Sound pack", page: "controls", keywords: "interface sounds" },
   { title: "Sound volume", page: "controls", keywords: "interface sounds loudness" },
@@ -104,8 +124,13 @@ const ROWS: SettingEntry[] = [
   { title: "Installed", page: "addons", keywords: "add-ons addons remove" },
   { title: "Install from URL", page: "addons", keywords: "add-on addon manifest stremio" },
 
+  // Marketplace
+  { title: "OpenSubtitles", page: "marketplace", keywords: "add-ons addons subtitles captions install store" },
+  { title: "Add-on Marketplace", page: "marketplace", keywords: "add-ons addons store browse search install plugins" },
+
   // Services
   { title: "Artwork and episode info", page: "services", keywords: "tmdb api key metadata posters" },
+  { title: "Critic and audience scores", page: "services", keywords: "rotten tomatoes metacritic letterboxd trakt mdblist omdb ratings reviews" },
   { title: "p2p playback", page: "services", keywords: "bridge source" },
   { title: "Timeline previews", page: "services", keywords: "seekr thumbnails scrubbing" },
 

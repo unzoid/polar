@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ToggleChip } from "../components/ToggleChip";
 import {
   Captions,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
   Settings as Cog,
   Sources,
   Download,
+  Fire,
   Grid,
   Info,
   Instant,
@@ -19,19 +21,25 @@ import {
   Profile,
   Puzzle,
   Services,
+  Star,
+  Store,
   Trash,
   type Icon as IconT,
 } from "../components/icons";
+import { MarketplacePage } from "../components/Marketplace";
 import { useEffect, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
 import { useAccount } from "../lib/account/AccountProvider";
 import { Dropdown } from "../components/Dropdown";
+import { SliderField } from "../components/SliderField";
+import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../lib/sources";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleSettings, subtitleCueVars } from "../components/player/SubtitleSettings";
 import { api } from "../lib/api";
 import { PREFERRED_LANGUAGES, languageName } from "../lib/languages";
 import { keys, useAddons, useSettings, useUpdateSettings } from "../lib/queries";
 import type { Settings as SettingsT } from "../lib/types";
 import { ShortcutSettings } from "../components/ShortcutSettings";
+import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../lib/anime/shelves";
 import { resetPrefs, setPrefs, usePrefs } from "../lib/prefs";
 import { clearRecentSearches } from "../lib/recentSearches";
 import { playSound, SOUND_PACKS } from "../tv/sounds";
@@ -60,8 +68,10 @@ export type PageId =
   | "subtitles"
   | "appearance"
   | "browsing"
+  | "anime"
   | "controls"
   | "controller"
+  | "marketplace"
   | "addons"
   | "services"
   | "advanced"
@@ -74,8 +84,10 @@ export const PAGES: { id: PageId; label: string; icon: IconT }[] = [
   { id: "subtitles", label: "Subtitles & Audio", icon: Captions },
   { id: "appearance", label: "Appearance", icon: Desktop },
   { id: "browsing", label: "Browsing", icon: Grid },
+  { id: "anime", label: "Anime", icon: Fire },
   { id: "controls", label: "Controls & TV", icon: Controls },
   { id: "controller", label: "Controller", icon: Gamepad },
+  { id: "marketplace", label: "Marketplace", icon: Store },
   { id: "addons", label: "Add-ons", icon: Puzzle },
   { id: "services", label: "Services", icon: Services },
   { id: "advanced", label: "Advanced", icon: Cog },
@@ -138,12 +150,16 @@ export function SettingsPageBody({ page }: { page: PageId }) {
       return <AppearancePage />;
     case "browsing":
       return <BrowsingPage />;
+    case "anime":
+      return <AnimePage />;
     case "advanced":
       return <AdvancedPage />;
     case "controls":
       return <ControlsPage />;
     case "controller":
       return <ControllerPage />;
+    case "marketplace":
+      return <MarketplacePage />;
     case "addons":
       return <AddonsPage />;
     case "services":
@@ -333,41 +349,37 @@ function DeleteAccountRow(props: Expandable) {
 
 // --- Playback --------------------------------------------------------------
 
-const SEEK_STEPS = [5, 10, 15, 30];
-
 /**
- * A dropdown row over numbers. Keeps a saved value that isn't one of the
- * choices (set by an older version, or synced) instead of showing it wrong.
+ * A number setting as a slider with the exact value in a box beside it, which
+ * you can type into. `zero` names what 0 means ("Never", "Any size").
  */
-function NumberPickRow({
+function NumberRow({
   title,
   caption,
   value,
-  choices,
-  label,
+  min,
+  max,
+  step,
+  unit,
+  zero,
   onChange,
 }: {
   title: string;
   caption?: string;
   value: number;
-  choices: number[];
-  label: (n: number) => string;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  zero?: string;
   onChange: (n: number) => void;
 }) {
-  const all = choices.includes(value) ? choices : [...choices, value].sort((a, b) => a - b);
   return (
     <PickRow title={title} caption={caption}>
-      <Dropdown
-        label={title}
-        value={String(value)}
-        onChange={(v) => onChange(Number(v))}
-        options={all.map((n) => ({ value: String(n), label: label(n) }))}
-      />
+      <SliderField label={title} value={value} min={min} max={max} step={step} unit={unit} zero={zero} onChange={onChange} />
     </PickRow>
   );
 }
-
-const seconds = (n: number) => (n === 1 ? "1 second" : `${n} seconds`);
 
 function PlaybackPage() {
   const qc = useQueryClient();
@@ -393,22 +405,25 @@ function PlaybackPage() {
           onChange={(v) => set({ autoplayNext: v })}
         />
         {data.autoplayNext && (
-          <NumberPickRow
+          <NumberRow
             title="Countdown"
             caption="How long Up Next waits before it starts the next episode"
             value={data.autoplayCountdown ?? 8}
-            choices={[5, 8, 10, 15, 30]}
-            label={seconds}
+            min={3}
+            max={60}
+            unit="sec"
             onChange={(n) => set({ autoplayCountdown: n })}
           />
         )}
         {data.autoplayNext && (
-          <NumberPickRow
+          <NumberRow
             title="Ask if you're still watching"
             caption="Stop after this many episodes in a row with no keys or clicks, so a show doesn't play all night"
             value={data.stillWatchingAfter ?? 0}
-            choices={[0, 2, 3, 4, 6]}
-            label={(n) => (n ? `After ${n} episodes` : "Never")}
+            min={0}
+            max={12}
+            unit="episodes"
+            zero="Never"
             onChange={(n) => set({ stillWatchingAfter: n })}
           />
         )}
@@ -454,21 +469,24 @@ function PlaybackPage() {
           onChange={(v) => set({ resumePlayback: v })}
         />
         {(data.resumePlayback ?? true) && (
-          <NumberPickRow
+          <NumberRow
             title="Back up when resuming"
             caption="Start a little before where you stopped, to pick up the thread"
             value={data.resumeRewind ?? 0}
-            choices={[0, 5, 10, 30]}
-            label={(n) => (n ? seconds(n) : "Don't")}
+            min={0}
+            max={60}
+            unit="sec"
+            zero="Don't"
             onChange={(n) => set({ resumeRewind: n })}
           />
         )}
-        <NumberPickRow
+        <NumberRow
           title="Count as watched at"
           caption="How far into a video it moves out of Continue Watching and gets a tick"
           value={data.watchedThreshold ?? 92}
-          choices={[80, 85, 90, 92, 95, 98]}
-          label={(n) => `${n}%`}
+          min={50}
+          max={100}
+          unit="%"
           onChange={(n) =>
             update.mutate(
               { watchedThreshold: n },
@@ -513,20 +531,22 @@ function PlaybackPage() {
             ]}
           />
         </PickRow>
-        <NumberPickRow
+        <NumberRow
           title="Skip forward and back"
           caption="How far the skip buttons and the left and right arrow keys jump"
           value={data.seekStep}
-          choices={SEEK_STEPS}
-          label={seconds}
+          min={1}
+          max={120}
+          unit="sec"
           onChange={(n) => set({ seekStep: n })}
         />
-        <NumberPickRow
+        <NumberRow
           title="Hide controls after"
           caption="Without moving the mouse"
           value={data.controlsHideSecs ?? 2}
-          choices={[2, 3, 5, 8]}
-          label={seconds}
+          min={1}
+          max={15}
+          unit="sec"
           onChange={(n) => set({ controlsHideSecs: n })}
         />
         <PickRow title="Clicking the video">
@@ -559,8 +579,6 @@ function PlaybackPage() {
 
 // --- Sources ---------------------------------------------------------------
 
-const SIZE_CHOICES = [0, 1, 2, 4, 8, 15, 30, 60];
-const sizeLabel = (n: number) => (n ? `${n} GB` : "Any size");
 
 function SourcesPage() {
   const qc = useQueryClient();
@@ -573,6 +591,9 @@ function SourcesPage() {
   const set = (patch: Partial<SettingsT>) =>
     update.mutate(patch, { onSuccess: () => qc.invalidateQueries({ queryKey: ["streams"] }) });
   const wordsDirty = words.trim() !== (data.excludeKeywords ?? "").trim();
+  const autoTags = data.sourceAutoTags ?? [];
+  const screen = screenResolution();
+  const screenLabel = screen >= 2160 ? "4K" : `${screen}p`;
 
   return (
     <>
@@ -594,19 +615,25 @@ function SourcesPage() {
             ]}
           />
         </PickRow>
-        <NumberPickRow
+        <NumberRow
           title="Largest movie file"
           caption="Big files take longer to start and can stall on a slower connection"
           value={data.maxMovieSizeGb ?? 0}
-          choices={SIZE_CHOICES}
-          label={sizeLabel}
+          min={0}
+          max={100}
+          step={0.5}
+          unit="GB"
+          zero="Any size"
           onChange={(n) => set({ maxMovieSizeGb: n })}
         />
-        <NumberPickRow
+        <NumberRow
           title="Largest episode file"
           value={data.maxEpisodeSizeGb ?? 0}
-          choices={SIZE_CHOICES}
-          label={sizeLabel}
+          min={0}
+          max={30}
+          step={0.5}
+          unit="GB"
+          zero="Any size"
           onChange={(n) => set({ maxEpisodeSizeGb: n })}
         />
         <ToggleRow
@@ -657,6 +684,33 @@ function SourcesPage() {
             ]}
           />
         </PickRow>
+        <ToggleRow
+          title="Match my screen"
+          caption={`This screen is ${screenLabel}. Best match puts sources it can show first, instead of bigger files it can't`}
+          checked={data.preferScreenResolution ?? true}
+          onChange={(v) => set({ preferScreenResolution: v })}
+        />
+      </Card>
+
+      <Card
+        title="Turn On When Available"
+        footer="When a title has sources with these, the source list starts filtered to them, and autoplay picks from them first. Click one in the list to turn it off again."
+      >
+        <div className="settings-row settings-chip-row">
+          <div className="srcf-tags" role="group" aria-label="Tags to turn on by themselves">
+            {AUTO_TAG_CHOICES.map((t) => {
+              const on = autoTags.includes(t);
+              return (
+                <ToggleChip
+                  key={t}
+                  on={on}
+                  label={TAG_LABELS[t]}
+                  onToggle={() => set({ sourceAutoTags: on ? autoTags.filter((x) => x !== t) : [...autoTags, t] })}
+                />
+              );
+            })}
+          </div>
+        </div>
       </Card>
     </>
   );
@@ -775,7 +829,6 @@ const ACCENTS = [
   { value: "#8E8E93", label: "Graphite" },
 ];
 
-const UI_SCALES = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
 
 function AppearancePage() {
   const { data } = useSettings();
@@ -818,14 +871,16 @@ function AppearancePage() {
       </Card>
 
       <Card title="Size">
-        <PickRow title="Interface size" caption="Zoom everything in or out. On this device.">
-          <Dropdown
-            label="Interface size"
-            value={String(UI_SCALES.includes(prefs.uiScale) ? prefs.uiScale : 1)}
-            onChange={(v) => setPrefs({ uiScale: Number(v) })}
-            options={UI_SCALES.map((s) => ({ value: String(s), label: s === 1 ? "100% (Default)" : `${Math.round(s * 100)}%` }))}
-          />
-        </PickRow>
+        <NumberRow
+          title="Interface size"
+          caption="Zoom everything in or out. On this device."
+          value={Math.round((prefs.uiScale > 0 ? prefs.uiScale : 1) * 100)}
+          min={70}
+          max={175}
+          step={5}
+          unit="%"
+          onChange={(n) => setPrefs({ uiScale: n / 100 })}
+        />
         <PickRow title="Card size" caption="Posters and thumbnails in rows and grids">
           <Dropdown
             label="Card size"
@@ -898,12 +953,13 @@ function BrowsingPage() {
         <PickRow title="Open the app on">
           <Dropdown
             label="Open the app on"
-            value={data.startPage ?? "home"}
+            value={data.startPage === "anime" && !prefs.animeEnabled ? "home" : (data.startPage ?? "home")}
             onChange={(v) => update.mutate({ startPage: v })}
             options={[
               { value: "home", label: "Home" },
               { value: "movies", label: "Movies" },
               { value: "series", label: "Shows" },
+              ...(prefs.animeEnabled ? [{ value: "anime" as const, label: "Anime" }] : []),
               { value: "library", label: "Library" },
             ]}
           />
@@ -929,6 +985,30 @@ function BrowsingPage() {
             options={languages.map((c) => ({ value: c, label: localeLabel(c) }))}
           />
         </PickRow>
+      </Card>
+      <Card title="Title Pages">
+        <ToggleRow
+          title="Play trailers on title pages"
+          caption="After a few seconds on a movie or show, its trailer plays behind the page"
+          checked={data.trailerAutoplay ?? true}
+          onChange={(v) => update.mutate({ trailerAutoplay: v })}
+        />
+        {(data.trailerAutoplay ?? true) && (
+          <ToggleRow
+            title="Automatic trailer sound"
+            caption="When enabled, automatic trailer previews start with sound"
+            checked={!!data.trailerSound}
+            onChange={(v) => update.mutate({ trailerSound: v })}
+          />
+        )}
+      </Card>
+      <Card title="Calendar" footer="Like Stremio's calendar: built from the shows in your library and the ones you're watching.">
+        <ToggleRow
+          title="Show the Calendar"
+          caption="A section listing new episodes of your shows by the day they air"
+          checked={!!data.showCalendar}
+          onChange={(v) => update.mutate({ showCalendar: v })}
+        />
       </Card>
       <Card title="Home">
         <ToggleRow
@@ -982,10 +1062,23 @@ function BrowsingPage() {
         />
         <ToggleRow
           title="Show IMDb ratings"
-          caption="Add an IMDb rating badge under each poster"
+          caption="Add an IMDb rating badge to each poster"
           checked={data.showCardRatings ?? false}
           onChange={(v) => update.mutate({ showCardRatings: v })}
         />
+        {(data.showCardRatings ?? false) && (
+          <PickRow title="Rating position">
+            <Dropdown
+              label="Rating position"
+              value={data.cardRatingPosition === "below" ? "below" : "poster"}
+              onChange={(v) => update.mutate({ cardRatingPosition: v })}
+              options={[
+                { value: "poster", label: "On the poster" },
+                { value: "below", label: "Under the poster" },
+              ]}
+            />
+          </PickRow>
+        )}
         <ToggleRow
           title="Colour-code IMDb ratings"
           caption="Green from 7, amber from 5, red below. Off: every score in IMDb yellow"
@@ -1005,6 +1098,115 @@ function BrowsingPage() {
             ]}
           />
         </PickRow>
+      </Card>
+    </>
+  );
+}
+
+// --- Anime -----------------------------------------------------------------
+
+/** The Anime section's own preferences (kept in prefs, and follow the profile). With it off, there's only the switch. */
+function AnimePage() {
+  const prefs = usePrefs();
+  const shelfVisible = useShelfVisible();
+  const section = (
+    <Card footer={prefs.animeEnabled ? undefined : "Your watch history and saved titles stay as they are."}>
+      <ToggleRow
+        title="Show Anime"
+        caption="The Anime section, in desktop and TV mode"
+        checked={prefs.animeEnabled}
+        onChange={(v) => setPrefs({ animeEnabled: v })}
+      />
+    </Card>
+  );
+  if (!prefs.animeEnabled) return section;
+  return (
+    <>
+      {section}
+      <Card title="Language">
+        <PickRow title="Anime titles" caption="Tower of Glass, Garasu no Tou, or ガラスの塔. Episode titles follow when they can">
+          <Dropdown
+            label="Anime titles"
+            value={prefs.animeTitles}
+            onChange={(v) => setPrefs({ animeTitles: v })}
+            options={[
+              { value: "english", label: "English" },
+              { value: "romaji", label: "Romaji" },
+              { value: "native", label: "Japanese" },
+            ]}
+          />
+        </PickRow>
+        <PickRow title="Voice actors" caption="Whose voices to list beside the characters">
+          <Dropdown
+            label="Voice actors"
+            value={prefs.animeVoices}
+            onChange={(v) => setPrefs({ animeVoices: v })}
+            options={[
+              { value: "japanese", label: "Japanese" },
+              { value: "english", label: "English" },
+            ]}
+          />
+        </PickRow>
+      </Card>
+      <Card title="Shelves" footer="What the Anime page shows, top to bottom, in desktop and TV mode. Featured is the carousel at the top; Genres adds a shelf for each genre.">
+        <div className="settings-row settings-chip-row">
+          <div className="srcf-tags" role="group" aria-label="Shelves on the Anime page">
+            {ANIME_SHELVES.map((s) => {
+              const on = shelfVisible(s.id);
+              return (
+                <ToggleChip key={s.id} on={on} label={s.label} onToggle={() => setShelfVisible(s.id, !on)} />
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+      <Card title="Cards">
+        <ToggleRow title="Show scores" caption="The AniList score on each poster" checked={prefs.animeCardScores} onChange={(v) => setPrefs({ animeCardScores: v })} />
+        <PickRow title="Score format">
+          <Dropdown
+            label="Score format"
+            value={prefs.animeScoreFormat}
+            onChange={(v) => setPrefs({ animeScoreFormat: v })}
+            options={[
+              { value: "ten", label: "Out of ten (8.6)" },
+              { value: "percent", label: "Percentage (86%)" },
+            ]}
+          />
+        </PickRow>
+        <ToggleRow
+          title="Show airing countdowns"
+          caption="When the next episode lands, on shows that are on air"
+          checked={prefs.animeCardCountdown}
+          onChange={(v) => setPrefs({ animeCardCountdown: v })}
+        />
+      </Card>
+      <Card title="Schedule">
+        <ToggleRow
+          title="List every show"
+          caption="Include the shorts and regional shows most people aren't following"
+          checked={prefs.animeScheduleAll}
+          onChange={(v) => setPrefs({ animeScheduleAll: v })}
+        />
+      </Card>
+      <Card title="Episodes" footer="Blurring unwatched pictures and hiding their descriptions are under Browsing → Spoilers, and apply here too.">
+        <ToggleRow
+          title="Hide filler episodes"
+          caption="Leave episodes MyAnimeList marks as filler out of the list"
+          checked={prefs.animeHideFiller}
+          onChange={(v) => setPrefs({ animeHideFiller: v })}
+        />
+        <ToggleRow
+          title="Hide recap episodes"
+          caption="Leave episodes MyAnimeList marks as recaps out of the list"
+          checked={prefs.animeHideRecaps}
+          onChange={(v) => setPrefs({ animeHideRecaps: v })}
+        />
+        <ToggleRow
+          title="Show spoiler tags"
+          caption="Tags that give away the story, on an anime's Details"
+          checked={prefs.animeSpoilerTags}
+          onChange={(v) => setPrefs({ animeSpoilerTags: v })}
+        />
       </Card>
     </>
   );
@@ -1163,17 +1365,8 @@ function AboutPage() {
 
 // --- Controls & TV ---------------------------------------------------------
 
-const SOUND_LEVELS = [
-  { value: "0.25", label: "Low" },
-  { value: "0.5", label: "Medium" },
-  { value: "0.9", label: "High" },
-];
-
 function ControlsPage() {
   const prefs = usePrefs();
-  const level = SOUND_LEVELS.reduce((best, l) =>
-    Math.abs(Number(l.value) - prefs.uiSoundVolume) < Math.abs(Number(best.value) - prefs.uiSoundVolume) ? l : best,
-  );
 
   return (
     <>
@@ -1184,6 +1377,12 @@ function ControlsPage() {
             Open TV Mode
           </button>
         </div>
+        <ToggleRow
+          title="TV mode button in the top bar"
+          caption="Off hides it; TV mode stays one click away here"
+          checked={prefs.showTvButton}
+          onChange={(v) => setPrefs({ showTvButton: v })}
+        />
         <ToggleRow
           title="Interface sounds"
           caption="Soft clicks as you move, select and go back"
@@ -1207,17 +1406,18 @@ function ControlsPage() {
           </PickRow>
         )}
         {prefs.uiSounds && (
-          <PickRow title="Sound volume">
-            <Dropdown
-              label="Sound volume"
-              value={level.value}
-              onChange={(v) => {
-                setPrefs({ uiSoundVolume: Number(v) });
-                playSound("select", { force: true });
-              }}
-              options={SOUND_LEVELS}
-            />
-          </PickRow>
+          <NumberRow
+            title="Sound volume"
+            value={Math.round(prefs.uiSoundVolume * 100)}
+            min={5}
+            max={100}
+            step={5}
+            unit="%"
+            onChange={(n) => {
+              setPrefs({ uiSoundVolume: n / 100 });
+              playSound("select", { force: true });
+            }}
+          />
         )}
       </Card>
       <ShortcutSettings />
@@ -1441,7 +1641,10 @@ function AddonsPage() {
           ))}
         </Card>
       )}
-      <Card title="Install from URL">
+      <Card
+        title="Install from URL"
+        footer="Looking for something to add? Browse the Marketplace."
+      >
         <form
           className="settings-row"
           onSubmit={(e) => {
@@ -1473,9 +1676,71 @@ function ServicesPage() {
   return (
     <Card>
       <ArtworkRow {...expand("artwork")} />
+      <RatingsRow {...expand("ratings")} />
       <p2pRow {...expand("p2p")} />
       <PreviewsRow {...expand("previews")} />
     </Card>
+  );
+}
+
+/** Rotten Tomatoes, Metacritic and Letterboxd scores, from MDBList and/or OMDb. */
+function RatingsRow(props: Expandable) {
+  const qc = useQueryClient();
+  const { data } = useSettings();
+  const [mdb, setMdb] = useState("");
+  const [omdb, setOmdb] = useState("");
+  useEffect(() => setMdb(data?.mdblistKey ?? ""), [data?.mdblistKey]);
+  useEffect(() => setOmdb(data?.omdbKey ?? ""), [data?.omdbKey]);
+  const save = useSaveSettings(() => qc.invalidateQueries({ queryKey: ["ratings"] }));
+  if (!data) return null;
+  const on = !!(data.mdblistKey || data.omdbKey);
+  const dirty = mdb.trim() !== (data.mdblistKey ?? "") || omdb.trim() !== (data.omdbKey ?? "");
+
+  return (
+    <ExpandRow
+      icon={Star}
+      title="Critic and audience scores"
+      caption="Rotten Tomatoes, Metacritic and Letterboxd scores on title pages, with a free key"
+      value={on ? "On" : "Off"}
+      {...props}
+    >
+      <p className="settings-expand-text">
+        A free key from <strong>mdblist.com</strong> (Preferences → API) adds Rotten Tomatoes, its audience score,
+        Metacritic, Letterboxd and Trakt. A free key from <strong>omdbapi.com</strong> adds Rotten Tomatoes and
+        Metacritic. Either works; with both, OMDb fills any gaps.
+      </p>
+      <form
+        className="settings-expand-form settings-expand-form-stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate({ mdblistKey: mdb.trim() || null, omdbKey: omdb.trim() || null });
+        }}
+      >
+        <input
+          className="settings-input"
+          type="password"
+          placeholder="MDBList key"
+          aria-label="MDBList key"
+          value={mdb}
+          onChange={(e) => setMdb(e.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+        />
+        <input
+          className="settings-input"
+          type="password"
+          placeholder="OMDb key"
+          aria-label="OMDb key"
+          value={omdb}
+          onChange={(e) => setOmdb(e.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+        />
+        <button className="btn btn-primary" disabled={!dirty || save.isPending}>
+          {save.isPending ? "Saving…" : "Save"}
+        </button>
+      </form>
+    </ExpandRow>
   );
 }
 

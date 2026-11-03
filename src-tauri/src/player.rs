@@ -421,8 +421,10 @@ pub async fn mpv_load(
     url: String,
     start: Option<f64>,
 ) -> Result<(), String> {
-    if !is_web_url(&url) {
-        return Err("only http(s) streams can be played".into());
+    // Web streams, or a finished download - never any other path on disk.
+    let downloaded = app.state::<Arc<crate::downloads::Downloads>>().owns(&url);
+    if !is_web_url(&url) && !downloaded {
+        return Err("only http(s) streams and downloads can be played".into());
     }
     state.mpv.touch();
     state.mpv.ensure(&app, &window).await?;

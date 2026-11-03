@@ -95,7 +95,9 @@ export function OptionsOverlay({
     if (!open || !mounted) return;
     const onKey = (e: KeyboardEvent) => {
       // An open dropdown inside the overlay handles its own keys.
-      if (document.querySelector(".select-popup")) return;
+      if (document.querySelector(".select-popup, .srcf-popover")) return;
+      // A slider (the source list's size range) takes the arrows for itself.
+      if ((e.target as HTMLElement | null)?.closest?.('[role="slider"], input[type="range"]') && e.key !== "Escape") return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onCloseRef.current();
@@ -124,7 +126,7 @@ export function OptionsOverlay({
       // Anywhere on the blur closes; only the columns themselves (and popups opened from them) don't.
       onPointerDown={(e) => {
         if (e.button !== 0) return;
-        if ((e.target as Element).closest?.(".options-column, .select-popup, .options-close")) return;
+        if ((e.target as Element).closest?.(".options-column, .select-popup, .srcf-popover, .options-close")) return;
         onClose();
       }}
     >

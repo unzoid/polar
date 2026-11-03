@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { Spinner } from "./Spinner";
 
-/** How long work runs before the ring shows, so fast responses don't flash it. */
+/** How long work runs before the spinner shows, so fast responses don't flash it. */
 const SHOW_AFTER_MS = 150;
 
 /**
- * A button's label that crossfades to a small ring while `busy`. Both sit in
+ * A button's label that crossfades to a small spinner while `busy`. Both sit in
  * the same grid cell, so the button never changes size.
  */
 export function BusyLabel({ busy, children }: { busy: boolean; children: ReactNode }) {
@@ -17,12 +18,10 @@ export function BusyLabel({ busy, children }: { busy: boolean; children: ReactNo
   return (
     <span className="busy-label" data-busy={shown}>
       <span className="busy-label-text">{children}</span>
-      <span className="busy-ring" aria-hidden />
+      <Spinner className="busy-ring" size={18} />
     </span>
   );
 }
 
-/** The ring on its own (e.g. over a profile tile while it opens). */
-export const BusyRing = ({ size = 18 }: { size?: number }) => (
-  <span className="busy-ring busy-ring-solo" style={{ width: size, height: size }} aria-hidden />
-);
+/** The spinner on its own (e.g. over a profile tile while it opens). */
+export const BusyRing = ({ size = 18 }: { size?: number }) => <Spinner className="busy-ring-solo" size={size} />;

@@ -121,6 +121,64 @@ pub struct Meta {
     /// Episodes (series) — empty for movies.
     #[serde(default)]
     pub videos: Vec<Video>,
+    /// The cast with their roles and photos, where the source has them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub people: Vec<Person>,
+    /// Everything else worth knowing, for the title's Details.
+    #[serde(default)]
+    pub details: MetaDetails,
+}
+
+/// One cast member.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Person {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub character: Option<String>,
+    /// Portrait URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub photo: Option<String>,
+}
+
+/// The fine print about a title. Every field is optional: sources differ.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MetaDetails {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tagline: Option<String>,
+    /// "Returning Series", "Ended", "Released"…
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Full release (or first air) date, `YYYY-MM-DD`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub released: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub countries: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub languages: Vec<String>,
+    /// Networks for a show, studios for a movie.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub studios: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub writers: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub awards: Option<String>,
+    /// US dollars.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revenue: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seasons: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub episodes: Option<u32>,
+    /// Number of IMDb / TMDB votes behind the rating.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub votes: Option<u64>,
+    /// TMDB id, for links.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tmdb_id: Option<u64>,
 }
 
 /// One episode. `id` follows the Stremio convention `tt…:season:episode`,

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SkipForward } from "../icons";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../../lib/api";
+import { aniSkipSegments } from "../../lib/anime/aniskip";
 import { withShortcut } from "../../lib/keybinds";
 import type { SkipSegments, Span } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvChapter } from "./mpvMedia";
@@ -44,7 +45,14 @@ export function useSkipSegments({
 }) {
   const { data: online } = useQuery({
     queryKey: ["skip-segments", videoId],
-    queryFn: () => api.skipSegments(videoId),
+    queryFn: async () => {
+      const introDb = await api.skipSegments(videoId).catch(() => undefined);
+      // Anime: AniSkip fills whatever IntroDB doesn't know (it rarely knows anime).
+      if (introDb?.intro && introDb?.outro) return introDb;
+      const anime = await aniSkipSegments(videoId).catch(() => ({}));
+      if (!introDb && !Object.keys(anime).length) throw new Error("No skip segments");
+      return { intro: null, recap: null, outro: null, postCredits: null, ...anime, ...stripEmpty(introDb) } as SkipSegments;
+    },
     staleTime: 60 * 60_000,
     retry: 1,
   });
@@ -99,7 +107,13 @@ export function useSkipSegments({
   };
 }
 
-const INTRO_NAME = /^(intro(duction)?|opening( credits| sequence| titles?)?|op\d*|title sequence|main titles?)$/i;
+/** IntroDB's answer without its empty slots, so they don't hide AniSkip's. */
+function stripEmpty(s?: SkipSegments): Partial<SkipSegments> {
+  if (!s) return {};
+  return Object.fromEntries(Object.entries(s).filter(([, v]) => v != null)) as Partial<SkipSegments>;
+}
+
+const INTRO_NAME =/^(intro(duction)?|opening( credits| sequence| titles?)?|op\d*|title sequence|main titles?)$/i;
 const RECAP_NAME = /^(recap|previously( on)?\b.*)$/i;
 const OUTRO_NAME = /^(outro|ending( credits)?|ed\d*|end credits|closing credits|credits)$/i;
 

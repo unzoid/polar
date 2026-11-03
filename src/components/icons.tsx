@@ -25,6 +25,7 @@ function icon(large: HeroIcon, mini: HeroIcon, micro: HeroIcon): Icon {
 
 export const AlertCircle = icon(S24.ExclamationCircleIcon, S20.ExclamationCircleIcon, S16.ExclamationCircleIcon);
 export const ArrowUp = icon(S24.ArrowUpIcon, S20.ArrowUpIcon, S16.ArrowUpIcon);
+export const ArrowUpRight = icon(S24.ArrowUpRightIcon, S20.ArrowUpRightIcon, S16.ArrowUpRightIcon);
 export const ArrowLeft =icon(S24.ArrowLeftIcon, S20.ArrowLeftIcon, S16.ArrowLeftIcon);
 export const Backspace = icon(S24.BackspaceIcon, S20.BackspaceIcon, S16.BackspaceIcon);
 export const Captions = icon(S24.ChatBubbleBottomCenterTextIcon, S20.ChatBubbleBottomCenterTextIcon, S16.ChatBubbleBottomCenterTextIcon);
@@ -60,12 +61,19 @@ export const Search = icon(S24.MagnifyingGlassIcon, S20.MagnifyingGlassIcon, S16
 export const Services = icon(S24.CloudIcon, S20.CloudIcon, S16.CloudIcon);
 export const Settings = icon(S24.Cog6ToothIcon, S20.Cog6ToothIcon, S16.Cog6ToothIcon);
 export const SignOut = icon(S24.ArrowRightStartOnRectangleIcon, S20.ArrowRightStartOnRectangleIcon, S16.ArrowRightStartOnRectangleIcon);
+export const Store = icon(S24.BuildingStorefrontIcon, S20.BuildingStorefrontIcon, S16.BuildingStorefrontIcon);
+export const Star = icon(S24.StarIcon, S20.StarIcon, S16.StarIcon);
+export const Folder = icon(S24.FolderOpenIcon, S20.FolderOpenIcon, S16.FolderOpenIcon);
+export const Bookmark =icon(S24.BookmarkIcon, S20.BookmarkIcon, S16.BookmarkIcon);
+export const Calendar =icon(S24.CalendarDaysIcon, S20.CalendarDaysIcon, S16.CalendarDaysIcon);
 export const SkipForward = icon(S24.ForwardIcon, S20.ForwardIcon, S16.ForwardIcon);
 export const Sources = icon(S24.QueueListIcon, S20.QueueListIcon, S16.QueueListIcon);
 export const Speed = icon(S24.ClockIcon, S20.ClockIcon, S16.ClockIcon);
 export const Trash = icon(S24.TrashIcon, S20.TrashIcon, S16.TrashIcon);
 export const Trailer = icon(S24.FilmIcon, S20.FilmIcon, S16.FilmIcon);
 export const Tv = icon(S24.TvIcon, S20.TvIcon, S16.TvIcon);
+export const Filters = icon(S24.AdjustmentsHorizontalIcon, S20.AdjustmentsHorizontalIcon, S16.AdjustmentsHorizontalIcon);
+export const Fire =icon(S24.FireIcon, S20.FireIcon, S16.FireIcon);
 export const Watched = icon(S24.CheckCircleIcon, S20.CheckCircleIcon, S16.CheckCircleIcon);
 export const Users = icon(S24.UsersIcon, S20.UsersIcon, S16.UsersIcon);
 export const Volume = icon(S24.SpeakerWaveIcon, S20.SpeakerWaveIcon, S16.SpeakerWaveIcon);

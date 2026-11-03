@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AmbientWash } from "../components/AmbientWash";
 import { ImdbBadge } from "../components/ImdbBadge";
-import { Img } from "../components/Img";
+import { TitleLogo } from "../components/TitleLogo";
 import { api } from "../lib/api";
+import { isAnimePreview } from "../lib/anime/preview";
 import { keys } from "../lib/queries";
 import type { MetaPreview } from "../lib/types";
 
@@ -91,7 +92,7 @@ export function TvStage({ entry }: { entry: StageEntry | null }) {
   const meta = useQuery({
     queryKey: keys.meta(item?.type ?? "movie", item?.id ?? ""),
     queryFn: () => api.meta(item!.type, item!.id),
-    enabled: !!item && !item.description,
+    enabled: !!item && !item.description && !isAnimePreview(item.id),
     staleTime: 60 * 60_000,
   });
   const shown = useMemo(() => {
@@ -107,7 +108,7 @@ export function TvStage({ entry }: { entry: StageEntry | null }) {
       {shown && (
         <div key={shown.id} className="tv-stage-info" aria-live="polite">
           {shown.logo ? (
-            <Img src={shown.logo} alt={shown.name} className="tv-stage-logo" loading="eager" />
+            <TitleLogo src={shown.logo} alt={shown.name} className="tv-stage-logo" loading="eager" />
           ) : (
             <h1 className="tv-stage-title">{shown.name}</h1>
           )}
@@ -127,7 +128,7 @@ let layerId = 0;
  * the last one once decoded, and the older layers go only after it's fully in,
  * so there's never a flash of black between two pictures.
  */
-export function TvBackdrop({ src, className = "" }: { src?: string; className?: string }) {
+export function TvBackdrop({ src, className = "", children }: { src?: string; className?: string; children?: ReactNode }) {
   const [layers, setLayers] = useState<{ id: number; src: string; ready: boolean }[]>([]);
   useEffect(() => {
     if (!src) return;
@@ -155,6 +156,7 @@ export function TvBackdrop({ src, className = "" }: { src?: string; className?: 
           }}
         />
       ))}
+      {children}
     </div>
   );
 }

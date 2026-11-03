@@ -1,12 +1,9 @@
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Check, Close, Info, Minus, PlaylistIcon, Plus, Reset, Trailer, Watched } from "../components/icons";
-import { api } from "../lib/api";
+import { Check, Close, Info, Minus, PlaylistIcon, Plus, Reset, Watched } from "../components/icons";
 import { episodeCode } from "../lib/format";
-import { usePlaylists } from "../lib/playlists";
-import { useLibrary, useMeta, useProgress, useToggleLibrary } from "../lib/queries";
 import { useRouter } from "../lib/router";
+import { useTitleActions } from "../lib/titleActions";
 import type { MetaPreview, Progress } from "../lib/types";
-import { isWatched, markWatched, movieEntry, showEntries } from "../lib/watched";
 import { useBack, useFocusTrap } from "./shell";
 import { playSound } from "./sounds";
 import { NamePanel, PlaylistsPanel } from "./TvDetail";
@@ -14,7 +11,7 @@ import { NamePanel, PlaylistsPanel } from "./TvDetail";
 /**
  * A title's options, the way a TV does them: hold on a card and press X /
  * Square (or right-click, or the Menu key), and a short list opens beside it
- * — details, trailer, watched, library, playlists. Back closes it and leaves
+ * — details, watched, library, playlists. Back closes it and leaves
  * you on the card.
  */
 
@@ -75,10 +72,10 @@ export function TvCardMenuHost() {
   return <Layers key={target.key} target={target} />;
 }
 
-type Layer = { kind: "menu" } | { kind: "playlists" } | { kind: "name"; playlistId?: string } | { kind: "trailer"; ytId: string };
+type Layer = { kind: "menu" } | { kind: "playlists" } | { kind: "name"; playlistId?: string };
 
 function Layers({ target }: { target: Target }) {
-  // Picking a playlist or the trailer replaces the menu: Back from there goes to the card.
+  // Picking a playlist replaces the menu: Back from there goes to the card.
   const [layers, setLayers] = useState<Layer[]>([{ kind: "menu" }]);
   const pop = () => (layers.length > 1 ? setLayers((ls) => ls.slice(0, -1)) : closeCardMenu());
   useBack(true, pop);
@@ -110,14 +107,11 @@ function Layers({ target }: { target: Target }) {
             );
           case "name":
             return <NamePanel key={i} item={target.item} playlistId={layer.playlistId} active={isTop} onDone={pop} />;
-          case "trailer":
-            return <TrailerPanel key={i} ytId={layer.ytId} name={target.item.name} onClose={closeCardMenu} />;
         }
       })}
     </div>
   );
 }
-
 interface Item {
   label: string;
   icon: ReactNode;
@@ -131,18 +125,7 @@ const GAP = 28; // between the lifted card and the menu
 function CardMenu({ target, onLayer }: { target: Target; onLayer: (l: Layer) => void }) {
   const { item, entry, anchor } = target;
   const { navigate } = useRouter();
-  const { data: meta } = useMeta(item.type, item.id);
-  const { data: progress } = useProgress(item.id);
-  const { data: library } = useLibrary();
-  const toggleLibrary = useToggleLibrary();
-  const inPlaylist = usePlaylists().some((p) => p.items.some((i) => i.id === item.id));
-  const inLibrary = !!library?.some((l) => l.id === item.id);
-  const isSeries = item.type === "series";
-
-  // Watched, for a movie: its own progress. For a show: every released episode.
-  const entries = isSeries ? (meta ? showEntries(meta, progress) : undefined) : [movieEntry(item, progress, meta)];
-  const allWatched = !!entries?.length && entries.every((p) => isWatched(p.position, p.duration));
-  const episodeUnwatched = isSeries && entry && entry.season != null && !isWatched(entry.position, entry.duration);
+  const a = useTitleActions(item, entry);
 
   const act = (fn: () => void) => () => {
     fn();
@@ -152,50 +135,40 @@ function CardMenu({ target, onLayer }: { target: Target; onLayer: (l: Layer) => 
   const groups: Item[][] = [
     [
       {
-        label: isSeries ? "Go to Show" : "Go to Movie",
+        label: a.isSeries ? "Go to Show" : "Go to Movie",
         icon: <Info size={24} />,
         onPick: () => {
           closeCardMenu({ restore: false });
           navigate({ name: "detail", type: item.type, id: item.id, preview: item });
         },
       },
-      ...(meta?.trailerYtId
-        ? [{ label: "Play Trailer", icon: <Trailer size={24} />, onPick: () => onLayer({ kind: "trailer", ytId: meta.trailerYtId! }) }]
+    ],
+    [
+      ...(a.episodeUnwatched
+        ? [{ label: `Mark ${a.episodeLabel} as Watched`, icon: <Watched size={24} />, onPick: act(a.markEpisodeWatched) }]
+        : []),
+      {
+        label: `Mark ${a.isSeries ? "Show " : ""}as ${a.allWatched ? "Unwatched" : "Watched"}`,
+        icon: a.allWatched ? <Reset size={24} /> : <Watched size={24} />,
+        disabled: !a.canToggleWatched,
+        onPick: act(a.toggleWatched),
+      },
+      ...(a.entryInProgress
+        ? [{ label: "Remove from Continue Watching", icon: <Close size={24} />, onPick: act(a.resetEntry) }]
+        : []),
+      ...(a.hasProgress && !a.allWatched
+        ? [{ label: "Reset Progress", icon: <Reset size={24} />, onPick: act(a.resetAll) }]
         : []),
     ],
     [
-      ...(episodeUnwatched
-        ? [
-            {
-              label: `Mark ${episodeCode(entry.season, entry.episode)} as Watched`,
-              icon: <Watched size={24} />,
-              onPick: act(() => void markWatched([entry], true)),
-            },
-          ]
-        : []),
       {
-        label: `Mark ${isSeries ? "Show " : ""}as ${allWatched ? "Unwatched" : "Watched"}`,
-        icon: allWatched ? <Reset size={24} /> : <Watched size={24} />,
-        // A show's episodes wait for its episode list.
-        disabled: !entries?.length,
-        onPick: act(() => {
-          if (!entries) return;
-          // Unwatching only touches what's been played, ending on the last
-          // episode so the show starts over from the top.
-          const rows = allWatched ? entries.filter((p, i) => p.updatedAt > 0 || i === entries.length - 1) : entries;
-          void markWatched(rows, !allWatched);
-        }),
-      },
-    ],
-    [
-      {
-        label: inLibrary ? "Remove from Library" : "Add to Library",
-        icon: inLibrary ? <Minus size={24} /> : <Plus size={24} />,
-        onPick: act(() => toggleLibrary.mutate(item)),
+        label: a.inLibrary ? "Remove from Library" : "Add to Library",
+        icon: a.inLibrary ? <Minus size={24} /> : <Plus size={24} />,
+        onPick: act(a.toggleLibrary),
       },
       {
-        label: inPlaylist ? "Edit Playlists" : "Add to Playlist",
-        icon: inPlaylist ? <Check size={24} /> : <PlaylistIcon size={24} />,
+        label: a.inPlaylist ? "Edit Playlists" : "Add to Playlist",
+        icon: a.inPlaylist ? <Check size={24} /> : <PlaylistIcon size={24} />,
         onPick: () => onLayer({ kind: "playlists" }),
       },
     ],
@@ -277,38 +250,6 @@ function CardMenu({ target, onLayer }: { target: Target; onLayer: (l: Layer) => 
           })}
         </div>
       ))}
-    </div>
-  );
-}
-
-/**
- * A title's trailer, full screen, from YouTube. Focus stays on the buttons
- * below it (not inside the video) so Back always closes it.
- */
-function TrailerPanel({ ytId, name, onClose }: { ytId: string; name: string; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useFocusTrap(ref);
-  const id = encodeURIComponent(ytId);
-  return (
-    <div className="tv-trailer" ref={ref} data-nav-scope role="dialog" aria-label={`${name} trailer`}>
-      <iframe
-        className="tv-trailer-video"
-        src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1&iv_load_policy=3`}
-        title={`${name} trailer`}
-        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-        referrerPolicy="strict-origin-when-cross-origin"
-        tabIndex={-1}
-      />
-      <div className="tv-trailer-bar">
-        <button className="tv-pill" data-nav-default onClick={onClose}>
-          <Close size={24} />
-          Close Trailer
-        </button>
-        <button className="tv-pill" onClick={() => void api.openExternal(`https://www.youtube.com/watch?v=${id}`)}>
-          <Trailer size={24} />
-          Open in YouTube
-        </button>
-      </div>
     </div>
   );
 }

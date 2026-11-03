@@ -1,5 +1,7 @@
-import { ArrowLeft } from "../../components/icons";
-import { useEffect, useId, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
+import { ease, springs } from "../../lib/motion";
+import logo from "../../assets/polarity-white.png";
 import { BusyLabel } from "../../components/BusyLabel";
 import { AccountError } from "../../lib/account";
 import { useAccount } from "../../lib/account/AccountProvider";
@@ -10,20 +12,34 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESEND_AFTER_S = 60;
 
 type Failure = { message: string; signedIn?: boolean };
+type Step = "start" | "email" | "code";
 
 /**
- * Passwordless sign-in: enter your email, then the code we email you. New
- * emails get an account automatically, so there's no separate sign-up.
+ * Passwordless sign-in, laid out like Linear's: a narrow centred column on a
+ * dark vertical gradient - the mark, one short question, pill buttons - one
+ * step at a time. Start → "What's your email address?" → "Check your email"
+ * with the code field. New emails get an account automatically.
+ *
+ * Changing step, as Linear does: everything but the logo fades out with a
+ * barely-there sink (98%), then the next step fades in and settles to full
+ * size on a gentle spring, all of it together.
  */
 export function AuthScreen() {
   const account = useAccount();
-  const [step, setStep] = useState<"email" | "code">("email");
+  const reduce = useReducedMotion();
+  const [step, setStep] = useState<Step>("start");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
   const [sentAt, setSentAt] = useState(0);
   const wait = useCountdown(sentAt, RESEND_AFTER_S);
+
+  // Changing step: AnimatePresence plays the old step's exit, then mounts the next.
+  const go = (s: Step) => {
+    setError(null);
+    setStep(s);
+  };
 
   const attempt = async (fn: () => Promise<void>, { signedIn = false } = {}) => {
     setBusy(true);
@@ -45,10 +61,10 @@ export function AuthScreen() {
 
   const send = () =>
     attempt(async () => {
-      await account.sendCode(email);
+      await account.sendCode(email.trim());
       setSentAt(Date.now());
       setCode("");
-      setStep("code");
+      if (step !== "code") go("code");
     });
 
   const submitEmail = (e: FormEvent) => {
@@ -59,52 +75,73 @@ export function AuthScreen() {
 
   const verify = (value: string) => {
     if (value.length < 6) return setError({ message: "Enter the code from the email." });
-    void attempt(() => account.verifyCode(email, value), { signedIn: true });
+    void attempt(() => account.verifyCode(email.trim(), value), { signedIn: true });
   };
 
-  const back =
-    step === "code"
-      ? () => {
-          setError(null);
-          setStep("email");
-        }
-      : account.canCancelSignIn
-        ? account.cancelSignIn
-        : undefined;
+  const skip = account.canCancelSignIn ? account.cancelSignIn : account.continueAsGuest;
 
   return (
-    <AccountShell>
+    <AccountShell plain>
       <div className="auth">
-        {back && (
-          <button className="auth-back pressable" onClick={back}>
-            <ArrowLeft size={16} strokeWidth={2.5} />
-            Back
-          </button>
+        <img className="auth-mark" src={logo} alt="Polarity" draggable={false} />
+        <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          className="auth-body"
+          key={step}
+          // Nearly in place: a 2% sink while fading out, then the next step
+          // fades in and springs from 98% to full size with a hint of overshoot.
+          // (Scale props, not a transform string: nothing else runs on this screen.)
+          // Scaled from the top edge, so the title stays on its line and only
+          // the lower part of the step gives.
+          style={{ transformOrigin: "50% 0%" }}
+          initial={{ opacity: 0, scale: reduce ? 1 : 0.98 }}
+          animate={{ opacity: 1, scale: 1, transition: { scale: springs.settle, opacity: { duration: 0.29, ease: ease.out } } }}
+          exit={{ opacity: 0, scale: reduce ? 1 : 0.98, transition: { duration: 0.21, ease: ease.out } }}
+        >
+
+        {step === "start" && (
+          <>
+            <h1 className="auth-title">Sign in to Polarity</h1>
+            <div className="auth-actions">
+              <button className="auth-btn auth-btn-primary" onClick={() => go("email")}>
+                Continue with email
+              </button>
+              <button className="auth-btn" onClick={skip}>
+                Continue without an account
+              </button>
+            </div>
+            <p className="auth-fine">
+              An account keeps your profiles, library, watch history and settings in sync across devices. New here? Signing in
+              creates one.
+            </p>
+          </>
         )}
 
-        {step === "email" ? (
-          <form className="auth-form" onSubmit={submitEmail} noValidate key="email">
-            <h1 className="auth-title">Sign in or create an account</h1>
-            <p className="auth-sub">We'll email you a code. No password needed.</p>
-            <Field
-              label="Email"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onValue={setEmail}
-              autoFocus
-            />
+        {step === "email" && (
+          <form className="auth-form" onSubmit={submitEmail} noValidate>
+            <h1 className="auth-title">What's your email address?</h1>
+            <div className="auth-actions">
+              <Input
+                aria-label="Email address"
+                type="email"
+                autoComplete="email"
+                placeholder="Enter your email address…"
+                value={email}
+                onValue={setEmail}
+                autoFocus
+              />
+              <button className="auth-btn" type="submit" disabled={busy} aria-busy={busy}>
+                <BusyLabel busy={busy}>Continue with email</BusyLabel>
+              </button>
+            </div>
             <ErrorLine error={error} />
-            <SubmitButton busy={busy}>Continue</SubmitButton>
-            <button type="button" className="auth-link auth-guest" onClick={account.continueAsGuest}>
-              Continue without an account
+            <button type="button" className="auth-link" onClick={() => go("start")}>
+              Back to sign in
             </button>
-            <p className="auth-fine">
-              An account keeps your profiles, library, watch history and settings in sync across devices.
-            </p>
           </form>
-        ) : (
+        )}
+
+        {step === "code" && (
           <form
             className="auth-form"
             onSubmit={(e) => {
@@ -112,31 +149,37 @@ export function AuthScreen() {
               verify(code);
             }}
             noValidate
-            key="code"
           >
             <h1 className="auth-title">Check your email</h1>
             <p className="auth-sub">
-              We sent a code to <strong>{email}</strong>.
+              We've sent you a temporary login code.
+              <br />
+              Please check your inbox at <strong>{email.trim()}</strong>.
             </p>
-            <Field
-              label="Code"
-              className="auth-code"
-              placeholder="Enter the code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={10}
-              value={code}
-              onValue={(v) => setCode(v.replace(/\D/g, ""))}
-              onPaste={(e) => {
-                const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
-                if (pasted.length >= 6) {
-                  e.preventDefault();
-                  setCode(pasted);
-                  verify(pasted);
-                }
-              }}
-              autoFocus
-            />
+            <div className="auth-actions">
+              <Input
+                aria-label="Login code"
+                className="auth-code"
+                placeholder="Enter code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={10}
+                value={code}
+                onValue={(v) => setCode(v.replace(/\D/g, ""))}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
+                  if (pasted.length >= 6) {
+                    e.preventDefault();
+                    setCode(pasted);
+                    verify(pasted);
+                  }
+                }}
+                autoFocus
+              />
+              <button className="auth-btn auth-btn-primary" type="submit" disabled={busy || !code} aria-busy={busy}>
+                <BusyLabel busy={busy}>Continue with login code</BusyLabel>
+              </button>
+            </div>
             <ErrorLine
               error={error}
               action={
@@ -147,20 +190,16 @@ export function AuthScreen() {
                 ) : null
               }
             />
-            <SubmitButton busy={busy} disabled={!code}>
-              Continue
-            </SubmitButton>
-            <div className="auth-row">
-              <button type="button" className="auth-link" onClick={() => void send()} disabled={busy || wait > 0}>
-                {wait > 0 ? `Send a new code in ${wait}s` : "Send a new code"}
-              </button>
-              <button type="button" className="auth-link" onClick={back}>
-                Use a different email
-              </button>
-            </div>
-            <p className="auth-fine">Can't find it? Check your spam folder.</p>
+            <button type="button" className="auth-link" onClick={() => go("email")}>
+              Back to sign in
+            </button>
+            <button type="button" className="auth-link auth-link-quiet" onClick={() => void send()} disabled={busy || wait > 0}>
+              {wait > 0 ? `Send a new code in ${wait}s` : "Didn't get it? Send a new code"}
+            </button>
           </form>
         )}
+        </motion.div>
+        </AnimatePresence>
       </div>
     </AccountShell>
   );
@@ -182,31 +221,24 @@ function useCountdown(from: number, seconds: number) {
   return from ? value : 0;
 }
 
-function Field({
-  label,
-  type = "text",
+/** A field with no label above it (the placeholder asks; aria-label names it), as Linear's. */
+function Input({
   value,
   onValue,
   className,
+  type = "text",
   ...rest
-}: { label: string; value: string; onValue: (v: string) => void } & Omit<
-  InputHTMLAttributes<HTMLInputElement>,
-  "value" | "onChange"
->) {
-  const id = useId();
+}: { value: string; onValue: (v: string) => void } & Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   return (
-    <div className={className ? `auth-field ${className}` : "auth-field"}>
-      <label htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onValue(e.target.value)}
-        spellCheck={false}
-        autoCapitalize="off"
-        {...rest}
-      />
-    </div>
+    <input
+      className={className ? `auth-input ${className}` : "auth-input"}
+      type={type}
+      value={value}
+      onChange={(e) => onValue(e.target.value)}
+      spellCheck={false}
+      autoCapitalize="off"
+      {...rest}
+    />
   );
 }
 
@@ -217,13 +249,5 @@ function ErrorLine({ error, action }: { error: Failure | null; action?: ReactNod
       <span>{error.message}</span>
       {action}
     </div>
-  );
-}
-
-function SubmitButton({ busy, disabled, children }: { busy: boolean; disabled?: boolean; children: ReactNode }) {
-  return (
-    <button className="auth-primary pressable" type="submit" disabled={busy || disabled} aria-busy={busy}>
-      <BusyLabel busy={busy}>{children}</BusyLabel>
-    </button>
   );
 }

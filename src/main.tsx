@@ -20,6 +20,8 @@ import "./styles/player.css";
 import "./styles/screens.css";
 import "./styles/account.css";
 import "./styles/settings-overlay.css";
+import "./styles/marketplace.css";
+import "./styles/anime.css";
 import "./styles/tv.css";
 import "./styles/updates.css";
 import { installGamepad } from "./tv/gamepad";

@@ -54,7 +54,14 @@ button {
   background: none;
   border: 0;
   padding: 0;
+  cursor: pointer;
+}
+button:disabled {
   cursor: default;
+}
+/* Anything you can click shows the hand, like the web. */
+:is(a[href], summary, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="tab"], [role="switch"], [role="slider"], select, input:is([type="checkbox"], [type="radio"], [type="range"], [type="color"]), label:has(> input:is([type="checkbox"], [type="radio"]))):not(:disabled, [aria-disabled="true"]) {
+  cursor: pointer;
 }
 
 input {
@@ -254,6 +261,12 @@ input {
 .img-fade[data-loaded="true"] {
   opacity: 1;
 }
+/* A black title logo (TitleLogo) would vanish on dark art: draw it as a white
+   silhouette, keeping the soft shadow the logos carry. Element + attribute
+   outranks each logo class's own filter. */
+img[data-logo-tone="dark"] {
+  filter: brightness(0) invert(1) drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
+}
 
 /* --- Skeletons: a slow shimmer is the one constant motion we allow. */
 .skeleton {
@@ -281,6 +294,50 @@ input {
   }
 }
 
+/* --- Spinner (components/Spinner.tsx), after Vercel's Geist spinner. */
+.spinner {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+.spinner-wheel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+}
+.spinner-bar {
+  position: absolute;
+  top: -3.9%;
+  left: -10%;
+  width: 24%;
+  height: 8%;
+  border-radius: 6px;
+  background: currentColor;
+  animation: spinner-fade 1.2s linear infinite;
+}
+.spinner-bar:nth-child(1) { animation-delay: -1.2s; transform: rotate(0.0001deg) translate(146%); }
+.spinner-bar:nth-child(2) { animation-delay: -1.1s; transform: rotate(30deg) translate(146%); }
+.spinner-bar:nth-child(3) { animation-delay: -1s; transform: rotate(60deg) translate(146%); }
+.spinner-bar:nth-child(4) { animation-delay: -0.9s; transform: rotate(90deg) translate(146%); }
+.spinner-bar:nth-child(5) { animation-delay: -0.8s; transform: rotate(120deg) translate(146%); }
+.spinner-bar:nth-child(6) { animation-delay: -0.7s; transform: rotate(150deg) translate(146%); }
+.spinner-bar:nth-child(7) { animation-delay: -0.6s; transform: rotate(180deg) translate(146%); }
+.spinner-bar:nth-child(8) { animation-delay: -0.5s; transform: rotate(210deg) translate(146%); }
+.spinner-bar:nth-child(9) { animation-delay: -0.4s; transform: rotate(240deg) translate(146%); }
+.spinner-bar:nth-child(10) { animation-delay: -0.3s; transform: rotate(270deg) translate(146%); }
+.spinner-bar:nth-child(11) { animation-delay: -0.2s; transform: rotate(300deg) translate(146%); }
+.spinner-bar:nth-child(12) { animation-delay: -0.1s; transform: rotate(330deg) translate(146%); }
+@keyframes spinner-fade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.15;
+  }
+}
+
 /* --- Dropdown (Base UI Select). A quiet bordered field; the menu is a blurred
        glass panel with a soft highlight on the row under the pointer/keys. */
 .select-trigger {
@@ -294,15 +351,16 @@ input {
   padding: 0 0.5rem 0 0.625rem;
   border-radius: 8px;
   border: 1px solid var(--hairline-strong);
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(255 255 255 / 0.035);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.05);
   color: var(--text);
   font-size: 0.875rem;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition:
-    background-color var(--dur-fast) ease,
-    border-color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) ease;
 }
 /* The season picker: drawn as the selected season tab (light pill, dark text)
    with a chevron, so many-season shows look like the few-season ones. */
@@ -313,6 +371,7 @@ input {
   gap: 0.375rem;
   border: none;
   border-radius: var(--r-pill);
+  box-shadow: none;
   background: var(--pill-light);
   color: var(--text-on-light);
   font-size: 1.625rem;
@@ -329,7 +388,7 @@ input {
 }
 @media (hover: hover) and (pointer: fine) {
   .select-trigger:hover {
-    background: rgb(255 255 255 / 0.08);
+    background: rgb(255 255 255 / 0.07);
   }
   .select-trigger[data-size="large"]:hover {
     background: #fff;
@@ -365,34 +424,30 @@ input {
   z-index: 1000;
   user-select: none;
 }
+/* T3 Code's popover: solid, a hairline border with a 1px top highlight, a soft
+   shadow. Opens and closes instantly: it's used from the keyboard, many times a day. */
 .select-popup {
   min-width: var(--anchor-width);
   border-radius: 10px;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  background: rgb(30 30 30 / 0.78);
-  backdrop-filter: blur(28px) saturate(1.6);
-  box-shadow: 0 18px 44px -18px rgb(0 0 0 / 0.8);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: #121212;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 12px 32px -12px rgb(0 0 0 / 0.7);
   font-family: var(--font);
   color: var(--text);
   outline: none;
-  transform-origin: var(--transform-origin);
-  transition:
-    opacity var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-out);
-}
-.select-popup[data-starting-style],
-.select-popup[data-ending-style] {
-  opacity: 0;
-  transform: scale(0.97);
-}
-.select-popup[data-ending-style] {
-  transition-duration: 100ms;
 }
 .select-list {
   max-height: min(var(--available-height), 22rem);
   overflow-y: auto;
   padding: 0.25rem;
   outline: none;
+  /* Scrolls by wheel, keys and drag; a bar inside a menu is just clutter. */
+  scrollbar-width: none;
+}
+.select-list::-webkit-scrollbar {
+  display: none;
 }
 .select-item {
   display: flex;
@@ -405,32 +460,69 @@ input {
   cursor: pointer;
   outline: none;
 }
+/* The season picker is the TV options menu (.tv-card-menu): a frosted glass
+   panel, tall rows, and the row under the pointer becomes a light pill that
+   lifts a touch out of the list. The current season is only a checkmark. It
+   grows out of its trigger, since it's opened by a deliberate click. */
 .select-popup[data-size="large"] {
-  min-width: max(var(--anchor-width), 12rem);
-  border-radius: var(--r-lg);
+  min-width: max(var(--anchor-width), 14rem);
+  border: none;
+  border-radius: 1.25rem;
+  background: rgb(38 38 38 / 0.82);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+  backdrop-filter: blur(40px) saturate(160%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.08),
+    0 1.5rem 3.5rem -1rem rgb(0 0 0 / 0.7);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+.select-popup[data-size="large"][data-starting-style],
+.select-popup[data-size="large"][data-ending-style] {
+  opacity: 0;
+  transform: scale(0.94);
+}
+.select-popup[data-size="large"][data-ending-style] {
+  transition-duration: 120ms;
 }
 .select-popup[data-size="large"] .select-list {
-  padding: 0.375rem;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 0.25) transparent;
+  max-height: min(var(--available-height), 26rem);
+  padding: 0.5rem;
 }
 .select-popup[data-size="large"] .select-item {
-  min-height: 2.75rem;
-  padding: 0 0.875rem;
-  border-radius: var(--r-pill);
-  font-size: 1.125rem;
+  position: relative;
+  min-height: 3rem;
+  padding: 0 1rem;
+  /* Concentric with the panel: its radius minus the list's padding. */
+  border-radius: calc(1.25rem - 0.5rem);
+  font-size: 1.0625rem;
   font-weight: 600;
   color: var(--text-2);
-}
-.select-popup[data-size="large"] .select-item[data-highlighted] {
-  color: var(--text);
+  transition:
+    background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    box-shadow 200ms var(--ease-out);
 }
 .select-popup[data-size="large"] .select-item[data-selected] {
+  color: var(--text);
+}
+.select-popup[data-size="large"] .select-item[data-highlighted] {
+  z-index: 1;
   background: var(--pill-light);
   color: var(--text-on-light);
+  /* No lift here (unlike TV): a scaled row would break the concentric
+     corners and crowd the panel's edge at the top and bottom of the list. */
+  box-shadow: 0 0.5rem 1.25rem -0.5rem rgb(0 0 0 / 0.5);
+}
+@media (prefers-reduced-motion: reduce) {
+  .select-popup[data-size="large"] {
+    transform: none !important;
+  }
 }
 .select-item[data-highlighted] {
-  background: rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.07);
 }
 .select-item[data-selected] {
   font-weight: 600;
@@ -443,11 +535,4 @@ input {
   display: grid;
   flex: none;
   opacity: 0.85;
-}
-/* Reduced motion: the menu still fades (it helps you see it open), but doesn't scale. */
-@media (prefers-reduced-motion: reduce) {
-  .select-popup[data-starting-style],
-  .select-popup[data-ending-style] {
-    transform: none;
-  }
 }

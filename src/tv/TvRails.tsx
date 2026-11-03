@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
+import { TitleLogo } from "../components/TitleLogo";
 import { ProgressBar } from "../components/PosterCard";
 import { episodeCode, formatRemaining } from "../lib/format";
 import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/queries";
@@ -25,6 +26,8 @@ export function TvCard({
   chip,
   entry,
   onOpen,
+  localOnly,
+  onFocusChange,
 }: {
   item: MetaPreview;
   shape: Shape;
@@ -35,6 +38,9 @@ export function TvCard({
   /** The watch progress this card stands for, if it's one video (Continue Watching). */
   entry?: Progress;
   onOpen?: () => void;
+  /** Not (yet) one of the app's titles, as with anime from AniList: no page to fetch ahead, no options menu. */
+  localOnly?: boolean;
+  onFocusChange?: (focused: boolean) => void;
 }) {
   const { navigate } = useRouter();
   const stage = useStage();
@@ -44,8 +50,8 @@ export function TvCard({
   // Show on the stage until something is focused, if this is the page's first title.
   useEffect(() => {
     if (el.current) seedStage({ item, kicker }, el.current);
-    // Again once a placeholder title (a playlist entry still loading) fills in.
-  }, [item.id, item.name]);
+    // Again once a placeholder title (a playlist entry still loading) fills in, or better art arrives.
+  }, [item.id, item.name, item.background]);
   // Art that won't load falls back to the title, not an empty frame.
   const [broken, setBroken] = useState(false);
   const preferred = shape === "poster" ? (item.poster ?? item.background) : (item.background ?? item.poster);
@@ -61,20 +67,25 @@ export function TvCard({
       onClick={open}
       onFocus={() => {
         stage({ item, kicker });
+        onFocusChange?.(true);
         timer.current = window.setTimeout(() => {
-          prefetchMeta(item.type, item.id);
+          if (!localOnly) prefetchMeta(item.type, item.id);
           preloadImage(item.background);
         }, INTENT_MS);
       }}
-      onBlur={() => window.clearTimeout(timer.current)}
+      onBlur={() => {
+        window.clearTimeout(timer.current);
+        onFocusChange?.(false);
+      }}
       // Options: X / Square on a controller (sent as the Menu key), the Menu key, or a right-click.
       onKeyDown={(e) => {
-        if (!isMenuKey(e)) return;
+        if (localOnly || !isMenuKey(e)) return;
         e.preventDefault();
         openCardMenu({ item, entry, anchor: e.currentTarget });
       }}
       onContextMenu={(e) => {
         e.preventDefault();
+        if (localOnly) return;
         e.currentTarget.focus({ preventScroll: true });
         openCardMenu({ item, entry, anchor: e.currentTarget });
       }}
@@ -88,11 +99,12 @@ export function TvCard({
         {shape === "landscape" && art && (
           <>
             <span className="tv-card-scrim" />
-            {item.logo ? <Img src={item.logo} alt="" className="tv-card-logo" /> : <span className="tv-card-name">{item.name}</span>}
+            {item.logo ? <TitleLogo src={item.logo} alt="" className="tv-card-logo" /> : <span className="tv-card-name">{item.name}</span>}
           </>
         )}
         {chip && <span className="tv-card-chip">{chip}</span>}
         {progress != null && <ProgressBar fraction={progress} />}
+        {shape === "poster" && <CardRating rating={item.imdbRating} placement="poster" />}
       </span>
       {shape === "poster" && <CardRating rating={item.imdbRating} />}
     </button>

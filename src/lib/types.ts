@@ -24,6 +24,8 @@ export interface Video {
   thumbnail?: string;
   overview?: string;
   rating?: string;
+  /** A short note beside the episode number ("Filler"). */
+  tag?: string;
 }
 
 export interface Meta extends MetaPreview {
@@ -32,6 +34,51 @@ export interface Meta extends MetaPreview {
   director?: string[];
   trailerYtId?: string;
   videos: Video[];
+  /** The cast with roles and photos, where the source has them. */
+  people?: Person[];
+  details?: MetaDetails;
+}
+
+export interface Person {
+  name: string;
+  character?: string;
+  photo?: string;
+}
+
+export interface MetaDetails {
+  tagline?: string;
+  status?: string;
+  /** YYYY-MM-DD */
+  released?: string;
+  countries?: string[];
+  languages?: string[];
+  /** Networks for a show, studios for a movie. */
+  studios?: string[];
+  writers?: string[];
+  awards?: string;
+  budget?: number;
+  revenue?: number;
+  seasons?: number;
+  episodes?: number;
+  votes?: number;
+  tmdbId?: number;
+}
+
+/** Scores from ratings services (Settings → Services). */
+export interface ExternalRatings {
+  /** Tomatometer, percent. */
+  rottenTomatoes?: number | null;
+  /** Rotten Tomatoes audience score, percent. */
+  audience?: number | null;
+  metacritic?: number | null;
+  /** Out of 5. */
+  letterboxd?: number | null;
+  /** Percent. */
+  trakt?: number | null;
+  imdb?: number | null;
+  imdbVotes?: number | null;
+  awards?: string | null;
+  rated?: string | null;
 }
 
 export interface Stream {
@@ -55,6 +102,10 @@ export interface StreamQuality {
   cached: boolean;
   lowQualitySource: boolean;
   direct: boolean;
+  /** Audio languages the source mentions (ISO 639-1, or "multi"); empty when it says nothing. */
+  languages?: string[];
+  /** "Remux", "Atmos", "HDR10+", "10-bit"… */
+  tags?: string[];
 }
 
 export interface RankedStream {
@@ -200,6 +251,14 @@ export interface Settings {
   /** Comma-separated. */
   excludeKeywords: string;
   sourceSort: SourceSort;
+  /** Tag filters the source list turns on by itself when some source has them ("dv", "hdr"…). */
+  sourceAutoTags?: string[];
+  /** Rank sources sharper than this screen below ones that match it. */
+  preferScreenResolution?: boolean;
+
+  // Services
+  mdblistKey?: string | null;
+  omdbKey?: string | null;
 
   // Subtitles
   subtitleMode: "always" | "foreign";
@@ -213,7 +272,15 @@ export interface Settings {
   showContinueWatching: boolean;
   hideEpisodeThumbs: boolean;
   hideEpisodeDescriptions: boolean;
-  startPage: "home" | "library" | "movies" | "series";
+  startPage: "home" | "library" | "movies" | "series" | "anime";
+  /** Play a title's trailer behind its page after a few seconds. */
+  trailerAutoplay?: boolean;
+  /** …with sound. */
+  trailerSound?: boolean;
+  /** Where a card's IMDb rating sits. */
+  cardRatingPosition?: "poster" | "below";
+  /** The Calendar section (opt-in). */
+  showCalendar?: boolean;
 }
 
 export type SourceSort = "best" | "quality" | "sizeDesc" | "sizeAsc" | "peers";

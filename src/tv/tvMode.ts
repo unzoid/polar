@@ -19,6 +19,24 @@ function apply() {
 apply();
 if (on && isTauri) void getCurrentWindow().setFullscreen(true);
 
+/**
+ * Something inside the page going fullscreen and back takes the window out of
+ * fullscreen with it. TV mode is always fullscreen, so put it back.
+ */
+if (isTauri) {
+  const reassert = async () => {
+    if (!on) return;
+    const win = getCurrentWindow();
+    if ((await win.isMinimized()) || (await win.isFullscreen())) return;
+    if (on) await win.setFullscreen(true);
+  };
+  document.addEventListener("fullscreenchange", () => {
+    if (document.fullscreenElement) return;
+    // The window settles a moment after the element leaves fullscreen.
+    for (const ms of [60, 300]) window.setTimeout(() => void reassert(), ms);
+  });
+}
+
 export function setTvMode(next: boolean) {
   if (next === on) return;
   on = next;

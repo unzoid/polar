@@ -2,7 +2,7 @@ import { api } from "./api";
 import { sync } from "./account/sync";
 import { isReleased } from "./format";
 import { keys, queryClient } from "./queries";
-import type { Meta, MetaPreview, Progress, Settings } from "./types";
+import type { Meta, MetaPreview, Progress, Settings, Video } from "./types";
 
 /**
  * How much of a video has to be watched before it counts as watched
@@ -51,6 +51,14 @@ export function showEntries(meta: Meta, progress: Progress[] | undefined): Progr
         played.get(v.id) ??
         blank(meta, v.id, duration, { season: v.season, episode: v.episode, episodeTitle: v.title }),
     );
+}
+
+/** One episode's entry: what's been played of it, or a fresh one. */
+export function episodeEntry(meta: Meta, video: Video, progress?: Progress): Progress {
+  return (
+    progress ??
+    blank(meta, video.id, runtimeSeconds(meta.runtime), { season: video.season, episode: video.episode, episodeTitle: video.title })
+  );
 }
 
 /**

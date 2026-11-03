@@ -1,8 +1,17 @@
-import { Check, LayoutList, LayoutRow, Play, Plus, Reset, Sources } from "../components/icons";
-import { useEffect, useMemo, useState } from "react";
+import { Check, LayoutList, LayoutRow, Play, Plus, Reset, Sources, Trailer, Volume, VolumeMuted } from "../components/icons";
+import { useFoldSnap } from "../lib/useFoldSnap";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
+import { cardMenu } from "../components/CardMenu";
+import { ScoreChips, TitleDetails } from "../components/TitleDetails";
+import { openTrailer, useTrailerOpen } from "../components/Trailer";
+import { episodeEntry } from "../lib/watched";
 import { EpisodeShelf } from "../components/EpisodeShelf";
+import { EdgeBlur } from "../components/EdgeBlur";
+import { DownloadButton } from "../components/DownloadButton";
 import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
+import { TitleLogo } from "../components/TitleLogo";
 import { PlaylistButton } from "../components/Playlists";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
@@ -27,39 +36,73 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   // Render instantly from the catalog preview; fill in when full meta arrives.
   const shown: MetaPreview | undefined = meta ?? preview;
 
+  // The trailer behind the page: only while it's the page on top, and paused
+  // once you've scrolled down to read or a sheet or the big trailer is open.
+  const root = useRef<HTMLDivElement>(null);
+  const onTop = usePageOnTop(root);
+  const [scrolledAway, setScrolledAway] = useState(false);
+  const [sheets, setSheets] = useState(0);
+  const onSheet = useCallback((open: boolean) => setSheets((n) => Math.max(0, n + (open ? 1 : -1))), []);
+  const bigTrailer = !!useTrailerOpen();
+  const trailer = useBackdropTrailer(meta?.trailerYtId, {
+    active: onTop,
+    paused: scrolledAway || sheets > 0 || bigTrailer,
+  });
+
+  const scroller = useRef<HTMLDivElement>(null);
+  useFoldSnap(scroller, !!shown);
+
   if (isError && !shown) return <p className="empty t-body muted">Couldn't load this title: {String(error)}</p>;
   if (!shown) return <div className="detail-loading skeleton" />;
 
   return (
-    <div className="detail">
+    <div className="detail" ref={root} data-trailer={trailer.visible} data-type={type}>
       <div className="detail-bg" aria-hidden>
         <Img src={shown.background} alt="" loading="eager" className="detail-bg-sharp" />
+        {trailer.node}
         <Img src={shown.background} alt="" loading="eager" className="detail-bg-blur" />
         <div className="detail-bg-scrim" />
       </div>
-      <div className="scroll detail-scroll">
-        <DetailHero item={shown} meta={meta} />
-        {type === "series" && meta && <Seasons meta={meta} />}
-        {type === "movie" && meta && <About meta={meta} />}
+      <div
+        className="scroll detail-scroll"
+        ref={scroller}
+        onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
+      >
+        <DetailHero item={shown} meta={meta} onSheet={onSheet} trailer={trailer} />
+        {type === "series" && meta && <SeriesBody meta={meta} onSheet={onSheet} />}
+        {type === "movie" && meta && (
+          <section className="about">
+            <h2 className="t-title2">About</h2>
+            <TitleDetails meta={meta} />
+          </section>
+        )}
       </div>
       {/* Teases what's below the fold; clears as you scroll. */}
-      <div className="detail-fold" aria-hidden>
-        <i data-l="1" />
-        <i data-l="2" />
-        <i data-l="3" />
-        <i data-l="4" />
-        <i data-l="tint" />
-        <i data-l="grain" />
-      </div>
+      <EdgeBlur className="detail-fold" />
     </div>
   );
 }
 
-function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
+function DetailHero({
+  item,
+  meta,
+  onSheet,
+  trailer,
+}: {
+  item: MetaPreview;
+  meta?: Meta;
+  onSheet: (open: boolean) => void;
+  trailer: { visible: boolean; muted: boolean; toggleMute: () => void };
+}) {
   const { navigate } = useRouter();
   const { data: library } = useLibrary();
   const toggle = useToggleLibrary();
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  useEffect(() => {
+    if (!sourcesOpen) return;
+    onSheet(true);
+    return () => onSheet(false);
+  }, [sourcesOpen, onSheet]);
 
   const isSeries = item.type === "series";
   const inLibrary = library?.some((l) => l.id === item.id);
@@ -84,13 +127,14 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
     <section className="detail-hero">
       <div className="detail-hero-main">
         {item.logo ? (
-          <Img src={item.logo} alt={item.name} className="detail-logo" loading="eager" />
+          <TitleLogo src={item.logo} alt={item.name} className="detail-logo" loading="eager" />
         ) : (
           <h1 className="t-display detail-title">{item.name}</h1>
         )}
         {item.description && <p className="detail-description t-callout">{item.description}</p>}
         <p className="detail-facts t-callout tabular">
           {item.imdbRating && <RatingRing value={item.imdbRating} imdbId={item.id} />}
+          <ScoreChips type={item.type} id={item.id} />
           {facts.join(" · ")}
         </p>
 
@@ -104,6 +148,12 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
             {resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
             {primaryLabel}
           </button>
+          {meta?.trailerYtId && (
+            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer(meta.trailerYtId!, item.name)}>
+              <Trailer size={18} />
+              Trailer
+            </button>
+          )}
           <button
             className="btn btn-glass btn-icon"
             onClick={() => toggle.mutate(item)}
@@ -123,6 +173,17 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
           >
             <Sources size={19} />
           </button>
+          {item.type === "movie" && <DownloadButton item={item} />}
+          {trailer.visible && (
+            <button
+              className="btn btn-glass btn-icon detail-mute"
+              onClick={trailer.toggleMute}
+              aria-label={trailer.muted ? "Turn trailer sound on" : "Mute trailer"}
+              title={trailer.muted ? "Sound on" : "Mute"}
+            >
+              {trailer.muted ? <VolumeMuted size={20} /> : <Volume size={20} />}
+            </button>
+          )}
         </div>
       </div>
 
@@ -167,7 +228,20 @@ function DetailHero({ item, meta }: { item: MetaPreview; meta?: Meta }) {
 /** Up to this many seasons show as tabs; more become a dropdown. */
 const MAX_SEASON_TABS = 6;
 
-function Seasons({ meta }: { meta: Meta }) {
+/** A show below the fold: its episodes, then everything else about it, as a movie's About. */
+function SeriesBody({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => void }) {
+  return (
+    <>
+      <Seasons meta={meta} onSheet={onSheet} />
+      <section className="about about-series">
+        <h2 className="t-title2">About</h2>
+        <TitleDetails meta={meta} />
+      </section>
+    </>
+  );
+}
+
+function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => void }) {
   const { navigate } = useRouter();
   const { data: progress } = useProgress(meta.id);
   const seasons = useMemo(() => seasonsOf(meta), [meta]);
@@ -178,6 +252,11 @@ function Seasons({ meta }: { meta: Meta }) {
   // Kept after closing so the sheet keeps its content while it slides out.
   const [sourcesFor, setSourcesFor] = useState<Video | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  useEffect(() => {
+    if (!sheetOpen) return;
+    onSheet(true);
+    return () => onSheet(false);
+  }, [sheetOpen, onSheet]);
 
   // Open on the season you're actually in, not always season 1 — so wait
   // for watch progress before choosing.
@@ -235,6 +314,7 @@ function Seasons({ meta }: { meta: Meta }) {
         />
       </div>
       <EpisodeShelf
+        item={meta}
         layout={layout}
         episodes={episodes}
         progress={map}
@@ -245,6 +325,7 @@ function Seasons({ meta }: { meta: Meta }) {
           setSourcesFor(v);
           setSheetOpen(true);
         }}
+        menu={(v) => cardMenu(meta, episodeEntry(meta, v, map.get(v.id)), { episode: true })}
       />
       <Sheet
         open={sheetOpen}
@@ -267,50 +348,3 @@ function Seasons({ meta }: { meta: Meta }) {
   );
 }
 
-/** Movies: the Apple TV "About" + information block below the hero. */
-function About({ meta }: { meta: Meta }) {
-  // The rating already shows (and links to IMDb) in the hero.
-  const info: [string, string | undefined][] = [
-    ["Genre", meta.genres?.join(", ")],
-    ["Released", meta.releaseInfo],
-    ["Runtime", meta.runtime],
-    ["Director", meta.director?.join(", ")],
-  ];
-  return (
-    <section className="about">
-      <h2 className="t-title2">About</h2>
-      <div className="about-grid">
-        {meta.description && <p className="about-description">{meta.description}</p>}
-        <dl className="about-info t-callout">
-          {info
-            .filter(([, v]) => v)
-            .map(([k, v]) => (
-              <div key={k}>
-                <dt className="about-label">{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-        </dl>
-        {meta.cast?.length ? (
-          <div className="about-cast">
-            <h3 className="about-label">Cast</h3>
-            <ul className="cast-list">
-              {meta.cast.slice(0, 12).map((name) => (
-                <li key={name} className="cast-chip t-callout">
-                  <span className="cast-avatar" aria-hidden>
-                    {name
-                      .split(" ")
-                      .map((p) => p[0])
-                      .slice(0, 2)
-                      .join("")}
-                  </span>
-                  {name}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
-}

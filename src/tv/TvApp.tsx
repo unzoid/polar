@@ -8,6 +8,7 @@ import {
   focusEl,
   focusWhenReady,
   installFocusMemory,
+  installPointerFocus,
   KEY_DIRS,
   landingIn,
   move,
@@ -19,10 +20,12 @@ import { actionFor, shortcutText } from "../lib/keybinds";
 import { playSound } from "./sounds";
 import { useSettings } from "../lib/queries";
 import { setTvMode } from "./tvMode";
-import { ControllerToast, TV_TABS, TvHints, TvMenu, TvNav, sameTab } from "./TvChrome";
+import { ControllerToast, TvHints, TvMenu, TvNav, sameTab, useTvTabs } from "./TvChrome";
 import { TvCardMenuHost, useCardMenuOpen } from "./TvCardMenu";
+import { TvAnime, TvAnimeDetail } from "./TvAnime";
 import { TvDetail } from "./TvDetail";
-import { TvDiscover, TvHome, TvLibrary, TvSearch, TvSettingsNote } from "./TvScreens";
+import { TvCalendar, TvDiscover, TvHome, TvLibrary, TvSearch } from "./TvScreens";
+import { TvSettings } from "./TvSettings";
 
 function TvScreen({ route }: { route: Route }) {
   switch (route.name) {
@@ -32,14 +35,23 @@ function TvScreen({ route }: { route: Route }) {
       return <TvDiscover type={route.type} />;
     case "library":
       return <TvLibrary />;
+    case "calendar":
+      return <TvCalendar />;
     case "search":
       return <TvSearch />;
     case "settings":
-      return <TvSettingsNote />;
+      return <TvSettings />;
     case "detail":
       return <TvDetail type={route.type} id={route.id} preview={route.preview} />;
     case "player":
       return null; // the player layer
+    case "anime":
+    // Schedule and Browse are desktop pages; switching modes on one lands here.
+    case "anime-schedule":
+    case "anime-browse":
+      return <TvAnime />;
+    case "anime-detail":
+      return <TvAnimeDetail id={route.id} />;
   }
 }
 
@@ -64,8 +76,10 @@ export function TvApp() {
   const [cursorHidden, setCursorHidden] = useState(true);
   const pageEls = useRef(new Map<number, HTMLElement>());
   const { data: settings } = useSettings();
+  const tabs = useTvTabs();
 
   useEffect(installFocusMemory, []);
+  useEffect(installPointerFocus, []);
 
   // The pack's startup chime (if it has one) as TV mode opens, once the first frame is up.
   useEffect(() => {
@@ -125,13 +139,13 @@ export function TvApp() {
       if (menuOpen) return;
       playSound("move");
       if (action === "search") return tab({ name: "search" });
-      const i = TV_TABS.findIndex((t) => sameTab(t.route, activeTab));
-      const j = Math.min(TV_TABS.length - 1, Math.max(0, i + (action === "nextTab" ? 1 : -1)));
-      if (j !== i) tab(TV_TABS[j].route);
+      const i = tabs.findIndex((t) => sameTab(t.route, activeTab));
+      const j = Math.min(tabs.length - 1, Math.max(0, i + (action === "nextTab" ? 1 : -1)));
+      if (j !== i) tab(tabs[j].route);
     };
     window.addEventListener(TV_ACTION_EVENT, onAction);
     return () => window.removeEventListener(TV_ACTION_EVENT, onAction);
-  }, [playing, menuOpen, cardMenuOpen, tab, activeTab]);
+  }, [playing, menuOpen, cardMenuOpen, tab, activeTab, tabs]);
 
   // Arriving on a page (or back from the player) puts focus where you were on it, or its first title.
   useEffect(() => {
@@ -180,6 +194,7 @@ export function TvApp() {
       data-player-leaving={leaving}
       data-cursor={cursorHidden ? "hidden" : "shown"}
       data-card-ratings={settings?.showCardRatings ?? false}
+      data-rating-position={settings?.cardRatingPosition ?? "poster"}
       data-rating-colors={settings?.ratingColors ?? false}
     >
       <main className="main tv-main" data-nav-scope>

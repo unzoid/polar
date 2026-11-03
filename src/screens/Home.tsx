@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AmbientWash } from "../components/AmbientWash";
 import { Check, ChevronRight, Play, Plus } from "../components/icons";
 import { Img } from "../components/Img";
+import { TitleLogo } from "../components/TitleLogo";
 import { CardSkeleton, LandscapeCard, PosterCard, ProgressBar, useIntent } from "../components/PosterCard";
 import { Row } from "../components/Row";
 import { SwapIcon } from "../components/SwapIcon";
@@ -20,7 +21,8 @@ import {
 } from "../lib/queries";
 import { prefersReducedMotion } from "../lib/reducedMotion";
 import { useRouter } from "../lib/router";
-import { shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf } from "../lib/shelves";
+import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf } from "../lib/shelves";
+import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
 
 /**
@@ -74,14 +76,17 @@ const ADVANCE_MS = 9000;
  * for reduced motion. The art cross-fades rather than slides: a full-screen
  * slide is a vestibular trigger and an abrupt cut is a brightness jump.
  */
-function HeroCarousel({
+export function HeroCarousel({
   items,
   index,
   setIndex,
+  content,
 }: {
   items?: MetaPreview[];
   index: number;
   setIndex: (i: number | ((i: number) => number)) => void;
+  /** The text block over the art, for a page whose titles open somewhere else (Anime). */
+  content?: (item: MetaPreview) => ReactNode;
 }) {
   const [paused, setPaused] = useState(false);
   const hero = useRef<HTMLDivElement>(null);
@@ -140,7 +145,7 @@ function HeroCarousel({
         <div className="hero-scrim" />
 
         {/* Keyed: the text block swaps with a short blur-masked fade. */}
-        <HeroContent key={item.id} item={item} />
+        <Fragment key={item.id}>{content ? content(item) : <HeroContent item={item} />}</Fragment>
 
         <div className="hero-pager">
           <div className="hero-dots" role="tablist" aria-label="Featured">
@@ -183,7 +188,7 @@ function HeroContent({ item }: { item: MetaPreview }) {
   return (
     <div className="hero-content">
       {item.logo ? (
-        <Img src={item.logo} alt={item.name} className="hero-logo" loading="eager" />
+        <TitleLogo src={item.logo} alt={item.name} className="hero-logo" loading="eager" />
       ) : (
         <h1 className="t-display hero-title">{item.name}</h1>
       )}
@@ -288,6 +293,7 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
       role="link"
       tabIndex={0}
       onClick={openDetail}
+      {...cardMenu(progressItem(p), p)}
       onKeyDown={(e) => {
         if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
           e.preventDefault();
@@ -298,7 +304,7 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
       <div className="card-frame">
         <Img src={p.background ?? p.poster} alt="" className="card-img" />
         <div className="card-art-scrim" />
-        {logo ? <Img src={logo} alt={p.name} className="card-logo" /> : <span className="card-art-title t-title2">{p.name}</span>}
+        {logo ? <TitleLogo src={logo} alt={p.name} className="card-logo" /> : <span className="card-art-title t-title2">{p.name}</span>}
         <button
           type="button"
           className="card-play"

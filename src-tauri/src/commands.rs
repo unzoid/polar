@@ -95,28 +95,50 @@ pub struct StreamsResult {
 
 /// Query every installed stream addon concurrently, then rank and dedupe.
 #[tauri::command]
-pub async fn streams(state: State<'_, AppState>, ty: String, video_id: String) -> Result<StreamsResult> {
-    let addons: Vec<InstalledAddon> = installed(&state)
+pub async fn streams(
+    state: State<'_, AppState>,
+    ty: String,
+    video_id: String,
+    // Other ids for the same episode (an anime's Kitsu id): asked of every addon that serves them, results merged.
+    alt_ids: Option<Vec<String>>,
+) -> Result<StreamsResult> {
+    let mut ids = vec![video_id];
+    ids.extend(alt_ids.unwrap_or_default());
+
+    // One request per (addon, id) the addon claims to serve.
+    let jobs: Vec<(InstalledAddon, String)> = installed(&state)
         .into_iter()
-        .filter(|a| a.manifest.serves("stream", &ty, &video_id))
+        .flat_map(|a| {
+            ids.iter()
+                .filter(|id| a.manifest.serves("stream", &ty, id))
+                .map(|id| (a.clone(), id.clone()))
+                .collect::<Vec<_>>()
+        })
         .collect();
 
     let client = &state.addons;
-    let results = join_all(addons.iter().map(|a| async {
-        let fetch = client.streams(&a.manifest_url, &ty, &video_id);
+    let results = join_all(jobs.iter().map(|(a, id)| async {
+        let fetch = client.streams(&a.manifest_url, &ty, id);
         let res = tokio::time::timeout(ADDON_TIMEOUT, fetch).await;
         (a.manifest.name.clone(), res)
     }))
     .await;
 
     let mut all = Vec::new();
-    let mut failed = Vec::new();
+    let mut failed: Vec<String> = Vec::new();
+    let mut answered: Vec<String> = Vec::new();
     for (name, res) in results {
         match res {
-            Ok(Ok(streams)) => all.extend(streams.into_iter().map(|s| (name.clone(), s))),
+            Ok(Ok(streams)) => {
+                answered.push(name.clone());
+                all.extend(streams.into_iter().map(|s| (name.clone(), s)));
+            }
             _ => failed.push(name),
         }
     }
+    // An addon that answered for one of the ids isn't "failed" because it timed out on another.
+    failed.retain(|n| !answered.contains(n));
+    failed.dedup();
     let filter = state.store.lock().unwrap().data.settings.stream_filter(&ty);
     let (streams, hidden) = rank_streams_filtered(all, &filter);
     Ok(StreamsResult { streams, failed, hidden })
@@ -136,8 +158,17 @@ pub enum Playable {
 /// bridge until the embedded engine (librqbit) lands.
 #[tauri::command]
 pub async fn resolve_stream(state: State<'_, AppState>, stream: Stream) -> Result<Playable> {
+    Ok(resolve(&state, stream).await)
+}
+
+/// Shared by playback and downloads.
+pub async fn resolve(state: &AppState, stream: Stream) -> Playable {
     if let Some(url) = stream.url {
-        return Ok(Playable::Url { url });
+        // A download played back: a path on this machine, which may have been deleted since.
+        if crate::downloads::is_local(&url) && !std::path::Path::new(&url).exists() {
+            return Playable::Unsupported { reason: "This download is no longer on this device.".into() };
+        }
+        return Playable::Url { url };
     }
     if let Some(hash) = stream.content_id {
         let server = state.store.lock().unwrap().data.settings.bridge.clone();
@@ -149,20 +180,20 @@ pub async fn resolve_stream(state: State<'_, AppState>, stream: Stream) -> Resul
             .await
             .is_ok();
         if !reachable {
-            return Ok(Playable::Unsupported {
+            return Playable::Unsupported {
                 reason: "p2p streams need a bridge. Start Stremio's server, or wait for the built-in engine.".into(),
-            });
+            };
         }
         let file = stream.file_idx.map(|f| f.to_string()).unwrap_or_else(|| "-1".into());
-        return Ok(Playable::Url { url: format!("{server}/{}/{file}", hash.to_lowercase()) });
+        return Playable::Url { url: format!("{server}/{}/{file}", hash.to_lowercase()) };
     }
     if let Some(yt) = stream.yt_id {
-        return Ok(Playable::External { url: format!("https://www.youtube.com/watch?v={yt}") });
+        return Playable::External { url: format!("https://www.youtube.com/watch?v={yt}") };
     }
     if let Some(url) = stream.external_url {
-        return Ok(Playable::External { url });
+        return Playable::External { url };
     }
-    Ok(Playable::Unsupported { reason: "This stream has no playable source.".into() })
+    Playable::Unsupported { reason: "This stream has no playable source.".into() }
 }
 
 // --- Addons --------------------------------------------------------------
@@ -347,6 +378,8 @@ pub fn settings_reset(state: State<'_, AppState>) -> Result<SettingsView> {
     let fresh = Settings {
         tmdb_key: current.tmdb_key,
         seekr_key: current.seekr_key,
+        mdblist_key: current.mdblist_key,
+        omdb_key: current.omdb_key,
         bridge: current.bridge,
         language: current.language,
         ..Settings::default()
@@ -425,6 +458,20 @@ pub async fn seekr_validate(state: State<'_, AppState>, key: String) -> Result<O
 #[tauri::command]
 pub async fn skip_segments(state: State<'_, AppState>, video_id: String) -> Result<crate::introdb::Segments> {
     state.introdb.segments(&video_id).await.map_err(CmdError::Other)
+}
+
+// --- Ratings (MDBList / OMDb) ----------------------------------------------
+
+/// Rotten Tomatoes, Metacritic, Letterboxd… scores for a title, from whichever
+/// ratings services have a key in Settings → Services. Empty without one.
+#[tauri::command]
+pub async fn ratings(state: State<'_, AppState>, ty: String, id: String) -> Result<crate::ratings::Ratings> {
+    let (mdblist, omdb) = {
+        let s = &state.store.lock().unwrap().data.settings;
+        let key = |k: &Option<String>| k.as_deref().map(str::trim).filter(|k| !k.is_empty()).map(str::to_owned);
+        (key(&s.mdblist_key), key(&s.omdb_key))
+    };
+    Ok(state.ratings.get(&id, &ty, mdblist.as_deref(), omdb.as_deref()).await)
 }
 
 // --- External links ------------------------------------------------------

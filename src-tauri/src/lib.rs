@@ -1,7 +1,9 @@
 mod commands;
 mod controllers;
+mod downloads;
 mod player;
 mod introdb;
+mod ratings;
 mod seekr;
 mod store;
 mod sync;
@@ -20,6 +22,7 @@ pub struct AppState {
     pub seekr: seekr::Seekr,
     pub mpv: player::Mpv,
     pub introdb: introdb::IntroDb,
+    pub ratings: ratings::RatingsClient,
 }
 
 impl AppState {
@@ -93,6 +96,7 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             let path = dir.join("polar.json");
             migrate_legacy_store(&dir, &path);
+            downloads::manage(app.handle(), &dir);
             let store = store::Store::load(path);
             let indexer = Indexer::new(index_config(&store.data.settings));
             app.manage(AppState {
@@ -102,6 +106,7 @@ pub fn run() {
                 seekr: seekr::Seekr::default(),
                 mpv: player::Mpv::default(),
                 introdb: introdb::IntroDb::default(),
+                ratings: ratings::RatingsClient::default(),
             });
             app.manage(controllers::Controllers::default());
             controllers::watch(app.handle().clone());
@@ -121,6 +126,7 @@ pub fn run() {
             commands::seek_previews,
             commands::seekr_validate,
             commands::skip_segments,
+            commands::ratings,
             commands::addons_list,
             commands::addon_install,
             commands::addon_remove,
@@ -135,6 +141,12 @@ pub fn run() {
             commands::settings_set,
             commands::settings_reset,
             commands::open_external,
+            downloads::downloads_list,
+            downloads::download_start,
+            downloads::download_pause,
+            downloads::download_resume,
+            downloads::download_remove,
+            downloads::download_reveal,
             controllers::controllers_list,
             sync::space_activate,
             sync::space_import_local,

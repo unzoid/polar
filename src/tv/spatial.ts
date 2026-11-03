@@ -291,6 +291,28 @@ export function installFocusMemory() {
   return () => document.removeEventListener("focusin", onFocus);
 }
 
+/**
+ * The mouse highlights what it rests on, the way the arrows do, so pointing
+ * and the remote meet in one place: hover a card and it lifts, and the arrows
+ * carry on from there. Only real movement counts (a card sliding under a
+ * still cursor doesn't steal focus), and nothing scrolls to meet the pointer.
+ */
+export function installPointerFocus() {
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse" || (!e.movementX && !e.movementY)) return;
+    const hit = e.target instanceof Element ? e.target.closest(FOCUSABLE) : null;
+    if (!(hit instanceof HTMLElement) || hit === document.activeElement || !isNavigable(hit)) return;
+    // Text fields would summon typing; sliders take the arrows.
+    if (hit instanceof HTMLTextAreaElement || (hit instanceof HTMLInputElement && !["button", "checkbox", "radio", "submit"].includes(hit.type))) return;
+    // Under an open menu or panel, the page doesn't react.
+    const scope = activeScope();
+    if (scope && !scope.contains(hit)) return;
+    hit.focus({ preventScroll: true });
+  };
+  window.addEventListener("pointermove", onMove, { passive: true });
+  return () => window.removeEventListener("pointermove", onMove);
+}
+
 /** Whether the focused element wants the arrow keys for itself. */
 export function ownsArrows(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;

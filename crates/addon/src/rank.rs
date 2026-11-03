@@ -25,6 +25,11 @@ pub struct StreamQuality {
     pub low_quality_source: bool,
     /// Plays over plain HTTP (no p2p engine needed).
     pub direct: bool,
+    /// Audio languages the row mentions (ISO 639-1, plus "multi"), from flags
+    /// and words like "ITA" or "LATINO". Empty when it says nothing.
+    pub languages: Vec<&'static str>,
+    /// Release details worth filtering on: "Remux", "Atmos", "HDR10+", "10-bit"…
+    pub tags: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -99,7 +104,146 @@ pub fn parse_quality(stream: &Stream) -> StreamQuality {
         cached: CACHED.is_match(&text),
         low_quality_source: CAM.is_match(&text),
         direct: stream.url.is_some(),
+        languages: languages(&text),
+        tags: TAGS.iter().filter(|(_, re)| re.is_match(&text)).map(|(tag, _)| *tag).collect(),
     }
+}
+
+/// Release tags, in the order they're shown.
+static TAGS: LazyLock<Vec<(&'static str, Regex)>> = LazyLock::new(|| {
+    [
+        ("HDR10+", r"(?i)\bHDR10(\+|plus)"),
+        ("Remux", r"(?i)\bremux\b"),
+        ("Atmos", r"(?i)\batmos\b"),
+        ("DTS:X", r"(?i)\bDTS[:\-. ]?X\b"),
+        ("TrueHD", r"(?i)\btrue\s?hd\b"),
+        ("DTS-HD", r"(?i)\bDTS[\-. ]?HD\b"),
+        ("7.1", r"\b7[ .]1\b"),
+        ("5.1", r"\b5[ .]1\b"),
+        ("10-bit", r"(?i)\b10[\-. ]?bit\b"),
+        ("IMAX", r"(?i)\bIMAX\b"),
+        ("3D", r"(?i)\b3D\b"),
+        ("BluRay", r"(?i)\b(blu[\-. ]?ray|bdrip|brrip)\b"),
+        ("WEB-DL", r"(?i:\bweb[\-. ]?(dl|rip)\b)|\bWEB\b"),
+    ]
+    .into_iter()
+    .map(|(tag, re)| (tag, Regex::new(re).unwrap()))
+    .collect()
+});
+
+/// Language codes as release names write them (whole words, any case), and
+/// full language names only in the capitals scene releases use for them —
+/// "The.Italian.Job" is a title, "Movie.2020.ITALIAN.1080p" is a language.
+static LANG_WORDS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i:\b(multi(?:[\-. ]?audio)?|dual[\-. ]?audio|eng|ita|fre|truefrench|vff|vfq|vostfr|ger|deu|spa|esp|castellano|latino|rus|hindi|tamil|telugu|jap|kor|por|dublado|pol|tur|swe|ukr|hun|cze)\b)|\b(ENGLISH|ITALIAN|FRENCH|GERMAN|SPANISH|RUSSIAN|JAPANESE|KOREAN|CHINESE|PORTUGUESE|POLISH|TURKISH|DUTCH|SWEDISH|UKRAINIAN|ARABIC|HUNGARIAN|CZECH)\b",
+    )
+    .unwrap()
+});
+
+fn word_language(w: &str) -> Option<&'static str> {
+    let w = w.to_ascii_lowercase();
+    Some(match w.as_str() {
+        _ if w.starts_with("multi") || w.starts_with("dual") => "multi",
+        "eng" | "english" => "en",
+        "ita" | "italian" => "it",
+        "fre" | "french" | "truefrench" | "vff" | "vfq" | "vostfr" => "fr",
+        "ger" | "german" | "deu" => "de",
+        "spa" | "spanish" | "esp" | "castellano" | "latino" => "es",
+        "rus" | "russian" => "ru",
+        "hindi" => "hi",
+        "tamil" => "ta",
+        "telugu" => "te",
+        "jap" | "japanese" => "ja",
+        "kor" | "korean" => "ko",
+        "chi" | "chinese" => "zh",
+        "por" | "portuguese" | "dublado" => "pt",
+        "pol" | "polish" => "pl",
+        "tur" | "turkish" => "tr",
+        "dutch" => "nl",
+        "swe" | "swedish" => "sv",
+        "ukr" | "ukrainian" => "uk",
+        "arabic" => "ar",
+        "hun" | "hungarian" => "hu",
+        "cze" | "czech" => "cs",
+        _ => return None,
+    })
+}
+
+/// Flag emoji (a pair of regional indicators) → the country's main language.
+fn flag_language(country: &str) -> Option<&'static str> {
+    Some(match country {
+        "GB" | "US" | "AU" | "CA" | "IE" | "NZ" => "en",
+        "IT" => "it",
+        "FR" | "BE" => "fr",
+        "DE" | "AT" | "CH" => "de",
+        "ES" | "MX" | "AR" | "CO" | "CL" => "es",
+        "PT" | "BR" => "pt",
+        "RU" => "ru",
+        "UA" => "uk",
+        "PL" => "pl",
+        "NL" => "nl",
+        "SE" => "sv",
+        "NO" => "no",
+        "DK" => "da",
+        "FI" => "fi",
+        "GR" => "el",
+        "TR" => "tr",
+        "CZ" => "cs",
+        "SK" => "sk",
+        "HU" => "hu",
+        "RO" => "ro",
+        "BG" => "bg",
+        "HR" => "hr",
+        "RS" => "sr",
+        "SI" => "sl",
+        "LT" => "lt",
+        "LV" => "lv",
+        "EE" => "et",
+        "JP" => "ja",
+        "KR" => "ko",
+        "CN" | "TW" | "HK" => "zh",
+        "IN" => "hi",
+        "TH" => "th",
+        "VN" => "vi",
+        "ID" => "id",
+        "MY" => "ms",
+        "SA" | "AE" | "EG" => "ar",
+        "IL" => "he",
+        "IR" => "fa",
+        _ => return None,
+    })
+}
+
+fn languages(text: &str) -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    let mut push = |l: &'static str| {
+        if !out.contains(&l) {
+            out.push(l);
+        }
+    };
+    // Regional indicator symbols: U+1F1E6 (A) … U+1F1FF (Z), in pairs.
+    let mut prev: Option<char> = None;
+    for c in text.chars() {
+        let ri = ('\u{1F1E6}'..='\u{1F1FF}').contains(&c);
+        match (ri, prev) {
+            (true, Some(p)) => {
+                let letter = |c: char| char::from(b'A' + (c as u32 - 0x1F1E6) as u8);
+                if let Some(l) = flag_language(&format!("{}{}", letter(p), letter(c))) {
+                    push(l);
+                }
+                prev = None;
+            }
+            (true, None) => prev = Some(c),
+            (false, _) => prev = None,
+        }
+    }
+    for m in LANG_WORDS.find_iter(text) {
+        if let Some(l) = word_language(m.as_str()) {
+            push(l);
+        }
+    }
+    out
 }
 
 /// Higher is better. Deliberately simple and explainable; user preferences
@@ -286,6 +430,24 @@ mod tests {
         assert_eq!(q.sources, Some(213));
         assert_eq!(q.size_bytes, Some(12_400_000_000));
         assert_eq!(label(&q), "4K · Dolby Vision · HEVC · 12.4 GB");
+    }
+
+    #[test]
+    fn finds_languages_and_tags() {
+        let q = parse_quality(&stream(
+            "addon 4k",
+            "Movie.2024.2160p.BluRay.REMUX.HDR10+.TrueHD.Atmos.7.1.MULTi\n👤 40 💾 60 GB 🇮🇹 / 🇬🇧",
+        ));
+        assert_eq!(q.languages, vec!["it", "en", "multi"]);
+        assert!(q.tags.contains(&"Remux") && q.tags.contains(&"Atmos") && q.tags.contains(&"HDR10+"));
+        assert!(q.tags.contains(&"7.1") && q.tags.contains(&"BluRay"));
+
+        // A language in the title isn't the audio's.
+        let q = parse_quality(&stream("addon 1080p", "The.Italian.Job.2003.1080p.WEB-DL.x264"));
+        assert!(q.languages.is_empty());
+        assert_eq!(q.tags, vec!["WEB-DL"]);
+        let q = parse_quality(&stream("addon 1080p", "Film.2019.ITALIAN.1080p.WEBRip"));
+        assert_eq!(q.languages, vec!["it"]);
     }
 
     #[test]

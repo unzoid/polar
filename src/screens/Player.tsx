@@ -20,9 +20,12 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { ease } from "../lib/motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
+import { Spinner } from "../components/Spinner";
 import { streamKey } from "../components/StreamList";
+import { SourceFilterBar } from "../components/SourceFilters";
+import { sourceRow, useSourceFilters } from "../lib/sources";
+import { isLocalFile } from "../lib/downloads";
 import { WindowControls } from "../components/WindowControls";
 import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
@@ -46,7 +49,7 @@ import { nextVideo, progressMap, seasonsOf } from "../lib/episodes";
 import { episodeCode, formatDate, formatRemaining, formatTime, isReleased, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
 import { useRouter } from "../lib/router";
-import type { ContentType, Progress, RankedStream, SourceSort, Stream } from "../lib/types";
+import type { ContentType, Progress, Stream } from "../lib/types";
 import { watchedFraction } from "../lib/watched";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
@@ -68,15 +71,6 @@ let autoplayStreak = 0;
 
 const TIME_DISPLAYS = ["remaining", "elapsed", "endsAt"] as const;
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-const res = (r: RankedStream) => r.quality.resolution ?? 0;
-const size = (r: RankedStream) => r.quality.sizeBytes ?? 0;
-const SOURCE_SORTS: Record<SourceSort, { label: string; cmp: (a: RankedStream, b: RankedStream) => number }> = {
-  best: { label: "Best Match", cmp: () => 0 },
-  quality: { label: "Highest Quality", cmp: (a, b) => res(b) - res(a) || size(b) - size(a) },
-  sizeDesc: { label: "Largest File", cmp: (a, b) => size(b) - size(a) },
-  sizeAsc: { label: "Smallest File", cmp: (a, b) => (size(a) || Infinity) - (size(b) || Infinity) },
-  peers: { label: "Most Peers", cmp: (a, b) => (b.quality.sources ?? 0) - (a.quality.sources ?? 0) },
-};
 
 export function Player({
   type,
@@ -228,7 +222,9 @@ export function Player({
       season: current?.season,
       episode: current?.episode,
       episodeTitle: current?.title,
-      stream: source.state.stream,
+      // A download plays from a file that may be deleted later: resuming
+      // from Continue Watching picks an online source instead.
+      stream: isLocalFile(source.state.stream?.url) ? undefined : source.state.stream,
       position: v.currentTime,
       duration: v.duration,
       updatedAt: 0,
@@ -500,30 +496,24 @@ export function Player({
 
   const rankedStreams = streams.data?.streams ?? [];
   const currentKey = source.state.status === "ready" ? streamKey(source.state) : undefined;
-  // Filter by addon, sort by what matters right now. Ids stay the index into
-  // the ranked list, so selection works regardless of the view.
-  const addonNames = useMemo(() => [...new Set(rankedStreams.map((r) => r.addon))], [rankedStreams]);
-  const [addonFilter, setAddonFilter] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<SourceSort>(() =>
-    settings?.sourceSort && settings.sourceSort in SOURCE_SORTS ? settings.sourceSort : "best",
-  );
+  // Filter (add-on, resolution, language, size, tags) and sort, as on the
+  // title page. Ids stay the index into the ranked list, so selection works
+  // regardless of the view.
+  const sourceFilters = useSourceFilters(streams.data?.streams, settings);
   const hiddenSources = streams.data?.hidden ?? 0;
-  const viewStreams = rankedStreams
-    .map((r, i) => ({ r, i }))
-    .filter(({ r }) => !addonFilter || r.addon === addonFilter)
-    .sort((a, b) => SOURCE_SORTS[sortBy].cmp(a.r, b.r) || a.i - b.i);
-  const sourceItems: OptionItem[] = viewStreams.map(({ r, i }) => ({
-    id: String(i),
-    label: i === 0 ? `${r.label} · Best Match` : r.label,
-    detail: [r.addon, r.quality.sources != null ? `${r.quality.sources} peers` : null, (r.stream.title ?? "").split("\n")[0]]
-      .filter(Boolean)
-      .join(" · "),
-    badge: r.quality.lowQualitySource
-      ? { text: "CAM", tone: "bad" as const }
-      : r.quality.cached
-        ? { text: "Instant", tone: "good" as const, icon: <Instant size={14} fill="currentColor" strokeWidth={0} /> }
-        : undefined,
-  }));
+  const sourceItems: OptionItem[] = sourceFilters.view.map(({ r }, n) => {
+    const row = sourceRow(r);
+    return {
+      id: String(rankedStreams.indexOf(r)),
+      label: n === 0 && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
+      detail: [row.size, row.detail].filter(Boolean).join(" · "),
+      badge: r.quality.lowQualitySource
+        ? { text: "CAM", tone: "bad" as const }
+        : r.quality.cached
+          ? { text: "Instant", tone: "good" as const, icon: <Instant size={14} fill="currentColor" strokeWidth={0} /> }
+          : undefined,
+    };
+  });
   const currentSourceIndex = rankedStreams.findIndex((r) => streamKey(r) === currentKey);
 
   // --- Keyboard: instant, never animated -------------------------------------
@@ -532,7 +522,7 @@ export function Player({
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       // A dropdown has the keyboard while it's focused or open (arrows, Space, Esc are its own).
-      if ((e.target as HTMLElement).closest?.("[aria-haspopup=listbox], [role=listbox]")) return;
+      if ((e.target as HTMLElement).closest?.("[aria-haspopup=listbox], [role=listbox], .srcf-popover")) return;
       const handled = (() => {
         // Shortcuts are rebindable (Settings → Controls); Esc always backs out.
         switch (e.key === "Escape" ? "escape" : actionFor(e, "player")) {
@@ -758,7 +748,7 @@ export function Player({
           </button>
           <button className="player-transport player-transport-main pressable" onClick={togglePlay} aria-label={paused ? "Play" : "Pause"} title={withShortcut("Play/Pause", "playPause")}>
             {buffering ? (
-              <span className="player-spinner" aria-label="Buffering" />
+              <Spinner className="player-spinner" size={52} label="Buffering" />
             ) : paused ? (
               <Play size={64} fill="currentColor" strokeWidth={0} />
             ) : (
@@ -949,30 +939,10 @@ export function Player({
             size: "wide",
             header: (
               <div className="source-controls">
-                {addonNames.length > 1 && (
-                  <div className="source-chips" role="group" aria-label="Add-on">
-                    {[null, ...addonNames].map((name) => (
-                      <button
-                        key={name ?? "all"}
-                        className="source-chip"
-                        aria-pressed={addonFilter === name}
-                        onClick={() => setAddonFilter(name)}
-                      >
-                        {name ?? "All"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {hiddenSources > 0 && (
-                  <span className="source-hidden t-caption" title="Change these in Settings → Sources">
-                    {hiddenSources} hidden by your filters
-                  </span>
-                )}
-                <Dropdown
-                  label="Sort sources"
-                  value={sortBy}
-                  onChange={setSortBy}
-                  options={(Object.keys(SOURCE_SORTS) as SourceSort[]).map((k) => ({ value: k, label: SOURCE_SORTS[k].label }))}
+                <SourceFilterBar
+                  f={sourceFilters}
+                  tv={tv}
+                  note={hiddenSources > 0 ? `${hiddenSources} more hidden by Settings → Sources` : undefined}
                 />
               </div>
             ),
@@ -982,9 +952,11 @@ export function Player({
               ? "Finding sources…"
               : streams.isError
                 ? "Couldn't load sources."
-                : hiddenSources > 0
-                  ? `All ${hiddenSources} sources are hidden by your filters in Settings → Sources.`
-                  : "No sources found.",
+                : sourceFilters.total > 0
+                  ? "No sources match these filters."
+                  : hiddenSources > 0
+                    ? `All ${hiddenSources} sources are hidden by your filters in Settings → Sources.`
+                    : "No sources found.",
             onSelect: (id) => {
               const pick = rankedStreams[Number(id)];
               if (pick && Number(id) !== currentSourceIndex) playVideo(videoId, pick.stream);

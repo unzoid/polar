@@ -1,7 +1,7 @@
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useReducer } from "react";
 import { api } from "./api";
-import { keys, useCatalog, useContinueWatching, useLibrary, useWatchHistory } from "./queries";
+import { keys, useCatalog, useContinueWatching, useLibrary } from "./queries";
 import type { ContentType, MetaPreview, Progress } from "./types";
 import { watchedFraction } from "./watched";
 
@@ -162,77 +162,6 @@ export function useTrending() {
   const series = useCatalog("series", "trending");
   const movies = useCatalog("movie", "trending");
   return { series: series.data, movies: movies.data };
-}
-
-export interface LibrarySeed extends Seed {
-  /** How it got into your life, for the shelf title. */
-  via: "saved" | "watched";
-}
-
-/** At most this many titles seed the Library's recommendations (one request each). */
-const LIBRARY_SEEDS = 4;
-const FOR_YOU_SIZE = 30;
-
-/**
- * Recommendations for the Library: titles like the ones you've saved and
- * watched most recently, merged into one "For You" shelf (round-robin, so no
- * single seed dominates), plus a "Because you …" shelf per seed. Leaves out
- * everything you've already saved or watched.
- */
-export function useLibraryRecommendations() {
-  const { data: library } = useLibrary();
-  const { data: history } = useWatchHistory();
-  const seeds = useMemo<LibrarySeed[]>(() => {
-    const saved = [...(library ?? [])]
-      .sort((a, b) => b.addedAt - a.addedAt)
-      .map((l): LibrarySeed => ({ type: l.type, id: l.id, name: l.name, via: "saved" }));
-    const watched = (history ?? []).map((p): LibrarySeed => ({ type: p.type, id: p.metaId, name: p.name, via: "watched" }));
-    // Alternate the two sources so both shape what's recommended.
-    const mixed = Array.from({ length: Math.max(saved.length, watched.length) }, (_, i) => [watched[i], saved[i]]).flat();
-    const seen = new Set<string>();
-    return mixed.filter((s): s is LibrarySeed => !!s && !seen.has(s.id) && !!seen.add(s.id)).slice(0, LIBRARY_SEEDS);
-  }, [library, history]);
-
-  const results = useQueries({
-    queries: seeds.map((s) => ({
-      queryKey: keys.recommend(s.type, s.id),
-      queryFn: () => api.recommend(s.type, s.id),
-      staleTime: 60 * 60_000,
-    })),
-  });
-  const lists = results.map((r) => (r.isError ? [] : r.data));
-  const settled = !!library && !!history && lists.every(Boolean);
-  // A stable key for the memo: the lists only change when a query lands.
-  const stamp = results.map((r) => r.dataUpdatedAt).join();
-
-  return useMemo(() => {
-    void stamp;
-    const owned = new Set([...(library ?? []).map((l) => l.id), ...(history ?? []).map((p) => p.metaId)]);
-    const fresh = lists.map((l) => (l ?? []).filter((m) => !owned.has(m.id)));
-    let forYou: MetaPreview[] | undefined;
-    if (settled) {
-      forYou = [];
-      const seen = new Set<string>();
-      for (let i = 0; forYou.length < FOR_YOU_SIZE && fresh.some((l) => i < l.length); i++) {
-        for (const l of fresh) {
-          const m = l[i];
-          if (m && !seen.has(m.id) && forYou.length < FOR_YOU_SIZE) {
-            seen.add(m.id);
-            forYou.push(m);
-          }
-        }
-      }
-    }
-    return {
-      seeds,
-      forYou,
-      because: seeds.map((seed, i) => ({
-        seed,
-        title: `Because you ${seed.via} ${seed.name}`,
-        items: lists[i] ? fresh[i] : undefined,
-      })),
-    };
-  }, [seeds, settled, stamp, library, history]);
 }
 
 /** A watch-history entry as a title card. */

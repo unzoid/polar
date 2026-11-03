@@ -1,16 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { AnimeCard } from "./anime/anilist";
 import type { ContentType, MetaPreview, Stream } from "./types";
 
 export type TabRoute =
   | { name: "home" }
   | { name: "discover"; type: ContentType }
+  | { name: "anime" }
   | { name: "library" }
+  | { name: "calendar" }
   | { name: "search" }
   | { name: "settings"; page?: string };
 
 export type Route =
   | TabRoute
   | { name: "detail"; type: ContentType; id: string; preview?: MetaPreview }
+  /** An anime's own page, by AniList id. */
+  | { name: "anime-detail"; id: number; preview?: AnimeCard }
+  | { name: "anime-schedule" }
+  | { name: "anime-browse" }
   | { name: "player"; type: ContentType; metaId: string; videoId: string; stream?: Stream };
 
 export interface Entry {

@@ -1,10 +1,11 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
-import { Close, Desktop, Power, Profile, Search, Tv, Users } from "../components/icons";
+import { Close, Desktop, Power, Profile, Search, Settings, Tv, Users } from "../components/icons";
 import { useAccount } from "../lib/account/AccountProvider";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { usePrefs } from "../lib/prefs";
+import { useSettings } from "../lib/queries";
 import { buttonFor, usePadBindings, type NavAction, type PadButton, type PlayerPadAction } from "./padBindings";
 import { shortcutText } from "../lib/keybinds";
 import {
@@ -23,10 +24,19 @@ export const TV_TABS: { route: TabRoute; label: string }[] = [
   { route: { name: "home" }, label: "Home" },
   { route: { name: "discover", type: "series" }, label: "Series" },
   { route: { name: "discover", type: "movie" }, label: "Movies" },
+  { route: { name: "anime" }, label: "Anime" },
   { route: { name: "library" }, label: "Library" },
 ];
 
 export const sameTab = (a: TabRoute, b: TabRoute) => JSON.stringify(a) === JSON.stringify(b);
+
+/** The sections as Settings has them: Anime unless it's off, the Calendar when it's on. */
+export function useTvTabs() {
+  const { data: settings } = useSettings();
+  const { animeEnabled } = usePrefs();
+  const tabs = animeEnabled ? TV_TABS : TV_TABS.filter((t) => t.route.name !== "anime");
+  return settings?.showCalendar ? [...tabs, { route: { name: "calendar" } as TabRoute, label: "Calendar" }] : tabs;
+}
 
 /**
  * The top bar: you (the menu) on the left, sections in the middle, the time
@@ -36,6 +46,7 @@ export function TvNav({ onMenu }: { onMenu: () => void }) {
   const { stack, tab } = useRouter();
   const active = rootTab(stack);
   const { profile } = useAccount();
+  const tabs = useTvTabs();
 
   return (
     <header className="tv-nav" data-nav-keep data-nav-memory data-nav-prefer-entry data-nav-lock-x>
@@ -43,7 +54,7 @@ export function TvNav({ onMenu }: { onMenu: () => void }) {
         {profile ? <Avatar id={profile.avatar} /> : <Tv size={28} />}
       </button>
       <nav className="tv-nav-tabs" aria-label="Sections">
-        {TV_TABS.map((t) => {
+        {tabs.map((t) => {
           const current = sameTab(t.route, active);
           return (
             <button
@@ -83,6 +94,7 @@ function Clock() {
 /** The side menu: profiles, back to desktop mode, quit. */
 export function TvMenu({ onClose }: { onClose: () => void }) {
   const account = useAccount();
+  const { tab } = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref);
   useBack(true, onClose);
@@ -122,6 +134,16 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
             </button>
           )}
           {hasAccountItems && <div className="tv-menu-sep" />}
+          <button
+            className="tv-menu-item"
+            onClick={() => {
+              onClose();
+              tab({ name: "settings" });
+            }}
+          >
+            <Settings size={28} />
+            Settings
+          </button>
           <button className="tv-menu-item" onClick={() => setTvMode(false)}>
             <Desktop size={28} />
             Desktop Mode

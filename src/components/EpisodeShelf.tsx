@@ -2,7 +2,8 @@ import { Check, Play, Sources } from "./icons";
 import { useLayoutEffect, useRef, useState } from "react";
 import { formatDate, formatRemaining, isReleased } from "../lib/format";
 import { prefetchStreams } from "../lib/queries";
-import type { EpisodeLayout, Progress, Video } from "../lib/types";
+import type { EpisodeLayout, MetaPreview, Progress, Video } from "../lib/types";
+import { DownloadButton } from "./DownloadButton";
 import { watchedFraction } from "../lib/watched";
 import { Img } from "./Img";
 import { StillPlaceholder } from "./StillPlaceholder";
@@ -25,7 +26,11 @@ export function EpisodeShelf({
   upNextId,
   onPlay,
   onSources,
+  menu,
+  item,
 }: {
+  /** The show: given, each released episode gets a download control. */
+  item?: MetaPreview;
   layout?: EpisodeLayout;
   episodes: Video[];
   progress: Map<string, Progress>;
@@ -33,6 +38,8 @@ export function EpisodeShelf({
   upNextId?: string;
   onPlay: (v: Video) => void;
   onSources: (v: Video) => void;
+  /** Right-click options for an episode. */
+  menu?: (v: Video) => { onContextMenu: (e: React.MouseEvent<HTMLElement>) => void };
 }) {
   const shelf = useRef<HTMLDivElement>(null);
 
@@ -55,6 +62,8 @@ export function EpisodeShelf({
       upNext={v.id === upNextId}
       onPlay={onPlay}
       onSources={onSources}
+      menu={menu?.(v)}
+      item={item}
     />
   ));
 
@@ -84,7 +93,10 @@ function EpisodeCard({
   upNext,
   onPlay,
   onSources,
+  menu,
+  item,
 }: {
+  item?: MetaPreview;
   layout: EpisodeLayout;
   video: Video;
   progress?: Progress;
@@ -92,6 +104,7 @@ function EpisodeCard({
   upNext: boolean;
   onPlay: (v: Video) => void;
   onSources: (v: Video) => void;
+  menu?: { onContextMenu: (e: React.MouseEvent<HTMLElement>) => void };
 }) {
   const released = isReleased(v);
   const fraction = p?.duration ? p.position / p.duration : 0;
@@ -118,6 +131,7 @@ function EpisodeCard({
       data-unreleased={!released}
       // Settings → Browsing can hide stills and synopses of these (spoilers).
       data-unwatched={!watched}
+      {...menu}
     >
       <button className="card card-landscape episode-card-main" disabled={!released} onClick={() => onPlay(v)} {...intent}>
         <div className="card-frame">
@@ -139,10 +153,12 @@ function EpisodeCard({
         <div className="episode-card-text">
           {layout === "list" ? (
             // The number column already says which episode it is.
-            upNext && released && <span className="t-micro episode-kicker">Up Next</span>
+            (upNext && released) || v.tag ? (
+              <span className="t-micro episode-kicker">{[upNext && released && "Up Next", v.tag].filter(Boolean).join(" · ")}</span>
+            ) : null
           ) : (
             <span className="t-micro episode-kicker">
-              {upNext && released ? `Up Next · Episode ${v.episode}` : `Episode ${v.episode}`}
+              {[upNext && released ? `Up Next · Episode ${v.episode}` : `Episode ${v.episode}`, v.tag].filter(Boolean).join(" · ")}
             </span>
           )}
           <span className="t-headline episode-card-title">{v.title}</span>
@@ -163,6 +179,7 @@ function EpisodeCard({
           <Sources size={17} />
         </button>
       )}
+      {released && item && <DownloadButton item={item} video={v} className="episode-download btn btn-glass btn-icon pressable" size={18} />}
     </div>
   );
 }

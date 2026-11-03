@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use futures::future::join_all;
-use polar_addon::{Meta, MetaPreview, Video};
+use polar_addon::{Meta, MetaDetails, MetaPreview, Person, Video};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -328,7 +328,66 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
             .and_then(|v| str_of(&v["key"]))
     });
 
+    let people = d["credits"]["cast"]
+        .as_array()
+        .map(|cast| {
+            cast.iter()
+                .filter_map(|p| {
+                    Some(Person {
+                        name: str_of(&p["name"])?,
+                        character: str_of(&p["character"]).or_else(|| str_of(&p["roles"][0]["character"])),
+                        photo: str_of(&p["profile_path"]).map(|path| format!("{IMG}/w185{path}")),
+                    })
+                })
+                .take(24)
+                .collect()
+        })
+        .unwrap_or_default();
+    let list = |v: &Value, key: &str, take: usize| -> Vec<String> {
+        v.as_array()
+            .map(|a| a.iter().filter_map(|x| str_of(&x[key])).take(take).collect())
+            .unwrap_or_default()
+    };
+    let writers: Vec<String> = d["credits"]["crew"]
+        .as_array()
+        .map(|crew| {
+            let mut names: Vec<String> = Vec::new();
+            for c in crew.iter().filter(|c| matches!(c["job"].as_str(), Some("Screenplay" | "Writer" | "Story" | "Novel"))) {
+                if let Some(n) = str_of(&c["name"]).filter(|n| !names.contains(n)) {
+                    names.push(n);
+                }
+            }
+            names.into_iter().take(4).collect()
+        })
+        .unwrap_or_default();
+    let mut countries = list(&d["production_countries"], "name", 3);
+    if countries.is_empty() {
+        countries = d["origin_country"]
+            .as_array()
+            .map(|a| a.iter().filter_map(str_of).collect())
+            .unwrap_or_default();
+    }
+    let positive = |v: &Value| v.as_u64().filter(|n| *n > 0);
+    let details = MetaDetails {
+        tagline: str_of(&d["tagline"]),
+        status: str_of(&d["status"]),
+        released: str_of(&d["release_date"]).or_else(|| str_of(&d["first_air_date"])),
+        countries,
+        languages: list(&d["spoken_languages"], "english_name", 4),
+        studios: if is_series { list(&d["networks"], "name", 3) } else { list(&d["production_companies"], "name", 3) },
+        writers,
+        awards: None,
+        budget: positive(&d["budget"]),
+        revenue: positive(&d["revenue"]),
+        seasons: positive(&d["number_of_seasons"]).map(|n| n as u32),
+        episodes: positive(&d["number_of_episodes"]).map(|n| n as u32),
+        votes: positive(&d["vote_count"]),
+        tmdb_id: d["id"].as_u64(),
+    };
+
     Meta {
+        people,
+        details,
         preview: MetaPreview {
             id: imdb_id.into(),
             ty: ty.into(),

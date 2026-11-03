@@ -52,6 +52,32 @@ export interface Prefs {
   saveRecentSearches: boolean;
   /** Fetch new versions in the background; installing still waits for a restart. */
   autoDownloadUpdates: boolean;
+  /** The TV mode button in the navbar (Settings → Controls & TV). */
+  showTvButton: boolean;
+
+  // Anime:
+  /** The Anime section at all: off removes its tab in desktop and TV mode. */
+  animeEnabled: boolean;
+  /** Comma-separated shelves left off the Anime page (lib/anime/shelves.ts). */
+  animeHiddenShelves: string;
+  /** The AniList score on anime posters. */
+  animeCardScores: boolean;
+  /** "Ep 5 in 2d" on posters of shows on air. */
+  animeCardCountdown: boolean;
+  /** AniList scores out of ten (8.6) or as a percentage (86%). */
+  animeScoreFormat: "ten" | "percent";
+  /** The schedule lists everything airing, not just shows people are following. */
+  animeScheduleAll: boolean;
+  /** Leave recap episodes out of the episode list. */
+  animeHideRecaps: boolean;
+  /** Which title to show: "romaji" (Garasu no Tou), "english" (Tower of Glass) or "native" (ガラスの塔). */
+  animeTitles: "romaji" | "english" | "native";
+  /** Whose voices to list beside the characters. */
+  animeVoices: "japanese" | "english";
+  /** Leave filler episodes out of the episode list. */
+  animeHideFiller: boolean;
+  /** Show tags that give the story away. */
+  animeSpoilerTags: boolean;
 }
 
 const DEFAULTS: Prefs = {
@@ -76,6 +102,18 @@ const DEFAULTS: Prefs = {
   buffer: "normal",
   saveRecentSearches: true,
   autoDownloadUpdates: true,
+  showTvButton: true,
+  animeEnabled: true,
+  animeHiddenShelves: "",
+  animeCardScores: true,
+  animeCardCountdown: true,
+  animeScoreFormat: "ten",
+  animeScheduleAll: false,
+  animeHideRecaps: false,
+  animeTitles: "english",
+  animeVoices: "japanese",
+  animeHideFiller: false,
+  animeSpoilerTags: false,
 };
 
 const STORAGE = "polar.prefs";
@@ -92,7 +130,21 @@ const listeners = new Set<() => void>();
 export const getPrefs = () => prefs;
 
 /** The ones that follow the profile rather than the machine (account/settingsSync.ts). */
-export const SYNCED_PREFS = ["preferFileChapters", "saveRecentSearches"] as const satisfies readonly (keyof Prefs)[];
+export const SYNCED_PREFS = [
+  "preferFileChapters",
+  "saveRecentSearches",
+  "animeEnabled",
+  "animeHiddenShelves",
+  "animeCardScores",
+  "animeCardCountdown",
+  "animeScoreFormat",
+  "animeScheduleAll",
+  "animeHideRecaps",
+  "animeTitles",
+  "animeVoices",
+  "animeHideFiller",
+  "animeSpoilerTags",
+] as const satisfies readonly (keyof Prefs)[];
 
 export function setPrefs(patch: Partial<Prefs>, { quiet = false } = {}) {
   prefs = { ...prefs, ...patch };

@@ -634,29 +634,6 @@
   display: flex;
   gap: 0.625rem;
 }
-.player-spinner {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 3px solid rgb(255 255 255 / 0.2);
-  border-top-color: var(--text);
-  animation:
-    spin 0.7s linear infinite,
-    fade-in 200ms ease 300ms both; /* brief stalls never flash a spinner */
-  pointer-events: none;
-}
-.player-spinner-inline {
-  position: static;
-  animation: spin 0.7s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 .player-notice {
   position: absolute;
   top: 4.5rem;
@@ -920,12 +897,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   position: relative;
 }
 .player-transport-main .player-spinner {
-  position: static;
-  width: 52px;
-  height: 52px;
-  border-width: 4px;
-  margin: 0;
-  animation: spin 0.7s linear infinite;
+  color: var(--text);
+  pointer-events: none;
 }
 /* While buffering, the spinner stays visible even when the chrome has faded —
    but alone: the skip buttons fade with the rest. */
@@ -953,10 +926,17 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   gap: 0.5rem;
   min-width: 0;
 }
-.source-hidden {
-  margin-left: auto;
+.srcf-tv-note {
+  margin: 0;
   color: var(--text-3);
-  white-space: nowrap;
+}
+/* The player's picker: the filter bar takes the head's free width beside the title. */
+.options-head .source-controls {
+  flex: 1;
+  justify-content: flex-end;
+}
+.options-head .srcf {
+  padding: 0;
 }
 .source-chips {
   display: flex;
