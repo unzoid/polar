@@ -5,9 +5,11 @@
 //! plays all of it, so when it's available it becomes the player and the
 //! React UI simply draws on top:
 //!
-//!   * mpv renders into the app window itself (`--wid`: the HWND on Windows,
-//!     the window's NSView on macOS), underneath a transparent webview — the
-//!     page turns transparent while playing.
+//!   * mpv renders into the app window itself, underneath a transparent
+//!     webview — the page turns transparent while playing. On Windows mpv is
+//!     its own process drawing into our HWND (`--wid`). On macOS a window
+//!     handle can't be shared with another process, so libmpv runs inside the
+//!     app and draws into a layer under the webview (`macos/mpv_view.m`).
 //!   * We drive it over its JSON IPC (a named pipe on Windows, a Unix socket
 //!     elsewhere): commands go in with a
 //!     `request_id`, replies and property changes come back as lines.
@@ -20,7 +22,9 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::Child;
+#[cfg(not(target_os = "macos"))]
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
@@ -72,12 +76,43 @@ const MODERN_ARGS: &[&str] = &[
 
 type Pending = Arc<StdMutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>;
 
+/// What runs mpv: its own process, or (macOS) libmpv inside the app.
+enum Engine {
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
+    Process(Child),
+    #[cfg(target_os = "macos")]
+    InApp(mac::Player),
+}
+
+impl Engine {
+    fn alive(&mut self) -> bool {
+        match self {
+            Engine::Process(child) => matches!(child.try_wait(), Ok(None)),
+            #[cfg(target_os = "macos")]
+            Engine::InApp(_) => true,
+        }
+    }
+
+    fn kill(self) {
+        match self {
+            Engine::Process(mut child) => {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            #[cfg(target_os = "macos")]
+            Engine::InApp(player) => drop(player),
+        }
+    }
+}
+
 struct Conn {
-    child: Child,
+    engine: Engine,
     writer: WriteHalf<IpcStream>,
     pending: Pending,
     /// Set before an intentional kill so the reader doesn't report a crash.
     quiet: Arc<AtomicBool>,
+    /// Set by the reader when the IPC connection ends.
+    closed: Arc<AtomicBool>,
 }
 
 #[derive(Default)]
@@ -95,6 +130,7 @@ pub struct Mpv {
 const MPV_EXE: &str = if cfg!(windows) { "mpv.exe" } else { "mpv" };
 
 /// mpv: next to our binary (bundled), on PATH, or a standard install.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 pub fn mpv_binary() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
@@ -133,7 +169,91 @@ pub fn mpv_binary() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
+/// libmpv on macOS: bundled in the app, or from Homebrew / MacPorts
+/// (`brew install mpv` installs it alongside the mpv command).
+#[cfg(target_os = "macos")]
+pub fn mpv_library() -> Option<PathBuf> {
+    const LIB: &str = "libmpv.2.dylib";
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from)) {
+        candidates.push(dir.join("../Frameworks").join(LIB));
+        candidates.push(dir.join(LIB));
+    }
+    for prefix in ["/opt/homebrew/lib", "/usr/local/lib", "/opt/local/lib"] {
+        candidates.push(PathBuf::from(prefix).join(LIB));
+    }
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+/// libmpv inside the app on macOS; the drawing side lives in `macos/mpv_view.m`.
+#[cfg(target_os = "macos")]
+mod mac {
+    use std::ffi::{c_char, c_int, c_void, CStr, CString};
+    use std::path::Path;
+
+    extern "C" {
+        fn polar_mpv_create(
+            libpath: *const c_char,
+            nswindow: *mut c_void,
+            keys: *const *const c_char,
+            vals: *const *const c_char,
+            n: c_int,
+            err: *mut c_char,
+            errlen: usize,
+        ) -> *mut c_void;
+        fn polar_mpv_set_visible(player: *mut c_void, visible: c_int);
+        fn polar_mpv_destroy(player: *mut c_void);
+    }
+
+    pub struct Player(*mut c_void);
+
+    // The pointer is only ever used through the functions above, which do
+    // their AppKit work on the main thread themselves.
+    unsafe impl Send for Player {}
+
+    impl Player {
+        /// Start mpv with `options` (name, value) and attach its video to the
+        /// window at `nswindow`. Blocks while the main thread sets it up.
+        pub fn start(lib: &Path, nswindow: usize, options: &[(String, String)]) -> Result<Self, String> {
+            let c = |s: &str| CString::new(s).map_err(|e| e.to_string());
+            let lib = c(&lib.to_string_lossy())?;
+            let keys = options.iter().map(|(k, _)| c(k)).collect::<Result<Vec<_>, _>>()?;
+            let vals = options.iter().map(|(_, v)| c(v)).collect::<Result<Vec<_>, _>>()?;
+            let key_ptrs: Vec<*const c_char> = keys.iter().map(|k| k.as_ptr()).collect();
+            let val_ptrs: Vec<*const c_char> = vals.iter().map(|v| v.as_ptr()).collect();
+            let mut err = [0 as c_char; 512];
+            let ptr = unsafe {
+                polar_mpv_create(
+                    lib.as_ptr(),
+                    nswindow as *mut c_void,
+                    key_ptrs.as_ptr(),
+                    val_ptrs.as_ptr(),
+                    options.len() as c_int,
+                    err.as_mut_ptr(),
+                    err.len(),
+                )
+            };
+            if ptr.is_null() {
+                let msg = unsafe { CStr::from_ptr(err.as_ptr()) }.to_string_lossy().into_owned();
+                return Err(if msg.is_empty() { "mpv couldn't start".into() } else { msg });
+            }
+            Ok(Self(ptr))
+        }
+
+        pub fn set_visible(&self, visible: bool) {
+            unsafe { polar_mpv_set_visible(self.0, visible as c_int) }
+        }
+    }
+
+    impl Drop for Player {
+        fn drop(&mut self) {
+            unsafe { polar_mpv_destroy(self.0) }
+        }
+    }
+}
+
 /// The native view mpv draws into (`--wid`).
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 fn window_id(window: &WebviewWindow) -> Result<String, String> {
     #[cfg(windows)]
     {
@@ -184,6 +304,7 @@ mod ipc {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 /// Rendering: Direct3D 11 on Windows (lighter than Vulkan, zero-copy with
 /// d3d11va); elsewhere mpv's own choice for the platform.
 fn gpu_args() -> Vec<String> {
@@ -199,13 +320,15 @@ impl Mpv {
     async fn ensure(&self, app: &AppHandle, window: &WebviewWindow) -> Result<(), String> {
         let mut guard = self.conn.lock().await;
         if let Some(conn) = guard.as_mut() {
-            if matches!(conn.child.try_wait(), Ok(None)) {
+            if !conn.closed.load(Ordering::Relaxed) && conn.engine.alive() {
                 return Ok(());
             }
         }
+        if let Some(stale) = guard.take() {
+            stale.quiet.store(true, Ordering::Relaxed);
+            stale.engine.kill();
+        }
 
-        let bin = mpv_binary().ok_or("mpv isn't installed")?;
-        let wid = window_id(window)?;
         let pipe = ipc::endpoint();
         let shots = std::env::temp_dir().join("polar-mpv");
         let _ = std::fs::create_dir_all(&shots);
@@ -218,8 +341,7 @@ impl Mpv {
             .join("mpv-shaders");
         let _ = std::fs::create_dir_all(&shader_cache);
 
-        let mut base: Vec<String> = vec![
-            format!("--wid={wid}"),
+        let base: Vec<String> = vec![
             format!("--input-ipc-server={pipe}"),
             "--profile=libmpv".into(), // no OSC/OSD/default key bindings — our UI does that
             // Ignore a user's own mpv.conf/scripts: heavy shaders or
@@ -229,7 +351,6 @@ impl Mpv {
             "--keep-open=yes".into(),
             "--force-window=yes".into(),
             "--hwdec=auto-safe".into(), // d3d11va / videotoolbox: decoded frames stay on the GPU
-            "--vo=gpu-next".into(),
             format!("--gpu-shader-cache-dir={}", shader_cache.display()),
             "--background-color=#000000".into(),
             // Cache: with --cache=yes mpv ignores --demuxer-readahead-secs and
@@ -258,21 +379,13 @@ impl Mpv {
             "--screenshot-jpeg-quality=70".into(),
             format!("--screenshot-directory={}", shots.display()),
         ];
-        base.extend(gpu_args());
-
-        let (child, client) = match launch(&bin, &base, true, &pipe).await? {
-            Some(ok) => ok,
-            // Exited during startup: most likely an older mpv that rejects
-            // a newer option.
-            None => launch(&bin, &base, false, &pipe)
-                .await?
-                .ok_or("mpv exited during startup")?,
-        };
+        let (engine, client) = start_engine(window, base, &pipe).await?;
         let (reader, writer) = tokio::io::split(client);
         let pending: Pending = Arc::default();
         let quiet = Arc::new(AtomicBool::new(false));
-        tokio::spawn(read_loop(app.clone(), BufReader::new(reader), pending.clone(), quiet.clone()));
-        *guard = Some(Conn { child, writer, pending, quiet });
+        let closed = Arc::new(AtomicBool::new(false));
+        tokio::spawn(read_loop(app.clone(), BufReader::new(reader), pending.clone(), quiet.clone(), closed.clone()));
+        *guard = Some(Conn { engine, writer, pending, quiet, closed });
         // A fresh mpv starts from the launch arguments above.
         *self.tuned.lock().unwrap() = Tune::default();
         drop(guard);
@@ -302,11 +415,22 @@ impl Mpv {
 
     pub fn kill(&self) {
         if let Ok(mut guard) = self.conn.try_lock() {
-            if let Some(mut conn) = guard.take() {
+            if let Some(conn) = guard.take() {
                 conn.quiet.store(true, Ordering::Relaxed);
-                let _ = conn.child.kill();
+                conn.engine.kill();
             }
         }
+    }
+
+    /// Show or hide the video layer (macOS, where it's ours to manage; on
+    /// Windows mpv's child window simply sits under the page).
+    async fn set_visible(&self, visible: bool) {
+        #[cfg(target_os = "macos")]
+        if let Some(Conn { engine: Engine::InApp(player), .. }) = self.conn.lock().await.as_ref() {
+            player.set_visible(visible);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = visible;
     }
 
     /// Cancel any pending idle shutdown (a new title is starting).
@@ -326,18 +450,65 @@ impl Mpv {
             if mpv.idle_gen.load(Ordering::Relaxed) != generation {
                 return;
             }
-            if let Some(mut conn) = guard.take() {
+            if let Some(conn) = guard.take() {
                 conn.quiet.store(true, Ordering::Relaxed);
-                let _ = conn.child.kill();
-                let _ = conn.child.wait();
+                conn.engine.kill();
             }
         });
+    }
+}
+
+/// Start mpv for `window` with `base` options and connect to its IPC.
+#[cfg(not(target_os = "macos"))]
+async fn start_engine(window: &WebviewWindow, mut base: Vec<String>, pipe: &str) -> Result<(Engine, IpcStream), String> {
+    let bin = mpv_binary().ok_or("mpv isn't installed")?;
+    base.push(format!("--wid={}", window_id(window)?));
+    base.push("--vo=gpu-next".into());
+    base.extend(gpu_args());
+    let (child, client) = match launch(&bin, &base, true, pipe).await? {
+        Some(ok) => ok,
+        // Exited during startup: most likely an older mpv that rejects
+        // a newer option.
+        None => launch(&bin, &base, false, pipe)
+            .await?
+            .ok_or("mpv exited during startup")?,
+    };
+    Ok((Engine::Process(child), client))
+}
+
+/// macOS: libmpv in-process, drawing through its render API (`vo=libmpv`).
+#[cfg(target_os = "macos")]
+async fn start_engine(window: &WebviewWindow, base: Vec<String>, pipe: &str) -> Result<(Engine, IpcStream), String> {
+    let lib = mpv_library().ok_or("mpv isn't installed")?;
+    let nswindow = window.ns_window().map_err(|e| e.to_string())? as usize;
+    // "--name=value" → (name, value). An option this libmpv doesn't know is
+    // only logged, so the newer ones can always go in.
+    let options: Vec<(String, String)> = base
+        .iter()
+        .map(String::as_str)
+        .chain(MODERN_ARGS.iter().copied())
+        .chain(["--vo=libmpv"])
+        .filter_map(|a| a.strip_prefix("--")?.split_once('='))
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+    let player = tokio::task::spawn_blocking(move || mac::Player::start(&lib, nswindow, &options))
+        .await
+        .map_err(|e| e.to_string())??;
+    // The IPC server is up once mpv_initialize has returned, but give it a moment.
+    let started = Instant::now();
+    loop {
+        match ipc::connect(pipe).await {
+            Ok(client) => return Ok((Engine::InApp(player), client)),
+            Err(_) if started.elapsed() < Duration::from_secs(5) => tokio::time::sleep(Duration::from_millis(15)).await,
+            Err(e) => return Err(format!("mpv didn't open its control socket: {e}")),
+        }
     }
 }
 
 /// Spawn mpv and connect to its IPC pipe. `Ok(None)` means mpv exited before
 /// the pipe appeared (only reported when `modern` is set, so the caller can
 /// retry without the newer options).
+#[cfg(not(target_os = "macos"))]
 async fn launch(
     bin: &PathBuf,
     base: &[String],
@@ -377,6 +548,7 @@ async fn read_loop(
     mut reader: BufReader<tokio::io::ReadHalf<IpcStream>>,
     pending: Pending,
     quiet: Arc<AtomicBool>,
+    closed: Arc<AtomicBool>,
 ) {
     let mut last_emit: HashMap<String, Instant> = HashMap::new();
     let mut line = String::new();
@@ -419,6 +591,7 @@ async fn read_loop(
             None => {}
         }
     }
+    closed.store(true, Ordering::Relaxed);
     if !quiet.load(Ordering::Relaxed) {
         let _ = app.emit("mpv://event", json!({ "event": "shutdown" }));
     }
@@ -428,6 +601,9 @@ async fn read_loop(
 
 #[tauri::command]
 pub fn mpv_available() -> bool {
+    #[cfg(target_os = "macos")]
+    return mpv_library().is_some();
+    #[cfg(not(target_os = "macos"))]
     mpv_binary().is_some()
 }
 
@@ -518,6 +694,7 @@ pub async fn mpv_load(
     }
     state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await?;
     state.mpv.request(json!(["set_property", "pause", false])).await?;
+    state.mpv.set_visible(true).await;
     Ok(())
 }
 
@@ -656,6 +833,7 @@ pub async fn mpv_stop(app: AppHandle, state: State<'_, AppState>) -> Result<(), 
         return Ok(());
     }
     state.mpv.schedule_idle_shutdown(&app);
+    state.mpv.set_visible(false).await;
     state.mpv.request(json!(["stop"])).await.map(|_| ())
 }
 

@@ -628,6 +628,9 @@ html[data-os="mac"] .account-bar {
 html[data-os="mac"] .player-top {
   padding-left: var(--traffic-lights);
 }
+html[data-os="mac"] .options-close {
+  left: var(--traffic-lights);
+}
 /* TV mode is fullscreen: square, edge to edge. */
 html[data-os="mac"]:has(.app.tv) body,
 html[data-os="mac"]:has(.app.tv) body::after {

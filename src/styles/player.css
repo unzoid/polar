@@ -311,8 +311,14 @@
   max-height: 80vh;
   width: clamp(240px, 24vw, 340px);
 }
+/* Sources: a fixed height, so filtering the list down doesn't re-centre the
+   column and jump the bar (and an open Filters popover) up or down the screen. */
+.options-column:has(.srcf:not(.srcf-tv)) {
+  height: 80vh;
+}
+/* No narrower than the source bar's tightest fit (460px). */
 .options-column[data-size="wide"] {
-  width: clamp(380px, 42vw, 640px);
+  width: clamp(460px, 42vw, 640px);
 }
 .options-title {
   margin: 0 0 1rem 0.25rem;
@@ -937,9 +943,24 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   color: var(--text-3);
 }
 /* The player's picker: the filter bar takes the head's free width beside the title. */
-.options-head .source-controls {
-  flex: 1;
-  justify-content: flex-end;
+/* The bar's rows join the head's own wrapping row, so the title lines up
+   with the controls and the filters-on tags start under the title rather
+   than pushing it down to centre against both lines. */
+.options-head:has(.srcf:not(.srcf-tv)) {
+  flex-wrap: wrap;
+  row-gap: 0.75rem;
+}
+.options-head .source-controls:has(.srcf:not(.srcf-tv)),
+.options-head .srcf:not(.srcf-tv) {
+  display: contents;
+}
+/* Beside the title while there's room for it; on a narrow window it drops
+   under the title and takes the column's whole width. */
+.options-head .srcf-bar {
+  flex: 1 1 26rem;
+}
+.options-head .srcf-active {
+  flex-basis: 100%;
 }
 .options-head .srcf {
   padding: 0;

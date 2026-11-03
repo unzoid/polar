@@ -63,7 +63,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
   chapters: MpvChapter[] = [];
   aid: number | "no" | null = null;
   sid: number | "no" | null = null;
-  error: { code: number; message: string } | null = null;
+  /** `playerExited`: mpv itself went away (crashed, or its window was closed), not the source failing. */
+  error: { code: number; message: string; playerExited?: boolean } | null = null;
 
   /** Resolves once this object is listening; loads wait on it. */
   private listening: Promise<void> = Promise.resolve();
@@ -189,8 +190,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
     this.dispatchEvent(new Event(type));
   }
 
-  private fail(message: string) {
-    this.error = { code: 4, message };
+  private fail(message: string, playerExited = false) {
+    this.error = { code: 4, message, playerExited };
     this.emit("error");
   }
 
@@ -256,7 +257,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
 
   private onEvent(e: { event: string; reason?: string; file_error?: string }) {
     if (e.event === "end-file" && e.reason === "error") this.fail(e.file_error ?? "mpv couldn't open this file");
-    if (e.event === "shutdown") this.fail("The player stopped unexpectedly.");
+    if (e.event === "shutdown") this.fail("The player stopped unexpectedly.", true);
   }
 }
 

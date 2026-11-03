@@ -410,7 +410,11 @@ export function Player({
       save();
     },
     error: () => {
-      if (source.next()) {
+      // mpv exiting isn't this source's fault: moving on to the next source
+      // would just start mpv again (and if it keeps exiting, loop through
+      // every source).
+      const exited = videoRef.current instanceof MpvMedia && videoRef.current.error?.playerExited;
+      if (!exited && source.next()) {
         setNotice("That source didn't load. Trying the next best one.");
         window.setTimeout(() => setNotice(null), 3500);
       } else {
