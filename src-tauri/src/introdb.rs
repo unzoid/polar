@@ -46,8 +46,7 @@ struct Raw {
 }
 
 fn span(r: Option<RawSpan>) -> Option<Span> {
-    r.filter(|s| s.end_sec > s.start_sec)
-        .map(|s| Span { start: s.start_sec, end: s.end_sec })
+    r.filter(|s| s.end_sec > s.start_sec).map(|s| Span { start: s.start_sec, end: s.end_sec })
 }
 
 pub struct IntroDb {

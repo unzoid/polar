@@ -57,7 +57,7 @@ pub fn space_import_local(state: State<'_, AppState>, space: String) -> Result<(
     save(&state, |d| {
         let local = d.spaces.get(LOCAL_SPACE).cloned().unwrap_or_default();
         let target = d.spaces.entry(space).or_default();
-        let library = local.library.values().map(|i| present(i)).collect();
+        let library = local.library.values().map(present).collect();
         merge(target, library, local.progress.into_values().collect());
         // Everything imported still has to reach the server.
         target.pushed_at = 0;
@@ -151,12 +151,7 @@ fn present(i: &LibraryItem) -> SyncLibraryItem {
 fn merge(s: &mut Space, library: Vec<SyncLibraryItem>, progress: Vec<Progress>) -> bool {
     let mut changed = false;
     for item in library {
-        let local = s
-            .library
-            .get(&item.id)
-            .map(|i| i.added_at)
-            .max(s.removed.get(&item.id).copied())
-            .unwrap_or(0);
+        let local = s.library.get(&item.id).map(|i| i.added_at).max(s.removed.get(&item.id).copied()).unwrap_or(0);
         if item.updated_at <= local {
             continue;
         }

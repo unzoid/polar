@@ -1,16 +1,16 @@
 mod commands;
 mod controllers;
 mod downloads;
-mod player;
 mod fillers;
 mod imdb;
-mod streamcheck;
-mod trailers;
 mod introdb;
+mod player;
 mod ratings;
 mod seekr;
 mod store;
+mod streamcheck;
 mod sync;
+mod trailers;
 
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -37,10 +37,7 @@ impl AppState {
 
 pub fn index_config(settings: &store::Settings) -> IndexConfig {
     IndexConfig {
-        tmdb_key: settings
-            .tmdb_key
-            .clone()
-            .or_else(|| std::env::var("TMDB_API_KEY").ok()),
+        tmdb_key: settings.tmdb_key.clone().or_else(|| std::env::var("TMDB_API_KEY").ok()),
         language: Some(settings.language.clone()),
     }
 }
@@ -69,11 +66,7 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
     let state = app.state::<AppState>();
     let pending: Vec<&str> = {
         let store = state.store.lock().unwrap();
-        BUNDLED_ADDONS
-            .iter()
-            .copied()
-            .filter(|url| !store.data.bundled_addons.iter().any(|u| u == url))
-            .collect()
+        BUNDLED_ADDONS.iter().copied().filter(|url| !store.data.bundled_addons.iter().any(|u| u == url)).collect()
     };
     for url in pending {
         let Ok(manifest) = state.addons.manifest(url).await else { continue };
@@ -177,4 +170,3 @@ pub fn run() {
             }
         });
 }
-

@@ -251,7 +251,7 @@ impl Settings {
         let gb = if ty == "movie" { self.max_movie_size_gb } else { self.max_episode_size_gb };
         polar_addon::StreamFilter {
             max_resolution: (self.max_resolution > 0).then(|| self.max_resolution.min(u16::MAX as u32) as u16),
-            max_size_bytes: (gb > 0.0).then(|| (gb as f64 * 1e9) as u64),
+            max_size_bytes: (gb > 0.0).then_some((gb as f64 * 1e9) as u64),
             hide_cam: self.hide_cam,
             exclude_words: self
                 .exclude_keywords
@@ -306,7 +306,11 @@ pub struct Progress {
 
 impl Progress {
     pub fn fraction(&self) -> f64 {
-        if self.duration > 0.0 { (self.position / self.duration).clamp(0.0, 1.0) } else { 0.0 }
+        if self.duration > 0.0 {
+            (self.position / self.duration).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
     }
 
     /// Past the watched threshold (Settings → Playback), e.g. 0.92.
@@ -408,8 +412,5 @@ impl Store {
 }
 
 pub fn now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or_default()
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or_default()
 }

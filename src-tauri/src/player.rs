@@ -115,6 +115,9 @@ struct Conn {
     closed: Arc<AtomicBool>,
 }
 
+/// An autocrop run's number and the channel its observed properties go to.
+type CropSink = (u64, mpsc::UnboundedSender<(u64, Value)>);
+
 #[derive(Default)]
 pub struct Mpv {
     conn: Mutex<Option<Conn>>,
@@ -132,7 +135,7 @@ pub struct Mpv {
     autocrop_run: AtomicU64,
     /// Where the reader sends autocrop's observed properties: the running
     /// task's number and channel ([`CROP_OBSERVE_BASE`]).
-    crop_events: StdMutex<Option<(u64, mpsc::UnboundedSender<(u64, Value)>)>>,
+    crop_events: StdMutex<Option<CropSink>>,
 }
 
 /// The mpv executable's file name here.
@@ -343,11 +346,7 @@ impl Mpv {
         let _ = std::fs::create_dir_all(&shots);
         // Compiled shaders persist here, so the first frame after an app
         // restart doesn't wait on shader compilation.
-        let shader_cache = app
-            .path()
-            .app_cache_dir()
-            .unwrap_or_else(|_| shots.clone())
-            .join("mpv-shaders");
+        let shader_cache = app.path().app_cache_dir().unwrap_or_else(|_| shots.clone()).join("mpv-shaders");
         let _ = std::fs::create_dir_all(&shader_cache);
 
         let base: Vec<String> = vec![
@@ -469,7 +468,11 @@ impl Mpv {
 
 /// Start mpv for `window` with `base` options and connect to its IPC.
 #[cfg(not(target_os = "macos"))]
-async fn start_engine(window: &WebviewWindow, mut base: Vec<String>, pipe: &str) -> Result<(Engine, IpcStream), String> {
+async fn start_engine(
+    window: &WebviewWindow,
+    mut base: Vec<String>,
+    pipe: &str,
+) -> Result<(Engine, IpcStream), String> {
     let bin = mpv_binary().ok_or("mpv isn't installed")?;
     base.push(format!("--wid={}", window_id(window)?));
     base.push("--vo=gpu-next".into());
@@ -478,9 +481,7 @@ async fn start_engine(window: &WebviewWindow, mut base: Vec<String>, pipe: &str)
         Some(ok) => ok,
         // Exited during startup: most likely an older mpv that rejects
         // a newer option.
-        None => launch(&bin, &base, false, pipe)
-            .await?
-            .ok_or("mpv exited during startup")?,
+        None => launch(&bin, &base, false, pipe).await?.ok_or("mpv exited during startup")?,
     };
     Ok((Engine::Process(child), client))
 }
@@ -763,7 +764,14 @@ pub enum BufferSize {
 /// What the launch arguments in `Mpv::ensure` amount to.
 impl Default for Tune {
     fn default() -> Self {
-        Self { dialogue_boost: false, volume_leveling: false, hwdec: true, deband: false, buffer: BufferSize::Normal, autocrop: false }
+        Self {
+            dialogue_boost: false,
+            volume_leveling: false,
+            hwdec: true,
+            deband: false,
+            buffer: BufferSize::Normal,
+            autocrop: false,
+        }
     }
 }
 
@@ -898,7 +906,8 @@ async fn crop_geometry(mpv: &Mpv) -> Option<CropGeometry> {
 
 /// cropdetect's reading from `vf-metadata/autocrop`.
 fn cropdetect_reading(meta: &Value) -> Option<Rect> {
-    let num = |k: &str| meta.get(format!("lavfi.cropdetect.{k}")).and_then(Value::as_str).and_then(|v| v.parse::<i64>().ok());
+    let num =
+        |k: &str| meta.get(format!("lavfi.cropdetect.{k}")).and_then(Value::as_str).and_then(|v| v.parse::<i64>().ok());
     Some(Rect { w: num("w")?, h: num("h")?, x: num("x")?, y: num("y")? })
 }
 
@@ -1092,7 +1101,9 @@ impl CropTracker {
         }
         let (fw, fh) = full;
         // An all-black frame comes back as an empty or inside-out area.
-        let Some(r) = reading.filter(|r| r.w > 0 && r.h > 0 && r.x >= 0 && r.y >= 0 && r.x + r.w <= fw && r.y + r.h <= fh) else {
+        let Some(r) =
+            reading.filter(|r| r.w > 0 && r.h > 0 && r.x >= 0 && r.y >= 0 && r.x + r.w <= fw && r.y + r.h <= fh)
+        else {
             return;
         };
         if self.recent.len() == CROP_HISTORY {
@@ -1145,7 +1156,8 @@ impl CropTracker {
             .into_iter()
             .take_while(|&n| {
                 self.recent.len() >= n
-                    && (0..2).all(|side| edge(n, side).max().unwrap_or(0) - edge(n, side).min().unwrap_or(0) <= EDGE_SLACK)
+                    && (0..2)
+                        .all(|side| edge(n, side).max().unwrap_or(0) - edge(n, side).min().unwrap_or(0) <= EDGE_SLACK)
             })
             .last()?;
         let (a, b) = (edge(held, 0).min().unwrap_or(0), edge(held, 1).min().unwrap_or(0));
@@ -1183,7 +1195,14 @@ mod tests {
 
     #[test]
     fn tune_builds_fixed_filters() {
-        let t = Tune { dialogue_boost: true, volume_leveling: true, hwdec: true, deband: false, buffer: BufferSize::Large, autocrop: false };
+        let t = Tune {
+            dialogue_boost: true,
+            volume_leveling: true,
+            hwdec: true,
+            deband: false,
+            buffer: BufferSize::Large,
+            autocrop: false,
+        };
         assert!(t.audio_filters().starts_with("lavfi=[pan=stereo") && t.audio_filters().contains("dynaudnorm"));
         let off = Tune { dialogue_boost: false, volume_leveling: false, ..t };
         assert_eq!(off.audio_filters(), "");
@@ -1234,14 +1253,16 @@ mod tests {
             .collect();
         // Only ever the letterbox or nothing: the vignette's sides are never cropped.
         assert!(shown.iter().all(|(_, b)| *b == (0, 0) || *b == (140, 0)), "{shown:?}");
-        let at = |from: f64, to: f64| shown.iter().filter(move |(time, _)| *time >= from && *time < to).map(|(_, b)| *b);
+        let at =
+            |from: f64, to: f64| shown.iter().filter(move |(time, _)| *time >= from && *time < to).map(|(_, b)| *b);
         let frame = 1.0 / 24.0;
         // New bars at 3.958 s (the reading for the 4.0 s frame): cropped 4 frames later.
         assert!(at(3.958 + 3.0 * frame + 0.001, 9.95).all(|b| b == (140, 0)), "{shown:?}");
         // Back to full frame at 9.958 s: on that very frame, so it lands on the cut.
         assert!(at(9.958, 13.95).all(|b| b == (0, 0)), "{shown:?}");
         // The dark letterbox: bars seen before, cropped 2 frames after they first show.
-        let first = frames.iter().find(|(time, r)| *time > 14.0 && r.is_some_and(|r| r.y == 140 && r.h == 800)).unwrap().0;
+        let first =
+            frames.iter().find(|(time, r)| *time > 14.0 && r.is_some_and(|r| r.y == 140 && r.h == 800)).unwrap().0;
         assert!(at(first + frame + 0.001, 19.95).all(|b| b == (140, 0)), "{shown:?}");
         assert!(at(19.958, 99.0).all(|b| b == (0, 0)), "{shown:?}");
     }

@@ -121,8 +121,19 @@ pub fn classic_genres(ty: &str, day: u64, count: usize) -> Vec<&'static str> {
         vec!["Drama", "Comedy", "Crime", "Sci-Fi", "Animation", "Mystery", "Fantasy", "Adventure"]
     } else {
         vec![
-            "Crime", "Drama", "Comedy", "Sci-Fi", "Thriller", "Adventure", "Romance", "Western", "War", "Mystery", "Horror",
-            "Animation", "Fantasy",
+            "Crime",
+            "Drama",
+            "Comedy",
+            "Sci-Fi",
+            "Thriller",
+            "Adventure",
+            "Romance",
+            "Western",
+            "War",
+            "Mystery",
+            "Horror",
+            "Animation",
+            "Fantasy",
         ]
     };
     genres.sort_by(|a, b| noise(day, a).total_cmp(&noise(day, b)));
@@ -161,7 +172,8 @@ pub fn similar(seed: &MetaPreview, lists: &[Vec<MetaPreview>], day: u64) -> Vec<
                 continue;
             }
             let shared = m.genres.iter().filter(|g| want.iter().any(|w| w.eq_ignore_ascii_case(g))).count();
-            if shared == 0 || (want.len() >= 2 && shared < 2 && want[0] != m.genres.first().map_or("", String::as_str)) {
+            if shared == 0 || (want.len() >= 2 && shared < 2 && want[0] != m.genres.first().map_or("", String::as_str))
+            {
                 continue;
             }
             let overlap = shared as f64 / want.len() as f64;

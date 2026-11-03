@@ -144,7 +144,8 @@ impl Downloads {
 
     /// True when `path` is a finished download's file, so the player may open it.
     pub fn owns(&self, path: &str) -> bool {
-        is_local(path) && self.inner.lock().unwrap().items.iter().any(|d| d.state == DownloadState::Done && d.file == path)
+        is_local(path)
+            && self.inner.lock().unwrap().items.iter().any(|d| d.state == DownloadState::Done && d.file == path)
     }
 
     fn save(&self, items: &[Download]) {
@@ -237,7 +238,9 @@ impl Downloads {
 
     /// Copy the file down. Ok(true) when finished, Ok(false) when stopped.
     async fn transfer(&self, file: &str, stop: &AtomicBool) -> std::result::Result<bool, String> {
-        let Some(d) = self.inner.lock().unwrap().items.iter().find(|d| d.file == file).cloned() else { return Ok(false) };
+        let Some(d) = self.inner.lock().unwrap().items.iter().find(|d| d.file == file).cloned() else {
+            return Ok(false);
+        };
         let path = PathBuf::from(file);
         // Each start writes a new file, so whatever is on disk is this download's own.
         let have = tokio::fs::metadata(&path).await.map(|m| m.len()).unwrap_or(0);
@@ -257,16 +260,24 @@ impl Downloads {
             // What the server said, briefly: the status alone rarely explains it.
             let body = res.text().await.unwrap_or_default();
             let said: String = body.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(140).collect();
-            return Err(if said.is_empty() { format!("The source answered {status}.") } else { format!("The source answered {status}: {said}") });
+            return Err(if said.is_empty() {
+                format!("The source answered {status}.")
+            } else {
+                format!("The source answered {status}: {said}")
+            });
         }
         // 206: the rest of the file. 200: the whole file again (no range support).
         let resumed = have > 0 && status == reqwest::StatusCode::PARTIAL_CONTENT;
         let start = if resumed { have } else { 0 };
         let total = res.content_length().map(|n| n + start);
-        self.update_file(file, |d| {
-            d.received = start;
-            d.total = total;
-        }, true);
+        self.update_file(
+            file,
+            |d| {
+                d.received = start;
+                d.total = total;
+            },
+            true,
+        );
 
         let mut out = tokio::fs::OpenOptions::new()
             .create(true)
@@ -331,23 +342,30 @@ type Shared<'a> = State<'a, Arc<Downloads>>;
 #[tauri::command]
 pub fn downloads_list(downloads: Shared<'_>) -> Vec<Download> {
     let mut items = downloads.inner.lock().unwrap().items.clone();
-    items.sort_by(|a, b| b.added_at.cmp(&a.added_at));
+    items.sort_by_key(|i| std::cmp::Reverse(i.added_at));
     items
 }
 
 #[tauri::command]
-pub async fn download_start(state: State<'_, AppState>, downloads: Shared<'_>, req: DownloadRequest) -> Result<Download> {
+pub async fn download_start(
+    state: State<'_, AppState>,
+    downloads: Shared<'_>,
+    req: DownloadRequest,
+) -> Result<Download> {
     let url = match resolve(&state, req.stream.clone()).await {
         Playable::Url { url } if !is_local(&url) => url,
         Playable::Url { .. } => return Err(CmdError::Other("This is already on your device.".into())),
-        Playable::External { .. } => return Err(CmdError::Other("This source plays in a browser and can't be downloaded.".into())),
+        Playable::External { .. } => {
+            return Err(CmdError::Other("This source plays in a browser and can't be downloaded.".into()))
+        }
         Playable::Unsupported { reason } => return Err(CmdError::Other(reason)),
     };
     // Starting again replaces whatever was there (a failed or expired one).
     downloads.stop(&req.video_id);
     let added_at = now();
     let file = downloads.dir.join(file_name(&req.video_id, &url, added_at));
-    std::fs::create_dir_all(&downloads.dir).map_err(|e| CmdError::Other(format!("Couldn't create the downloads folder: {e}")))?;
+    std::fs::create_dir_all(&downloads.dir)
+        .map_err(|e| CmdError::Other(format!("Couldn't create the downloads folder: {e}")))?;
     let d = Download {
         id: req.video_id.clone(),
         meta_id: req.meta_id,
@@ -387,11 +405,15 @@ pub async fn download_start(state: State<'_, AppState>, downloads: Shared<'_>, r
 #[tauri::command]
 pub fn download_pause(downloads: Shared<'_>, id: String) {
     downloads.stop(&id);
-    downloads.update(&id, |d| {
-        if d.state == DownloadState::Downloading {
-            d.state = DownloadState::Paused;
-        }
-    }, true);
+    downloads.update(
+        &id,
+        |d| {
+            if d.state == DownloadState::Downloading {
+                d.state = DownloadState::Paused;
+            }
+        },
+        true,
+    );
 }
 
 #[tauri::command]
