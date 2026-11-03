@@ -14,8 +14,9 @@
         "hiddenTitle": true,
         "trafficLightPosition": {
           "x": 20,
-          "y": 30
-        }
+          "y": 36
+        },
+        "shadow": true
       }
     ]
   }

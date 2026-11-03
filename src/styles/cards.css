@@ -414,6 +414,10 @@
 .card-frame {
   position: relative;
   isolation: isolate;
+  /* A definite width: WebKit won't size an aspect-ratio box from a stretched
+     flex width alone, and with its image out of flow the frame (and the
+     image in it) collapsed to nothing on macOS. */
+  width: 100%;
   border-radius: var(--r-card);
   background: var(--surface-1);
   transition: transform var(--dur-base) var(--ease-out);
