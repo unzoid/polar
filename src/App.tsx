@@ -31,6 +31,7 @@ import { TrailerHost } from "./components/Trailer";
 import { isSettingsOpen } from "./lib/settingsOverlay";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
+import { PartyHost } from "./components/party/PartyHost";
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -171,6 +172,7 @@ function MainApp() {
   return (
     <MotionConfig reducedMotion={reduce === "on" ? "always" : reduce === "off" ? "never" : "user"}>
       {tv ? <TvApp /> : <DesktopApp />}
+      <PartyHost />
     </MotionConfig>
   );
 }

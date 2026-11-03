@@ -57,6 +57,11 @@ import { watchedFraction } from "../lib/watched";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
+import { useAccount } from "../lib/account/AccountProvider";
+import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party/party";
+import { usePartySync } from "../components/player/usePartySync";
+import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
+import { Users } from "../components/icons";
 
 const win = getCurrentWindow();
 const SAVE_EVERY = 5000;
@@ -101,7 +106,15 @@ export function Player({
   const engineQuery = useQuery({ queryKey: ["mpv"], queryFn: api.mpvAvailable, staleTime: Infinity });
   const engine: "mpv" | "html" | null = engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
   const mpv = useMemo(() => new MpvMedia(), []);
-  const source = useSource(type, metaId, videoId, stream);
+  // Watch party: signed-in profiles only. Joining the room's video, look for the file it's on.
+  const party = useParty();
+  const { profile } = useAccount();
+  const canParty = partyAvailable() && !!profile;
+  const [roomHint] = useState(() => {
+    const p = getParty()?.playback;
+    return p?.media.videoId === videoId ? p.media.hint : undefined;
+  });
+  const source = useSource(type, metaId, videoId, stream, roomHint);
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const media: MediaLike | null = engine === "mpv" ? mpv : videoEl;
@@ -119,7 +132,7 @@ export function Player({
   const [notice, setNotice] = useState<string | null>(null);
   const [ended, setEnded] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
-  const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | null>(null);
+  const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | "party" | null>(null);
   const updateSettings = useUpdateSettings();
   // Settings → Playback → "Remember playback speed".
   const [rate, setRateState] = useState(() => (settings?.rememberSpeed && settings.playbackSpeed > 0 ? settings.playbackSpeed : 1));
@@ -229,6 +242,16 @@ export function Player({
   const title = meta?.name ?? "";
   const heading = current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
 
+  // --- Watch party ------------------------------------------------------------
+  const playingStream = source.state.status === "ready" ? source.state.stream : undefined;
+  const hint = useMemo(() => streamHint(playingStream), [playingStream]);
+  const partyMedia = { type, metaId, videoId, label: heading || undefined };
+  usePartySync({ media, current: partyMedia, started, buffering, hint });
+  const startHere = () => {
+    const v = videoRef.current;
+    if (!party && profile && v) startParty({ ...partyMedia, hint }, v.currentTime, v.paused, profile);
+  };
+
   // --- Progress -------------------------------------------------------------
   const lastSave = useRef(0);
   const save = useCallback(() => {
@@ -312,9 +335,9 @@ export function Player({
     setBuffering(true);
     v.volume = volume;
     if (v instanceof MpvMedia) {
-      // Start at the resume point directly: no fetching the opening of a
-      // network stream only to seek away from it.
-      const start = resumePoint(source.resume);
+      // Start at the resume point (or where the watch party is) directly: no
+      // fetching the opening of a network stream only to seek away from it.
+      const start = partyPosition(videoId) ?? resumePoint(source.resume);
       resumed.current = true;
       v.load(source.state.url, start);
     } else if (v instanceof HTMLVideoElement) {
@@ -332,9 +355,11 @@ export function Player({
     localStorage.setItem("polar.volume", String(volume));
   }, [volume, muted, media]);
 
+  // A watch party plays at 1x for everyone (its sync nudges the rate itself).
+  const inParty = !!party;
   useEffect(() => {
-    if (videoRef.current) videoRef.current.playbackRate = rate;
-  }, [rate, source.state, media]);
+    if (videoRef.current) videoRef.current.playbackRate = inParty ? 1 : rate;
+  }, [rate, source.state, media, inParty]);
 
   // Fullscreen carries over from the previous episode; Settings → Playback
   // can also start every video in it.
@@ -394,7 +419,7 @@ export function Player({
     canplay: () => setBuffering(false),
     loadedmetadata: () => {
       const v = videoRef.current!;
-      const start = resumePoint(source.resume);
+      const start = partyPosition(videoId) ?? resumePoint(source.resume);
       if (!resumed.current && start != null) v.currentTime = start;
       resumed.current = true;
       setTime({ current: v.currentTime, duration: v.duration });
@@ -731,6 +756,8 @@ export function Player({
       </AnimatePresence>
 
       {notice && <div className="player-notice t-callout">{notice}</div>}
+      {party && ready && started && <PartyHold party={party} videoId={videoId} />}
+      {party && <PartyNotes party={party} />}
 
       {/* Top: back, what's playing, window-level controls. Drag lives here. */}
       <div className="player-top" data-tauri-drag-region>
@@ -742,6 +769,7 @@ export function Player({
           {current && <span className="player-heading-show">{title}</span>}
         </div>
         <div className="player-top-actions">
+          {party && <PartyBadge party={party} onOpen={() => setOptions("party")} />}
           <div className="player-volume">
             <button className="player-icon pressable" onClick={() => setMuted((m) => !m)} aria-label={muted ? "Unmute" : "Mute"} title={withShortcut("Mute", "mute")}>
               <VolumeIcon size={22} />
@@ -815,12 +843,21 @@ export function Player({
           </button>
         </div>
         <div className="player-actions">
-          <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={() => setOptions("speed")} />
+          {!party && (
+            <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={() => setOptions("speed")} />
+          )}
           {type === "series" && (
             <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
           <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={() => setOptions("tracks")} />
           <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />
+          {canParty && (
+            <ActionButton
+              icon={<Users size={22} />}
+              label={party ? `Watch Party (${party.members.length})` : "Watch Party"}
+              onClick={() => setOptions("party")}
+            />
+          )}
           {next && (
             <ActionButton
               icon={<SkipForward size={22} fill="currentColor" />}
@@ -942,6 +979,22 @@ export function Player({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {canParty && (
+        <OptionsOverlay
+          open={options === "party"}
+          onClose={() => setOptions(null)}
+          media={media}
+          columns={
+            party
+              ? [
+                  { title: "Watch Party", size: "medium", options: [], onSelect: () => {}, content: <PartyInvite party={party} /> },
+                  { title: "Watching", size: "medium", options: [], onSelect: () => {}, content: <PartyMembers party={party} /> },
+                ]
+              : [{ title: "Watch Party", size: "medium", options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={startHere} /> }]
+          }
+        />
+      )}
 
       <OptionsOverlay
         open={options === "episodes"}

@@ -18,6 +18,7 @@ import "./styles/cards.css";
 import "./styles/detail.css";
 import "./styles/sheet.css";
 import "./styles/player.css";
+import "./styles/party.css";
 import "./styles/screens.css";
 import "./styles/account.css";
 import "./styles/settings-overlay.css";

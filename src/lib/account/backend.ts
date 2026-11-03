@@ -59,8 +59,44 @@ export interface RemoteSettings {
   updatedAt: number;
 }
 
+/** One member as the room sees them (watch parties). */
+export interface PartyPresence {
+  id: string;
+  name: string;
+  avatar: string;
+  /** Local clock of the member when they joined; only used to agree on an order. */
+  joinedAt: number;
+  /** Loading or buffering: the room holds until they catch up. */
+  waiting: boolean;
+}
+
+/** A live watch-party room: small messages to everyone in it, and who's there. */
+export interface PartyLink {
+  /** To everyone in the room, this member included (the echo times the round trip). */
+  send(message: Record<string, unknown>): void;
+  /** Update how this member appears to the others. */
+  track(presence: PartyPresence): void;
+  close(): void;
+}
+
+export interface PartyHandlers {
+  onMessage(message: Record<string, unknown>): void;
+  onPresence(members: PartyPresence[]): void;
+  /**
+   * `joined` again after a reconnect; `error` when the room can't be reached.
+   * `setup`: the server refused the room itself (not configured for parties),
+   * so retrying won't help.
+   */
+  onStatus(status: "joined" | "error", detail?: { setup: boolean; message: string }): void;
+}
+
 export interface AccountBackend {
   readonly name: string;
+
+  /** Realtime rooms for watching together. Signed-in users only. */
+  party: {
+    connect(code: string, me: PartyPresence, handlers: PartyHandlers): PartyLink;
+  };
 
   auth: {
     /** The restored session's user, if any. */

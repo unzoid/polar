@@ -136,6 +136,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
     this.time = t;
     this.stamp = performance.now();
     void this.command("seek", t, "absolute+keyframes").catch(() => {});
+    this.emit("seeking"); // as a <video> does when its currentTime is set
   }
   get duration() {
     return this.dur;

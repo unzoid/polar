@@ -98,6 +98,8 @@ export function OptionsOverlay({
       if (document.querySelector(".select-popup, .srcf-popover")) return;
       // A slider (the source list's size range) takes the arrows for itself.
       if ((e.target as HTMLElement | null)?.closest?.('[role="slider"], input[type="range"]') && e.key !== "Escape") return;
+      // A text field (the party code) keeps its caret keys.
+      if ((e.target as HTMLElement | null)?.matches?.('input:not([type]), input[type="text"]') && e.key !== "Escape") return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onCloseRef.current();

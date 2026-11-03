@@ -4,7 +4,7 @@
  */
 import { createClient, type AuthError, type PostgrestError, type User } from "@supabase/supabase-js";
 import type { ContentType, Progress, SyncLibraryItem } from "../types";
-import { AccountError, type AccountBackend, type AccountUser, type Profile } from "./backend";
+import { AccountError, type AccountBackend, type AccountUser, type PartyPresence, type Profile } from "./backend";
 import { normalizeAvatar } from "./avatars";
 import { fromHex, toHex } from "../playlistCodec";
 
@@ -29,6 +29,48 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
 
   return {
     name: "supabase",
+
+    // Broadcast + Presence on a private channel: only signed-in users get in
+    // (realtime.messages policies, see the watch_parties migration), and the
+    // code is the invitation. Nothing is stored.
+    party: {
+      connect(code, me, { onMessage, onPresence, onStatus }) {
+        let current = me;
+        const ch = db.channel(`party:${code}`, {
+          config: { private: true, broadcast: { self: true }, presence: { key: me.id } },
+        });
+        ch.on("broadcast", { event: "m" }, ({ payload }) => onMessage(payload as Record<string, unknown>));
+        ch.on("presence", { event: "sync" }, () => {
+          const state = ch.presenceState<PartyPresence>();
+          onPresence(Object.values(state).map((metas) => metas[metas.length - 1]));
+        });
+        const fail = (err?: Error) => {
+          const message = err?.message ?? "";
+          if (message) console.warn("[party] realtime:", message);
+          // Realtime refuses a private topic no policy allows: the server is missing the watch_parties migration.
+          onStatus("error", { setup: /unauthori[sz]ed|permission|policy|not allowed/i.test(message), message });
+        };
+        db.realtime
+          .setAuth()
+          .then(() =>
+            ch.subscribe((status, err) => {
+              if (status === "SUBSCRIBED") {
+                void ch.track(current);
+                onStatus("joined");
+              } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") fail(err);
+            }),
+          )
+          .catch(fail);
+        return {
+          send: (message) => void ch.send({ type: "broadcast", event: "m", payload: message }),
+          track: (presence) => {
+            current = presence;
+            void ch.track(presence);
+          },
+          close: () => void db.removeChannel(ch),
+        };
+      },
+    },
 
     auth: {
       async current() {
