@@ -288,12 +288,33 @@ fn languages(text: &str) -> Vec<&'static str> {
         }
     }
     for m in LANG_WORDS.find_iter(text) {
+        if is_multi_subs(m.as_str(), &text[m.end()..]) {
+            continue;
+        }
         if let Some(l) = word_language(m.as_str()) {
             push(l);
         }
     }
+    // A dub that doesn't say which: English, as anime releases mean it
+    // ("[English Dub]", "(Dub)", "Dubbed"; "English" is only read in capitals).
+    // One that names its language ("Hindi Dub") already has it.
+    if out.iter().all(|&l| l == "multi") && DUB_WORDS.is_match(text) {
+        out.push("en"); // no other language yet, so no duplicate
+    }
     out
 }
+
+/// "Multi" that's about the subtitles ("Multi-Subs", "Multi Sub", "MULTi.SUBS"),
+/// as anime releases with Japanese audio say: not multi-language audio.
+fn is_multi_subs(word: &str, after: &str) -> bool {
+    let w = word.to_ascii_lowercase();
+    w.starts_with("multi")
+        && !w.contains("audio")
+        && after.trim_start_matches(['-', '.', '_', ' ']).get(..3).is_some_and(|s| s.eq_ignore_ascii_case("sub"))
+}
+
+/// "Dub", "Dubs", "Dubbed": whole words, so Portuguese "Dublado" isn't one.
+static DUB_WORDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bdub(?:s|bed)?\b").unwrap());
 
 /// Higher is better. Deliberately simple and explainable; user preferences
 /// (max resolution, avoid HDR on SDR screens, size caps) plug in here later.
@@ -514,6 +535,45 @@ mod tests {
         assert_eq!(q.tags, vec!["WEB-DL"]);
         let q = parse_quality(&stream("addon 1080p", "Film.2019.ITALIAN.1080p.WEBRip"));
         assert_eq!(q.languages, vec!["it"]);
+    }
+
+    #[test]
+    fn multi_subs_isnt_multi_audio() {
+        let langs = |title: &str| parse_quality(&stream("addon\n1080p", title)).languages;
+        // Japanese audio with many subtitle tracks: no audio language named
+        // (the app counts unlabelled anime as Japanese).
+        for title in [
+            "[Judas] Kurogane Rite S01 [1080p][HEVC x265 10bit][Multi-Subs]\n👤 120 💾 9 GB ⚙️ site",
+            "[ASW] Elsewind - 12 [1080p HEVC x265 10Bit][AAC] (Multi Subs)\n👤 80 💾 400 MB ⚙️ site",
+            "Paleblade.HNAW.S02E01.1080p.WEB.H264.MULTi.SUBS-GROUP\n👤 30 💾 1.4 GB ⚙️ site",
+            "[Erai-raws] Tontonmaru - 01 [1080p][Multiple Subtitle][ENG][POR-BR]\n👤 300 💾 1.4 GB",
+        ] {
+            assert!(!langs(title).contains(&"multi"), "{title}: {:?}", langs(title));
+        }
+        // Real multi-language audio still is.
+        assert_eq!(
+            langs("[Anime Time] Ember Hunter [Dual Audio][1080p][HEVC 10bit x265][AAC][Multi Sub]"),
+            vec!["multi"]
+        );
+        assert_eq!(langs("Movie.2024.1080p.BluRay.MULTi.AUDIO.x264"), vec!["multi"]);
+        assert_eq!(langs("Movie.2024.2160p.REMUX.MULTi\n🇮🇹 / 🇬🇧"), vec!["it", "en", "multi"]);
+    }
+
+    #[test]
+    fn a_dub_without_a_language_is_english() {
+        let langs = |title: &str| parse_quality(&stream("addon\n1080p", title)).languages;
+        assert_eq!(langs("[SubsPlus+] Elsewind - 01 (NF WEB 1080p AVC AAC) [English Dub]"), vec!["en"]);
+        assert_eq!(langs("Paleblade Hundred-Night Ash War S01E01 1080p WEB H264 (Dub)\n👤 40 💾 1.2 GB"), vec!["en"]);
+        assert_eq!(langs("One.Piece.1089.1080p.WEB.x264-Dubbed\n👤 50 💾 1.4 GB ⚙️ site"), vec!["en"]);
+        assert_eq!(langs("[Dual Audio] Kurogane Rite S01 Dubs 1080p"), vec!["multi", "en"]);
+        // A dub that names its language is that language only.
+        assert_eq!(langs("Kazeori Arashi-hen 001 [Hindi Dub] 720p"), vec!["hi"]);
+        assert_eq!(langs("Tower of Glass S01E01 1080p Dub\n🇪🇸"), vec!["es"]);
+        // Not dubs: Portuguese "Dublado", and words that only start with "dub".
+        assert_eq!(langs("Kurogane Rite 01 1080p Dublado"), vec!["pt"]);
+        assert!(langs("Dubai Bling S01E01 1080p WEB").is_empty());
+        // Subbed releases still say nothing (and count as Japanese in the app).
+        assert!(langs("[SubsPlease] Kurogane Rite - 47 (1080p) [A1B2C3D4].mkv\n👤 300 💾 1.4 GB ⚙️ site").is_empty());
     }
 
     #[test]
