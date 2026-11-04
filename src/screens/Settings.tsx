@@ -35,6 +35,7 @@ import { SliderField } from "../components/SliderField";
 import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../lib/sources";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleSettings, subtitleCueVars } from "../components/player/SubtitleSettings";
 import { api } from "../lib/api";
+import { CREDITS, TMDB_NOTICE } from "../lib/credits";
 import { PREFERRED_LANGUAGES, languageName } from "../lib/languages";
 import { keys, useAddons, useSettings, useUpdateSettings } from "../lib/queries";
 import type { Settings as SettingsT } from "../lib/types";
@@ -1432,7 +1433,33 @@ function AboutPage() {
         <LinkRow icon={Info} title="Release notes" caption="Every version and what changed" onClick={() => void api.openExternal(releaseUrl())} />
       </Card>
       <CacheCard />
+      <CreditsCard />
     </>
+  );
+}
+
+/** Where the data comes from. TMDB's notice is required to be shown, so it isn't folded away. */
+function CreditsCard() {
+  const expand = useExpanded();
+  return (
+    <Card title="Credits" footer={TMDB_NOTICE}>
+      <ExpandRow icon={Info} title="Data sources" caption="Where titles, episodes, ratings and subtitles come from" {...expand("credits")}>
+        <ul className="settings-credits">
+          {CREDITS.map((c) => (
+            <li key={c.name}>
+              {c.url ? (
+                <button className="settings-credit-name" onClick={() => void api.openExternal(c.url!)}>
+                  {c.name}
+                </button>
+              ) : (
+                <span className="settings-credit-name">{c.name}</span>
+              )}
+              <span className="settings-expand-text">{c.use}</span>
+            </li>
+          ))}
+        </ul>
+      </ExpandRow>
+    </Card>
   );
 }
 

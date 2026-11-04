@@ -1580,3 +1580,35 @@ button.shortcut-combo:hover {
 .calendar-empty {
   padding-top: 0;
 }
+
+/* Settings → About → Credits: one source per line, its name a link. */
+.settings-credits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.settings-credits li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.settings-credit-name {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+button.settings-credit-name:hover {
+  text-decoration: underline;
+}
+span.settings-credit-name {
+  cursor: default;
+}
