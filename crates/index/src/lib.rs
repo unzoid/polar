@@ -7,6 +7,9 @@
 //! Data comes from TMDB when an API key is configured. Without one it falls
 //! back to the public Cinemeta API, so a fresh install works immediately.
 //! Both paths normalise into the same [`polar_addon`] types and share one cache.
+//! Episodes always carry IMDb's numbering: TMDB's are renumbered onto
+//! Cinemeta's by air date ([`polar_addon::numbering`]), since stream addons and
+//! stored progress go by IMDb's `tt…:season:episode`.
 
 mod cache;
 mod cinemeta;
@@ -79,6 +82,8 @@ pub struct Indexer {
     metas: TtlCache<String, Meta>,
     /// Candidate pools (several upstream pages each), shared by curated shelves.
     pools: TtlCache<String, Vec<MetaPreview>>,
+    /// IMDb's episode numbering for TMDB series.
+    numbering: cinemeta::Cinemeta,
 }
 
 impl Indexer {
@@ -92,6 +97,7 @@ impl Indexer {
             catalogs: TtlCache::new(Duration::from_secs(60 * 60), 256),
             metas: TtlCache::new(Duration::from_secs(6 * 60 * 60), 2048),
             pools: TtlCache::new(Duration::from_secs(3 * 60 * 60), 64),
+            numbering: cinemeta::Cinemeta::new(),
         }
     }
 
@@ -208,6 +214,16 @@ impl Indexer {
             return Ok(hit);
         }
         let meta = match &self.backend {
+            Backend::Tmdb(t) if ty == "series" => {
+                let (meta, imdb) = futures::join!(t.meta(ty, id), self.numbering.meta(ty, id));
+                let mut meta = meta?;
+                match imdb {
+                    Ok(imdb) => meta.videos = polar_addon::numbering::renumber(meta.videos, &imdb.videos),
+                    // TMDB's own numbers rather than nothing; addons may miss some episodes.
+                    Err(e) => tracing::warn!("no IMDb numbering for {id}, keeping TMDB's: {e}"),
+                }
+                meta
+            }
             Backend::Tmdb(t) => t.meta(ty, id).await?,
             Backend::Cinemeta(c) => c.meta(ty, id).await?,
         };

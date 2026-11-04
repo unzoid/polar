@@ -84,6 +84,27 @@ How to check:
    next sync sends every link the profile has (localStorage key
    `polar.animeLinksUnsent.v1` holds the profile id until then).
 
+## Episode numbering with a TMDB key (T-005 step 6)
+
+With a TMDB key, series episodes now carry IMDb's (Cinemeta's) season and episode
+numbers: `crates/index/src/lib.rs` fetches Cinemeta's episode list next to TMDB's and
+`polar_addon::numbering::renumber` matches them by air date (tested in
+`crates/addon/src/numbering.rs`). `polar-index` does not compile on the dev machine
+(T-012), so the wiring in `lib.rs` was checked by reading only.
+
+How to check, with a TMDB key set in Settings:
+
+1. Open a show TMDB splits into more seasons than IMDb (several long-running anime;
+   check two). Seasons and episode numbers match the show's IMDb page; titles,
+   stills and overviews are TMDB's.
+2. Play an episode from season 2 or later: the addons find streams for that episode,
+   not another one with the same TMDB numbers.
+3. Progress saved before this change for such a show under TMDB's numbers stays under
+   those ids: that episode shows as unwatched (not migrated; such progress could
+   already point at the wrong episode for addons).
+4. With Cinemeta unreachable the show still opens, with TMDB's numbers (log line
+   `no IMDb numbering for tt…`).
+
 ## Earlier items
 
 - Settings → About → Cache and Credits cards (TMDB logo 12 px under the notice): look only.

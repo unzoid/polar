@@ -125,6 +125,10 @@ handful of integers.
 6. Episode numbering: store progress for `tt` shows under IMDb (Cinemeta) numbering always; when
    the metadata source is TMDB, map TMDB `S:E` to IMDb `S:E` by air date before saving (the same
    matching the anime pages use). Stream addons expect IMDb numbering too.
+   Done: `polar_addon::numbering::renumber` (air date within a day, then the numbers;
+   IMDb-only episodes added, TMDB-only ones kept unless their id is IMDb's for another
+   episode), called from `Indexer::meta` for TMDB series. Progress stored earlier under
+   TMDB numbers is not moved (docs/unverified.md).
 
 ## What stays unsolved
 
