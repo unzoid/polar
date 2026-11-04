@@ -42,7 +42,7 @@ function TvScreen({ route }: { route: Route }) {
     case "search":
       return <TvSearch />;
     case "settings":
-      return <TvSettings />;
+      return <TvSettings page={route.page} />;
     case "detail":
       return <TvDetail type={route.type} id={route.id} preview={route.preview} />;
     case "player":

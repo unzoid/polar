@@ -536,11 +536,15 @@ code draws, not what's on screen.
    on TV too; seek step 1-120 with TV steps of 5 plus whatever was set; languages list the current one on TV
    too; missing values fall back once, in the schema; TV source changes now refresh source lists as desktop's
    do. TV keeps its own row labels (`tv`) but shows desktop's choice wording.
-   Pages: each page is `screens/settings/<Name>Page.tsx` (with the rows only it uses); `screens/Settings.tsx`
-   keeps the old sidebar page and `SettingsPageBody`, which picks one. The lines moved unchanged (not
-   reformatted, so `git blame -C` follows them); `tests/settingsSchema.test.ts` reads every page file.
-   Not yet: the other ~60 rows drawn from the schema; `ActionRow`/`FormRow`; one Settings UI (M26: the old
-   page, `StreamList` routing).
+   Pages (b0a75e9): each page is `screens/settings/<Name>Page.tsx` (with the rows only it uses), and
+   `screens/settings/SettingsPageBody.tsx` picks one. The lines moved unchanged (not reformatted, so
+   `git blame -C` follows them); `tests/settingsSchema.test.ts` reads every page file.
+   One Settings UI (M26): the old sidebar page is gone, with its CSS (`.settings` layout, `.settings .btn`,
+   `.settings .btn-primary`). `StreamList`'s "Source Filters"/"Manage Add-ons" open the overlay on desktop and
+   TV's settings screen on TV, which now opens on the asked category when it has one (Sources). The settings
+   route on desktop (only reached by switching from TV on that screen) opens the overlay and steps off the
+   route (`SettingsRoute` in `App.tsx`).
+   Not yet: the other ~60 rows drawn from the schema; `ActionRow`/`FormRow`.
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
    record of what was merged.

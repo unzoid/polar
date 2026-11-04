@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MotionConfig } from "motion/react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getPrefs, usePrefs } from "./lib/prefs";
@@ -14,7 +14,6 @@ import { Discover } from "./screens/Discover";
 import { Library } from "./screens/Library";
 import { Calendar } from "./screens/Calendar";
 import { Search } from "./screens/Search";
-import { Settings } from "./screens/Settings";
 import { Detail } from "./screens/Detail";
 import { Anime, AnimeBrowse, AnimeSchedule } from "./screens/Anime";
 import { AnimeDetail } from "./screens/AnimeDetail";
@@ -29,7 +28,7 @@ import { actionFor } from "./lib/keybinds";
 import { SettingsOverlay } from "./components/SettingsOverlay";
 import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
-import { isSettingsOpen } from "./lib/settingsOverlay";
+import { isSettingsOpen, openSettings } from "./lib/settingsOverlay";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
 import { PartyHost } from "./components/party/PartyHost";
@@ -47,7 +46,7 @@ function Screen({ route }: { route: Route }) {
     case "search":
       return <Search />;
     case "settings":
-      return <Settings initialPage={route.page} />;
+      return <SettingsRoute page={route.page} />;
     case "detail":
       return <Detail type={route.type} id={route.id} preview={route.preview} />;
     case "anime":
@@ -61,6 +60,23 @@ function Screen({ route }: { route: Route }) {
     case "player":
       return null; // rendered as a full-window layer below
   }
+}
+
+/**
+ * Desktop settings are an overlay, not a screen. The settings route only comes from TV (switching to desktop on
+ * TV's settings screen): open the overlay on that page and step off the route.
+ */
+function SettingsRoute({ page }: { page?: string }) {
+  const { stack, back, tab } = useRouter();
+  const done = useRef(false); // StrictMode runs the effect twice; leave the route once
+  useEffect(() => {
+    if (done.current) return;
+    done.current = true;
+    openSettings(page);
+    if (stack.length > 1) back();
+    else tab({ name: "home" });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
 }
 
 /** Sign-in and profile picking come before the app itself. */

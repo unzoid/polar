@@ -1,5 +1,7 @@
 import { AlertCircle, Check } from "./icons";
 import { useRouter } from "../lib/router";
+import { openSettings } from "../lib/settingsOverlay";
+import type { PageId } from "../lib/settings/pages";
 import { useSettings, useStreams } from "../lib/queries";
 import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/sources";
 import type { ContentType, RankedStream } from "../lib/types";
@@ -27,6 +29,8 @@ export function StreamList({
   tv?: boolean;
 }) {
   const { tab } = useRouter();
+  // Desktop settings are the overlay over this page; TV has its own settings screen.
+  const showSettings = (page: PageId) => (tv ? tab({ name: "settings", page }) : openSettings(page));
   const { data, isLoading, isError, error } = useStreams(type, videoId);
   const { data: settings } = useSettings();
   const f = useSourceFilters(data?.streams, settings);
@@ -55,11 +59,11 @@ export function StreamList({
               : "No sources found."}
         </p>
         {hidden ? (
-          <Button variant="glass" onClick={() => tab({ name: "settings", page: "sources" })}>
+          <Button variant="glass" onClick={() => showSettings("sources")}>
             Source Filters
           </Button>
         ) : (
-          <Button variant="glass" onClick={() => tab({ name: "settings", page: "addons" })}>
+          <Button variant="glass" onClick={() => showSettings("addons")}>
             Manage Add-ons
           </Button>
         )}
