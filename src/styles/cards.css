@@ -857,9 +857,8 @@
 }
 .ctx-menu-item[data-highlighted],
 .ctx-menu-item[data-popup-open] {
-  background: #0a84ff;
-  background: AccentColor;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-fg);
 }
 .ctx-menu-item[data-disabled] {
   color: rgb(255 255 255 / 0.25);
