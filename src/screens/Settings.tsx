@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ToggleChip } from "../components/ui/Chip";
+import { Switch } from "../components/ui/Switch";
 import {
   Captions,
   ChevronRight,
@@ -211,14 +212,7 @@ function ToggleRow({
   return (
     <label className="settings-row">
       <RowText title={title} caption={caption} />
-      <input
-        type="checkbox"
-        className="switch"
-        role="switch"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-      />
+      <Switch checked={checked} disabled={disabled} onChange={onChange} />
     </label>
   );
 }
@@ -2024,14 +2018,7 @@ function PreviewsRow(props: Expandable) {
       )}
       <label className="settings-expand-toggle">
         <span>Show previews</span>
-        <input
-          type="checkbox"
-          className="switch"
-          role="switch"
-          checked={hasKey && data.seekPreviews}
-          disabled={!hasKey}
-          onChange={(e) => save.mutate({ seekPreviews: e.target.checked })}
-        />
+        <Switch checked={hasKey && data.seekPreviews} disabled={!hasKey} onChange={(on) => save.mutate({ seekPreviews: on })} />
       </label>
     </ExpandRow>
   );
