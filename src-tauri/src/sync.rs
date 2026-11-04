@@ -24,7 +24,7 @@ pub struct LocalChanges {
 fn save(state: &State<'_, AppState>, f: impl FnOnce(&mut crate::store::Data)) -> Result<()> {
     let mut store = state.store.lock().unwrap();
     f(&mut store.data);
-    store.save().map_err(|e| CmdError::Other(format!("could not save: {e}")))
+    store.save().map_err(|e| CmdError::Save(format!("could not save: {e}")))
 }
 
 /// Switch which space library/progress commands use. `None` = signed out.

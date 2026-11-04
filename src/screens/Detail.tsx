@@ -30,6 +30,7 @@ import { TitleActions } from "../components/title/TitleActions";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { keys } from "../lib/queryKeys";
+import { errorMessage } from "../lib/errors";
 
 /**
  * An anime reached by its IMDb id (Search, Library, Continue Watching) opens
@@ -79,7 +80,7 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   const scroller = useRef<HTMLDivElement>(null);
   useFoldSnap(scroller, !!shown);
 
-  if (isError && !shown) return <EmptyState>Couldn't load this title: {String(error)}</EmptyState>;
+  if (isError && !shown) return <EmptyState>Couldn't load this title: {errorMessage(error)}</EmptyState>;
   if (!shown) return <Skeleton className="detail-loading" />;
 
   return (

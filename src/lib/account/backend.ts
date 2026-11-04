@@ -34,6 +34,7 @@ export type AccountErrorCode =
   | "invalid_code"
   | "rate_limited"
   | "profile_limit"
+  | "playlist_limit"
   | "not_set_up"
   | "network"
   | "unknown";

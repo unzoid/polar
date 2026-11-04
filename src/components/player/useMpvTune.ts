@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
 import { usePrefs } from "../../lib/prefs";
+import { warnFailed } from "../../lib/errors";
 import type { MpvMedia } from "./mpvMedia";
 
 /**
@@ -20,7 +21,7 @@ export function useMpvTune(mpv: MpvMedia | null) {
       const surround = (track?.["demux-channel-count"] ?? 0) > 2;
       void invoke("mpv_tune", {
         tune: { dialogueBoost: dialogueBoost && surround, volumeLeveling, hwdec, deband, autocrop, buffer },
-      }).catch(() => {});
+      }).catch(warnFailed("mpv_tune"));
     };
     apply();
     mpv.addEventListener("loadedmetadata", apply);

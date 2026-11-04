@@ -4,6 +4,7 @@
 // on one side fails a check instead of arriving as `undefined` (critique M5).
 
 import type { Download } from "./downloads";
+import type { CommandError } from "./errors";
 import type { AnimeLink } from "./identity";
 import type {
   CacheInfo,
@@ -126,6 +127,7 @@ export const contract = {
   SyncLibraryItem: { addedAt: true, deleted: true, id: true, name: true, poster: true, type: true, updatedAt: true } satisfies Keys<SyncLibraryItem>,
   // contract/app.json (src-tauri)
   CacheInfo: { bytes: true, path: true } satisfies Keys<CacheInfo>,
+  CmdError: { code: true, message: true } satisfies Keys<CommandError>,
   Cue: { endMs: true, h: true, sheet: true, startMs: true, w: true, x: true, y: true } satisfies Keys<SeekCue>,
   Download: {
     addedAt: true,

@@ -15,20 +15,61 @@ use crate::downloads::Downloads;
 use crate::store::{now, InstalledAddon, LibraryItem, Progress, Settings};
 use crate::AppState;
 
-/// Errors cross IPC as plain strings; the UI only needs a message.
+/// How a command fails. It crosses IPC as `{ code, message }` (src/lib/errors.ts):
+/// `code` for the UI to act on, `message` for people.
 #[derive(Debug, thiserror::Error)]
 pub enum CmdError {
     #[error(transparent)]
     Index(#[from] polar_index::IndexError),
     #[error(transparent)]
     Addon(#[from] polar_addon::AddonError),
+    /// What was asked for isn't there (any more).
+    #[error("{0}")]
+    NotFound(String),
+    /// Not something Polar does: an id it doesn't key by, a link it won't open.
+    #[error("{0}")]
+    Unsupported(String),
+    /// A web service (Seekr, IntroDB) failed or said no.
+    #[error("{0}")]
+    Upstream(String),
+    /// Writing to disk failed.
+    #[error("{0}")]
+    Save(String),
+    /// The link check found the source won't play; the reason says why.
+    #[error("{0}")]
+    Source(String),
+    /// The player (mpv) didn't start or answer.
+    #[error("{0}")]
+    Player(String),
     #[error("{0}")]
     Other(String),
 }
 
+impl CmdError {
+    pub fn code(&self) -> &'static str {
+        use polar_addon::AddonError;
+        use polar_index::IndexError;
+        match self {
+            CmdError::Index(IndexError::NotFound) | CmdError::NotFound(_) => "not_found",
+            CmdError::Index(IndexError::UnsupportedId(_)) | CmdError::Unsupported(_) => "unsupported",
+            CmdError::Index(IndexError::Upstream(_)) | CmdError::Upstream(_) => "upstream",
+            CmdError::Addon(AddonError::Http(_)) => "network",
+            CmdError::Addon(AddonError::Decode(_)) => "bad_answer",
+            CmdError::Save(_) => "save_failed",
+            CmdError::Source(_) => "source",
+            CmdError::Player(_) => "player",
+            CmdError::Other(_) => "other",
+        }
+    }
+}
+
 impl Serialize for CmdError {
     fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
-        s.serialize_str(&self.to_string())
+        use serde::ser::SerializeStruct;
+        let mut e = s.serialize_struct("CmdError", 2)?;
+        e.serialize_field("code", self.code())?;
+        e.serialize_field("message", &self.to_string())?;
+        e.end()
     }
 }
 
@@ -78,7 +119,7 @@ pub async fn meta(state: State<'_, AppState>, ty: String, id: String) -> Result<
     let addon = installed(&state)
         .into_iter()
         .find(|a| a.manifest.serves("meta", &ty, &id))
-        .ok_or_else(|| CmdError::Other(format!("no addon provides metadata for {id}")))?;
+        .ok_or_else(|| CmdError::Unsupported(format!("no addon provides metadata for {id}")))?;
     Ok(state.addons.meta(&addon.manifest_url, &ty, &id).await?)
 }
 
@@ -195,7 +236,7 @@ fn installed(state: &State<'_, AppState>) -> Vec<InstalledAddon> {
 fn persist(state: &State<'_, AppState>, f: impl FnOnce(&mut crate::store::Data)) -> Result<()> {
     let mut store = state.store.lock().unwrap();
     f(&mut store.data);
-    store.save().map_err(|e| CmdError::Other(format!("could not save: {e}")))
+    store.save().map_err(|e| CmdError::Save(format!("could not save: {e}")))
 }
 
 #[tauri::command]
@@ -293,7 +334,7 @@ pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
 #[tauri::command]
 pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<bool> {
     if !link.is_valid() {
-        return Err(CmdError::Other(format!("not a title id Polar keys by: {}", link.canonical)));
+        return Err(CmdError::Unsupported(format!("not a title id Polar keys by: {}", link.canonical)));
     }
     let known = {
         let store = state.store.lock().unwrap();
@@ -423,13 +464,13 @@ pub async fn seek_previews(
         settings.seekr_key.clone().filter(|k| settings.seek_previews && !k.trim().is_empty())
     };
     let Some(key) = key else { return Ok(None) };
-    state.seekr.track(key.trim(), &video_id, duration_ms).await.map_err(CmdError::Other)
+    state.seekr.track(key.trim(), &video_id, duration_ms).await.map_err(CmdError::Upstream)
 }
 
 /// The key's tier (e.g. `free_preview`) if Seekr accepts it, else `None`.
 #[tauri::command]
 pub async fn seekr_validate(state: State<'_, AppState>, key: String) -> Result<Option<String>> {
-    state.seekr.validate(key.trim()).await.map_err(CmdError::Other)
+    state.seekr.validate(key.trim()).await.map_err(CmdError::Upstream)
 }
 
 // --- Skip segments (IntroDB) -------------------------------------------------
@@ -437,7 +478,7 @@ pub async fn seekr_validate(state: State<'_, AppState>, key: String) -> Result<O
 /// Intro / recap / credits timings for a movie (`tt…`) or episode (`tt…:s:e`).
 #[tauri::command]
 pub async fn skip_segments(state: State<'_, AppState>, video_id: String) -> Result<crate::introdb::Segments> {
-    state.introdb.segments(&video_id).await.map_err(CmdError::Other)
+    state.introdb.segments(&video_id).await.map_err(CmdError::Upstream)
 }
 
 // --- Ratings (MDBList / OMDb) ----------------------------------------------
@@ -521,7 +562,7 @@ pub async fn anime_cache_clear(state: State<'_, AppState>) -> Result<()> {
 pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
     use tauri_plugin_opener::OpenerExt;
     if !url.starts_with("https://") {
-        return Err(CmdError::Other("only https links can be opened".into()));
+        return Err(CmdError::Unsupported("only https links can be opened".into()));
     }
     app.opener().open_url(url, None::<&str>).map_err(|e| CmdError::Other(e.to_string()))
 }

@@ -374,18 +374,18 @@ pub fn downloads_list(downloads: Shared<'_>) -> Vec<Download> {
 pub async fn download_start(downloads: Shared<'_>, req: DownloadRequest) -> Result<Download> {
     let url = match resolve(req.stream.clone()) {
         Playable::Url { url } if !is_local(&url) => url,
-        Playable::Url { .. } => return Err(CmdError::Other("This is already on your device.".into())),
+        Playable::Url { .. } => return Err(CmdError::Unsupported("This is already on your device.".into())),
         Playable::External { .. } => {
-            return Err(CmdError::Other("This source plays in a browser and can't be downloaded.".into()))
+            return Err(CmdError::Unsupported("This source plays in a browser and can't be downloaded.".into()))
         }
-        Playable::Unsupported { reason } => return Err(CmdError::Other(reason)),
+        Playable::Unsupported { reason } => return Err(CmdError::Unsupported(reason)),
     };
     // Starting again replaces whatever was there (a failed or expired one).
     downloads.stop(&req.video_id);
     let added_at = now();
     let file = downloads.dir.join(file_name(&req.video_id, &url, added_at));
     std::fs::create_dir_all(&downloads.dir)
-        .map_err(|e| CmdError::Other(format!("Couldn't create the downloads folder: {e}")))?;
+        .map_err(|e| CmdError::Save(format!("Couldn't create the downloads folder: {e}")))?;
     let d = Download {
         id: req.video_id.clone(),
         meta_id: req.meta_id,
@@ -446,9 +446,9 @@ pub fn download_resume(downloads: Shared<'_>, id: String) {
 /// Show a download's file in Explorer / Finder. By id, so the webview can't point it anywhere else.
 #[tauri::command]
 pub fn download_reveal(downloads: Shared<'_>, id: String) -> Result<()> {
-    let file = downloads.get(&id).map(|d| d.file).ok_or_else(|| CmdError::Other("No such download.".into()))?;
+    let file = downloads.get(&id).map(|d| d.file).ok_or_else(|| CmdError::NotFound("No such download.".into()))?;
     if !Path::new(&file).exists() {
-        return Err(CmdError::Other("The file isn't there any more.".into()));
+        return Err(CmdError::NotFound("The file isn't there any more.".into()));
     }
     tauri_plugin_opener::reveal_item_in_dir(&file).map_err(|e| CmdError::Other(e.to_string()))
 }

@@ -95,7 +95,15 @@ Done in the same migration, so the server is changed once:
   unsent-link markers, last profile and recent searches forgotten; every profile's playlists pushed and counted
   before sign-out; guest playlists copied into the first profile like the library; the device's own settings kept
   aside while a profile is in use and put back at sign-out.
-- **L1** Errors as `{ code, message }` from Rust and the account backend, not sniffed strings.
+- **L1** Errors as `{ code, message }` from Rust and the account backend, not sniffed strings. Done: `CmdError` crosses
+  IPC as `{ code, message }` (`not_found`, `unsupported`, `network`, `bad_answer`, `upstream`, `save_failed`, `source`,
+  `player`, `other`); `mpv_load` and `stream_probe` use it, so the player's loading screen tells a refused source
+  from mpv not starting by `code`, not wording. The UI reads every failure through `lib/errors.ts`
+  (`errorMessage`, `errorCode`); the account backend maps server errors by SQLSTATE (`P0001` + the limit's name,
+  no code = never answered). Silent `.catch`es that lose something asked for (mpv settings, a chosen subtitle,
+  settings kept or restored at profile switch and sign-out) warn in the console; the rest (autoplay refusals,
+  optional skip times) stay silent on purpose. Left: the other mpv commands still fail with a bare string, and the
+  watch party's "server not set up" is still read from Realtime's wording (it sends no code).
 - Layout: `lib/` keeps one folder per domain (`account`, `anime`, `party`, `settings`, `library`,
   `playback`, `net`), each with an `index.ts` that is its public surface; nothing in `lib` imports from
   `screens` or `components`.

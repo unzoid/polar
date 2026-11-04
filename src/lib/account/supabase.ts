@@ -381,14 +381,21 @@ function authError(e: AuthError): AccountError {
   return new AccountError("unknown", e.message || "Something went wrong.");
 }
 
-function dbError(e: PostgrestError): AccountError {
-  if (e.message?.includes("profile_limit")) {
+/** The limit triggers `raise exception 'profile_limit'` / `'playlist_limit'` (SQLSTATE P0001, the name as the message). */
+const raised = (e: PostgrestError, name: string) => e.code === "P0001" && e.message === name;
+
+export function dbError(e: PostgrestError): AccountError {
+  if (raised(e, "profile_limit")) {
     return new AccountError("profile_limit", "An account can have up to 5 profiles.");
+  }
+  if (raised(e, "playlist_limit")) {
+    return new AccountError("playlist_limit", "A profile can have up to 100 playlists.");
   }
   if (isMissingTable(e)) {
     return new AccountError("not_set_up", e.message);
   }
-  if (e.message?.includes("Failed to fetch") || e.message?.includes("NetworkError")) {
+  // The server answers every error with a code; postgrest-js reports a request that never got an answer with none.
+  if (!e.code) {
     return new AccountError("network", "Can't reach the server. Check your connection.");
   }
   return new AccountError("unknown", e.message || "Something went wrong.");

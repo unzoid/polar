@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/Button";
 import { TextField } from "../../components/ui/TextField";
 import { AVATAR_GROUPS, AVATARS, type AvatarId } from "../../lib/account";
 import { useAccount } from "../../lib/account/AccountProvider";
+import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
 
 /** Arrow keys move through the icon grid, like a TV remote. */
@@ -41,7 +42,7 @@ export function OnboardingScreen() {
     try {
       await account.createFirstProfile({ name: trimmed, avatar });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
       setBusy(false);
     }
   };

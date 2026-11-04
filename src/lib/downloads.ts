@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
 import { queryClient } from "./queries";
+import { errorMessage } from "./errors";
 import type { ContentType, MetaPreview, RankedStream, Stream, Video } from "./types";
 
 /**
@@ -98,7 +99,7 @@ export async function startDownload(item: MetaPreview, video: Video | undefined,
     });
     setPending(videoId, null);
   } catch (e) {
-    setPending(videoId, { kind: "error", message: e instanceof Error ? e.message : String(e) });
+    setPending(videoId, { kind: "error", message: errorMessage(e) });
   }
   await refresh();
 }

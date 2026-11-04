@@ -3,6 +3,7 @@ import { Settings as Cog, Plus, Puzzle, Trash } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { keys, useAddons } from "../../lib/queries";
+import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded } from "../../components/settings/rows";
 
@@ -75,7 +76,7 @@ export function AddonsPage() {
           glyph={<Plus size={16} />}
           pending={install.isPending}
           pendingLabel="Installing…"
-          error={install.isError && String(install.error)}
+          error={install.isError && errorMessage(install.error)}
         />
       </Card>
     </>

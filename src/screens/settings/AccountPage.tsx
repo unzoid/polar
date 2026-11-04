@@ -4,6 +4,7 @@ import { Edit, Trash } from "../../components/icons";
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
 import { useAccount } from "../../lib/account/AccountProvider";
+import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
 
@@ -67,7 +68,7 @@ function DeleteAccountRow(props: Expandable) {
           Delete Account
         </Button>
       </div>
-      {remove.isError && <p className="settings-error">{String((remove.error as Error).message)}</p>}
+      {remove.isError && <p className="settings-error">{errorMessage(remove.error)}</p>}
     </ExpandRow>
   );
 }

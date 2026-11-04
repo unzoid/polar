@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/Button";
 import { TextField, type TextFieldProps } from "../../components/ui/TextField";
 import { AccountError } from "../../lib/account";
 import { useAccount } from "../../lib/account/AccountProvider";
+import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,7 +51,7 @@ export function AuthScreen() {
     } catch (e) {
       const isCodeError = e instanceof AccountError && (e.code === "invalid_code" || e.code === "invalid_email");
       setError({
-        message: e instanceof Error ? e.message : String(e),
+        message: errorMessage(e),
         // A code was accepted but setting up profiles failed: retrying the
         // same code won't work, but resuming the session will.
         signedIn: signedIn && !isCodeError,

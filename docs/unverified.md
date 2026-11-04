@@ -267,3 +267,9 @@ How to check, with a TMDB key set in Settings:
   on a desktop (CI's `cargo test --workspace` runs it). If it fails, it prints what `contract/app.json` should
   read: paste that in, then run `bun run test`; a failing `tests/contract.test.ts` names the TS type to fix in
   `src/lib/types.ts` (and `src/lib/contract.ts`).
+- Command errors as `{ code, message }` (rewrite R3, critique L1; `src-tauri` built by reading only): every
+  failure the app shows should still read as a sentence, never `[object Object]`. To check: install an addon from
+  a URL that doesn't exist (Settings → Addons: the message names the network problem); open a title whose addon
+  is gone; start a download of a source that plays in a browser ("can't be downloaded"); play a source that answers
+  404 (the loading screen says `Failed at the source's server`) and, with mpv missing from its folder, any source
+  (`Failed at the player`). Signed in with 5 profiles, adding a sixth says "An account can have up to 5 profiles."
