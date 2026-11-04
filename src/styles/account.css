@@ -142,84 +142,15 @@
   gap: 1rem;
   width: 100%;
 }
-.auth-btn {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 2.75rem;
-  padding: 0 1.25rem;
-  border-radius: var(--r-pill);
-  background: var(--fill-2);
-  box-shadow: inset 0 0 0 1px var(--fill-1);
-  color: #f7f8f8;
-  font-size: var(--fs-md);
-  font-weight: 500;
-  transition:
-    background-color 150ms var(--ease-std),
-    box-shadow 150ms var(--ease-std),
-    transform var(--dur-press) var(--ease-out),
-    opacity 150ms var(--ease-std);
-}
-.auth-btn-primary {
-  background: var(--accent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
-  color: var(--accent-fg, #fff);
-}
-@media (hover: hover) and (pointer: fine) {
-  .auth-btn:not(:disabled):hover {
-    background: var(--fill-3);
-  }
-  .auth-btn-primary:not(:disabled):hover {
-    background: color-mix(in srgb, var(--accent) 88%, white);
-  }
-}
-.auth-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-.auth-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.35);
-}
-.auth-btn:disabled {
-  opacity: 0.55;
-}
-.auth-btn[aria-busy="true"] {
-  opacity: 1;
-  cursor: progress;
-}
-.auth-input {
-  width: 100%;
-  height: 2.75rem;
-  padding: 0 0.875rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
-  background: rgb(255 255 255 / 0.02);
-  color: #f7f8f8;
-  font-size: var(--fs-md);
-  text-align: left;
-  outline: none;
-  user-select: text;
-  transition:
-    border-color 150ms var(--ease-std),
-    box-shadow 150ms var(--ease-std);
-}
-.auth-input::placeholder {
-  color: #62666d;
-  opacity: 1;
-}
-.auth-input:focus {
-  border-color: rgb(255 255 255 / 0.22);
-  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.05);
-}
 /* The code: the app's font with even-width digits, centred and spaced. */
-.auth-input.auth-code {
+.text-field.auth-code {
   font-size: var(--fs-lg);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.2em;
   text-align: center;
 }
-.auth-input.auth-code::placeholder {
+.text-field.auth-code::placeholder {
   font-weight: 400;
   letter-spacing: normal;
 }
@@ -360,48 +291,6 @@
   font-weight: 600;
   color: var(--text-2);
 }
-.auth-field input {
-  width: 100%;
-  height: 3.25rem;
-  padding: 0 1rem;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-sm);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--text);
-  font-size: var(--fs-lg);
-  outline: none;
-  user-select: text;
-  transition: border-color var(--dur-fast) var(--ease-std), box-shadow var(--dur-fast) var(--ease-std), background-color var(--dur-fast) var(--ease-std);
-}
-.auth-field input::placeholder {
-  color: var(--text-3);
-  opacity: 1;
-}
-.auth-field input:focus {
-  border-color: var(--text);
-  box-shadow: 0 0 0 1px var(--text);
-  background: rgb(255 255 255 / 0.07);
-}
-.auth-primary {
-  display: grid;
-  place-items: center;
-  height: 3rem;
-  margin-top: 0.25rem;
-  border-radius: var(--r-sm);
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-size: var(--fs-lg);
-  font-weight: 600;
-  transition: background-color var(--dur-fast) var(--ease-std), opacity var(--dur-fast) var(--ease-std);
-}
-.auth-primary:disabled {
-  opacity: 0.5;
-}
-.auth-primary[aria-busy="true"] {
-  opacity: 1;
-  cursor: progress;
-}
-
 /* Busy button label (components/BusyLabel.tsx): text and ring share one
    cell and crossfade, so the button keeps its size. */
 .busy-label {
@@ -428,11 +317,6 @@
 }
 .busy-ring-solo {
   animation: fade-in 200ms var(--ease-std);
-}
-@media (hover: hover) and (pointer: fine) {
-  .auth-primary:not(:disabled):hover {
-    background: color-mix(in srgb, var(--accent) 88%, white);
-  }
 }
 
 .account-shell:not([data-plain]) .auth-link {
@@ -593,7 +477,7 @@
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
-.onboard .auth-primary {
+.onboard-submit {
   margin-top: 0.5rem;
 }
 /* Hover and keyboard focus both lift the tile onto a soft dark card. */
@@ -679,42 +563,6 @@
     color: var(--text);
     background: var(--fill-3);
   }
-}
-
-.profiles-manage,
-.profiles-done {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-width: 7rem;
-  height: 2.75rem;
-  padding: 0 1.375rem;
-  border-radius: var(--r-pill);
-  font-size: var(--fs-base);
-  font-weight: 600;
-  transition: background-color var(--dur-fast) var(--ease-std), color var(--dur-fast) var(--ease-std), border-color var(--dur-fast) var(--ease-std);
-}
-.profiles-manage {
-  border: 1px solid var(--hairline-strong);
-  color: var(--text-2);
-}
-.profiles-done {
-  background: var(--pill-light);
-  color: var(--text-on-light);
-}
-@media (hover: hover) and (pointer: fine) {
-  .profiles-manage:hover {
-    color: var(--text);
-    border-color: var(--text-2);
-  }
-  .profiles-done:hover {
-    background: white;
-  }
-}
-.profiles-danger {
-  color: var(--danger);
-  border-color: rgb(255 107 94 / 0.5);
 }
 
 /* --- Profile editor */
@@ -869,19 +717,9 @@
   flex-direction: column;
   gap: 0.75rem;
 }
-.profile-editor-name {
-  height: 2.75rem;
-  padding: 0 0.875rem;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-sm);
-  background: rgb(255 255 255 / 0.05);
+/* The name reads large, like the tile under the avatar. */
+.text-field.profile-editor-name {
   font-size: var(--fs-xl);
-  outline: none;
-  user-select: text;
-  transition: border-color var(--dur-fast) var(--ease-std);
-}
-.profile-editor-name:focus {
-  border-color: var(--text);
 }
 .profile-editor-actions {
   display: flex;

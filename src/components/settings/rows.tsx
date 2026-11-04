@@ -126,7 +126,7 @@ export function FormRow({
   look = "row",
   spellCheck = false,
   ...field
-}: Omit<TextFieldProps, "onSubmit"> & {
+}: Omit<TextFieldProps, "onSubmit" | "look"> & {
   setting?: string;
   onSubmit: (value: string) => void;
   saved?: string;
