@@ -1,4 +1,3 @@
-import { Popover } from "@base-ui/react/popover";
 import { useLayoutEffect, useRef, useState } from "react";
 import { SORTS, type SourceFilters } from "../lib/sources";
 import type { SourceSort } from "../lib/types";
@@ -6,6 +5,7 @@ import { Close, Filters } from "./icons";
 import { Segmented } from "./Segmented";
 import { Dropdown } from "./Dropdown";
 import { Chip } from "./ui/Chip";
+import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
 import { SearchField } from "./ui/SearchField";
 
 /**
@@ -168,23 +168,19 @@ function DesktopBar({ f, note }: { f: SourceFilters; note?: string }) {
           />
           </span>
         )}
-        <Popover.Root>
-          <Popover.Trigger className="srcf-filters pressable" aria-label={active.length ? `Filters, ${active.length} on` : "Filters"}>
+        <PopoverRoot>
+          <PopoverTrigger className="srcf-filters pressable" aria-label={active.length ? `Filters, ${active.length} on` : "Filters"}>
             <Filters size={16} strokeWidth={2} />
             Filters
             {active.length > 0 && <span className="srcf-filters-count tabular">{active.length}</span>}
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Positioner className="select-positioner" sideOffset={8} align="end">
-              <Popover.Popup className="srcf-popover">
-                {sections(f, false).map((s) => (
-                  <ChipRow key={s.label} {...s} collapsible />
-                ))}
-                {note && <p className="srcf-popover-note">{note}</p>}
-              </Popover.Popup>
-            </Popover.Positioner>
-          </Popover.Portal>
-        </Popover.Root>
+          </PopoverTrigger>
+          <PopoverPopup className="srcf-popover" sideOffset={8} align="end">
+            {sections(f, false).map((s) => (
+              <ChipRow key={s.label} {...s} collapsible />
+            ))}
+            {note && <p className="srcf-popover-note">{note}</p>}
+          </PopoverPopup>
+        </PopoverRoot>
       </div>
       {active.length > 0 && (
         <div className="srcf-active" role="group" aria-label="Filters on">
