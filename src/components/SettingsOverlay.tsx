@@ -7,7 +7,7 @@ import { useAccount } from "../lib/account/AccountProvider";
 import { prefsCustomized, resetPrefs, usePrefs } from "../lib/prefs";
 import { closeSettings, useSettingsOverlay } from "../lib/settingsOverlay";
 import { searchSettings, type SettingEntry } from "../lib/settingsIndex";
-import { SettingsPageBody } from "../screens/Settings";
+import { SettingsPageBody } from "../screens/settings/SettingsPageBody";
 import type { PageId } from "../lib/settings/pages";
 import { PAGES } from "./settings/pages";
 

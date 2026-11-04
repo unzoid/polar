@@ -6,7 +6,7 @@ import { BusyLabel } from "../BusyLabel";
  *
  * - `primary`: the light pill ("▶ Resume S2, E3"), one per screen.
  * - `glass`: secondary, a frosted pill over artwork.
- * - `plain`: the base pill; settings and forms restyle it by scope (`.settings .btn`, `.t3s .btn`).
+ * - `plain`: the base pill; the settings overlay restyles it by scope (`.t3s .btn`).
  * - `danger`: red text; styled inside settings only.
  */
 export type ButtonVariant = "primary" | "glass" | "plain" | "danger";

@@ -31,11 +31,12 @@ const CATEGORIES: { id: CategoryId; title: string }[] = [
   { id: "tv", title: "Remote and Controller" },
 ];
 
-/** A list of categories; Enter opens one, Back returns to the list on the one you left. */
-export function TvSettings() {
+/** A list of categories; Enter opens one, Back returns to the list on the one you left. `page` opens one at the start. */
+export function TvSettings({ page }: { page?: string }) {
   const active = usePageActive();
-  const [open, setOpen] = useState<CategoryId | null>(null);
-  const [focused, setFocused] = useState<CategoryId>("playback");
+  const asked = CATEGORIES.find((c) => c.id === page)?.id ?? null;
+  const [open, setOpen] = useState<CategoryId | null>(asked);
+  const [focused, setFocused] = useState<CategoryId>(asked ?? "playback");
   const listRef = useRef<HTMLDivElement>(null);
 
   const go = (next: CategoryId | null) => {

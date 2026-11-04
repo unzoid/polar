@@ -154,3 +154,9 @@ How to check:
   on desktop ("Best match", "Out of ten (8.6)", "Default" audio); changing a Sources row refreshes the source
   list. Settings search: "with sound", "filler", "marketplace" now lead to a row (each used to land on the
   page with nothing highlighted).
+- One Settings UI (T-019 step 5, M26): the old full-page Settings is gone. On a title with every source hidden
+  by filters, "Source Filters" opens the settings window on Sources over the page (it used to replace the
+  page); with no sources, "Manage Add-ons" opens it on Add-ons. On TV the same buttons open TV settings, now
+  straight on Sources for "Source Filters" (Back goes to the category list); "Manage Add-ons" lands on the
+  list as before. Switching from TV to desktop (the TV toggle shortcut) while on TV settings should open the
+  settings window on desktop with the previous screen under it, or Home.
