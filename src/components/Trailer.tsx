@@ -1,6 +1,6 @@
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { api } from "../lib/api";
-import { useDismiss } from "../lib/dismiss";
+import { useLayer } from "../lib/layer";
 import { useFileTrailer, type TrailerRequest as Open } from "../lib/trailers";
 import { Close, Trailer as TrailerIcon } from "./icons";
 import { Button, IconButton } from "./ui/Button";
@@ -45,7 +45,8 @@ export const useTrailerOpen = () =>
 /** The trailer, big and centred over a dimmed app. Esc or a click outside closes it. */
 export function TrailerHost() {
   const open = useTrailerOpen();
-  useDismiss(!!open, closeTrailer);
+  const layer = useRef<HTMLDivElement>(null);
+  useLayer(layer, !!open, closeTrailer);
   const file = useFileTrailer(open?.imdbId, !!open && !open.ytFirst);
   if (!open) return null;
   // TMDB's trailer when it comes first; else IMDb's file, and YouTube once it's clear IMDb has nothing.
@@ -53,7 +54,16 @@ export function TrailerHost() {
   const url = open.ytFirst ? undefined : file.data?.url;
   const ytId = !waiting && !url ? open.ytId : undefined;
   return (
-    <div className="trailer-layer" role="dialog" aria-label={`${open.name} trailer`} onClick={(e) => e.target === e.currentTarget && closeTrailer()}>
+    <div
+      ref={layer}
+      className="trailer-layer"
+      role="dialog"
+      aria-modal
+      tabIndex={-1}
+      data-layer=""
+      aria-label={`${open.name} trailer`}
+      onClick={(e) => e.target === e.currentTarget && closeTrailer()}
+    >
       <div className="trailer-box">
         {url ? (
           <video className="trailer-video" src={url} autoPlay controls playsInline title={`${open.name} trailer`} />

@@ -1,0 +1,5 @@
+/* A modal layer (lib/layer.ts) takes focus itself when it opens, so that Tab goes into it; the layer is
+   not a control, so it draws no focus ring. Its controls keep theirs. */
+[data-layer]:focus {
+  outline: none;
+}
