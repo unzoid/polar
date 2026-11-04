@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CardSkeleton } from "../PosterCard";
+import { CardSkeleton } from "./Card";
 import { useInfiniteSentinel, type Pager } from "../../lib/viewport";
 
 /**

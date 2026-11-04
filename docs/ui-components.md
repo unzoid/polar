@@ -458,7 +458,14 @@ code draws, not what's on screen.
    `lib/cardIntent.ts` `useCardIntent(warm, delay)`: the rest-then-prefetch timer of the desktop cards
    (`useIntent`, 120 ms), the anime cards (150 ms) and `TvCard` (450 ms, focus only), each keeping its delay.
    Anime cards now also warm on keyboard focus, and a pending timer is cleared when the card unmounts.
-   Not yet: `Card` itself (art with the broken-art fallback, slots), `Shelf`, `TitleActions`.
+   `components/title/Card.tsx` `Card` (`shape`, `art` + `fallback`, children drawn on the art, `actions`,
+   `title`, `detail`, `keepCaption`, `trailing`, `hint`): the frame, the art with its broken-art fallback (a new
+   `src` gets a fresh try, §6 item 6's bug can't happen here) and the caption, once. `PosterCard`,
+   `LandscapeCard`, both anime cards, Continue Watching's card and the Library download card are on it, with
+   the same elements and classes. With `actions` the card is a focusable `role="link"` (a button can't hold a
+   button) that opens on Enter/Space; that was `ContinueCard`'s own code. `ArtTitle` (scrim + logo or name),
+   `ProgressBar` and `CardSkeleton` live there too (`PosterSkeleton` is gone). `TvCard`/`TvAnimeCard` wait for
+   step 6. Not yet: `Shelf`, `TitleActions`, `EpisodeCard`.
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useState } from "react";
 import { AnimeCard } from "../components/anime/AnimeCard";
-import { PosterCard, PosterSkeleton } from "../components/PosterCard";
+import { PosterCard } from "../components/PosterCard";
+import { CardSkeleton } from "../components/title/Card";
 import { Row } from "../components/Row";
 import type { AnimeCard as Card } from "../lib/anime/anilist";
 import { useAnimeResults } from "../lib/anime/search";
@@ -77,7 +78,7 @@ function ResultRow({ title, items }: { title: string; items?: MetaPreview[] }) {
   if (items && !items.length) return null;
   return (
     <Row title={title}>
-      {items ? items.map((item) => <PosterCard key={item.id} item={item} />) : Array.from({ length: 8 }, (_, i) => <PosterSkeleton key={i} />)}
+      {items ? items.map((item) => <PosterCard key={item.id} item={item} />) : Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} />)}
     </Row>
   );
 }
@@ -86,7 +87,7 @@ function AnimeRow({ title, items, loading }: { title: string; items?: Card[]; lo
   if (!loading && !items?.length) return null;
   return (
     <Row title={title}>
-      {items ? items.map((a) => <AnimeCard key={a.id} item={a} />) : Array.from({ length: 8 }, (_, i) => <PosterSkeleton key={i} />)}
+      {items ? items.map((a) => <AnimeCard key={a.id} item={a} />) : Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} />)}
     </Row>
   );
 }

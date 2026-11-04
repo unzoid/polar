@@ -4,7 +4,8 @@ import { AmbientWash } from "../components/AmbientWash";
 import { ChevronRight, Play } from "../components/icons";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
-import { CardSkeleton, LandscapeCard, PosterCard, ProgressBar, useIntent } from "../components/PosterCard";
+import { LandscapeCard, PosterCard, useIntent } from "../components/PosterCard";
+import { ArtTitle, Card, CardSkeleton, ProgressBar } from "../components/title/Card";
 import { Row } from "../components/Row";
 import { api } from "../lib/api";
 import { episodeCode, formatRemaining } from "../lib/format";
@@ -258,12 +259,12 @@ function CatalogRow({ shelf, enabled, exclude }: { shelf: Shelf; enabled: boolea
   if (isError) return null; // one failing catalog shouldn't break the page
   // Nothing good to recommend: leave the row out rather than show a stub.
   if (shelf.kind === "because" && data && items.length < 4) return null;
-  const Card = shape === "landscape" ? LandscapeCard : PosterCard;
+  const TitleCard = shape === "landscape" ? LandscapeCard : PosterCard;
   return (
     <Row title={title} shape={shape}>
       {isLoading || !enabled
         ? Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} shape={shape} />)
-        : items.map((item) => <Card key={item.id} item={item} />)}
+        : items.map((item) => <TitleCard key={item.id} item={item} />)}
     </Row>
   );
 }
@@ -301,28 +302,16 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
   const logo = meta.data?.logo;
 
   return (
-    <div
-      className="card card-landscape"
-      role="link"
-      tabIndex={0}
+    <Card
+      shape="landscape"
+      frameClass="card-frame-resume"
+      art={p.background ?? p.poster}
+      title={p.season != null ? `${episodeCode(p.season, p.episode)} · ${p.episodeTitle ?? p.name}` : p.name}
+      // Always shown: it's what you're watching, not a description.
+      keepCaption
       onClick={openDetail}
       {...cardMenu(progressItem(p), p)}
-      onKeyDown={(e) => {
-        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          openDetail();
-        }
-      }}
-    >
-      <div className="card-frame card-frame-resume">
-        <Img src={p.background ?? p.poster} alt="" className="card-img" />
-        <div className="card-art-scrim" />
-        {logo ? <TitleLogo src={logo} alt={p.name} className="card-logo" /> : <span className="card-art-title t-title2">{p.name}</span>}
-        {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a progressive blur. */}
-        <div className="card-resume">
-          <ProgressBar fraction={fraction} />
-          <span className="card-resume-left tabular">{formatRemaining(p.position, p.duration)}</span>
-        </div>
+      actions={
         <button
           type="button"
           className="card-play"
@@ -334,13 +323,14 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
         >
           <Play size={20} fill="currentColor" />
         </button>
+      }
+    >
+      <ArtTitle name={p.name} logo={logo} />
+      {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a progressive blur. */}
+      <div className="card-resume">
+        <ProgressBar fraction={fraction} />
+        <span className="card-resume-left tabular">{formatRemaining(p.position, p.duration)}</span>
       </div>
-      {/* Always shown: it's what you're watching, not a description. */}
-      <div className="card-caption card-caption-keep">
-        <span className="card-title t-callout">
-          {p.season != null ? `${episodeCode(p.season, p.episode)} · ${p.episodeTitle ?? p.name}` : p.name}
-        </span>
-      </div>
-    </div>
+    </Card>
   );
 }

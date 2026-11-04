@@ -1,13 +1,10 @@
-import { useState } from "react";
 import { useCardIntent } from "../lib/cardIntent";
 import { prefetchMeta, preloadImage } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { MetaPreview, Progress } from "../lib/types";
 import { cardMenu } from "./CardMenu";
 import { CardRating } from "./ImdbBadge";
-import { Img } from "./Img";
-import { TitleLogo } from "./TitleLogo";
-import { Skeleton } from "./ui/Skeleton";
+import { ArtTitle, Card, ProgressBar } from "./title/Card";
 
 const INTENT_DELAY = 120;
 
@@ -24,27 +21,25 @@ function useOpen(item: MetaPreview) {
   return () => navigate({ name: "detail", type: item.type, id: item.id, preview: item });
 }
 
-/** Portrait 2:3 poster — used in grids (Movies, Series, Search, Library). */
+/** Portrait 2:3 poster — used in grids (Movies, Series, Search, Library). A poster that doesn't load leaves the name. */
 export function PosterCard({ item, progress, entry }: { item: MetaPreview; progress?: number; entry?: Progress }) {
   const open = useOpen(item);
   const intent = useIntent(item);
-  // A poster link that doesn't load leaves the name instead of an empty frame.
-  const [broken, setBroken] = useState(false);
-
   return (
-    <button className="card card-poster" onClick={open} {...intent} {...cardMenu(item, entry)}>
-      <div className="card-frame">
-        {!broken && <Img src={item.poster} alt="" className="card-img" onError={() => setBroken(true)} />}
-        {(!item.poster || broken) && <span className="card-fallback t-headline">{item.name}</span>}
-        {progress != null && <ProgressBar fraction={progress} />}
-        <CardRating rating={item.imdbRating} placement="poster" />
-      </div>
-      <div className="card-caption">
-        <span className="card-title t-callout">{item.name}</span>
-        <span className="t-caption faint tabular">{item.releaseInfo}</span>
-      </div>
-      <CardRating rating={item.imdbRating} />
-    </button>
+    <Card
+      shape="poster"
+      art={item.poster}
+      fallback={<span className="card-fallback t-headline">{item.name}</span>}
+      title={item.name}
+      detail={item.releaseInfo ?? ""}
+      trailing={<CardRating rating={item.imdbRating} />}
+      onClick={open}
+      {...intent}
+      {...cardMenu(item, entry)}
+    >
+      {progress != null && <ProgressBar fraction={progress} />}
+      <CardRating rating={item.imdbRating} placement="poster" />
+    </Card>
   );
 }
 
@@ -56,46 +51,18 @@ export function PosterCard({ item, progress, entry }: { item: MetaPreview; progr
 export function LandscapeCard({ item }: { item: MetaPreview }) {
   const open = useOpen(item);
   const intent = useIntent(item);
-  const art = item.background ?? item.poster;
-
   return (
-    <button className="card card-landscape" onClick={open} {...intent} {...cardMenu(item)}>
-      <div className="card-frame">
-        <Img src={art} alt="" className="card-img" />
-        <div className="card-art-scrim" />
-        {item.logo ? (
-          <TitleLogo src={item.logo} alt={item.name} className="card-logo" />
-        ) : (
-          <span className="card-art-title t-title2">{item.name}</span>
-        )}
-      </div>
-      <div className="card-caption">
-        <span className="card-title t-callout">{item.name}</span>
-        <span className="t-caption faint">
-          {[item.type === "movie" ? "Movie" : "Series", item.genres?.[0], item.releaseInfo].filter(Boolean).join(" · ")}
-        </span>
-      </div>
-    </button>
+    <Card
+      shape="landscape"
+      art={item.background ?? item.poster}
+      title={item.name}
+      detail={[item.type === "movie" ? "Movie" : "Series", item.genres?.[0], item.releaseInfo].filter(Boolean).join(" · ")}
+      tabular={false}
+      onClick={open}
+      {...intent}
+      {...cardMenu(item)}
+    >
+      <ArtTitle name={item.name} logo={item.logo} />
+    </Card>
   );
 }
-
-export function ProgressBar({ fraction }: { fraction: number }) {
-  return (
-    <div className="progress-track">
-      <div className="progress-fill" style={{ transform: `scaleX(${fraction})` }} />
-    </div>
-  );
-}
-
-export function CardSkeleton({ shape = "poster" }: { shape?: "poster" | "landscape" }) {
-  return (
-    <div className={`card card-${shape}`} aria-hidden>
-      <Skeleton className="card-frame" />
-      <div className="card-caption">
-        <Skeleton shape="line" width="70%" />
-      </div>
-    </div>
-  );
-}
-
-export const PosterSkeleton = () => <CardSkeleton shape="poster" />;

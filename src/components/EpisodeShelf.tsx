@@ -7,7 +7,7 @@ import { DownloadButton } from "./DownloadButton";
 import { watchedFraction } from "../lib/watched";
 import { Img } from "./Img";
 import { StillPlaceholder } from "./StillPlaceholder";
-import { ProgressBar } from "./PosterCard";
+import { ProgressBar } from "./title/Card";
 import { Row } from "./Row";
 import { IconButton, buttonClass } from "./ui/Button";
 

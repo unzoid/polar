@@ -6,6 +6,7 @@ import { Bookmark, ChevronLeft, ChevronRight, Close, Download, PlaylistIcon, Pla
 import { Img } from "../components/Img";
 import { PlaylistTile, usePlaylistItem } from "../components/Playlists";
 import { PosterCard } from "../components/PosterCard";
+import { Card } from "../components/title/Card";
 import { Row } from "../components/Row";
 import { StillPlaceholder } from "../components/StillPlaceholder";
 import { downloadFraction, localStream, useAllLeaving, useDownloads, useLeaving, type Download as DownloadRecord } from "../lib/downloads";
@@ -192,25 +193,22 @@ function CollectionTile({ icon, title, detail, art, onOpen }: { icon: ReactNode;
 function DownloadCard({ d, onOpen }: { d: DownloadRecord; onOpen: () => void }) {
   const play = usePlayDownload();
   const leaving = useLeaving(d.id);
-  const art = d.thumbnail ?? d.background ?? d.poster;
   return (
-    <button
-      className="card card-landscape download-card"
+    <Card
+      shape="landscape"
+      className="download-card"
+      art={d.thumbnail ?? d.background ?? d.poster}
+      fallback={<StillPlaceholder />}
+      title={d.name}
+      detail={downloadLine(d)}
       data-leaving={leaving || undefined}
       onClick={() => (d.state === "done" ? play(d) : onOpen())}
     >
-      <div className="card-frame">
-        {art ? <Img src={art} alt="" className="card-img" /> : <StillPlaceholder />}
-        <div className="card-art-scrim" />
-        <span className="download-card-state" data-state={d.state}>
-          {d.state === "done" ? <Play size={14} fill="currentColor" /> : <DownloadGlyph d={d} size={18} />}
-        </span>
-      </div>
-      <div className="card-caption">
-        <span className="card-title t-callout">{d.name}</span>
-        <span className="t-caption faint tabular">{downloadLine(d)}</span>
-      </div>
-    </button>
+      <div className="card-art-scrim" />
+      <span className="download-card-state" data-state={d.state}>
+        {d.state === "done" ? <Play size={14} fill="currentColor" /> : <DownloadGlyph d={d} size={18} />}
+      </span>
+    </Card>
   );
 }
 
