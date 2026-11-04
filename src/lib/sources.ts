@@ -216,17 +216,33 @@ export function defaultFilter(streams: RankedStream[], settings?: Settings): Sou
 }
 
 /**
- * The order the player tries sources in on its own (auto-pick): the list's
- * default filters when they leave something, CAM rips out, best match first.
+ * The order the player tries sources in on its own (auto-pick): CAM rips out,
+ * the filters you set in the player for this show if they leave something
+ * (so the next episode is the same kind of file), else the list's default
+ * filters if they do, best match (or your sort) first.
  */
-export function autoPickOrder(streams: RankedStream[], settings?: Settings) {
+export function autoPickOrder(streams: RankedStream[], settings?: Settings, show?: string) {
   const playable = streams.filter((s) => !s.quality.lowQualitySource);
+  const kept = show ? playerChoices.get(show) : undefined;
+  const yours = kept ? playable.filter((r) => matches(r, kept.filter)) : [];
   const f = defaultFilter(playable, settings);
-  const preferred = playable.filter((r) => matches(r, f));
+  const preferred = yours.length ? yours : playable.filter((r) => matches(r, f));
   const pool = preferred.length ? preferred : playable;
-  const cmp = compareBy("best", screenResolution(), settings?.preferScreenResolution ?? true);
+  const cmp = compareBy(kept?.sort ?? "best", screenResolution(), settings?.preferScreenResolution ?? true);
   return pool.map((r, i) => ({ r, i })).sort((a, b) => cmp(a.r, b.r) || a.i - b.i).map(({ r }) => r);
 }
+
+/**
+ * The filters and sort you set in the player, per show, while it stays open.
+ * The player is rebuilt for every episode and every source you pick
+ * (PlayerLayer keys it on both), which used to put them back to the defaults
+ * each time. PlayerLayer forgets them when the player closes; the title
+ * page's source lists aren't affected.
+ */
+const playerChoices = new Map<string, { filter: SourceFilter; sort: SourceSort }>();
+
+/** The player closed: its next visit starts from the defaults again. */
+export const forgetPlayerSourceChoices = () => playerChoices.clear();
 
 export interface Facet<K extends string = string> {
   key: K;
@@ -238,17 +254,39 @@ export interface Facet<K extends string = string> {
  * A source list's filters, sort and the resulting view. Each facet counts
  * what the *other* filters leave, so a choice never shows a dead end. The
  * defaults apply once, when the list first arrives.
+ *
+ * `show`: the player's list for this show. It starts from what you last set
+ * in the player for it (while the player stays open), as long as that leaves
+ * something here, and remembers what you change.
  */
-export function useSourceFilters(streams: RankedStream[] | undefined, settings: Settings | undefined) {
+export function useSourceFilters(streams: RankedStream[] | undefined, settings: Settings | undefined, show?: string) {
   const [filter, setFilter] = useState<SourceFilter>(NO_FILTER);
-  const [sort, setSort] = useState<SourceSort>(() => (settings?.sourceSort && settings.sourceSort in SORTS ? settings.sourceSort : "best"));
+  const [sort, setSortState] = useState<SourceSort>(
+    () => (show && playerChoices.get(show)?.sort) || (settings?.sourceSort && settings.sourceSort in SORTS ? settings.sourceSort : "best"),
+  );
   const seeded = useRef<RankedStream[] | null>(null);
   useEffect(() => {
     if (!streams?.length || seeded.current === streams) return;
     const first = seeded.current == null;
     seeded.current = streams;
-    if (first) setFilter(defaultFilter(streams, settings));
-  }, [streams, settings]);
+    if (!first) return;
+    const kept = show ? playerChoices.get(show)?.filter : undefined;
+    setFilter(kept && streams.some((r) => matches(r, kept)) ? kept : defaultFilter(streams, settings));
+  }, [streams, settings, show]);
+
+  // Only your own changes are remembered, not the defaults a list opens with.
+  const touched = useRef(false);
+  useEffect(() => {
+    if (show && touched.current) playerChoices.set(show, { filter, sort });
+  }, [show, filter, sort]);
+  const change = (next: (f: SourceFilter) => SourceFilter) => {
+    touched.current = true;
+    setFilter(next);
+  };
+  const setSort = (s: SourceSort) => {
+    touched.current = true;
+    setSortState(s);
+  };
 
   const screen = useMemo(screenResolution, []);
   const screenRes = useMemo(screenResKey, []);
@@ -312,10 +350,10 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
 
   return {
     filter,
-    set: (patch: Partial<SourceFilter>) => setFilter((f) => ({ ...f, ...patch })),
+    set: (patch: Partial<SourceFilter>) => change((f) => ({ ...f, ...patch })),
     toggleTag: (t: string) =>
-      setFilter((f) => ({ ...f, tags: f.tags.includes(t) ? f.tags.filter((x) => x !== t) : [...f.tags, t] })),
-    clear: () => setFilter(NO_FILTER),
+      change((f) => ({ ...f, tags: f.tags.includes(t) ? f.tags.filter((x) => x !== t) : [...f.tags, t] })),
+    clear: () => change(() => NO_FILTER),
     active,
     sort,
     setSort,

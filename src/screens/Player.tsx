@@ -571,8 +571,9 @@ export function Player({
   const currentKey = source.state.status === "ready" ? streamKey(source.state) : undefined;
   // Filter (add-on, resolution, language, size, tags) and sort, as on the
   // title page. Ids stay the index into the ranked list, so selection works
-  // regardless of the view.
-  const sourceFilters = useSourceFilters(streams.data?.streams, settings);
+  // regardless of the view. Kept for this show while the player stays open,
+  // through picking a source or moving to another episode (each rebuilds it).
+  const sourceFilters = useSourceFilters(streams.data?.streams, settings, metaId);
   const hiddenSources = streams.data?.hidden ?? 0;
   const sourceItems: OptionItem[] = sourceFilters.view.map(({ r, match }, n) => {
     const row = sourceRow(r);
