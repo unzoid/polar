@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "test": "bun test tests",
     "tauri": "tauri",
     "app": "tauri dev",
     "index": "cargo run -p polar-index --features server"

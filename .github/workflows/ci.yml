@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   frontend:
-    name: Frontend (typecheck + build)
+    name: Frontend (typecheck, tests, build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,6 +28,7 @@ jobs:
         with:
           bun-version: 1.4.4 # a new Bun release can't break --frozen-lockfile
       - run: bun install --frozen-lockfile
+      - run: bun run test
       - run: bun run build
 
   rust:
