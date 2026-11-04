@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { altIdsFor } from "./anime/altIds";
+import { playContext } from "./anime/playContext";
 import { isKitsuId, kitsuMeta } from "./anime/kitsu";
 import type {
   ContentType,
@@ -46,7 +46,7 @@ export const api = {
   // Anime with no IMDb page carry a Kitsu id; no metadata addon serves those, so they're built from AniList.
   meta: (type: ContentType, id: string) => (isKitsuId(id) ? kitsuMeta(type, id) : invoke<Meta>("meta", { ty: type, id })),
   streams: (type: ContentType, videoId: string) =>
-    invoke<StreamsResult>("streams", { ty: type, videoId, altIds: altIdsFor(videoId) ?? null }),
+    invoke<StreamsResult>("streams", { ty: type, videoId, altIds: playContext.altIds(videoId) ?? null }),
   resolveStream: (stream: Stream) => invoke<Playable>("resolve_stream", { stream }),
   /** The link check mpv_load runs, for the built-in player: the URL to open, or why it won't play. */
   streamProbe: (url: string, probeId: number) => invoke<string>("stream_probe", { url, probeId }),

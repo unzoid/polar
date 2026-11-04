@@ -11,6 +11,7 @@ import {
   type AnimeCard,
 } from "../lib/anime/anilist";
 import { aniZipQuery, fetchAniZip, useAniZip } from "../lib/anime/anizip";
+import { linkAnime } from "../lib/anime/links";
 import { imdbForAnime } from "../lib/anime/search";
 import { cachedLookup } from "../lib/queries";
 import { countdown, isMature, SEASON_LABEL, untilAiring, useAnimeScore } from "../lib/anime/format";
@@ -164,7 +165,13 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
   const open = async () => {
     const z = await qc.fetchQuery(aniZipQuery(card.id)).catch(() => null);
     // ani.zip's IMDb show, or the one that has this entry's episodes when that one stops short.
-    const imdb = await imdbForAnime(card, z, cachedLookup(qc)).catch(() => z?.mappings.imdb_id);
+    let sure = true;
+    const imdb = await imdbForAnime(card, z, cachedLookup(qc)).catch(() => {
+      sure = false;
+      return z?.mappings.imdb_id;
+    });
+    // As the desktop page does: the backend learns which id this entry plays from (only a looked-up answer).
+    if (imdb && sure) void linkAnime(qc, { canonical: imdb, anilist: card.id, mal: card.idMal ?? z?.mappings.mal_id, kitsu: z?.mappings.kitsu_id });
     if (!imdb) {
       playSound("edge");
       setMissing(true);
@@ -199,8 +206,19 @@ export function TvAnimeDetail({ id }: { id: number }) {
     void (async () => {
       const z = await fetchAniZip({ anilist_id: id }).catch(() => null);
       // As on desktop: the IMDb show with this entry's episodes, else Kitsu.
-      const imdb = await fetchAnime(id).then((a) => imdbForAnime(a, z, cachedLookup(qc)), () => z?.mappings.imdb_id);
+      let sure = true;
+      let mal = z?.mappings.mal_id;
+      const imdb = await fetchAnime(id)
+        .then((a) => {
+          mal = a.idMal ?? mal;
+          return imdbForAnime(a, z, cachedLookup(qc));
+        })
+        .catch(() => {
+          sure = false;
+          return z?.mappings.imdb_id;
+        });
       const target = imdb ?? (z?.mappings.kitsu_id ? `kitsu:${z.mappings.kitsu_id}` : null);
+      if (target && sure) void linkAnime(qc, { canonical: target, anilist: id, mal, kitsu: z?.mappings.kitsu_id });
       const movie = z?.mappings.type?.toLowerCase() === "movie";
       if (!live) return;
       if (target) replace({ name: "detail", type: movie ? "movie" : "series", id: target });

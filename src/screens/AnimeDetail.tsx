@@ -1,4 +1,4 @@
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { AnimeCard } from "../components/anime/AnimeCard";
@@ -17,7 +17,6 @@ import { api } from "../lib/api";
 import { useAnime, useAnimeSeasons, type Anime, type AnimeCard as Card, type AnimeSeason, type RelationType } from "../lib/anime/anilist";
 import { alignByAirDate, animeArt, aniZipQuery, episodeTitle, matchVideo, regularEpisodes, useAniZip, type AniZipEpisode } from "../lib/anime/anizip";
 import { rememberStill } from "../lib/anime/stills";
-import { rememberAnimeEpisode } from "../lib/anime/aniskip";
 import {
   cleanDescription,
   countdown,
@@ -32,8 +31,8 @@ import {
   useAnimeTitle,
 } from "../lib/anime/format";
 import { useEpisodeFlags } from "../lib/anime/episodeFlags";
-import { rememberFiller } from "../lib/anime/filler";
-import { rememberAltIds } from "../lib/anime/altIds";
+import { linkAnime } from "../lib/anime/links";
+import { playContext } from "../lib/anime/playContext";
 import { useAnimeImdb } from "../lib/anime/search";
 import { formatTime } from "../lib/format";
 import { setPrefs, usePrefs } from "../lib/prefs";
@@ -123,7 +122,7 @@ function usePlayback(anime: Card | Anime) {
   const kitsu = zip?.mappings.kitsu_id;
   // ani.zip's IMDb show, unless its episodes stop before this entry's (then the
   // show that has them), or the same title on Cinemeta when ani.zip has no link.
-  const { data: foundImdb, isPending: linking } = useAnimeImdb(anime, zip);
+  const { data: foundImdb, isPending: linking, isSuccess: imdbKnown } = useAnimeImdb(anime, zip);
   const imdb = foundImdb ?? undefined;
   // The app's id for this show: its IMDb page, or (for the many with none) its Kitsu id, which the stream addons know.
   const metaId = imdb ?? (kitsu ? `kitsu:${kitsu}` : undefined);
@@ -182,18 +181,36 @@ function usePlayback(anime: Card | Anime) {
     return list.sort((a, b) => a.number - b.number);
   }, [zip, meta, anime, isMovie, animeTitles, imdb]);
 
-  // AniSkip needs MyAnimeList's numbering, which the player can't know: leave it for every episode.
-  // Stream addons know an IMDb-matched episode by its Kitsu id too: leave that, so both are asked.
+  // The id this entry plays from, for the backend: library and progress kept under its other ids move onto it.
+  // Only once the IMDb lookup has answered, so a failed lookup doesn't link the entry to its Kitsu id.
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (metaId && imdbKnown) void linkAnime(qc, { canonical: metaId, anilist: anime.id, mal: malId, kitsu });
+  }, [qc, metaId, imdbKnown, anime.id, malId, kitsu]);
+
+  // AniSkip needs MyAnimeList's numbering, and stream addons know an IMDb-matched episode by its Kitsu id
+  // too; the player can't know either. Leave them (kept across restarts) for every episode.
   useEffect(() => {
     for (const e of episodes) if (e.video && e.image) rememberStill(e.video.id, e.image);
-    if (malId) for (const e of episodes) if (e.video) rememberAnimeEpisode(e.video.id, malId, e.number);
-    if (imdb && kitsu) {
-      for (const e of episodes) if (e.video) rememberAltIds(e.video.id, [`kitsu:${kitsu}:${e.number}`]);
-      if (isMovie) rememberAltIds(imdb, [`kitsu:${kitsu}`]);
-    }
-  }, [episodes, malId, imdb, kitsu, isMovie]);
+    if (!metaId || !imdbKnown) return;
+    const lined = episodes.flatMap((e): [string, number][] => (e.video ? [[e.video.id, e.number]] : []));
+    playContext.remember(metaId, { mal: malId, kitsu }, lined);
+  }, [episodes, malId, kitsu, metaId, imdbKnown]);
 
-  const byVideo = useMemo(() => new Map((progress ?? []).map((p) => [p.videoId, p])), [progress]);
+  // Episodes played under their Kitsu id before the show was linked to its IMDb page are the same episodes.
+  const byVideo = useMemo(() => {
+    const m = new Map((progress ?? []).map((p) => [p.videoId, p]));
+    const alias = (from: string, to: string) => {
+      const p = m.get(from);
+      const q = m.get(to);
+      if (p && (!q || p.updatedAt > q.updatedAt)) m.set(to, p);
+    };
+    if (imdb && kitsu) {
+      for (const e of episodes) if (e.video) alias(`kitsu:${kitsu}:${e.number}`, e.video.id);
+      if (isMovie) alias(`kitsu:${kitsu}`, imdb);
+    }
+    return m;
+  }, [progress, episodes, imdb, kitsu, isMovie]);
   const done = (p?: Progress) => !!p && p.duration > 0 && p.position / p.duration >= watchedFraction();
 
   // Up next: carry on from the episode you touched last.
@@ -422,8 +439,8 @@ function Episodes({
     });
 
   useEffect(() => {
-    if (flags) rememberFiller(pb.episodes.filter((e) => e.video && flags.get(e.number)?.filler).map((e) => e.video!.id));
-  }, [flags, pb.episodes]);
+    if (flags && pb.metaId) playContext.filler(pb.metaId, pb.episodes.filter((e) => flags.get(e.number)?.filler).map((e) => e.number));
+  }, [flags, pb.episodes, pb.metaId]);
 
   // Long-running shows: pages of 100, opening on the one you're up to.
   const pages = Math.ceil(list.length / PAGE);

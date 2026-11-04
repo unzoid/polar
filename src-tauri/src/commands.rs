@@ -286,11 +286,20 @@ pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
 
 /// Records which id an anime is played from, and moves library items and
 /// progress kept under its other ids onto that one (docs/anime-identity.md).
-/// `updatedAt` is set here. Returns whether anything changed.
+/// `updatedAt` is set here. Returns whether anything changed: the anime
+/// pages call this on every visit, and a link that says what the stored one
+/// already does keeps the stored one's time (so sync has nothing to send).
 #[tauri::command]
 pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<bool> {
     if !link.is_valid() {
         return Err(CmdError::Other(format!("not a title id Polar keys by: {}", link.canonical)));
+    }
+    let known = {
+        let store = state.store.lock().unwrap();
+        store.data.space().and_then(|s| s.links.get(&link.anilist)).is_some_and(|old| old.same_target(&link))
+    };
+    if known {
+        return Ok(false);
     }
     link.updated_at = now();
     let mut changed = false;

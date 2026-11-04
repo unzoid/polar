@@ -1,5 +1,8 @@
 import type { SkipSegments, Span } from "../types";
+import { parseVideoId } from "../identity";
 import { fetchAniZip, regularEpisodes } from "./anizip";
+import { animeLinks } from "./links";
+import { playContext } from "./playContext";
 
 /**
  * AniSkip (api.aniskip.com): crowd-sourced opening, ending and recap times
@@ -7,23 +10,24 @@ import { fetchAniZip, regularEpisodes } from "./anizip";
  * anime; AniSkip has most of what's aired in the last decade.
  *
  * The player only knows the app's video id (tt…:season:episode). Episodes
- * started from the Anime page leave their MAL id and number here, so the
- * lookup is exact; for anything else, ani.zip's IMDb mapping fills in where
- * the numbering can't be ambiguous.
+ * the Anime page lined up have their MAL id and number in playContext, so
+ * the lookup is exact; a Kitsu episode (`kitsu:N:E`) is numbered like MAL,
+ * and its MAL id is in the show's anime link; for anything else, ani.zip's
+ * IMDb mapping fills in where the numbering can't be ambiguous.
  */
-const context = new Map<string, { malId: number; episode: number }>();
-
-export function rememberAnimeEpisode(videoId: string, malId: number, episode: number) {
-  context.set(videoId, { malId, episode });
-}
-
 async function resolve(videoId: string): Promise<{ malId: number; episode: number } | null> {
-  const known = context.get(videoId);
-  if (known) return known;
-  const [imdb, s, e] = videoId.split(":");
-  if (!imdb?.startsWith("tt") || !s || !e) return null;
-  const season = Number(s);
-  const episode = Number(e);
+  const known = playContext.episode(videoId);
+  if (known?.mal) return { malId: known.mal, episode: known.episode };
+  const v = parseVideoId(videoId);
+  if (v?.title.kind === "kitsu" && v.episode !== undefined) {
+    const kitsu = Number(v.title.value);
+    const link = (await animeLinks()).find((l) => l.kitsu === kitsu && l.mal);
+    return link ? { malId: link.mal!, episode: v.episode } : null;
+  }
+  if (v?.title.kind !== "imdb" || v.episode === undefined) return null;
+  const imdb = v.title.value;
+  const season = v.season ?? 1;
+  const episode = v.episode;
   const zip = await fetchAniZip({ imdb_id: imdb }).catch(() => null);
   const malId = zip?.mappings.mal_id;
   if (!zip || !malId) return null;

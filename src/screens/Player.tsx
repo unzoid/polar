@@ -53,7 +53,7 @@ import { episodeCode, formatDate, formatRemaining, formatTime, isReleased, seaso
 import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, Stream, Video } from "../lib/types";
-import { isFiller } from "../lib/anime/filler";
+import { playContext } from "../lib/anime/playContext";
 import { isMac } from "../lib/platform";
 import { watchedFraction } from "../lib/watched";
 import { useMpvTune } from "../components/player/useMpvTune";
@@ -251,7 +251,7 @@ export function Player({
   const { next, skipped } = useMemo(() => {
     let n = meta && type === "series" ? nextVideo(meta, videoId) : undefined;
     const skipped: Video[] = [];
-    while (n && animeSkipFiller && isFiller(n.id) && meta) {
+    while (n && animeSkipFiller && playContext.isFiller(n.id) && meta) {
       skipped.push(n);
       n = nextVideo(meta, n.id);
     }

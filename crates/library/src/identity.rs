@@ -49,6 +49,13 @@ impl AnimeLink {
         is_canonical_kind(&self.canonical)
     }
 
+    /// Whether two links say the same thing about an entry, whenever they
+    /// were made.
+    pub fn same_target(&self, other: &AnimeLink) -> bool {
+        (self.anilist, &self.canonical, self.mal, self.kitsu)
+            == (other.anilist, &other.canonical, other.mal, other.kitsu)
+    }
+
     /// The alias → canonical pairs the link stands for.
     pub fn aliases(&self) -> Vec<(String, String)> {
         let mut out = vec![(format!("anilist:{}", self.anilist), self.canonical.clone())];
@@ -116,6 +123,13 @@ mod tests {
 
     pub fn link(anilist: u32, canonical: &str, kitsu: Option<u32>, at: u64) -> AnimeLink {
         AnimeLink { canonical: canonical.into(), anilist, mal: Some(anilist + 1000), kitsu, updated_at: at }
+    }
+
+    #[test]
+    fn same_target_ignores_the_time() {
+        assert!(link(1, "tt1", Some(2), 10).same_target(&link(1, "tt1", Some(2), 99)));
+        assert!(!link(1, "tt1", Some(2), 10).same_target(&link(1, "tt1", None, 10)));
+        assert!(!link(1, "tt1", None, 10).same_target(&link(1, "tt2", None, 10)));
     }
 
     #[test]
