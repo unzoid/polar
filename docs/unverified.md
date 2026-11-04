@@ -64,3 +64,8 @@ Not covered: HLS playlists are checked like files (the first 1 KB of the playlis
   submenu, the download menu, the profile menu and the navbar's "More". Open question for the owner's eye:
   the playlist popover (dark glass) and the source-filter popover (frosted, like the season list) still
   draw different surfaces; say whether they should become one.
+- Escape (T-019 step 3, `lib/dismiss.ts`): sheets and the trailer close on Escape through one stack now.
+  Before, a sheet closed before anything inside it saw the key, so the "Escape empties the field first"
+  above did not work in the episode and source-filter searches; now it should. Check, with a sources sheet
+  open: Escape with the Filters popover open closes only the popover; with text in a source-filter search
+  it clears the text; a second Escape closes the sheet; a third goes Back. Same for the trailer over a page.

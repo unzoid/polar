@@ -205,7 +205,7 @@ function DesktopApp() {
     const onKey = (e: KeyboardEvent) => {
       if (playing || isSettingsOpen()) return; // the player / settings overlay owns the keyboard
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
-      if (e.key === "Escape" && !typing) back();
+      if (e.key === "Escape" && !typing && !e.defaultPrevented) back();
       // Modified shortcuts (Ctrl+K) work while typing too; plain keys ("/") would just type.
       if (actionFor(e, "app") === "search" && (!typing || e.ctrlKey || e.metaKey || e.altKey)) {
         e.preventDefault();
