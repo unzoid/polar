@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode }
 import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
-import { ProgressBar } from "../components/PosterCard";
+import { ProgressBar } from "../components/title/Card";
 import { episodeCode, formatRemaining } from "../lib/format";
 import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/queries";
 import { useRouter } from "../lib/router";

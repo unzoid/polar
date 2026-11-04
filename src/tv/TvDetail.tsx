@@ -5,7 +5,7 @@ import { TitleDetails } from "../components/TitleDetails";
 import { Info } from "../components/icons";
 import { addToPlaylist, createPlaylist, removeFromPlaylist, renamePlaylist, usePlaylists } from "../lib/playlists";
 import { TitleLogo } from "../components/TitleLogo";
-import { ProgressBar } from "../components/PosterCard";
+import { ProgressBar } from "../components/title/Card";
 import { Still } from "../components/StillPlaceholder";
 import { stillFor } from "../lib/anime/stills";
 import { StreamList } from "../components/StreamList";

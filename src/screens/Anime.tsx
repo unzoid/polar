@@ -5,7 +5,7 @@ import { Dropdown } from "../components/Dropdown";
 import { Calendar, Close, Filters, Grid, Play } from "../components/icons";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
-import { CardSkeleton } from "../components/PosterCard";
+import { CardSkeleton } from "../components/title/Card";
 import { Row } from "../components/Row";
 import { PosterGrid } from "../components/title/PosterGrid";
 import { Sheet } from "../components/Sheet";

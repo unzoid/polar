@@ -96,3 +96,10 @@ How to check:
   measured from the window, and the page scrolls in its own box, which clips it). It now counts from that
   box, so the next page should arrive before you reach the bottom: scroll Movies → Trending quickly and the
   skeleton row should rarely be seen. Library grids are the same rules (built CSS compared).
+- Title cards (T-019 step 4, `components/title/Card.tsx`): the poster, landscape, anime, Continue Watching and
+  Library download cards are one component with the same elements and classes as before. Changes on purpose:
+  art that fails to load is now hidden on every card (only posters did that before; elsewhere WebKit may
+  have drawn a broken-image mark), and a download whose thumbnail fails shows the grey still placeholder.
+  Check: Home's shelves and Continue Watching (resume button, Enter on a focused card opens the page),
+  Anime's shelves with a manga in a franchise (badge, tooltip), Library → Downloads shelf, hidden captions
+  in Settings → Browsing.
