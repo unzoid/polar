@@ -233,12 +233,6 @@ fn installed(state: &State<'_, AppState>) -> Vec<InstalledAddon> {
     state.store.lock().unwrap().data.addons.clone()
 }
 
-fn persist(state: &State<'_, AppState>, f: impl FnOnce(&mut crate::store::Data)) -> Result<()> {
-    let mut store = state.store.lock().unwrap();
-    f(&mut store.data);
-    store.save().map_err(|e| CmdError::Save(format!("could not save: {e}")))
-}
-
 #[tauri::command]
 pub fn addons_list(state: State<'_, AppState>) -> Vec<InstalledAddon> {
     installed(&state)
@@ -253,7 +247,7 @@ pub async fn addon_install(state: State<'_, AppState>, url: String) -> Result<In
     manifest.behavior_hints.get_or_insert_with(Default::default);
     let addon = InstalledAddon { manifest_url, manifest };
     let saved = addon.clone();
-    persist(&state, |d| {
+    state.persist(|d| {
         // Reinstalling (or reconfiguring) keeps the addon's place in the order.
         match d.addons.iter_mut().find(|a| a.manifest.id == saved.manifest.id) {
             Some(slot) => *slot = saved,
@@ -265,7 +259,7 @@ pub async fn addon_install(state: State<'_, AppState>, url: String) -> Result<In
 
 #[tauri::command]
 pub fn addon_remove(state: State<'_, AppState>, id: String) -> Result<()> {
-    persist(&state, |d| d.addons.retain(|a| a.manifest.id != id))
+    state.persist(|d| d.addons.retain(|a| a.manifest.id != id))
 }
 
 // --- Library & progress --------------------------------------------------
@@ -285,7 +279,7 @@ pub fn library_toggle(state: State<'_, AppState>, item: MetaPreview) -> Result<b
     let item =
         LibraryItem { id: item.id, ty: item.ty, name: item.name, poster: item.poster, added_at: 0, updated_at: 0 };
     let mut added = false;
-    persist(&state, |d| added = d.space_mut().library_toggle(item, now()))?;
+    state.persist(|d| added = d.space_mut().library_toggle(item, now()))?;
     Ok(added)
 }
 
@@ -299,14 +293,14 @@ pub fn progress_for(state: State<'_, AppState>, meta_id: String) -> Vec<Progress
 
 #[tauri::command]
 pub fn progress_save(state: State<'_, AppState>, progress: Progress) -> Result<()> {
-    persist(&state, |d| d.space_mut().progress_save(vec![progress], now()))
+    state.persist(|d| d.space_mut().progress_save(vec![progress], now()))
 }
 
 /// Several entries in one save (marking a whole show watched). They count as
 /// touched in the order given, so the last one is the title's latest.
 #[tauri::command]
 pub fn progress_save_many(state: State<'_, AppState>, progress: Vec<Progress>) -> Result<()> {
-    persist(&state, |d| d.space_mut().progress_save(progress, now()))
+    state.persist(|d| d.space_mut().progress_save(progress, now()))
 }
 
 /// Latest unfinished video per title, newest first.
@@ -345,7 +339,7 @@ pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<boo
     }
     link.updated_at = now();
     let mut changed = false;
-    persist(&state, |d| changed = d.space_mut().link_anime(link))?;
+    state.persist(|d| changed = d.space_mut().link_anime(link))?;
     Ok(changed)
 }
 
@@ -390,7 +384,7 @@ pub fn settings_set(state: State<'_, AppState>, settings: Settings) -> Result<Se
         *state.indexer.write().unwrap() = Arc::new(Indexer::new(crate::index_config(&settings)));
     }
     let next = settings.clone();
-    persist(&state, |d| d.settings = next)?;
+    state.persist(|d| d.settings = next)?;
     Ok(SettingsView { settings, metadata_source: state.indexer().source() })
 }
 

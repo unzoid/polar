@@ -11,6 +11,23 @@ with the app, and how to check each item. It grows as work lands (T-011 finishes
 `src-tauri` was checked with `rustfmt` and by reading. `cargo build` / `bun tauri dev`
 on a desktop is the first check for every item below.
 
+## Saving in the background (R4, H8/M4)
+
+`polar.json` is now written by a background thread about a second after a change,
+instead of by each command before it returns. The writer is tested in
+`crates/library`; its wiring in `src-tauri` is read-only here.
+
+1. Change a setting, add something to the library, play a few minutes; quit normally
+   and start again: all of it is there. `polar.json` is one line now, with `"version":1`.
+2. Same, but kill the process (Task Manager / `kill -9`) within a second of a change:
+   that last change may be lost, nothing older, and the file still opens.
+3. Install an update through the in-app updater right after a change: the relaunch
+   may skip the exit hook that flushes; check the change survived (if not, the
+   updater path needs a flush command before relaunch).
+4. Make `polar.json` read-only (or fill the disk) and change a setting: the app should
+   say it could not save (the error comes with the next change after the failed write).
+5. Edit `"version"` to 2 and start: a `polar.v2-<time>.json` copy appears next to it.
+
 ## Player start-up steps (T-022)
 
 The loading screen now lists each step under the logo while a video starts, says

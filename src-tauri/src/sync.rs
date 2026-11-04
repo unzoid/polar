@@ -7,7 +7,7 @@ use polar_library::{AnimeLink, Changes, Progress, SyncLibraryItem};
 use serde::Serialize;
 use tauri::State;
 
-use crate::commands::{CmdError, Result};
+use crate::commands::Result;
 use crate::store::{now, LOCAL_SPACE};
 use crate::AppState;
 
@@ -21,16 +21,10 @@ pub struct LocalChanges {
     pub pulled_at: Option<String>,
 }
 
-fn save(state: &State<'_, AppState>, f: impl FnOnce(&mut crate::store::Data)) -> Result<()> {
-    let mut store = state.store.lock().unwrap();
-    f(&mut store.data);
-    store.save().map_err(|e| CmdError::Save(format!("could not save: {e}")))
-}
-
 /// Switch which space library/progress commands use. `None` = signed out.
 #[tauri::command]
 pub fn space_activate(state: State<'_, AppState>, space: Option<String>) -> Result<()> {
-    save(&state, |d| {
+    state.persist(|d| {
         d.active_space = space.unwrap_or_else(|| LOCAL_SPACE.into());
         d.space_mut();
     })
@@ -40,7 +34,7 @@ pub fn space_activate(state: State<'_, AppState>, space: Option<String>) -> Resu
 /// (first sign-in).
 #[tauri::command]
 pub fn space_import_local(state: State<'_, AppState>, space: String) -> Result<()> {
-    save(&state, |d| {
+    state.persist(|d| {
         let local = d.spaces.get(LOCAL_SPACE).cloned().unwrap_or_default();
         let target = d.spaces.entry(space).or_default();
         target.import(&local);
@@ -53,7 +47,7 @@ pub fn space_import_local(state: State<'_, AppState>, space: String) -> Result<(
 /// profile; the signed-out space is always kept.
 #[tauri::command]
 pub fn space_forget(state: State<'_, AppState>, space: Option<String>) -> Result<()> {
-    save(&state, |d| {
+    state.persist(|d| {
         match space {
             Some(id) if id != LOCAL_SPACE => {
                 d.spaces.remove(&id);
@@ -80,7 +74,7 @@ pub fn sync_changes(state: State<'_, AppState>, space: String) -> LocalChanges {
 
 #[tauri::command]
 pub fn sync_mark_pushed(state: State<'_, AppState>, space: String, cursor: u64) -> Result<()> {
-    save(&state, |d| {
+    state.persist(|d| {
         if let Some(s) = d.spaces.get_mut(&space) {
             s.pushed_at = s.pushed_at.max(cursor);
         }
@@ -99,7 +93,7 @@ pub fn sync_apply(
     pulled_at: Option<String>,
 ) -> Result<bool> {
     let mut changed = false;
-    save(&state, |d| {
+    state.persist(|d| {
         // A pull that finishes after sign-out (or after the profile was
         // deleted) must not bring that profile's data back onto this device.
         let Some(s) = d.spaces.get_mut(&space) else { return };

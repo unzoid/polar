@@ -1,7 +1,8 @@
 //! Everything the user owns — settings, installed addons, and one space
 //! (library, watch progress, anime links; see `polar_library`) per profile —
-//! in one JSON file in the app data dir. Small, human-readable, trivially
-//! backed up.
+//! in one JSON file in the app data dir. Small, readable, trivially backed
+//! up. Commands change it in memory; `polar_library::saver` writes it a
+//! moment later off the UI thread (`AppState::persist`), and on exit.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -272,9 +273,15 @@ pub struct InstalledAddon {
 /// The space used when nobody is signed in.
 pub const LOCAL_SPACE: &str = "local";
 
+/// Layout of `polar.json`, bumped when a change needs old files read
+/// differently. 0 = files from before the field existed.
+pub const VERSION: u32 = 1;
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Data {
+    /// [`VERSION`] of the build that last wrote the file.
+    pub version: u32,
     pub settings: Settings,
     pub addons: Vec<InstalledAddon>,
     /// Bundled addons already installed once (manifest URLs). Removing one
@@ -300,6 +307,7 @@ impl Data {
     }
 
     pub(crate) fn migrate(&mut self) {
+        self.version = VERSION;
         if self.active_space.is_empty() {
             self.active_space = LOCAL_SPACE.into();
         }
@@ -322,6 +330,19 @@ pub struct Store {
 impl Store {
     pub fn load(path: PathBuf) -> Self {
         let (mut data, problem) = match opened::open::<Data>(std::fs::read(&path)) {
+            Opened::Data(data) if data.version > VERSION => {
+                // A newer Polar wrote this: what this build doesn't know
+                // would be dropped on the next save, so keep its file aside.
+                let backup = path.with_extension(format!("v{}-{}.json", data.version, now()));
+                eprintln!("polar: {} is from a newer version; keeping it as {}", path.display(), backup.display());
+                match std::fs::copy(&path, &backup) {
+                    Ok(_) => (data, None),
+                    Err(copy) => (
+                        data,
+                        Some(format!("{} is from a newer Polar and couldn't be backed up ({copy})", path.display())),
+                    ),
+                }
+            }
             Opened::Data(data) => (data, None),
             Opened::Fresh => (Data::default(), None),
             Opened::Corrupt(e) => {
@@ -352,17 +373,18 @@ impl Store {
         self.problem.as_deref()
     }
 
-    /// Write via a temp file + rename so a crash never leaves half a file.
-    pub fn save(&self) -> std::io::Result<()> {
+    /// Where the file lives.
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
+    /// The file's contents as they should be now. Compact: the file is
+    /// rewritten whole, and indenting only made that bigger.
+    pub fn encode(&self) -> Result<Vec<u8>, String> {
         if let Some(problem) = &self.problem {
-            return Err(std::io::Error::other(format!("not saved: {problem}")));
+            return Err(format!("not saved: {problem}"));
         }
-        if let Some(dir) = self.path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        let tmp = self.path.with_extension("json.tmp");
-        std::fs::write(&tmp, serde_json::to_vec_pretty(&self.data)?)?;
-        std::fs::rename(tmp, &self.path)
+        serde_json::to_vec(&self.data).map_err(|e| e.to_string())
     }
 }
 

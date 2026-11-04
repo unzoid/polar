@@ -15,13 +15,17 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use polar_addon::AddonClient;
 use polar_index::{IndexConfig, Indexer};
+use polar_library::saver::{write_atomic, Saver};
 use tauri::Manager;
 
 pub struct AppState {
     /// Swapped wholesale when the TMDB key changes.
     pub indexer: RwLock<Arc<Indexer>>,
     pub addons: AddonClient,
-    pub store: Mutex<store::Store>,
+    /// Change it through [`AppState::persist`], which gets it written.
+    pub store: Arc<Mutex<store::Store>>,
+    /// Writes `store` to disk in the background.
+    pub saver: Saver,
     pub seekr: seekr::Seekr,
     pub mpv: player::Mpv,
     pub introdb: introdb::IntroDb,
@@ -36,6 +40,42 @@ impl AppState {
     pub fn indexer(&self) -> Arc<Indexer> {
         self.indexer.read().unwrap().clone()
     }
+
+    /// Changes the store and has it written within [`SAVE_DELAY`]. The change
+    /// stays in memory either way; the error says it may not reach the disk
+    /// (read-only session, or the last write failed).
+    pub fn persist(&self, f: impl FnOnce(&mut store::Data)) -> commands::Result<()> {
+        let problem = {
+            let mut store = self.store.lock().unwrap();
+            f(&mut store.data);
+            store.problem().map(str::to_owned)
+        };
+        if let Some(problem) = problem {
+            return Err(commands::CmdError::Save(format!("could not save: not saved: {problem}")));
+        }
+        self.saver.mark();
+        match self.saver.error() {
+            Some(e) => Err(commands::CmdError::Save(format!("could not save: {e}"))),
+            None => Ok(()),
+        }
+    }
+}
+
+/// How long changes gather before `polar.json` is written: the player saves
+/// progress every 5 s, so at most one write each time.
+const SAVE_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// The background writer for `store`: encodes under the lock (no disk I/O
+/// there), writes outside it.
+fn store_saver(store: Arc<Mutex<store::Store>>) -> Saver {
+    Saver::spawn(SAVE_DELAY, move || {
+        let (path, bytes) = {
+            // A panic elsewhere mid-change still leaves data worth keeping.
+            let store = store.lock().unwrap_or_else(|e| e.into_inner());
+            (store.path().to_owned(), store.encode()?)
+        };
+        write_atomic(&path, &bytes).map_err(|e| e.to_string())
+    })
 }
 
 pub fn index_config(settings: &store::Settings) -> IndexConfig {
@@ -73,13 +113,12 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
     };
     for url in pending {
         let Ok(manifest) = state.addons.manifest(url).await else { continue };
-        let mut store = state.store.lock().unwrap();
-        let data = &mut store.data;
-        if !data.addons.iter().any(|a| a.manifest.id == manifest.id) {
-            data.addons.push(store::InstalledAddon { manifest_url: url.into(), manifest });
-        }
-        data.bundled_addons.push(url.into());
-        let _ = store.save();
+        let _ = state.persist(|data| {
+            if !data.addons.iter().any(|a| a.manifest.id == manifest.id) {
+                data.addons.push(store::InstalledAddon { manifest_url: url.into(), manifest });
+            }
+            data.bundled_addons.push(url.into());
+        });
     }
 }
 
@@ -97,13 +136,14 @@ pub fn run() {
             let path = dir.join("polar.json");
             migrate_legacy_store(&dir, &path);
             downloads::manage(app.handle(), &dir);
-            let store = store::Store::load(path);
+            let store = Arc::new(Mutex::new(store::Store::load(path)));
             let cache = app.path().app_cache_dir()?;
-            let indexer = Indexer::new(index_config(&store.data.settings));
+            let indexer = Indexer::new(index_config(&store.lock().unwrap().data.settings));
             app.manage(AppState {
                 indexer: RwLock::new(Arc::new(indexer)),
                 addons: AddonClient::new(),
-                store: Mutex::new(store),
+                saver: store_saver(store.clone()),
+                store,
                 seekr: seekr::Seekr::default(),
                 mpv: player::Mpv::default(),
                 introdb: introdb::IntroDb::default(),
@@ -177,9 +217,11 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building polar")
         .run(|app, event| {
-            // Never leave an orphaned mpv behind.
+            // Never leave an orphaned mpv behind, nor a change unwritten.
             if let tauri::RunEvent::Exit = event {
-                app.state::<AppState>().mpv.kill();
+                let state = app.state::<AppState>();
+                state.mpv.kill();
+                state.saver.flush();
             }
         });
 }

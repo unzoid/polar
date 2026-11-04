@@ -120,6 +120,13 @@ Done in the same migration, so the server is changed once:
 
 - **H8 / M4** Store writes debounced and off the UI thread, written to a temp file and renamed, with a
   schema version; secrets in the OS keychain stay out of scope (new dependency: asked if wanted).
+  Done: `polar_library::saver` (tested) has `write_atomic` (temp file, fsync, rename, folder fsync) and
+  `Saver`, a writer thread that gathers changes for 1 s and writes once; `AppState::persist` changes the
+  store in memory and marks it, the thread encodes under the lock and writes outside it, `RunEvent::Exit`
+  flushes. A failed write is reported by the next command until one succeeds. `polar.json` is compact
+  and carries `version` (1); a file from a newer build is copied aside (`polar.v<N>-<time>.json`) before
+  this one writes over it. `downloads.json` goes through `write_atomic` too. Left: settings validation and
+  whole-struct `settings_set` (M4), keychain (not asked yet).
 - **H9** Downloads: read timeout, resume validated with `Content-Range`, partial file kept apart.
 - **H10 / H11** TMDB: page-stable pagination, a concurrency limit, 429 back-off, partial results not
   cached. **L14** one shared `reqwest::Client`.
