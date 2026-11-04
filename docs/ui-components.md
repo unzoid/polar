@@ -227,7 +227,7 @@ All in `src/components/ui/` unless noted. Each is one `.tsx` with its CSS in `sr
 | `TextField`, `SearchField` | U14 | `SearchField`: `value`, `onChange`, `onEscape?`, `kbd?`, `shape: "pill" \| "box"`, `expandable?` (navbar) |
 | `Chip`, `ToggleChip`, `Badge` | U15 | `Chip`: `pressed?`, `variant: "filter" \| "tag" \| "choice" \| "link" \| "badge"`; `ToggleChip` (on/off with the check); `Badge`: `variant: "rank" \| "tag"` (static) |
 | `Segmented` | U16 | existing, made a radio group; `look: "pill" \| "chips" \| "dots"` |
-| `Switch` | U17 | `checked`, `onChange`, `label` |
+| `Switch` | U17 | `checked`, `onChange(checked)`; named by the `<label>` around it |
 | `Slider` | U18 | Base UI; `withInput?` covers `SliderField` |
 | `Dropdown` | — | existing |
 | `Menu`, `MenuItem`, `MenuCheckItem`, `MenuSeparator`, `MenuSub`, `ContextMenu` | U9 | Base UI Menu with one surface; `ContextMenu` keeps the `cardMenu()` spread API |
@@ -369,6 +369,10 @@ code draws, not what's on screen.
    reordered. Screens keep their size tweaks (`.search-suggest`, `.srcf-popover`, `.sub-settings`, `.tv`).
    A removable filter is a pressed `tag` chip with a close glyph; a separate `onRemove` wasn't needed. Not
    yet: the TV focus rules that repeat the light-pill recipe, `.anime-tag` spoiler colours as tokens.
+   `components/ui/Switch.tsx` (`checked`, `onChange(boolean)`, native input props): the three `.switch`
+   checkboxes; CSS moved from `screens.css` to `styles/ui/switch.css` (after `chip.css`, same check). The
+   anime "Skip filler" switch gained `role="switch"`, like the others. The overlay's `.t3s .switch` restyle
+   stays until step 5.
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).

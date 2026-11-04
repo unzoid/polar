@@ -15,6 +15,7 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/ui/button.css";
 import "./styles/ui/chip.css";
+import "./styles/ui/switch.css";
 import "./styles/shell.css";
 import "./styles/cards.css";
 import "./styles/detail.css";

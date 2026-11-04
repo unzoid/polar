@@ -43,6 +43,7 @@ import type { EpisodeLayout, Progress, RankedStream, Video } from "../lib/types"
 import { watchedFraction } from "../lib/watched";
 import { Button, IconButton } from "../components/ui/Button";
 import { Badge, Chip } from "../components/ui/Chip";
+import { Switch } from "../components/ui/Switch";
 
 /**
  * An anime's page, built from AniList with ani.zip filling in episode titles,
@@ -509,7 +510,7 @@ function Episodes({
           )}
           {hasFiller && (
             <label className="anime-toggle t-callout">
-              <input type="checkbox" className="switch" checked={prefs.animeSkipFiller} onChange={(e) => setPrefs({ animeSkipFiller: e.target.checked })} />
+              <Switch checked={prefs.animeSkipFiller} onChange={(on) => setPrefs({ animeSkipFiller: on })} />
               Skip filler
             </label>
           )}
