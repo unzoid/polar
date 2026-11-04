@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ToggleChip } from "../components/ToggleChip";
+import { ToggleChip } from "../components/ui/Chip";
 import {
   Captions,
   ChevronRight,

@@ -42,6 +42,7 @@ import { useRouter } from "../lib/router";
 import type { EpisodeLayout, Progress, RankedStream, Video } from "../lib/types";
 import { watchedFraction } from "../lib/watched";
 import { Button, IconButton } from "../components/ui/Button";
+import { Badge, Chip } from "../components/ui/Chip";
 
 /**
  * An anime's page, built from AniList with ani.zip filling in episode titles,
@@ -763,9 +764,10 @@ function Characters({ anime }: { anime: Anime }) {
     <section className="anime-characters-wrap" data-expanded={actorsOpen}>
       <div className="anime-cast-heading">
         <h2 className="t-title2">Characters &amp; Voice Actors</h2>
-        <button
+        <Chip
           type="button"
-          className="anime-ranking anime-cast-toggle"
+          variant="badge"
+          className="anime-cast-toggle"
           aria-expanded={actorsOpen}
           aria-controls={`anime-cast-${anime.id}`}
           aria-label={`${actorsOpen ? "Hide" : "Show"} characters and voice actors`}
@@ -773,7 +775,7 @@ function Characters({ anime }: { anime: Anime }) {
         >
           {actorsOpen ? "Hide" : "Show"}
           <ChevronDown size={18} />
-        </button>
+        </Chip>
       </div>
       <div id={`anime-cast-${anime.id}`} className="anime-cast-content" hidden={!actorsOpen}>
         <div className="anime-episodes-bar">
@@ -864,10 +866,10 @@ function Details({ anime }: { anime: Anime }) {
         {rankings.length > 0 && (
           <div className="anime-rankings">
             {rankings.map((r) => (
-              <span key={`${r.type}/${r.context}/${r.year}/${r.season}`} className="anime-ranking tabular">
+              <Badge key={`${r.type}/${r.context}/${r.year}/${r.season}`} variant="rank" className="tabular">
                 <strong>#{r.rank}</strong> {r.context.replace(/^\w/, (c) => c.toUpperCase())}
                 {!r.allTime && r.year ? ` ${r.season ? `${SEASON_LABEL[r.season]} ` : ""}${r.year}` : ""}
-              </span>
+              </Badge>
             ))}
           </div>
         )}
@@ -887,9 +889,9 @@ function Details({ anime }: { anime: Anime }) {
             <h3 className="details-label">Tags</h3>
             <div className="anime-tags">
               {tags.map((t) => (
-                <span key={t.name} className="anime-tag" data-spoiler={t.isMediaSpoiler || t.isGeneralSpoiler} title={t.description ?? undefined}>
+                <Badge key={t.name} variant="tag" data-spoiler={t.isMediaSpoiler || t.isGeneralSpoiler} title={t.description ?? undefined}>
                   {t.name} <span className="tabular">{t.rank}%</span>
-                </span>
+                </Badge>
               ))}
               {spoilers > 0 && (
                 <button className="settings-link anime-spoilers" onClick={() => setPrefs({ animeSpoilerTags: !prefs.animeSpoilerTags })}>
@@ -905,16 +907,16 @@ function Details({ anime }: { anime: Anime }) {
             <h3 className="details-label">Watch Officially</h3>
             <div className="details-links">
               {streaming.map((l) => (
-                <button
+                <Chip
                   key={l.url}
-                  className="details-link pressable"
+                  variant="link"
                   style={{ "--site": l.color ?? "#ffffff" } as React.CSSProperties}
                   onClick={() => void api.openExternal(l.url)}
                 >
                   {l.icon && <img src={l.icon} alt="" className="anime-link-icon" />}
                   {l.site}
                   {l.language && l.language !== "English" ? <span className="muted"> · {l.language}</span> : null}
-                </button>
+                </Chip>
               ))}
             </div>
           </section>
@@ -923,13 +925,13 @@ function Details({ anime }: { anime: Anime }) {
         <section className="details-section">
           <h3 className="details-label">Elsewhere</h3>
           <div className="details-links">
-            <button className="details-link pressable" style={{ "--site": "#02a9ff" } as React.CSSProperties} onClick={() => void api.openExternal(`https://anilist.co/anime/${anime.id}`)}>
+            <Chip variant="link" style={{ "--site": "#02a9ff" } as React.CSSProperties} onClick={() => void api.openExternal(`https://anilist.co/anime/${anime.id}`)}>
               AniList
-            </button>
+            </Chip>
             {anime.idMal && (
-              <button className="details-link pressable" style={{ "--site": "#2e51a2" } as React.CSSProperties} onClick={() => void api.openExternal(`https://myanimelist.net/anime/${anime.idMal}`)}>
+              <Chip variant="link" style={{ "--site": "#2e51a2" } as React.CSSProperties} onClick={() => void api.openExternal(`https://myanimelist.net/anime/${anime.idMal}`)}>
                 MyAnimeList
-              </button>
+              </Chip>
             )}
           </div>
         </section>

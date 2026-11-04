@@ -35,6 +35,7 @@ import { useRouter } from "../lib/router";
 import type { MetaPreview } from "../lib/types";
 import { HeroCarousel } from "./Home";
 import { Button } from "../components/ui/Button";
+import { Chip } from "../components/ui/Chip";
 
 type Shape = "poster" | "landscape";
 
@@ -132,22 +133,22 @@ function AnimeNav() {
   const { navigate } = useRouter();
   return (
     <nav className="anime-nav" aria-label="Browse anime">
-      <button className="genre-chip anime-nav-main" onClick={() => navigate({ name: "anime-schedule" })}>
+      <Chip className="anime-nav-main" onClick={() => navigate({ name: "anime-schedule" })}>
         <Calendar size={15} /> Schedule
-      </button>
-      <button className="genre-chip anime-nav-main" onClick={() => navigate({ name: "anime-browse" })}>
+      </Chip>
+      <Chip className="anime-nav-main" onClick={() => navigate({ name: "anime-browse" })}>
         <Grid size={15} /> Browse All
-      </button>
+      </Chip>
       <span className="anime-nav-sep" aria-hidden />
       {ANIME_GENRES.map((g) => (
-        <button key={g} className="genre-chip" onClick={() => navigate({ name: "anime-browse", genre: g })}>
+        <Chip key={g} onClick={() => navigate({ name: "anime-browse", genre: g })}>
           {g}
-        </button>
+        </Chip>
       ))}
       {ANIME_TAGS.map((t) => (
-        <button key={t} className="genre-chip" onClick={() => navigate({ name: "anime-browse", tag: t })}>
+        <Chip key={t} onClick={() => navigate({ name: "anime-browse", tag: t })}>
           {t}
-        </button>
+        </Chip>
       ))}
     </nav>
   );
@@ -488,10 +489,10 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
       {active.length > 0 && (
         <div className="anime-active-filters">
           {active.map((a) => (
-            <button key={a.label} className="srcf-tag" aria-pressed onClick={() => set(a.clear)} aria-label={`Remove ${a.label}`}>
+            <Chip key={a.label} variant="tag" pressed onClick={() => set(a.clear)} aria-label={`Remove ${a.label}`}>
               {a.label}
               <Close size={11} strokeWidth={2.5} />
-            </button>
+            </Chip>
           ))}
           {active.length > 1 && (
             <button className="anime-row-link anime-clear" onClick={() => set(NO_FILTERS)}>

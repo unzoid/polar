@@ -526,37 +526,11 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-.anime-ranking {
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--fill-1);
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-}
-.anime-ranking strong {
-  color: var(--text);
-}
 .anime-tags {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.375rem;
-}
-.anime-tag {
-  padding: 0.3rem 0.625rem;
-  border-radius: var(--r-pill);
-  background: var(--fill-2);
-  font-size: var(--fs-sm);
-  font-weight: 550;
-}
-.anime-tag span {
-  margin-left: 0.25rem;
-  color: var(--text-3);
-}
-.anime-tag[data-spoiler="true"] {
-  background: rgb(239 68 68 / 0.12);
-  color: #fca5a5;
 }
 .anime-spoilers {
   margin-left: 0.25rem;

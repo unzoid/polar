@@ -983,30 +983,6 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   overflow-x: auto;
   scrollbar-width: none;
 }
-.source-chip {
-  height: 30px;
-  padding: 0 0.75rem;
-  border-radius: var(--r-pill);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  color: var(--text-2);
-  background: rgb(255 255 255 / 0.08);
-  transition:
-    background-color var(--dur-fast) var(--ease-std),
-    color var(--dur-fast) var(--ease-std),
-    transform var(--dur-press) var(--ease-out);
-}
-.source-chip[aria-pressed="true"] {
-  background: var(--pill-light);
-  color: var(--text-on-light);
-}
-@media (hover: hover) and (pointer: fine) {
-  .source-chip:not([aria-pressed="true"]):hover {
-    background: var(--fill-4);
-    color: var(--text);
-  }
-}
 /* Icon badges: a round chip in the badge's colour. */
 .options-badge[data-icon="true"] {
   display: grid;

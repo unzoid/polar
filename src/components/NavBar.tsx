@@ -15,6 +15,7 @@ import { ProfileMenu } from "./ProfileMenu";
 import { UpdatePill } from "./Updates";
 import { useParty } from "../lib/party/party";
 import { PartyBadge } from "./party/PartyUI";
+import { Chip } from "./ui/Chip";
 
 const LINKS: { route: TabRoute; label: string }[] = [
   { route: { name: "home" }, label: "Home" },
@@ -304,9 +305,9 @@ function SearchSuggestions({ pick, under }: { pick: (text: string) => void; unde
   const r = under.getBoundingClientRect();
   const chips = (list: string[]) =>
     list.map((g) => (
-      <button key={g} className="genre-chip" tabIndex={-1} onClick={() => pick(g)}>
+      <Chip key={g} tabIndex={-1} onClick={() => pick(g)}>
         {g}
-      </button>
+      </Chip>
     ));
   return createPortal(
     // Keeps focus in the field, so it doesn't blur (and close) on the way.

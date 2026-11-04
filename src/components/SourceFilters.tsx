@@ -5,6 +5,7 @@ import type { SourceSort } from "../lib/types";
 import { Close, Filters, Search } from "./icons";
 import { Segmented } from "./Segmented";
 import { Dropdown } from "./Dropdown";
+import { Chip } from "./ui/Chip";
 
 /**
  * The controls over a source list (see lib/sources.ts). One decision is in
@@ -187,10 +188,10 @@ function DesktopBar({ f, note }: { f: SourceFilters; note?: string }) {
       {active.length > 0 && (
         <div className="srcf-active" role="group" aria-label="Filters on">
           {active.map((a) => (
-            <button key={a.key} className="srcf-tag" aria-pressed onClick={a.clear} aria-label={`Remove ${a.label}`}>
+            <Chip key={a.key} variant="tag" pressed onClick={a.clear} aria-label={`Remove ${a.label}`}>
               {a.label}
               <Close size={12} />
-            </button>
+            </Chip>
           ))}
           <button className="srcf-clear" onClick={() => f.set({ lang: null, size: null, source: null, tags: [] })}>
             Clear All
@@ -274,10 +275,10 @@ function ChipRow({ label, chips, collapsible = false }: Section & { collapsible?
       </div>
       <div className="srcf-chips" ref={box} data-folded={folded || undefined}>
         {shown.map((c) => (
-          <button key={c.key} className="source-chip" aria-pressed={c.on} onClick={c.pick}>
+          <Chip key={c.key} variant="choice" pressed={c.on} onClick={c.pick}>
             {c.label}
             {c.count != null && <span className="srcf-count tabular">{c.count}</span>}
-          </button>
+          </Chip>
         ))}
       </div>
       {q && !shown.length && <p className="srcf-chiprow-empty">Nothing matches “{query.trim()}”.</p>}

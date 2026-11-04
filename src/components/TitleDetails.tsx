@@ -9,6 +9,7 @@ import { BrandIcon } from "./BrandIcon";
 import { ArrowUpRight } from "./icons";
 import { Img } from "./Img";
 import { imdbUrl } from "./RatingRing";
+import { Chip } from "./ui/Chip";
 
 /**
  * Everything about a title below the fold: what critics and audiences
@@ -93,11 +94,11 @@ export function TitleDetails({ meta, links: showLinks = true }: { meta: Meta; li
           <h3 className="details-label">Elsewhere</h3>
           <div className="details-links">
             {links.map((l) => (
-              <button key={l.label} className="details-link pressable" data-site={l.site} onClick={() => void api.openExternal(l.url)}>
+              <Chip key={l.label} variant="link" data-site={l.site} onClick={() => void api.openExternal(l.url)}>
                 <BrandIcon site={l.site} size={15} />
                 {l.label}
                 <ArrowUpRight className="details-link-out" size={13} aria-hidden />
-              </button>
+              </Chip>
             ))}
           </div>
         </section>
