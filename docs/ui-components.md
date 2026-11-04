@@ -397,6 +397,13 @@ code draws, not what's on screen.
    and the TV detail pill), same class lists, now all `aria-hidden`. `.skeleton`, `.skeleton-line` and the
    reduced-motion rule moved from `base.css`/`cards.css` to `styles/ui/skeleton.css` (after `empty-state.css`);
    the built CSS is the same rules. `CardSkeleton` stays in `PosterCard.tsx` until `Card` (step 4).
+   `components/ui/Toast.tsx` (`icon`, text as children, `actions`, `variant="tv"`, `className`, `data-*`):
+   `ControllerToast` and `UpdateToast`, which shared `.tv-prompt`. Classes renamed `.toast`, `.toast-tv`,
+   `.toast-icon`, `.toast-text`, `.toast-action` (was `.tv-prompt-go`); CSS moved from `tv.css` to
+   `styles/ui/toast.css` (after `skeleton.css`), nothing in the files it jumped over matches its parts at equal
+   specificity; built CSS is the same rules with the rename mapped back. The caller still owns showing and
+   timing. Not yet: one `ToastHost` and `placement` (the two can overlap at the bottom centre today, as
+   before), and the player and party notes (`.player-notice`, `.party-hold`, `.party-note`, step 6).
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).

@@ -1,6 +1,6 @@
 /* --- App updates: toast, navbar pill, release notes. */
 
-/* Same pill as the controller notice (.tv-prompt), with room for a progress bar. */
+/* Same pill as the controller notice (.toast), with room for a progress bar. */
 .update-toast {
   z-index: var(--z-toast);
   max-width: calc(100vw - 3rem);
@@ -8,7 +8,7 @@
 .update-toast .update-icon {
   color: var(--accent);
 }
-.update-toast .tv-prompt-text {
+.update-toast .toast-text {
   min-width: 15rem;
 }
 .update-toast .btn-primary {

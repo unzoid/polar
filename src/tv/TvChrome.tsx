@@ -20,6 +20,7 @@ import {
 import { useBack, useFocusTrap } from "./shell";
 import { setTvMode } from "./tvMode";
 import { Button, IconButton } from "../components/ui/Button";
+import { Toast } from "../components/ui/Toast";
 
 export const TV_TABS: { route: TabRoute; label: string }[] = [
   { route: { name: "search" }, label: "Search" },
@@ -282,36 +283,42 @@ export function ControllerToast({ tv }: { tv: boolean }) {
   if (!show || !notice) return null;
   const connected = notice.kind === "connected";
   return (
-    <div className={tv ? "tv-prompt tv-prompt-tv" : "tv-prompt"} role="status" key={notice.key} data-kind={notice.kind}>
-      <GamepadIcon off={!connected} />
-      <span className="tv-prompt-text">
-        <strong>
-          {notice.name} {connected ? "connected" : "disconnected"}
-        </strong>
-        {connected && awaiting && <span>Press any button to start using it.</span>}
-        {offerTv && !awaiting && (
-          <span>
-            Press <PadGlyph button="menu" /> for TV mode.
-          </span>
-        )}
-      </span>
-      {offerTv && (
-        <Button variant="primary" className="tv-prompt-go" onClick={() => setTvMode(true)}>
-          Open TV Mode
-        </Button>
+    <Toast
+      key={notice.key}
+      variant={tv ? "tv" : undefined}
+      data-kind={notice.kind}
+      icon={<GamepadIcon off={!connected} />}
+      actions={
+        <>
+          {offerTv && (
+            <Button variant="primary" className="toast-action" onClick={() => setTvMode(true)}>
+              Open TV Mode
+            </Button>
+          )}
+          {!tv && (
+            <IconButton label="Dismiss" onClick={dismissNotice}>
+              <Close size={18} />
+            </IconButton>
+          )}
+        </>
+      }
+    >
+      <strong>
+        {notice.name} {connected ? "connected" : "disconnected"}
+      </strong>
+      {connected && awaiting && <span>Press any button to start using it.</span>}
+      {offerTv && !awaiting && (
+        <span>
+          Press <PadGlyph button="menu" /> for TV mode.
+        </span>
       )}
-      {!tv && (
-        <IconButton label="Dismiss" onClick={dismissNotice}>
-          <Close size={18} />
-        </IconButton>
-      )}
-    </div>
+    </Toast>
   );
 }
 
 function GamepadIcon({ off }: { off?: boolean }) {
   return (
-    <svg className="tv-prompt-icon" viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg className="toast-icon" viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M7.5 7h9a4.5 4.5 0 0 1 4.4 3.6l.9 4.6a2.6 2.6 0 0 1-4.6 2.1L15.5 15h-7l-1.7 2.3a2.6 2.6 0 0 1-4.6-2.1l.9-4.6A4.5 4.5 0 0 1 7.5 7Z" />
       <path d="M8 9.5v3M6.5 11h3" />
       <circle cx="15.5" cy="10.25" r="0.6" fill="currentColor" />
