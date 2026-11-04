@@ -47,3 +47,5 @@ Not covered: HLS playlists are checked like files (the first 1 KB of the playlis
 - UI clean-up (T-019 step 1): profile set-up and profile editor forms rise 8 px and fade in again
   (`auth-form-in` had been renamed away in 1215be7, so they appeared without it). Dead CSS removed by
   grep only (no class built at runtime matched); look for any unstyled About/Library/sign-in element.
+- Title right-click menu and profile menu: the highlighted row now follows Settings → Appearance → Accent
+  (was the OS accent via `AccentColor`); check the text stays readable on a yellow/teal accent.

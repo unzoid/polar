@@ -975,9 +975,8 @@
   user-select: none;
 }
 .profile-menu-item[data-highlighted] {
-  background: #0a84ff;
-  background: AccentColor;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-fg);
 }
 .profile-menu-item .avatar {
   width: 26px;
