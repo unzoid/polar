@@ -155,6 +155,7 @@ const ROWS: SettingEntry[] = [
   { title: "Software update", page: "about", keywords: "check for updates upgrade new version install" },
   { title: "Download updates automatically", page: "about", keywords: "auto update background" },
   { title: "Release notes", page: "about", keywords: "changelog what's new" },
+  { title: "Data sources", page: "about", keywords: "credits attribution tmdb anilist thetvdb licence" },
   { title: "Anime episode data", page: "about", keywords: "cache clear filler recap storage disk" },
 ];
 
