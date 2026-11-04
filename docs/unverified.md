@@ -28,6 +28,15 @@ instead of by each command before it returns. The writer is tested in
    say it could not save (the error comes with the next change after the failed write).
 5. Edit `"version"` to 2 and start: a `polar.v2-<time>.json` copy appears next to it.
 
+## Downloads: pause, resume and stalls (R4, H9)
+
+1. Start a download, pause and resume it several times quickly while it runs; when it
+   finishes, play it through to the end, seeking around: no glitches or broken spots.
+   While it runs the downloads folder holds `<name>.part`; when done, only `<name>`.
+2. Pull the network cable mid-download: within about 30 s it shows "The source stopped
+   sending." and can be resumed.
+3. A download paused with an older build resumes from where it was.
+
 ## Player start-up steps (T-022)
 
 The loading screen now lists each step under the logo while a video starts, says
