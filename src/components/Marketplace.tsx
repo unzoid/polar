@@ -38,7 +38,7 @@ export function MarketplacePage() {
 
   return (
     <div className="market">
-      <SearchField value={query} onChange={setQuery} label="Search add-ons" placeholder="Search add-ons" />
+      <SearchField value={query} onChange={setQuery} label="Search add-ons" placeholder="Search add-ons" data-setting="marketplace" />
 
       {groups.map(({ category, items }) => {
         const Cat = CATEGORY_ICON[category];

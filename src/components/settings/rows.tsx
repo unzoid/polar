@@ -31,12 +31,15 @@ export function RowText({ title, caption }: { title: string; caption?: ReactNode
 
 /** An on/off setting; the whole row is its label. */
 export function ToggleRow({
+  setting,
   title,
   caption,
   checked,
   onChange,
   disabled,
 }: {
+  /** The schema id (lib/settings/schema.ts), so search can find the row. */
+  setting?: string;
   title: string;
   caption?: string;
   checked: boolean;
@@ -44,7 +47,7 @@ export function ToggleRow({
   disabled?: boolean;
 }) {
   return (
-    <label className="settings-row">
+    <label className="settings-row" data-setting={setting}>
       <RowText title={title} caption={caption} />
       <Switch checked={checked} disabled={disabled} onChange={onChange} />
     </label>
@@ -52,9 +55,9 @@ export function ToggleRow({
 }
 
 /** A row with its control (a dropdown, chips, a button) on the right. */
-export function PickRow({ title, caption, children }: { title: string; caption?: string; children: ReactNode }) {
+export function PickRow({ setting, title, caption, children }: { setting?: string; title: string; caption?: string; children: ReactNode }) {
   return (
-    <div className="settings-row">
+    <div className="settings-row" data-setting={setting}>
       <RowText title={title} caption={caption} />
       {children}
     </div>
@@ -66,6 +69,7 @@ export function PickRow({ title, caption, children }: { title: string; caption?:
  * you can type into. `zero` names what 0 means ("Never", "Any size").
  */
 export function NumberRow({
+  setting,
   title,
   caption,
   value,
@@ -76,6 +80,7 @@ export function NumberRow({
   zero,
   onChange,
 }: {
+  setting?: string;
   title: string;
   caption?: string;
   value: number;
@@ -87,7 +92,7 @@ export function NumberRow({
   onChange: (n: number) => void;
 }) {
   return (
-    <PickRow title={title} caption={caption}>
+    <PickRow setting={setting} title={title} caption={caption}>
       <SliderField label={title} value={value} min={min} max={max} step={step} unit={unit} zero={zero} onChange={onChange} />
     </PickRow>
   );

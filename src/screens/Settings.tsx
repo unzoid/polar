@@ -20,12 +20,11 @@ import { useEffect, useState } from "react";
 import { Avatar } from "../components/Avatar";
 import { useAccount } from "../lib/account/AccountProvider";
 import { Dropdown } from "../components/Dropdown";
-import { AUTO_TAG_CHOICES, screenResolution, SORTS, TAG_LABELS } from "../lib/sources";
+import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../lib/sources";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleSettings, subtitleCueVars } from "../components/player/SubtitleSettings";
 import { api } from "../lib/api";
 import tmdbLogo from "../assets/tmdb-short.svg";
 import { CREDITS, TMDB_NOTICE } from "../lib/credits";
-import { PREFERRED_LANGUAGES, languageName } from "../lib/languages";
 import { keys, useAddons, useSettings, useUpdateSettings } from "../lib/queries";
 import type { Settings as SettingsT } from "../lib/types";
 import { ShortcutSettings } from "../components/ShortcutSettings";
@@ -56,6 +55,7 @@ import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl,
 import { Button } from "../components/ui/Button";
 import { Card, ExpandRow, LinkRow, NumberRow, PickRow, RowText, ToggleRow, useExpanded, type Expandable } from "../components/settings/rows";
 import { PAGES } from "../components/settings/pages";
+import { SettingRow } from "../components/settings/SettingRow";
 import type { PageId } from "../lib/settings/pages";
 
 /**
@@ -218,39 +218,13 @@ function PlaybackPage() {
   return (
     <>
       <Card title="Autoplay">
-        <ToggleRow
-          title="Play the best source automatically"
-          caption="Start playing as soon as a good source is found, without asking you to pick one"
-          checked={data.autoPickSource}
-          onChange={(v) => set({ autoPickSource: v })}
-        />
-        <ToggleRow
-          title="Play the next episode automatically"
-          checked={data.autoplayNext}
-          onChange={(v) => set({ autoplayNext: v })}
-        />
+        <SettingRow id="autoPickSource" />
+        <SettingRow id="autoplayNext" />
         {data.autoplayNext && (
-          <NumberRow
-            title="Countdown"
-            caption="How long Up Next waits before it starts the next episode"
-            value={data.autoplayCountdown ?? 8}
-            min={3}
-            max={60}
-            unit="sec"
-            onChange={(n) => set({ autoplayCountdown: n })}
-          />
+          <SettingRow id="autoplayCountdown" />
         )}
         {data.autoplayNext && (
-          <NumberRow
-            title="Ask if you're still watching"
-            caption="Stop after this many episodes in a row with no keys or clicks, so a show doesn't play all night"
-            value={data.stillWatchingAfter ?? 0}
-            min={0}
-            max={12}
-            unit="episodes"
-            zero="Never"
-            onChange={(n) => set({ stillWatchingAfter: n })}
-          />
+          <SettingRow id="stillWatchingAfter" />
         )}
         <PickRow title="Show Up Next" caption="When the next-episode card appears near the end of an episode">
           <Dropdown
@@ -266,12 +240,7 @@ function PlaybackPage() {
       </Card>
 
       <Card title="Skipping" footer="Timings come from the IntroDB community database, or from the file's own chapters.">
-        <ToggleRow
-          title="Skip intros"
-          caption="Jump past the opening titles on their own"
-          checked={data.autoSkip}
-          onChange={(v) => set({ autoSkip: v })}
-        />
+        <SettingRow id="autoSkip" />
         <ToggleRow
           title="Skip recaps"
           caption="Jump past the “previously on” part on its own"
@@ -287,12 +256,7 @@ function PlaybackPage() {
       </Card>
 
       <Card title="Resuming">
-        <ToggleRow
-          title="Resume where you left off"
-          caption="Off: every video starts from the beginning"
-          checked={data.resumePlayback ?? true}
-          onChange={(v) => set({ resumePlayback: v })}
-        />
+        <SettingRow id="resumePlayback" />
         {(data.resumePlayback ?? true) && (
           <NumberRow
             title="Back up when resuming"
@@ -356,15 +320,7 @@ function PlaybackPage() {
             ]}
           />
         </PickRow>
-        <NumberRow
-          title="Skip forward and back"
-          caption="How far the skip buttons and the left and right arrow keys jump"
-          value={data.seekStep}
-          min={1}
-          max={120}
-          unit="sec"
-          onChange={(n) => set({ seekStep: n })}
-        />
+        <SettingRow id="seekStep" />
         <NumberRow
           title="Hide controls after"
           caption="Without moving the mouse"
@@ -426,20 +382,7 @@ function SourcesPage() {
         title="Filters"
         footer="Hidden sources never play automatically and don't show in the source list. A source that doesn't say its quality or size is always kept."
       >
-        <PickRow title="Highest quality" caption="Leave out anything sharper, for a slow connection or an older screen">
-          <Dropdown
-            label="Highest quality"
-            value={String(data.maxResolution ?? 0)}
-            onChange={(v) => set({ maxResolution: Number(v) })}
-            options={[
-              { value: "0", label: "Any" },
-              { value: "2160", label: "4K" },
-              { value: "1080", label: "1080p" },
-              { value: "720", label: "720p" },
-              { value: "480", label: "480p" },
-            ]}
-          />
-        </PickRow>
+        <SettingRow id="maxResolution" />
         <NumberRow
           title="Largest movie file"
           caption="Big files take longer to start and can stall on a slower connection"
@@ -461,12 +404,7 @@ function SourcesPage() {
           zero="Any size"
           onChange={(n) => set({ maxEpisodeSizeGb: n })}
         />
-        <ToggleRow
-          title="Hide cinema recordings"
-          caption="CAM and telesync copies, filmed in a cinema"
-          checked={data.hideCam ?? true}
-          onChange={(v) => set({ hideCam: v })}
-        />
+        <SettingRow id="hideCam" />
       </Card>
 
       <Card
@@ -494,31 +432,9 @@ function SourcesPage() {
       </Card>
 
       <Card title="Source List">
-        <PickRow title="Sort by" caption="How the Sources list in the player is ordered when it opens">
-          <Dropdown
-            label="Sort by"
-            value={data.sourceSort in SORTS ? data.sourceSort : "best"}
-            onChange={(v) => set({ sourceSort: v })}
-            options={[
-              { value: "best", label: "Best match" },
-              { value: "quality", label: "Highest quality" },
-              { value: "sizeDesc", label: "Largest file" },
-              { value: "sizeAsc", label: "Smallest file" },
-            ]}
-          />
-        </PickRow>
-        <ToggleRow
-          title="Match my screen"
-          caption={`This screen is ${screenLabel}. Best match puts sources it can show first, instead of bigger files it can't`}
-          checked={data.preferScreenResolution ?? true}
-          onChange={(v) => set({ preferScreenResolution: v })}
-        />
-        <ToggleRow
-          title="Filters hide other sources"
-          caption="Off: sources matching your filters come first and the rest stay below them, so a missing language or size never leaves you with nothing to pick"
-          checked={data.sourceFiltersHide ?? false}
-          onChange={(v) => set({ sourceFiltersHide: v })}
-        />
+        <SettingRow id="sourceSort" />
+        <SettingRow id="preferScreenResolution" caption={`This screen is ${screenLabel}. Best match puts sources it can show first, instead of bigger files it can't`} />
+        <SettingRow id="sourceFiltersHide" />
       </Card>
 
       <Card
@@ -547,12 +463,6 @@ function SourcesPage() {
 
 // --- Subtitles & audio -----------------------------------------------------
 
-/** "Default"/"Off" first, then languages (plus the current one if it isn't in the list). */
-function languageOptions(current: string, none: string) {
-  const codes = current && !PREFERRED_LANGUAGES.includes(current) ? [current, ...PREFERRED_LANGUAGES] : PREFERRED_LANGUAGES;
-  return [{ value: "", label: none }, ...codes.map((c) => ({ value: c, label: languageName(c) ?? c }))];
-}
-
 function SubtitlesPage() {
   const { data } = useSettings();
   const update = useUpdateSettings();
@@ -562,22 +472,8 @@ function SubtitlesPage() {
   return (
     <>
       <Card title="Languages">
-        <PickRow title="Audio">
-          <Dropdown
-            label="Audio language"
-            value={data.audioLanguage}
-            onChange={(v) => update.mutate({ audioLanguage: v })}
-            options={languageOptions(data.audioLanguage, "Default")}
-          />
-        </PickRow>
-        <PickRow title="Subtitles">
-          <Dropdown
-            label="Subtitle language"
-            value={data.subtitleLanguage}
-            onChange={(v) => update.mutate({ subtitleLanguage: v })}
-            options={languageOptions(data.subtitleLanguage, "Off")}
-          />
-        </PickRow>
+        <SettingRow id="audioLanguage" />
+        <SettingRow id="subtitleLanguage" />
         {!!data.subtitleLanguage && (
           <PickRow
             title="Show subtitles"
@@ -817,28 +713,13 @@ function BrowsingPage() {
         </PickRow>
       </Card>
       <Card title="Title Pages">
-        <ToggleRow
-          title="Play trailers on title pages"
-          caption="After a few seconds on a movie or show, its trailer plays behind the page"
-          checked={data.trailerAutoplay ?? true}
-          onChange={(v) => update.mutate({ trailerAutoplay: v })}
-        />
+        <SettingRow id="trailerAutoplay" />
         {(data.trailerAutoplay ?? true) && (
-          <ToggleRow
-            title="Automatic trailer sound"
-            caption="When enabled, automatic trailer previews start with sound"
-            checked={!!data.trailerSound}
-            onChange={(v) => update.mutate({ trailerSound: v })}
-          />
+          <SettingRow id="trailerSound" />
         )}
       </Card>
       <Card title="Calendar" footer="Like Stremio's calendar: built from the shows in your library and the ones you're watching.">
-        <ToggleRow
-          title="Show the Calendar"
-          caption="A section listing new episodes of your shows by the day they air"
-          checked={!!data.showCalendar}
-          onChange={(v) => update.mutate({ showCalendar: v })}
-        />
+        <SettingRow id="showCalendar" />
       </Card>
       <Card title="Home">
         <ToggleRow
@@ -847,11 +728,7 @@ function BrowsingPage() {
           checked={data.heroAutoplay ?? true}
           onChange={(v) => update.mutate({ heroAutoplay: v })}
         />
-        <ToggleRow
-          title="Show Continue Watching"
-          checked={data.showContinueWatching ?? true}
-          onChange={(v) => update.mutate({ showContinueWatching: v })}
-        />
+        <SettingRow id="showContinueWatching" />
       </Card>
       <Card title="Spoilers" footer="Episodes you've finished show as normal.">
         <ToggleRow
@@ -867,18 +744,7 @@ function BrowsingPage() {
         />
       </Card>
       <Card title="Family">
-        <PickRow title="Mature content" caption="Ecchi anime: fan service, suggestive art. Explicit titles never show">
-          <Dropdown
-            label="Mature content"
-            value={prefs.matureContent}
-            onChange={(v) => setPrefs({ matureContent: v })}
-            options={[
-              { value: "show", label: "Show" },
-              { value: "blur", label: "Blur posters" },
-              { value: "hide", label: "Hide" },
-            ]}
-          />
-        </PickRow>
+        <SettingRow id="matureContent" />
       </Card>
       <Card title="Search">
         <ToggleRow
@@ -910,24 +776,9 @@ function BrowsingPage() {
           disabled={!data.showCardTitles}
           onChange={(v) => update.mutate({ showCardDetails: v })}
         />
-        <ToggleRow
-          title="Show IMDb ratings"
-          caption="Add an IMDb rating badge to each poster"
-          checked={data.showCardRatings ?? false}
-          onChange={(v) => update.mutate({ showCardRatings: v })}
-        />
+        <SettingRow id="showCardRatings" />
         {(data.showCardRatings ?? false) && (
-          <PickRow title="Rating position">
-            <Dropdown
-              label="Rating position"
-              value={data.cardRatingPosition === "below" ? "below" : "poster"}
-              onChange={(v) => update.mutate({ cardRatingPosition: v })}
-              options={[
-                { value: "poster", label: "On the poster" },
-                { value: "below", label: "Under the poster" },
-              ]}
-            />
-          </PickRow>
+          <SettingRow id="cardRatingPosition" />
         )}
         <ToggleRow
           title="Colour-code IMDb ratings"
@@ -965,12 +816,7 @@ function AnimePage() {
   const tidyGroups = preferredGroups(groups).join(", ");
   const section = (
     <Card footer={prefs.animeEnabled ? undefined : "Your watch history and saved titles stay as they are."}>
-      <ToggleRow
-        title="Show Anime"
-        caption="The Anime section, in desktop and TV mode"
-        checked={prefs.animeEnabled}
-        onChange={(v) => setPrefs({ animeEnabled: v })}
-      />
+      <SettingRow id="animeEnabled" />
     </Card>
   );
   if (!prefs.animeEnabled) return section;
@@ -978,18 +824,7 @@ function AnimePage() {
     <>
       {section}
       <Card title="Language">
-        <PickRow title="Anime titles" caption="Tower of Glass, Garasu no Tou, or ガラスの塔. Episode titles follow when they can">
-          <Dropdown
-            label="Anime titles"
-            value={prefs.animeTitles}
-            onChange={(v) => setPrefs({ animeTitles: v })}
-            options={[
-              { value: "english", label: "English" },
-              { value: "romaji", label: "Romaji" },
-              { value: "native", label: "Japanese" },
-            ]}
-          />
-        </PickRow>
+        <SettingRow id="animeTitles" />
         <PickRow title="Voice actors" caption="Whose voices to list beside the characters">
           <Dropdown
             label="Voice actors"
@@ -1015,24 +850,9 @@ function AnimePage() {
         </div>
       </Card>
       <Card title="Cards">
-        <ToggleRow title="Show scores" caption="The AniList score on each poster" checked={prefs.animeCardScores} onChange={(v) => setPrefs({ animeCardScores: v })} />
-        <PickRow title="Score format">
-          <Dropdown
-            label="Score format"
-            value={prefs.animeScoreFormat}
-            onChange={(v) => setPrefs({ animeScoreFormat: v })}
-            options={[
-              { value: "ten", label: "Out of ten (8.6)" },
-              { value: "percent", label: "Percentage (86%)" },
-            ]}
-          />
-        </PickRow>
-        <ToggleRow
-          title="Show airing countdowns"
-          caption="When the next episode lands, on shows that are on air"
-          checked={prefs.animeCardCountdown}
-          onChange={(v) => setPrefs({ animeCardCountdown: v })}
-        />
+        <SettingRow id="animeCardScores" />
+        <SettingRow id="animeScoreFormat" />
+        <SettingRow id="animeCardCountdown" />
       </Card>
       <Card title="Schedule">
         <ToggleRow
@@ -1122,13 +942,7 @@ function AdvancedPage() {
           disabled={hasMpv === false}
           onChange={(v) => setPrefs({ deband: v })}
         />
-        <ToggleRow
-          title="Crop black bars"
-          caption="Some files carry black bars inside the picture. This finds and trims them so the film fills a wide or ultrawide screen. Uses a little more CPU."
-          checked={prefs.autocrop}
-          disabled={hasMpv === false}
-          onChange={(v) => setPrefs({ autocrop: v })}
-        />
+        <SettingRow id="autocrop" disabled={hasMpv === false} />
         <PickRow title="Buffer" caption="How far ahead to load. Larger rides out a patchy connection but uses more memory.">
           <Dropdown
             label="Buffer"
@@ -1336,15 +1150,7 @@ function ControlsPage() {
           checked={prefs.showTvButton}
           onChange={(v) => setPrefs({ showTvButton: v })}
         />
-        <ToggleRow
-          title="Interface sounds"
-          caption="Soft clicks as you move, select and go back"
-          checked={prefs.uiSounds}
-          onChange={(v) => {
-            setPrefs({ uiSounds: v });
-            if (v) playSound("select", { force: true });
-          }}
-        />
+        <SettingRow id="uiSounds" onChanged={(v) => v && playSound("select", { force: true })} />
         {prefs.uiSounds && (
           <PickRow title="Sound pack">
             <Dropdown
@@ -1359,18 +1165,7 @@ function ControlsPage() {
           </PickRow>
         )}
         {prefs.uiSounds && (
-          <NumberRow
-            title="Sound volume"
-            value={Math.round(prefs.uiSoundVolume * 100)}
-            min={5}
-            max={100}
-            step={5}
-            unit="%"
-            onChange={(n) => {
-              setPrefs({ uiSoundVolume: n / 100 });
-              playSound("select", { force: true });
-            }}
-          />
+          <SettingRow id="uiSoundVolume" onChanged={() => playSound("select", { force: true })} />
         )}
       </Card>
       <ShortcutSettings />
@@ -1468,12 +1263,7 @@ function ControllerPage() {
             }
           />
         </div>
-        <ToggleRow
-          title="Connection notices"
-          caption="When a controller connects or disconnects"
-          checked={prefs.controllerAlerts}
-          onChange={(v) => setPrefs({ controllerAlerts: v })}
-        />
+        <SettingRow id="controllerAlerts" />
         <ToggleRow
           title="Suggest TV mode"
           caption="Offer TV mode when a controller connects in desktop mode"
@@ -1493,12 +1283,7 @@ function ControllerPage() {
             ]}
           />
         </PickRow>
-        <ToggleRow
-          title="Button hints"
-          caption="What each button does, along the bottom of TV mode"
-          checked={prefs.padHints}
-          onChange={(v) => setPrefs({ padHints: v })}
-        />
+        <SettingRow id="padHints" />
       </Card>
 
       <Card title="D-pad & Stick">
@@ -1514,12 +1299,7 @@ function ControllerPage() {
             ]}
           />
         </PickRow>
-        <ToggleRow
-          title="Left stick moves too"
-          caption="Use the stick like the D-pad"
-          checked={prefs.padStick}
-          onChange={(v) => setPrefs({ padStick: v })}
-        />
+        <SettingRow id="padStick" />
         {prefs.padStick && (
           <PickRow title="Stick sensitivity" caption="How far to tilt it before it moves">
             <Dropdown
@@ -1534,12 +1314,7 @@ function ControllerPage() {
             />
           </PickRow>
         )}
-        <ToggleRow
-          title="Up and down change the volume"
-          caption="In the player. Off: leave the volume to your TV or speakers"
-          checked={prefs.padPlayerVolume}
-          onChange={(v) => setPrefs({ padPlayerVolume: v })}
-        />
+        <SettingRow id="padPlayerVolume" />
       </Card>
 
       <PadBindingsCard

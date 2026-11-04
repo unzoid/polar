@@ -23,11 +23,12 @@ const GROUPS: { heading?: string; pages: PageId[] }[] = [
 const ROW_LABELS = ".settings-row-title, .settings-group-title, .sub-setting-label, .shortcut-label";
 const ROW_BOXES = ".settings-row, .settings-group-title, .sub-setting, .shortcut-row";
 
-/** Scrolls a page to the setting with this label and briefly highlights it. */
-function revealSetting(root: HTMLElement, title: string) {
-  const label = [...root.querySelectorAll<HTMLElement>(ROW_LABELS)].find((el) => el.textContent?.trim() === title);
+/** Scrolls a page to the setting (by its schema id, else by its label) and briefly highlights it. */
+function revealSetting(root: HTMLElement, entry: SettingEntry) {
+  const marked = root.querySelector<HTMLElement>(`[data-setting="${CSS.escape(entry.id)}"]`);
+  const label = marked ?? [...root.querySelectorAll<HTMLElement>(ROW_LABELS)].find((el) => el.textContent?.trim() === entry.title);
   if (!label) return;
-  const box = label.closest<HTMLElement>(ROW_BOXES) ?? label;
+  const box = marked ?? label.closest<HTMLElement>(ROW_BOXES) ?? label;
   box.scrollIntoView({ block: "center" });
   box.removeAttribute("data-search-hit");
   void box.offsetWidth; // restart the highlight if it's already running
@@ -71,7 +72,7 @@ export function SettingsOverlay() {
   const [selected, setSelected] = useState(0);
   const resultsList = useRef<HTMLDivElement>(null);
   // The setting to scroll to once its page has rendered.
-  const [target, setTarget] = useState<{ title: string } | null>(null);
+  const [target, setTarget] = useState<{ entry: SettingEntry } | null>(null);
 
   useEffect(() => setSelected(0), [query]);
 
@@ -82,7 +83,7 @@ export function SettingsOverlay() {
   useEffect(() => {
     if (!target || !scroller.current) return;
     const root = scroller.current;
-    const frame = requestAnimationFrame(() => revealSetting(root, target.title));
+    const frame = requestAnimationFrame(() => revealSetting(root, target.entry));
     return () => cancelAnimationFrame(frame);
   }, [target, page]);
 
@@ -93,7 +94,7 @@ export function SettingsOverlay() {
 
   const pick = (entry: SettingEntry) => {
     go(entry.page);
-    setTarget({ title: entry.title }); // a fresh object, so picking the same one again still scrolls
+    setTarget({ entry }); // a fresh object, so picking the same one again still scrolls
   };
 
   return (
@@ -144,7 +145,7 @@ export function SettingsOverlay() {
                       const p = pageOf(entry.page);
                       return (
                         <div
-                          key={`${entry.page}:${entry.title}`}
+                          key={entry.id}
                           id={`t3s-result-${i}`}
                           data-index={i}
                           className="t3s-result"
