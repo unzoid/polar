@@ -1,8 +1,9 @@
 import { QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { api } from "./api";
 import { sync } from "./account/sync";
 import { fetchAniZip } from "./anime/anizip";
+import { groupBoost, preferredGroups } from "./anime/groups";
 import { isKitsuId } from "./anime/kitsu";
 import { usePrefs } from "./prefs";
 import type { ContentType, MetaPreview, Progress, Settings, StreamsResult } from "./types";
@@ -44,8 +45,9 @@ export const useMeta = (type: ContentType, id: string, enabled = true) =>
 
 export function useStreams(type: ContentType, videoId: string | undefined) {
   const anime = useIsAnime(videoId);
-  const { animeNo4k } = usePrefs();
+  const { animeNo4k, animePreferredGroups } = usePrefs();
   const no4k = anime && animeNo4k;
+  const groups = useMemo(() => preferredGroups(animePreferredGroups), [animePreferredGroups]);
   const select = useCallback(
     (d: StreamsResult): StreamsResult => {
       // Settings → Anime: 4K anime is nearly always an AI upscale. Counted as hidden, like Settings' other source filters.
@@ -55,10 +57,16 @@ export function useStreams(type: ContentType, videoId: string | undefined) {
         hidden: (d.hidden ?? 0) + d.streams.length - kept.length,
         // Sources that say nothing about their audio have the original's: fansub
         // releases (SubsPlease, Erai-raws) never name their Japanese audio.
-        streams: kept.map((r) => (r.quality.languages?.length ? r : { ...r, quality: { ...r.quality, languages: ["ja"] } })),
+        // And Settings → Anime: your preferred release groups go to the top of
+        // "Best match", so they're what autoplay tries first.
+        streams: kept.map((r) => ({
+          ...r,
+          quality: r.quality.languages?.length ? r.quality : { ...r.quality, languages: ["ja"] },
+          score: r.score + groupBoost(r.quality.source, groups),
+        })),
       };
     },
-    [no4k],
+    [no4k, groups],
   );
   return useQuery({
     queryKey: keys.streams(type, videoId ?? ""),
