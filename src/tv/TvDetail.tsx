@@ -4,7 +4,7 @@ import { useBackdropTrailer } from "../components/BackdropTrailer";
 import { TitleDetails } from "../components/TitleDetails";
 import { Info } from "../components/icons";
 import { addToPlaylist, createPlaylist, removeFromPlaylist, renamePlaylist, usePlaylists } from "../lib/playlists";
-import { TitleLogo } from "../components/TitleLogo";
+import { TitleHeading } from "../components/title/TitleHeading";
 import { ProgressBar } from "../components/title/Card";
 import { Still } from "../components/StillPlaceholder";
 import { stillFor } from "../lib/anime/stills";
@@ -72,11 +72,7 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
         {trailer.node}
       </TvBackdrop>
       <div className="tv-detail-body">
-        {shown.logo ? (
-          <TitleLogo src={shown.logo} alt={shown.name} className="tv-detail-logo" loading="eager" />
-        ) : (
-          <h1 className="tv-detail-title">{shown.name}</h1>
-        )}
+        <TitleHeading name={shown.name} logo={shown.logo} look="tv-detail" />
         <Facts facts={titleFacts(shown, [formatRuntime(meta?.runtime)])} />
         {shown.description && <p className="tv-detail-description">{shown.description}</p>}
         <Credits meta={meta} />
@@ -379,7 +375,7 @@ function EpisodesPanel({
   return (
     <div className="tv-panel tv-episodes" ref={ref} data-nav-scope role="dialog" aria-label="Episodes">
       <aside className="tv-episodes-side">
-        {meta.logo ? <TitleLogo src={meta.logo} alt={meta.name} className="tv-panel-logo" /> : <h2 className="tv-panel-title">{meta.name}</h2>}
+        <TitleHeading name={meta.name} logo={meta.logo} look="tv-panel" />
         <div className="tv-seasons" ref={seasonList} data-nav-scroll="center" data-nav-memory data-nav-prefer-entry>
           {seasons.map((s) => (
             <button

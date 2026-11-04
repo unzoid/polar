@@ -475,7 +475,15 @@ code draws, not what's on screen.
    same elements and classes as before. Play and "Choose source" are disabled exactly when there's no
    request; on the anime page that was "no target" before, which differed only when an episode was known
    but no meta id (a button that did nothing on click). The show page's mute button stays its own child.
-   Not yet: `TitleHeading`/`Facts`, `EpisodeCard`, the TV column of pills (step 6).
+   `components/title/TitleHeading.tsx` (`name`, `logo`, `look` hero/detail/tv-stage/tv-detail/tv-panel): the
+   logo-or-heading written 7× (Home and Anime heroes, both title pages, TV stage, TV detail and its episodes
+   panel); `look` names the classes (`hero-logo`/`hero-title`, …), so every layout keeps its CSS and element.
+   The facts lines go through `joinFacts(parts)` and `kindFacts(item)` in `lib/format.ts` (tested in
+   `tests/format.test.ts`): Home's `hero-kind`, Anime's, both title pages' and TV's `titleFacts` built the
+   " · " line or the type + two genres by hand. The lines themselves stay in each layout: their order and
+   extras differ (rating ring, score chips, format badges, the anime next-episode line), and TV draws its facts
+   as separate spans. So no single `Facts` component; that part of U4 is the two helpers.
+   Not yet: `EpisodeCard`, the TV column of pills (step 6).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

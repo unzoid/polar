@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AmbientWash } from "../components/AmbientWash";
 import { ImdbBadge } from "../components/ImdbBadge";
-import { TitleLogo } from "../components/TitleLogo";
+import { TitleHeading } from "../components/title/TitleHeading";
+import { kindFacts } from "../lib/format";
 import { api } from "../lib/api";
 import { isAnimePreview } from "../lib/anime/preview";
 import { keys } from "../lib/queries";
@@ -68,8 +69,7 @@ export function StageProvider({ children, render }: { children: ReactNode; rende
 export function titleFacts(item: MetaPreview, extra: (string | undefined)[] = []): ReactNode[] {
   const score = Number(item.imdbRating);
   return [
-    item.type === "movie" ? "Movie" : "Series",
-    ...(item.genres ?? []).slice(0, 2),
+    ...kindFacts(item),
     item.releaseInfo,
     ...extra,
     score > 0 ? <ImdbBadge key="imdb" value={score} /> : undefined,
@@ -107,11 +107,7 @@ export function TvStage({ entry }: { entry: StageEntry | null }) {
       <TvBackdrop src={shown?.background} className="tv-stage-art" />
       {shown && (
         <div key={shown.id} className="tv-stage-info" aria-live="polite">
-          {shown.logo ? (
-            <TitleLogo src={shown.logo} alt={shown.name} className="tv-stage-logo" loading="eager" />
-          ) : (
-            <h1 className="tv-stage-title">{shown.name}</h1>
-          )}
+          <TitleHeading name={shown.name} logo={shown.logo} look="tv-stage" />
           {entry?.kicker && <p className="tv-stage-kicker">{entry.kicker}</p>}
           <Facts facts={titleFacts(shown)} />
           {shown.description && <p className="tv-stage-description">{shown.description}</p>}

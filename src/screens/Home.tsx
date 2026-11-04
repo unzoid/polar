@@ -3,13 +3,13 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "
 import { AmbientWash } from "../components/AmbientWash";
 import { ChevronRight, Play } from "../components/icons";
 import { Img } from "../components/Img";
-import { TitleLogo } from "../components/TitleLogo";
+import { TitleHeading } from "../components/title/TitleHeading";
 import { LandscapeCard, PosterCard, useIntent } from "../components/PosterCard";
 import { ArtTitle, Card, ProgressBar } from "../components/title/Card";
 import { Shelf } from "../components/title/Shelf";
 import { Row } from "../components/Row";
 import { api } from "../lib/api";
-import { episodeCode, formatRemaining } from "../lib/format";
+import { episodeCode, formatRemaining, joinFacts, kindFacts } from "../lib/format";
 import {
   keys,
   preloadImage,
@@ -222,14 +222,8 @@ function HeroContent({ item }: { item: MetaPreview }) {
 
   return (
     <div className="hero-content">
-      {item.logo ? (
-        <TitleLogo src={item.logo} alt={item.name} className="hero-logo" loading="eager" />
-      ) : (
-        <h1 className="t-display hero-title">{item.name}</h1>
-      )}
-      <p className="hero-kind t-callout">
-        {[item.type === "movie" ? "Movie" : "Series", ...(item.genres ?? []).slice(0, 2)].join(" · ")}
-      </p>
+      <TitleHeading name={item.name} logo={item.logo} look="hero" />
+      <p className="hero-kind t-callout">{joinFacts(kindFacts(item))}</p>
       <p className="hero-description t-body">{item.description}</p>
       <div className="hero-actions">
         <Button variant="primary" onClick={open} {...intent}>
