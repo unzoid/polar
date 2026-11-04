@@ -1,4 +1,5 @@
 import { isMac } from "../../lib/platform";
+import { OPEN_DYSLEXIC } from "../../lib/fonts";
 import { Minus, Plus, Reset } from "../icons";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { SubtitleStyle } from "../../lib/types";
@@ -24,12 +25,19 @@ const complete = (style: SubtitleStyle): Required<SubtitleStyle> =>
   ({ ...DEFAULT_SUBTITLE_STYLE, ...style, font: style.font || DEFAULT_FONT }) as Required<SubtitleStyle>;
 const isDefaultStyle = (style: SubtitleStyle) => JSON.stringify(complete(style)) === JSON.stringify(complete(DEFAULT_SUBTITLE_STYLE));
 
-/** Fonts that ship with the OS, so mpv and the preview both find them. Values are family names. */
+/**
+ * Fonts that ship with the OS, so mpv and the preview both find them, plus
+ * OpenDyslexic, which the app bundles: mpv reads it from src-tauri/fonts
+ * (--sub-fonts-dir), the preview and the built-in player from base.css's
+ * @font-face. Values are family names.
+ */
+const DYSLEXIC = { value: OPEN_DYSLEXIC, label: "OpenDyslexic" };
 const MAC_FONTS = ["Arial", "Avenir Next", "Verdana", "Trebuchet MS", "Futura", "Georgia", "Times New Roman", "Menlo", "Comic Sans MS", "Impact"];
 const FONTS = isMac
-  ? [{ value: DEFAULT_FONT, label: "Helvetica Neue (Default)" }, ...MAC_FONTS.map((f) => ({ value: f, label: f }))]
+  ? [{ value: DEFAULT_FONT, label: "Helvetica Neue (Default)" }, DYSLEXIC, ...MAC_FONTS.map((f) => ({ value: f, label: f }))]
   : [
   { value: DEFAULT_FONT, label: "Segoe UI (Default)" },
+  DYSLEXIC,
   { value: "Arial", label: "Arial" },
   { value: "Calibri", label: "Calibri" },
   { value: "Verdana", label: "Verdana" },

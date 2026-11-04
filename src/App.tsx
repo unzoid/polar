@@ -6,6 +6,7 @@ import type { Settings as SettingsT } from "./lib/types";
 import { NavBar } from "./components/NavBar";
 import { PlayerLayer, usePlayerLayer } from "./components/PlayerLayer";
 import { useSettings } from "./lib/queries";
+import { uiFontOf } from "./lib/fonts";
 import { rootTab, RouterProvider, useRouter, type Route } from "./lib/router";
 import { focusSearch } from "./lib/searchQuery";
 import { Home } from "./screens/Home";
@@ -95,8 +96,7 @@ function MainApp() {
 
   // On the root element so portalled menus pick it up too.
   useEffect(() => {
-    // Anything else (e.g. the removed "netflix" test font) falls back to Inter.
-    document.documentElement.dataset.font = settings?.uiFont === "system" ? "system" : "inter";
+    document.documentElement.dataset.font = uiFontOf(settings?.uiFont);
   }, [settings?.uiFont]);
 
   // Settings → Appearance and → Browsing, as attributes and variables on <html>

@@ -181,6 +181,17 @@ pub fn mpv_binary() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
+/// The fonts bundled for subtitles (tauri.conf.json `bundle.resources`):
+/// in the app's resources, or next to the binary in a dev build.
+fn bundled_fonts(app: &AppHandle) -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok().and_then(|e| e.parent().map(PathBuf::from));
+    [app.path().resource_dir().ok(), exe_dir]
+        .into_iter()
+        .flatten()
+        .map(|d| d.join("fonts"))
+        .find(|d| d.join("OpenDyslexic-Regular.otf").is_file())
+}
+
 /// libmpv on macOS: bundled in the app, or from Homebrew / MacPorts
 /// (`brew install mpv` installs it alongside the mpv command).
 #[cfg(target_os = "macos")]
@@ -349,7 +360,7 @@ impl Mpv {
         let shader_cache = app.path().app_cache_dir().unwrap_or_else(|_| shots.clone()).join("mpv-shaders");
         let _ = std::fs::create_dir_all(&shader_cache);
 
-        let base: Vec<String> = vec![
+        let mut base: Vec<String> = vec![
             format!("--input-ipc-server={pipe}"),
             "--profile=libmpv".into(), // no OSC/OSD/default key bindings — our UI does that
             // Ignore a user's own mpv.conf/scripts: heavy shaders or
@@ -387,6 +398,11 @@ impl Mpv {
             "--screenshot-jpeg-quality=70".into(),
             format!("--screenshot-directory={}", shots.display()),
         ];
+        // Fonts the app ships for subtitles (OpenDyslexic): mpv otherwise
+        // only finds the ones installed on the system.
+        if let Some(fonts) = bundled_fonts(app) {
+            base.push(format!("--sub-fonts-dir={}", fonts.display()));
+        }
         let (engine, client) = start_engine(window, base, &pipe).await?;
         let (reader, writer) = tokio::io::split(client);
         let pending: Pending = Arc::default();
