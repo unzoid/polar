@@ -4,6 +4,7 @@ import { cachedLookup } from "../queries";
 import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard } from "./anilist";
 import { airedEpisodes, airsWith, cachedAniZip, type AniZip, type AniZipEpisode } from "./anizip";
 import { norm } from "./merge";
+import { readCards, readPage } from "./responses";
 import { keys } from "../queryKeys";
 
 /** AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search. */
@@ -180,13 +181,13 @@ export async function anilistForImdb(imdbId: string, title: { type: string; name
   const formats: readonly string[] = title.type === "movie" ? MAIN_FORMATS.movie : MAIN_FORMATS.series;
   if (!zip.mappings.type || formats.includes(zip.mappings.type)) return id;
 
-  const data = await gql<{ Page: { media: { id: number; startDate?: { year?: number | null } }[] } }>(
+  const data = await gql(
     `query ($search: String, $formats: [MediaFormat]) {
       Page(perPage: 6) { media(type: ANIME, search: $search, format_in: $formats, sort: [SEARCH_MATCH, POPULARITY_DESC]) { id startDate { year } } }
     }`,
     { search: title.name, formats },
   ).catch(() => null);
-  const candidates = (data?.Page.media ?? []).sort(
+  const candidates = readCards(data && readPage(data, "media").items).sort(
     (a, b) => Number(a.startDate?.year !== title.year) - Number(b.startDate?.year !== title.year),
   );
   for (const c of candidates.slice(0, 3)) {

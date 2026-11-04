@@ -4,6 +4,7 @@ import type { Video } from "../types";
 import { keys } from "../queryKeys";
 import { queryClient } from "../queryClient";
 import { aniZipLimiter, limitedFetch } from "../net/limiter";
+import { readAniZip } from "./responses";
 
 /**
  * ani.zip: the bridge between anime databases and everything else. For an
@@ -70,9 +71,9 @@ async function fetchAniZip(params: AniZipParams, signal?: AbortSignal): Promise<
   }
   if (res.status === 404) return null;
   if (!res.ok) return fallback(k, String(v), new Error(`ani.zip answered ${res.status}`));
-  const json = (await res.json().catch(() => undefined)) as AniZip | null | undefined;
+  const json: unknown = await res.json().catch(() => undefined);
   if (json === undefined) return fallback(k, String(v), new Error("ani.zip answered with something that isn't JSON"));
-  return json?.mappings ? json : null;
+  return readAniZip(json);
 }
 
 /** Fribb/anime-lists' ids in ani.zip's shape, or the original error if it has none. */

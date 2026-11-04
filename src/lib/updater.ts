@@ -153,7 +153,10 @@ export async function takeWhatsNew(): Promise<WhatsNew | null> {
   if (!notes) {
     try {
       const res = await fetch(`https://api.github.com/repos/unzoid/polar/releases/tags/v${version}`);
-      if (res.ok) notes = releaseNotesSection(((await res.json()) as { body?: string }).body ?? "");
+      if (res.ok) {
+        const release: unknown = await res.json();
+        notes = releaseNotesSection((isRecord(release) && str(release.body)) || "");
+      }
     } catch {}
   }
   return { version, previous, notes };

@@ -3,6 +3,7 @@ import { parseVideoId } from "../identity";
 import { cachedAniZip, regularEpisodes } from "./anizip";
 import { animeLinks } from "./links";
 import { playContext } from "./playContext";
+import { readSkipTimes } from "./responses";
 
 /**
  * AniSkip (api.aniskip.com): crowd-sourced opening, ending and recap times
@@ -37,23 +38,14 @@ async function resolve(videoId: string): Promise<{ malId: number; episode: numbe
   return ep ? { malId, episode: Number(ep.episode) } : null;
 }
 
-interface AniSkipResult {
-  found: boolean;
-  results?: { interval: { startTime: number; endTime: number }; skipType: "op" | "ed" | "recap" | "mixed-op" | "mixed-ed" }[];
-}
-
 export async function aniSkipSegments(videoId: string): Promise<Partial<SkipSegments>> {
   const target = await resolve(videoId);
   if (!target) return {};
   const types = ["op", "ed", "recap", "mixed-op", "mixed-ed"].map((t) => `types=${t}`).join("&");
   const res = await fetch(`https://api.aniskip.com/v2/skip-times/${target.malId}/${target.episode}?${types}&episodeLength=0`).catch(() => null);
   if (!res?.ok) return {};
-  const json = (await res.json()) as AniSkipResult;
-  if (!json.found || !json.results) return {};
-  const span = (kinds: string[]): Span | undefined => {
-    const r = json.results!.find((x) => kinds.includes(x.skipType));
-    return r && r.interval.endTime > r.interval.startTime ? { start: r.interval.startTime, end: r.interval.endTime } : undefined;
-  };
+  const found = readSkipTimes(await res.json().catch(() => null));
+  const span = (kinds: string[]): Span | undefined => found.find((x) => kinds.includes(x.kind))?.span;
   const out: Partial<SkipSegments> = {};
   const intro = span(["op", "mixed-op"]);
   const outro = span(["ed", "mixed-ed"]);
