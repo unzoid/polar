@@ -173,12 +173,8 @@ impl Downloads {
         if self.problem.is_some() {
             return;
         }
-        let _ = std::fs::create_dir_all(&self.dir);
-        if let Ok(json) = serde_json::to_vec_pretty(items) {
-            let tmp = self.dir.join("downloads.json.tmp");
-            if std::fs::write(&tmp, json).is_ok() {
-                let _ = std::fs::rename(tmp, self.dir.join("downloads.json"));
-            }
+        if let Ok(json) = serde_json::to_vec(items) {
+            let _ = polar_library::saver::write_atomic(&self.dir.join("downloads.json"), &json);
         }
     }
 
