@@ -30,6 +30,7 @@ removes the most cost first. Every step is a set of small commits that each leav
 | Dead UI code, CSS tokens and primitives | M24, L23 (part) | T-019, `docs/ui-components.md` |
 | P2P playback and its wording | — | T-014 |
 | AniList and ani.zip share a request budget; ani.zip, lookup search and Kitsu records through the query cache | M10 | R3, `lib/net/limiter.ts` |
+| Watch-party messages and presence parsed and bounded before use | M11 | R3, `lib/party/messages.ts` |
 
 ## 3. Order of the remaining work
 
@@ -73,7 +74,10 @@ Done in the same migration, so the server is changed once:
   `Retry-After` and gives up after a bound. Done for AniList and ani.zip (Jikan moved into
   `crates/anime/src/fillers.rs`, which caps its retries). `imdbForAnime`'s Cinemeta search and `kitsuMeta`'s
   AniList record go through the query cache too (the record shared with the anime page, not a smaller query).
-- **M11** Party messages parsed and bounded before use. **M12** Local data of a deleted profile and of
+- **M11** Party messages parsed and bounded before use. Done (`lib/party/messages.ts`): safe-integer versions,
+  a timeline only for its sender and only from someone present, at most 50 versions ahead unless from the host,
+  positions/lag/text clamped, presence entries must carry their key. Ids are still self-declared (no server of
+  our own): a member can claim another's id or an early `joinedAt`. **M12** Local data of a deleted profile and of
   a signed-out account removed; guest data offered to the first profile.
 - **L1** Errors as `{ code, message }` from Rust and the account backend, not sniffed strings.
 - Layout: `lib/` keeps one folder per domain (`account`, `anime`, `party`, `settings`, `library`,
