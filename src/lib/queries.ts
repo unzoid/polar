@@ -23,9 +23,9 @@ export const useRecommend = (type: ContentType, id: string, enabled = true) =>
 export const useMeta = (type: ContentType, id: string, enabled = true) =>
   useQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000, enabled });
 
-/** api's search and meta, with meta through the query cache: what a lookup fetched, useMeta then reuses. */
+/** api's search and meta through the query cache: what a lookup fetched, useSearch and useMeta then reuse. */
 export const cachedLookup = (qc: QueryClient) => ({
-  search: api.search,
+  search: (query: string) => qc.fetchQuery({ queryKey: keys.search(query), queryFn: () => api.search(query) }),
   meta: (type: ContentType, id: string) =>
     qc.fetchQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000 }),
 });

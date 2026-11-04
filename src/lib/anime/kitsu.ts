@@ -1,5 +1,7 @@
 import type { ContentType, Meta, Video } from "../types";
 import { getPrefs } from "../prefs";
+import { queryClient } from "../queryClient";
+import { keys } from "../queryKeys";
 import { fetchAnime } from "./anilist";
 import { animeArt, episodeTitle, cachedAniZip, regularEpisodes, type AniZipEpisode } from "./anizip";
 import { cleanDescription, pickTitle } from "./format";
@@ -26,7 +28,12 @@ export async function kitsuMeta(type: ContentType, id: string): Promise<Meta> {
   const zip = await cachedAniZip({ kitsu_id: kitsu });
   const anilistId = zip?.mappings.anilist_id;
   if (!zip || !anilistId) throw new Error("This anime isn't known to ani.zip");
-  const anime = await fetchAnime(anilistId);
+  // The same record (and cache entry) the anime page uses: opening it after this costs nothing.
+  const anime = await queryClient.fetchQuery({
+    queryKey: keys.anime.media(anilistId),
+    queryFn: ({ signal }) => fetchAnime(anilistId, signal),
+    staleTime: 30 * 60_000,
+  });
   const lang = getPrefs().animeTitles;
 
   // Without ani.zip's episode list (its fallback has ids only), numbered episodes from AniList's count.
