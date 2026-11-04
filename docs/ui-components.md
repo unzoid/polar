@@ -404,6 +404,15 @@ code draws, not what's on screen.
    specificity; built CSS is the same rules with the rename mapped back. The caller still owns showing and
    timing. Not yet: one `ToastHost` and `placement` (the two can overlap at the bottom centre today, as
    before), and the player and party notes (`.player-notice`, `.party-hold`, `.party-note`, step 6).
+   `components/ui/Menu.tsx` (`MenuRoot`, `MenuTrigger`, `MenuPopup` with `look` compact/roomy and the
+   positioner props, `MenuHeader`, `MenuItem`, `MenuCheckItem`, `MenuSeparator`, `MenuSub`): the title's
+   right-click menu, the download menu, the profile menu and the navbar's "More". The two `Item` helpers are
+   gone. One surface `.menu` (the identical half of `.ctx-menu` and `.profile-menu`), `.menu-compact` /
+   `.menu-roomy` for what differed (widths, font); compact rows renamed from `.ctx-menu-*` to `.menu-*`,
+   roomy rows from `.profile-menu-item` to `.menu-roomy-item`; `.profile-menu-sep` (identical) is `.menu-sep`
+   now and a real separator. CSS in `styles/ui/menu.css` (after `toast.css`); the profile header keeps its
+   own classes in `account.css`. Built CSS: the same rules with the renames mapped back, apart from that split.
+   Not yet: `Popover` (`PlaylistButton`, source filters, `.select-popup`) and the TV menus (step 6).
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).

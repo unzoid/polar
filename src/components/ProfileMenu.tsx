@@ -1,10 +1,10 @@
-import { Menu } from "@base-ui/react/menu";
 import { Calendar, Edit, Profile, Settings, SignOut, WatchParty } from "./icons";
 import { partyAvailable, setJoinPartyOpen } from "../lib/party/party";
 import { useRouter } from "../lib/router";
 import { useAccount } from "../lib/account/AccountProvider";
 import { openSettings } from "../lib/settingsOverlay";
 import { Avatar } from "./Avatar";
+import { MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "./ui/Menu";
 
 /** Used for the template profile when nobody's signed in. */
 const GUEST_AVATAR = "guest";
@@ -25,70 +25,58 @@ export function ProfileMenu() {
   const { tab } = useRouter();
 
   return (
-    <Menu.Root modal={false}>
-      <Menu.Trigger className="navbar-profile pressable" aria-label={`Profile: ${name}`} title={name}>
+    <MenuRoot modal={false}>
+      <MenuTrigger className="navbar-profile pressable" aria-label={`Profile: ${name}`} title={name}>
         <Avatar id={avatar} />
-      </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner sideOffset={10} align="end" className="select-positioner">
-          <Menu.Popup className="profile-menu">
-            <div className="profile-menu-head">
-              <Avatar id={avatar} />
-              <div>
-                <strong>{name}</strong>
-                <span className="profile-menu-email">{me ? account.user?.email : "Not signed in"}</span>
-              </div>
-            </div>
-            {others.map((p) => (
-              <Menu.Item key={p.id} className="profile-menu-item" onClick={() => void account.chooseProfile(p)}>
-                <Avatar id={p.avatar} />
-                {p.name}
-              </Menu.Item>
-            ))}
-            {me && (
-              <Menu.Item className="profile-menu-item" onClick={() => account.switchProfile("manage")}>
-                <Edit />
-                Manage Profiles
-              </Menu.Item>
-            )}
-            {others.length > 0 || me ? <div className="profile-menu-sep" /> : null}
-            {me && partyAvailable() && (
-              <Menu.Item className="profile-menu-item" onClick={() => setJoinPartyOpen(true)}>
-                <WatchParty />
-                Join Watch Party
-              </Menu.Item>
-            )}
-            <Menu.Item className="profile-menu-item" onClick={() => tab({ name: "calendar" })}>
-              <Calendar />
-              Calendar
-            </Menu.Item>
-            <Menu.Item className="profile-menu-item" onClick={() => openSettings()}>
-              <Settings />
-              Settings
-            </Menu.Item>
-            {me && (
-              <Menu.Item className="profile-menu-item" onClick={() => openSettings("account")}>
-                <Profile />
-                Account
-              </Menu.Item>
-            )}
-            {account.enabled && <div className="profile-menu-sep" />}
-            {me ? (
-              <Menu.Item className="profile-menu-item" onClick={() => void account.signOut()}>
-                <SignOut />
-                Sign Out
-              </Menu.Item>
-            ) : (
-              account.enabled && (
-                <Menu.Item className="profile-menu-item" onClick={account.showSignIn}>
-                  <Profile />
-                  Sign In
-                </Menu.Item>
-              )
-            )}
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
+      </MenuTrigger>
+      <MenuPopup look="roomy" sideOffset={10} align="end">
+        <div className="profile-menu-head">
+          <Avatar id={avatar} />
+          <div>
+            <strong>{name}</strong>
+            <span className="profile-menu-email">{me ? account.user?.email : "Not signed in"}</span>
+          </div>
+        </div>
+        {others.map((p) => (
+          <MenuItem key={p.id} icon={<Avatar id={p.avatar} />} onClick={() => void account.chooseProfile(p)}>
+            {p.name}
+          </MenuItem>
+        ))}
+        {me && (
+          <MenuItem icon={<Edit />} onClick={() => account.switchProfile("manage")}>
+            Manage Profiles
+          </MenuItem>
+        )}
+        {others.length > 0 || me ? <MenuSeparator /> : null}
+        {me && partyAvailable() && (
+          <MenuItem icon={<WatchParty />} onClick={() => setJoinPartyOpen(true)}>
+            Join Watch Party
+          </MenuItem>
+        )}
+        <MenuItem icon={<Calendar />} onClick={() => tab({ name: "calendar" })}>
+          Calendar
+        </MenuItem>
+        <MenuItem icon={<Settings />} onClick={() => openSettings()}>
+          Settings
+        </MenuItem>
+        {me && (
+          <MenuItem icon={<Profile />} onClick={() => openSettings("account")}>
+            Account
+          </MenuItem>
+        )}
+        {account.enabled && <MenuSeparator />}
+        {me ? (
+          <MenuItem icon={<SignOut />} onClick={() => void account.signOut()}>
+            Sign Out
+          </MenuItem>
+        ) : (
+          account.enabled && (
+            <MenuItem icon={<Profile />} onClick={account.showSignIn}>
+              Sign In
+            </MenuItem>
+          )
+        )}
+      </MenuPopup>
+    </MenuRoot>
   );
 }

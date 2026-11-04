@@ -1,14 +1,14 @@
-import { Menu } from "@base-ui/react/menu";
-import { useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useSyncExternalStore, type MouseEvent as ReactMouseEvent } from "react";
 import { api } from "../lib/api";
 import { addToPlaylist, createPlaylist, removeFromPlaylist, usePlaylists } from "../lib/playlists";
 import { useRouter } from "../lib/router";
 import { useTitleActions } from "../lib/titleActions";
 import type { MetaPreview, Progress } from "../lib/types";
-import { Check, ChevronRight, Close, Info, Minus, Play, PlaylistIcon, Plus, Reset, Trailer, Watched } from "./icons";
+import { Check, Close, Info, Minus, Play, PlaylistIcon, Plus, Reset, Trailer, Watched } from "./icons";
 import { imdbUrl } from "./RatingRing";
 import { trailerFor } from "../lib/trailers";
 import { openTrailer } from "./Trailer";
+import { MenuCheckItem, MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuSub } from "./ui/Menu";
 
 /**
  * A title's options on right-click (or the Menu key) in desktop mode: the
@@ -87,115 +87,93 @@ function OpenMenu({ target }: { target: Target }) {
   const imdb = imdbUrl(item.id);
 
   return (
-    <Menu.Root open modal={false} onOpenChange={(open) => !open && close()}>
-      <Menu.Portal>
-        <Menu.Positioner anchor={anchor} side="bottom" align="start" sideOffset={2} collisionPadding={12} className="select-positioner">
-          <Menu.Popup className="ctx-menu" aria-label={`${item.name} options`}>
-            <div className="ctx-menu-head">
-              <strong>{item.name}</strong>
-              {a.episodeLabel && entry && (
-                <span>
-                  {a.episodeLabel}
-                  {entry.episodeTitle ? ` · ${entry.episodeTitle}` : ""}
-                </span>
-              )}
-            </div>
-            {entry && (
-              <Item
-                icon={<Play />}
-                label={a.entryInProgress ? "Resume" : "Play"}
-                onClick={() => navigate({ name: "player", type: entry.type, metaId: entry.metaId, videoId: entry.videoId, stream: entry.stream })}
-              />
-            )}
-            <Item
-              icon={<Info />}
-              label={a.isSeries ? "Go to Show" : "Go to Movie"}
-              onClick={open ?? (() => navigate({ name: "detail", type: item.type, id: item.id, preview: item }))}
-            />
-            {(a.trailerYtId || item.id.startsWith("tt")) && (
-              <Item icon={<Trailer />} label="Play Trailer" onClick={() => openTrailer(trailerFor(item.name, item.id, a))} />
-            )}
+    <MenuRoot open modal={false} onOpenChange={(open) => !open && close()}>
+      <MenuPopup anchor={anchor} side="bottom" align="start" sideOffset={2} collisionPadding={12} aria-label={`${item.name} options`}>
+        <MenuHeader
+          title={item.name}
+          detail={a.episodeLabel && entry && `${a.episodeLabel}${entry.episodeTitle ? ` · ${entry.episodeTitle}` : ""}`}
+        />
+        {entry && (
+          <MenuItem
+            icon={<Play />}
+            onClick={() => navigate({ name: "player", type: entry.type, metaId: entry.metaId, videoId: entry.videoId, stream: entry.stream })}
+          >
+            {a.entryInProgress ? "Resume" : "Play"}
+          </MenuItem>
+        )}
+        <MenuItem icon={<Info />} onClick={open ?? (() => navigate({ name: "detail", type: item.type, id: item.id, preview: item }))}>
+          {a.isSeries ? "Go to Show" : "Go to Movie"}
+        </MenuItem>
+        {(a.trailerYtId || item.id.startsWith("tt")) && (
+          <MenuItem icon={<Trailer />} onClick={() => openTrailer(trailerFor(item.name, item.id, a))}>
+            Play Trailer
+          </MenuItem>
+        )}
 
-            <Menu.Separator className="ctx-menu-sep" />
-            {a.episodeUnwatched && <Item icon={<Watched />} label={`Mark ${a.episodeLabel} as Watched`} onClick={a.markEpisodeWatched} />}
-            {a.episodeWatched && <Item icon={<Reset />} label={`Mark ${a.episodeLabel} as Unwatched`} onClick={a.markEpisodeUnwatched} />}
-            <Item
-              icon={a.allWatched ? <Reset /> : <Watched />}
-              label={`Mark ${a.isSeries ? "Show " : ""}as ${a.allWatched ? "Unwatched" : "Watched"}`}
-              disabled={!a.canToggleWatched}
-              onClick={a.toggleWatched}
-            />
-            {a.entryInProgress && (
-              <Item
-                icon={episode ? <Reset /> : <Close />}
-                label={episode ? `Reset ${a.episodeLabel} Progress` : "Remove from Continue Watching"}
-                onClick={a.resetEntry}
-              />
-            )}
-            {a.hasProgress && !a.allWatched && (
-              <Item icon={<Reset />} label={a.isSeries ? "Reset Show Progress" : "Reset Progress"} onClick={a.resetAll} />
-            )}
+        <MenuSeparator />
+        {a.episodeUnwatched && (
+          <MenuItem icon={<Watched />} onClick={a.markEpisodeWatched}>
+            Mark {a.episodeLabel} as Watched
+          </MenuItem>
+        )}
+        {a.episodeWatched && (
+          <MenuItem icon={<Reset />} onClick={a.markEpisodeUnwatched}>
+            Mark {a.episodeLabel} as Unwatched
+          </MenuItem>
+        )}
+        <MenuItem icon={a.allWatched ? <Reset /> : <Watched />} disabled={!a.canToggleWatched} onClick={a.toggleWatched}>
+          Mark {a.isSeries ? "Show " : ""}as {a.allWatched ? "Unwatched" : "Watched"}
+        </MenuItem>
+        {a.entryInProgress && (
+          <MenuItem icon={episode ? <Reset /> : <Close />} onClick={a.resetEntry}>
+            {episode ? `Reset ${a.episodeLabel} Progress` : "Remove from Continue Watching"}
+          </MenuItem>
+        )}
+        {a.hasProgress && !a.allWatched && (
+          <MenuItem icon={<Reset />} onClick={a.resetAll}>
+            {a.isSeries ? "Reset Show Progress" : "Reset Progress"}
+          </MenuItem>
+        )}
 
-            <Menu.Separator className="ctx-menu-sep" />
-            <Item
-              icon={a.inLibrary ? <Minus /> : <Plus />}
-              label={a.inLibrary ? "Remove from Library" : "Add to Library"}
-              onClick={a.toggleLibrary}
-            />
-            <Menu.SubmenuRoot>
-              <Menu.SubmenuTrigger className="ctx-menu-item">
-                {a.inPlaylist ? <Check /> : <PlaylistIcon />}
-                <span>{a.inPlaylist ? "Playlists" : "Add to Playlist"}</span>
-                <ChevronRight className="ctx-menu-chevron" />
-              </Menu.SubmenuTrigger>
-              <Menu.Portal>
-                <Menu.Positioner sideOffset={0} alignOffset={-5} collisionPadding={12} className="select-positioner">
-                  <Menu.Popup className="ctx-menu">
-                    {playlists.map((p) => {
-                      const has = p.items.some((i) => i.id === item.id);
-                      return (
-                        <Menu.CheckboxItem
-                          key={p.id}
-                          className="ctx-menu-item"
-                          checked={has}
-                          closeOnClick={false}
-                          onCheckedChange={(on) => (on ? addToPlaylist(p.id, item) : removeFromPlaylist(p.id, item.id))}
-                        >
-                          <span className="ctx-menu-check">{has && <Check />}</span>
-                          <span>{p.name}</span>
-                          <span className="ctx-menu-meta tabular">{p.items.length}</span>
-                        </Menu.CheckboxItem>
-                      );
-                    })}
-                    {playlists.length > 0 && <Menu.Separator className="ctx-menu-sep" />}
-                    <Item icon={<Plus />} label="New Playlist" onClick={() => createPlaylist(freshName(playlists.map((p) => p.name)), item)} />
-                  </Menu.Popup>
-                </Menu.Positioner>
-              </Menu.Portal>
-            </Menu.SubmenuRoot>
+        <MenuSeparator />
+        <MenuItem icon={a.inLibrary ? <Minus /> : <Plus />} onClick={a.toggleLibrary}>
+          {a.inLibrary ? "Remove from Library" : "Add to Library"}
+        </MenuItem>
+        <MenuSub icon={a.inPlaylist ? <Check /> : <PlaylistIcon />} label={a.inPlaylist ? "Playlists" : "Add to Playlist"}>
+          {playlists.map((p) => {
+            const has = p.items.some((i) => i.id === item.id);
+            return (
+              <MenuCheckItem
+                key={p.id}
+                checked={has}
+                meta={p.items.length}
+                onCheckedChange={(on) => (on ? addToPlaylist(p.id, item) : removeFromPlaylist(p.id, item.id))}
+              >
+                {p.name}
+              </MenuCheckItem>
+            );
+          })}
+          {playlists.length > 0 && <MenuSeparator />}
+          <MenuItem icon={<Plus />} onClick={() => createPlaylist(freshName(playlists.map((p) => p.name)), item)}>
+            New Playlist
+          </MenuItem>
+        </MenuSub>
 
-            {imdb && (
-              <>
-                <Menu.Separator className="ctx-menu-sep" />
-                <Item icon={<ExternalGlyph />} label="Open on IMDb" onClick={() => void api.openExternal(imdb)} />
-                {item.type === "movie" && (
-                  <Item icon={<ExternalGlyph />} label="Open on Letterboxd" onClick={() => void api.openExternal(letterboxdUrl(item.id))} />
-                )}
-              </>
+        {imdb && (
+          <>
+            <MenuSeparator />
+            <MenuItem icon={<ExternalGlyph />} onClick={() => void api.openExternal(imdb)}>
+              Open on IMDb
+            </MenuItem>
+            {item.type === "movie" && (
+              <MenuItem icon={<ExternalGlyph />} onClick={() => void api.openExternal(letterboxdUrl(item.id))}>
+                Open on Letterboxd
+              </MenuItem>
             )}
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
-  );
-}
-
-function Item({ icon, label, onClick, disabled }: { icon: ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <Menu.Item className="ctx-menu-item" disabled={disabled} onClick={onClick}>
-      {icon}
-      <span>{label}</span>
-    </Menu.Item>
+          </>
+        )}
+      </MenuPopup>
+    </MenuRoot>
   );
 }
 
