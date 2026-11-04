@@ -134,6 +134,8 @@ pub fn run() {
             commands::progress_save_many,
             commands::continue_watching,
             commands::watch_history,
+            commands::link_anime,
+            commands::anime_links,
             commands::settings_get,
             commands::settings_set,
             commands::settings_reset,

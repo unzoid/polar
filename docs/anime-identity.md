@@ -1,6 +1,6 @@
 # One show, one item: unifying anime identities
 
-Status: plan (T-004). Implementation follows in the same order as the steps below.
+Status: steps 1 and 2 done (`src/lib/identity.ts`, `crates/library`); steps 3-6 to do.
 Code references are to commit bcd0a85.
 
 ## The problem
@@ -72,14 +72,19 @@ handful of integers.
 
 ## Where it lives
 
-- **Rust store** (`src-tauri/src/store.rs`): `Space.links: HashMap<canonical id, AnimeLink>`,
-  synced like the library. Aliases are computed from the links on load (not stored twice).
-- **Rust commands**: `library_toggle`, `progress_save`, `progress_save_many` canonicalise the
-  incoming `meta_id`/`id` through the aliases before writing. A new command `link_anime(link)`
-  records a link and **re-keys** existing rows: library items and progress `meta_id`s under any
-  of the link's ids move to the canonical id (library: one item, earliest `added_at`, the old
-  key tombstoned so the removal syncs). Re-keying is deterministic, so every device that
-  receives the same link reaches the same state.
+- **Rust, `crates/library`** (pure, tested without Tauri): `Space.links: BTreeMap<AniList id,
+  AnimeLink>`, stored and synced with the library. Aliases are computed from the links when
+  needed (not stored twice). `Space::library_toggle`, `progress_save` canonicalise the incoming
+  id/`meta_id` through the aliases before writing; `progress_for`, `continue_watching` and
+  `watch_history` group by canonical id. `Space::link_anime(link)` records a link (an older one
+  for the same AniList entry is ignored) and **re-keys**: library items and progress `meta_id`s
+  under any of the link's ids move to the canonical id (library: one item, earliest `added_at`;
+  the old key is tombstoned so the server row is deleted; a title removed under its canonical id
+  after the item last changed stays removed). The moved item and the tombstone are stamped with
+  the newest link's time (or the item's own, if later), never the local clock, so a device that
+  re-keys after pulling a link reaches exactly the state the linking device pushed.
+- **Tauri commands** (`src-tauri/src/commands.rs`): `link_anime(link)` (sets `updatedAt`) and
+  `anime_links()`; the library/progress commands call `crates/library`.
 - **Front end**: `src/lib/identity.ts` holds the id grammar (parse/format `tt`, `kitsu:`,
   `anilist:`, `mal:`, episode ids) and `canonicalId()`; the anime pages call `linkAnime` once they
   know the id they play from, instead of the in-memory `remember*` maps, and read the link when

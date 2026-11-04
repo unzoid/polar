@@ -20,6 +20,7 @@ import type {
   SyncLibraryItem,
 } from "./types";
 import { settingsChanged } from "./settingsChanges";
+import type { AnimeLink } from "./identity";
 
 export const isTauri = "__TAURI_INTERNALS__" in window;
 
@@ -67,6 +68,14 @@ export const api = {
   continueWatching: () => invoke<Progress[]>("continue_watching"),
   /** The latest video per title you've watched (finished or under way), newest first. */
   watchHistory: () => invoke<Progress[]>("watch_history"),
+  /**
+   * Record which id an anime is played from; library and progress kept under
+   * its other ids move onto it (docs/anime-identity.md). `updatedAt` is set by
+   * the backend. Resolves to whether anything changed.
+   */
+  linkAnime: (link: Omit<AnimeLink, "updatedAt">) =>
+    invoke<boolean>("link_anime", { link: { ...link, updatedAt: 0 } }),
+  animeLinks: () => invoke<AnimeLink[]>("anime_links"),
 
   // Profile spaces & sync (src-tauri/src/sync.rs). `space` = profile id.
   activateSpace: (space: string | null) => invoke<void>("space_activate", { space }),

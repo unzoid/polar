@@ -7,6 +7,7 @@ use std::time::Duration;
 use futures::future::join_all;
 use polar_addon::{rank_streams_filtered, Meta, MetaPreview, RankedStream, Stream};
 use polar_index::Indexer;
+use polar_library::AnimeLink;
 use serde::Serialize;
 use tauri::State;
 
@@ -253,61 +254,37 @@ pub fn addon_remove(state: State<'_, AppState>, id: String) -> Result<()> {
 #[tauri::command]
 pub fn library_list(state: State<'_, AppState>) -> Vec<LibraryItem> {
     let store = state.store.lock().unwrap();
-    let Some(space) = store.data.space() else { return Vec::new() };
-    let mut items: Vec<_> = space.library.values().cloned().collect();
-    items.sort_by_key(|i| std::cmp::Reverse(i.added_at));
-    items
+    store.data.space().map(|s| s.library_list()).unwrap_or_default()
 }
 
 /// Returns whether the item is in the library afterwards.
 #[tauri::command]
 pub fn library_toggle(state: State<'_, AppState>, item: MetaPreview) -> Result<bool> {
+    let item =
+        LibraryItem { id: item.id, ty: item.ty, name: item.name, poster: item.poster, added_at: 0, updated_at: 0 };
     let mut added = false;
-    persist(&state, |d| {
-        let space = d.space_mut();
-        let at = now();
-        if space.library.remove(&item.id).is_some() {
-            space.removed.insert(item.id, at);
-        } else {
-            added = true;
-            space.removed.remove(&item.id);
-            space.library.insert(
-                item.id.clone(),
-                LibraryItem { id: item.id, ty: item.ty, name: item.name, poster: item.poster, added_at: at },
-            );
-        }
-    })?;
+    persist(&state, |d| added = d.space_mut().library_toggle(item, now()))?;
     Ok(added)
 }
 
-/// All progress entries for one title (every episode of a series).
+/// All progress entries for one title (every episode of a series), under
+/// any of its ids.
 #[tauri::command]
 pub fn progress_for(state: State<'_, AppState>, meta_id: String) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
-    let Some(space) = store.data.space() else { return Vec::new() };
-    space.progress.values().filter(|p| p.meta_id == meta_id).cloned().collect()
+    store.data.space().map(|s| s.progress_for(&meta_id)).unwrap_or_default()
 }
 
 #[tauri::command]
-pub fn progress_save(state: State<'_, AppState>, mut progress: Progress) -> Result<()> {
-    progress.updated_at = now();
-    persist(&state, |d| {
-        d.space_mut().progress.insert(progress.video_id.clone(), progress);
-    })
+pub fn progress_save(state: State<'_, AppState>, progress: Progress) -> Result<()> {
+    persist(&state, |d| d.space_mut().progress_save(vec![progress], now()))
 }
 
 /// Several entries in one save (marking a whole show watched). They count as
 /// touched in the order given, so the last one is the title's latest.
 #[tauri::command]
 pub fn progress_save_many(state: State<'_, AppState>, progress: Vec<Progress>) -> Result<()> {
-    let at = now();
-    persist(&state, |d| {
-        let space = d.space_mut();
-        for (i, mut p) in progress.into_iter().enumerate() {
-            p.updated_at = at + i as u64;
-            space.progress.insert(p.video_id.clone(), p);
-        }
-    })
+    persist(&state, |d| d.space_mut().progress_save(progress, now()))
 }
 
 /// Latest unfinished video per title, newest first.
@@ -315,19 +292,7 @@ pub fn progress_save_many(state: State<'_, AppState>, progress: Vec<Progress>) -
 pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
     let watched = store.data.settings.watched_fraction();
-    let Some(space) = store.data.space() else { return Vec::new() };
-    let mut latest: std::collections::HashMap<&str, &Progress> = Default::default();
-    for p in space.progress.values() {
-        let slot = latest.entry(p.meta_id.as_str()).or_insert(p);
-        if p.updated_at > slot.updated_at {
-            *slot = p;
-        }
-    }
-    let mut items: Vec<Progress> =
-        latest.into_values().filter(|p| !p.finished(watched) && p.position > 30.0).cloned().collect();
-    items.sort_by_key(|i| std::cmp::Reverse(i.updated_at));
-    items.truncate(20);
-    items
+    store.data.space().map(|s| s.continue_watching(watched)).unwrap_or_default()
 }
 
 /// Everything you've watched: the latest video per title — finished or well
@@ -336,18 +301,28 @@ pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
 pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
     let store = state.store.lock().unwrap();
     let watched = store.data.settings.watched_fraction();
-    let Some(space) = store.data.space() else { return Vec::new() };
-    let mut latest: std::collections::HashMap<&str, &Progress> = Default::default();
-    for p in space.progress.values().filter(|p| p.finished(watched) || p.position > 30.0) {
-        let slot = latest.entry(p.meta_id.as_str()).or_insert(p);
-        if p.updated_at > slot.updated_at {
-            *slot = p;
-        }
+    store.data.space().map(|s| s.watch_history(watched)).unwrap_or_default()
+}
+
+/// Records which id an anime is played from, and moves library items and
+/// progress kept under its other ids onto that one (docs/anime-identity.md).
+/// `updatedAt` is set here. Returns whether anything changed.
+#[tauri::command]
+pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<bool> {
+    if !link.is_valid() {
+        return Err(CmdError::Other(format!("not a title id Polar keys by: {}", link.canonical)));
     }
-    let mut items: Vec<Progress> = latest.into_values().cloned().collect();
-    items.sort_by_key(|i| std::cmp::Reverse(i.updated_at));
-    items.truncate(200);
-    items
+    link.updated_at = now();
+    let mut changed = false;
+    persist(&state, |d| changed = d.space_mut().link_anime(link))?;
+    Ok(changed)
+}
+
+/// The anime links of the active space.
+#[tauri::command]
+pub fn anime_links(state: State<'_, AppState>) -> Vec<AnimeLink> {
+    let store = state.store.lock().unwrap();
+    store.data.space().map(|s| s.links.values().cloned().collect()).unwrap_or_default()
 }
 
 // --- Settings ------------------------------------------------------------

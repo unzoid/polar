@@ -1,11 +1,13 @@
-//! Everything the user owns — settings, installed addons, library, watch
-//! progress — in one JSON file in the app data dir. Small, human-readable,
-//! trivially backed up. Swap for SQLite once sync lands.
+//! Everything the user owns — settings, installed addons, and one space
+//! (library, watch progress, anime links; see `polar_library`) per profile —
+//! in one JSON file in the app data dir. Small, human-readable, trivially
+//! backed up.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use polar_addon::Manifest;
+pub use polar_library::{LibraryItem, Progress, Space};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,73 +272,8 @@ pub struct InstalledAddon {
     pub manifest: Manifest,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryItem {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub ty: String,
-    pub name: String,
-    pub poster: Option<String>,
-    pub added_at: u64,
-}
-
-/// Progress for one playable video (a movie id, or `tt…:s:e`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Progress {
-    pub meta_id: String,
-    pub video_id: String,
-    #[serde(rename = "type")]
-    pub ty: String,
-    pub name: String,
-    pub background: Option<String>,
-    pub poster: Option<String>,
-    pub season: Option<u32>,
-    pub episode: Option<u32>,
-    pub episode_title: Option<String>,
-    /// The source that was playing, so resume uses the same file (and timings).
-    #[serde(default)]
-    pub stream: Option<polar_addon::Stream>,
-    /// Seconds.
-    pub position: f64,
-    pub duration: f64,
-    pub updated_at: u64,
-}
-
-impl Progress {
-    pub fn fraction(&self) -> f64 {
-        if self.duration > 0.0 {
-            (self.position / self.duration).clamp(0.0, 1.0)
-        } else {
-            0.0
-        }
-    }
-
-    /// Past the watched threshold (Settings → Playback), e.g. 0.92.
-    pub fn finished(&self, threshold: f64) -> bool {
-        self.fraction() >= threshold
-    }
-}
-
 /// The space used when nobody is signed in.
 pub const LOCAL_SPACE: &str = "local";
-
-/// One person's library and watch history: the signed-out "local" space, or
-/// one per account profile (keyed by profile id). Each is a full offline
-/// copy; sync only moves changes between it and the server.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct Space {
-    pub library: HashMap<String, LibraryItem>,
-    /// Removed library items → when (ms), so removals sync too.
-    pub removed: HashMap<String, u64>,
-    pub progress: HashMap<String, Progress>,
-    /// Local clock (ms) of the last successful push.
-    pub pushed_at: u64,
-    /// Server cursor of the last pull (opaque to Rust).
-    pub pulled_at: Option<String>,
-}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]

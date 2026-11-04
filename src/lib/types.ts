@@ -1,4 +1,6 @@
-// Mirrors the Rust types in crates/addon and src-tauri/src/store.rs.
+// Mirrors the Rust types in crates/addon, crates/library and src-tauri/src/store.rs.
+
+import type { AnimeLink } from "./identity";
 
 export type ContentType = "movie" | "series";
 
@@ -155,6 +157,8 @@ export interface LibraryItem {
   name: string;
   poster?: string;
   addedAt: number;
+  /** Last change when it differs from `addedAt` (moved onto its canonical id). */
+  updatedAt?: number;
 }
 
 /** A library record as it travels over sync: present, or a removal. */
@@ -171,6 +175,8 @@ export interface SyncLibraryItem {
 export interface LocalChanges {
   library: SyncLibraryItem[];
   progress: Progress[];
+  /** Anime links changed since the last push. Not sent to the server yet (docs/anime-identity.md step 5). */
+  links: AnimeLink[];
   cursor: number;
   pulledAt: string | null;
 }
