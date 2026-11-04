@@ -289,7 +289,7 @@ match) or a scoped override block of tokens. Its 122 restyle rules go away.
 
 ## 6. Bugs found on the way
 
-These are small and come with T-019, unless noted otherwise.
+These are small and come with T-019. Items 1-4 are fixed (`ed796a1`, `15e4412`).
 
 1. **`auth-form-in` doesn't exist.** `account.css:513,545` animate with it, and no `@keyframes` of that name
    exists, so the profile form and editor appear without their entrance animation.
