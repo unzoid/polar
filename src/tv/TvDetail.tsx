@@ -12,8 +12,8 @@ import { StreamList } from "../components/StreamList";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
 import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel } from "../lib/format";
 import { usePlayTarget } from "../lib/playTarget";
-import { useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
-import { useRouter } from "../lib/router";
+import { useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "../lib/queries";
+import { useTitlePlayback } from "../lib/useTitlePlayback";
 import { watchedFraction } from "../lib/watched";
 import type { ContentType, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 import { useBack, useFocusTrap, usePageActive } from "./shell";
@@ -39,24 +39,22 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
   const { data: meta, isError } = useMeta(type, id);
   const shown: MetaPreview | undefined = meta ?? preview;
   const active = usePageActive();
-  const { navigate } = useRouter();
   const [panels, setPanels] = useState<Panel[]>([]);
   const push = (p: Panel) => setPanels((ps) => [...ps, p]);
   const pop = () => setPanels((ps) => ps.slice(0, -1));
   useBack(active && panels.length > 0, pop);
 
-  const { data: settings } = useSettings();
-  const autoPick = settings?.autoPickSource ?? true;
   // The trailer behind the art, while nothing's open over the page.
   const trailer = useBackdropTrailer(id, { active: active && panels.length === 0 });
 
   /** Play now, or (auto-pick off, nothing to resume) choose a source first. */
-  const play = (videoId: string, subtitle: string, opts: { stream?: RankedStream; resumable?: boolean } = {}) => {
-    if (!opts.stream && !autoPick && !opts.resumable) return push({ kind: "sources", videoId, subtitle });
+  const playback = useTitlePlayback(
+    (req) => push({ kind: "sources", videoId: req.videoId, subtitle: req.subtitle ?? "" }),
     // Coming back from the player returns to the episode list, not a source picker.
-    setPanels((ps) => ps.filter((p) => p.kind !== "sources"));
-    navigate({ name: "player", type, metaId: id, videoId, stream: opts.stream?.stream });
-  };
+    () => setPanels((ps) => ps.filter((p) => p.kind !== "sources")),
+  );
+  const play = (videoId: string, subtitle: string, opts: { stream?: RankedStream; resumable?: boolean } = {}) =>
+    playback({ type, metaId: id, videoId, subtitle, resumable: opts.resumable }, opts.stream);
 
   if (!shown) {
     return isError ? (

@@ -443,6 +443,15 @@ code draws, not what's on screen.
    franchise's season choice, tabs up to 6 and a large dropdown above, written once (the two `MAX_SEASON_TABS`
    are gone). Same elements as before. Not yet: anime episode ranges (their own small tab look, threshold
    `RANGE_TABS`), the TV season column (TV layout).
+   The play-or-pick rule (H14) once: `needsPick()` in `lib/titlePlayback.ts` (with `PlayRequest`: type, ids,
+   picker subtitle, `resumable`; tested in `tests/titlePlayback.test.ts`) and `useTitlePlayback(onPick,
+   beforePlay?)` in `lib/useTitlePlayback.ts`. `components/title/SourcePicker.tsx`: `useSourcePicker(onOpen?)`
+   gives `play(req)`, `choose(req)` and the state, `<SourcePicker picker>` draws the Sheet + `StreamList`
+   once. The four desktop copies (show and movie hero, show episodes, anime hero, anime episodes) use them;
+   `TvDetail` uses `useTitlePlayback` with its sources panel. The sheet now keeps the request it was opened
+   with (before, the hero's sheet followed the page's next episode while open), and an anime episode that's
+   only scheduled no longer opens an empty sources sheet. Not yet: `TitleActions`, `LibraryButton`, TV's
+   `SourcesPanel` as the TV look of `SourcePicker`, the player's Sources overlay.
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
