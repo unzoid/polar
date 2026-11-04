@@ -10,7 +10,8 @@ import { Still } from "../components/StillPlaceholder";
 import { stillFor } from "../lib/anime/stills";
 import { StreamList } from "../components/StreamList";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
-import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel } from "../lib/format";
+import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel, shortRuntime } from "../lib/format";
+import { episodeState } from "../lib/episodeState";
 import { usePlayTarget } from "../lib/playTarget";
 import { useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "../lib/queries";
 import { useTitlePlayback } from "../lib/useTitlePlayback";
@@ -330,9 +331,6 @@ function Credits({ meta }: { meta?: Meta }) {
   );
 }
 
-/** "49 min" → "49m" */
-const shortRuntime = (r?: string) => r?.replace(/\s*min$/, "m");
-
 /**
  * Seasons down the left, that season's episodes down the right, opening on
  * the episode you're up to. Moving through the seasons switches the list.
@@ -395,13 +393,11 @@ function EpisodesPanel({
       <div className="tv-scroll tv-episodes-list" ref={list} data-nav-scroll="center" data-nav-memory>
         {episodes.map((v) => {
           const p = map.get(v.id);
-          const fraction = p?.duration ? p.position / p.duration : 0;
-          const watched = fraction >= watchedFraction();
-          const released = isReleased(v);
+          const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
           const isEntry = v.id === entryId;
           const status = !released
             ? `Coming ${formatDate(v.released)}`
-            : fraction > 0 && !watched && p
+            : inProgress && p
               ? formatRemaining(p.position, p.duration)
               : [shortRuntime(meta.runtime), formatDate(v.released)].filter(Boolean).join(" · ");
           return (
@@ -416,7 +412,7 @@ function EpisodesPanel({
               >
                 <span className="tv-episode-still">
                   <Still src={stillFor(v.id) ?? v.thumbnail} />
-                  {fraction > 0 && !watched && <ProgressBar fraction={fraction} />}
+                  {inProgress && <ProgressBar fraction={fraction} />}
                   {watched && (
                     <span className="tv-episode-watched" aria-label="Watched">
                       <Check size={18} />

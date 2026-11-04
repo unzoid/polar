@@ -49,13 +49,14 @@ import { actionFor, withShortcut } from "../lib/keybinds";
 import { api } from "../lib/api";
 import { sync } from "../lib/account/sync";
 import { nextVideo, progressMap, seasonsOf } from "../lib/episodes";
-import { episodeCode, formatDate, formatRemaining, formatTime, isReleased, seasonLabel } from "../lib/format";
+import { episodeCode, formatDate, formatRemaining, formatTime, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, Stream, Video } from "../lib/types";
 import { playContext } from "../lib/anime/playContext";
 import { isMac } from "../lib/platform";
 import { watchedFraction } from "../lib/watched";
+import { episodeState } from "../lib/episodeState";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
@@ -615,19 +616,18 @@ export function Player({
     .filter((v) => v.season === shownSeason)
     .map((v) => {
       const p = progressById.get(v.id);
-      const fraction = p?.duration ? p.position / p.duration : 0;
-      const released = isReleased(v);
+      const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
       return {
         id: v.id,
         label: `${v.episode}. ${v.title}`,
         detail: !released
           ? `Coming ${formatDate(v.released)}`
-          : fraction > 0 && fraction < watchedFraction() && p
+          : inProgress && p
             ? formatRemaining(p.position, p.duration)
             : formatDate(v.released),
         thumbnail: stillFor(v.id) ?? v.thumbnail ?? "",
-        progress: fraction < watchedFraction() ? fraction : undefined,
-        badge: fraction >= watchedFraction() ? { text: "Watched" } : undefined,
+        progress: watched ? undefined : fraction,
+        badge: watched ? { text: "Watched" } : undefined,
         disabled: !released,
       };
     });

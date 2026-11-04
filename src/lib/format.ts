@@ -57,3 +57,6 @@ export function joinFacts(parts: readonly (string | number | false | null | unde
 export function kindFacts(item: { type: string; genres?: string[] }): string[] {
   return [item.type === "movie" ? "Movie" : "Series", ...(item.genres ?? []).slice(0, 2)];
 }
+
+/** "49 min" → "49m" */
+export const shortRuntime = (runtime?: string) => runtime?.replace(/\s*min$/, "m");

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { AnimeCard } from "../components/anime/AnimeCard";
 import { ChevronDown, LayoutList, LayoutRow, Star } from "../components/icons";
-import { EpisodeShelf } from "../components/EpisodeShelf";
+import { EpisodeShelf } from "../components/title/EpisodeShelf";
 import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
 import { TitleHeading } from "../components/title/TitleHeading";

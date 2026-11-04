@@ -6,7 +6,7 @@ import { cardMenu } from "../components/CardMenu";
 import { FormatBadges, ScoreChips, TitleDetails } from "../components/TitleDetails";
 import { openTrailer, useTrailerOpen } from "../components/Trailer";
 import { episodeEntry } from "../lib/watched";
-import { EpisodeShelf } from "../components/EpisodeShelf";
+import { EpisodeShelf } from "../components/title/EpisodeShelf";
 import { EdgeBlur } from "../components/EdgeBlur";
 import { SeasonPicker } from "../components/title/SeasonPicker";
 import { Img } from "../components/Img";
