@@ -490,7 +490,11 @@ code draws, not what's on screen.
    tested in `tests/episodeState.test.ts`: the episode card, TV's episodes panel and the player's episode list
    computed them by hand (`shortRuntime` twice). The card's rest-to-warm timer is `useCardIntent` (150 ms, as
    before), so it now also warms on keyboard focus and stops on unmount.
-   Not yet: the TV column of pills and TV's episode row as `EpisodeCard variant="tv"` (step 6).
+   `lib/score.ts` (`scoreTone`, `metacriticTone`, `isFresh`, tested in `tests/score.test.ts`): the IMDb bands
+   that `ImdbBadge`, `CardRating` and `RatingRing` each wrote out, and the score cards' Metacritic and Rotten
+   Tomatoes rules; the rating components keep their looks (U26).
+   Not yet: the TV column of pills and TV's episode row as `EpisodeCard variant="tv"` (step 6),
+   `PlaylistChecklist` (U10), `TitleDetails` for the anime page (U27, with the `AnimeDetail` split, T-008).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

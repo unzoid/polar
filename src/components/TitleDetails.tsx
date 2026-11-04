@@ -3,6 +3,7 @@ import { formatDate, formatRuntime } from "../lib/format";
 import { usePersonPhoto } from "../lib/personPhoto";
 import { useQuery } from "@tanstack/react-query";
 import { useRatings, useStreams } from "../lib/queries";
+import { isFresh, metacriticTone } from "../lib/score";
 import type { ContentType, ExternalRatings, Meta } from "../lib/types";
 import { letterboxdUrl } from "./CardMenu";
 import { BrandIcon } from "./BrandIcon";
@@ -139,8 +140,6 @@ const initials = (name: string) =>
     .slice(0, 2)
     .join("");
 
-/** Rotten Tomatoes counts 60% and up as fresh. */
-const fresh = (n: number) => n >= 60;
 
 /** Big scores for the details: one tile per service that has one. IMDb's is the badge up top. */
 function ScoreCards({ ratings }: { ratings?: ExternalRatings }) {
@@ -150,17 +149,17 @@ function ScoreCards({ ratings }: { ratings?: ExternalRatings }) {
       key: "rt",
       label: "Tomatometer",
       value: `${ratings.rottenTomatoes}%`,
-      note: fresh(ratings.rottenTomatoes) ? "Fresh" : "Rotten",
-      tone: fresh(ratings.rottenTomatoes) ? "fresh" : "rotten",
+      note: isFresh(ratings.rottenTomatoes) ? "Fresh" : "Rotten",
+      tone: isFresh(ratings.rottenTomatoes) ? "fresh" : "rotten",
     });
   if (ratings?.audience != null)
-    tiles.push({ key: "audience", label: "Audience", value: `${ratings.audience}%`, note: "Rotten Tomatoes", tone: fresh(ratings.audience) ? "fresh" : "rotten" });
+    tiles.push({ key: "audience", label: "Audience", value: `${ratings.audience}%`, note: "Rotten Tomatoes", tone: isFresh(ratings.audience) ? "fresh" : "rotten" });
   if (ratings?.metacritic != null)
     tiles.push({
       key: "mc",
       label: "Metacritic",
       value: String(ratings.metacritic),
-      tone: ratings.metacritic >= 61 ? "good" : ratings.metacritic >= 40 ? "mid" : "low",
+      tone: metacriticTone(ratings.metacritic),
     });
   if (ratings?.letterboxd != null) tiles.push({ key: "lb", label: "Letterboxd", value: `${ratings.letterboxd.toFixed(1)} ★`, note: "out of 5" });
   if (ratings?.trakt != null) tiles.push({ key: "trakt", label: "Trakt", value: `${ratings.trakt}%` });
@@ -186,7 +185,7 @@ function ScoreCards({ ratings }: { ratings?: ExternalRatings }) {
 export function ScoreChips({ type, id }: { type: ContentType; id: string }) {
   const { data: r } = useRatings(type, id);
   if (r?.rottenTomatoes == null) return null;
-  const ok = fresh(r.rottenTomatoes);
+  const ok = isFresh(r.rottenTomatoes);
   return (
     <span className="score-chip" title={`Rotten Tomatoes: ${ok ? "Fresh" : "Rotten"}`}>
       {ok ? <Tomato /> : <Splat />}
