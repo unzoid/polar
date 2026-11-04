@@ -43,11 +43,22 @@ interface Account {
   createFirstProfile(input: ProfileInput): Promise<void>;
   updateProfile(id: string, patch: Partial<ProfileInput>): Promise<void>;
   deleteProfile(id: string): Promise<void>;
-  signOut(): Promise<void>;
+  /**
+   * Pushes every profile's changes first. When some still haven't reached the account (offline,
+   * a server error), nothing is dropped: `signOutBlocked` says how many, and the sign-out dialog
+   * asks; `{ discard: true }` signs out anyway.
+   */
+  signOut(opts?: { discard?: boolean }): Promise<void>;
+  /** Changes that would be lost by signing out now; set by a `signOut()` that stopped to ask. */
+  signOutBlocked: number | null;
+  cancelSignOut(): void;
   deleteAccount(): Promise<void>;
 }
 
 const AccountContext = createContext<Account | null>(null);
+
+/** How long sign-out waits for the pushes before it counts what's left. */
+const SIGN_OUT_PUSH_MS = 8000;
 
 const GUEST_KEY = "polar.guest";
 const LAST_PROFILE_KEY = "polar.lastProfile";
@@ -68,16 +79,19 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [canCancelSignIn, setCanCancel] = useState(false);
   const [profilesView, setProfilesView] = useState<"pick" | "manage">("pick");
+  const [signOutBlocked, setSignOutBlocked] = useState<number | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
 
   const setProfiles = useCallback((userId: string, list: Profile[]) => {
     setProfilesState(list);
+    sync.setProfiles(list.map((p) => p.id));
     localStorage.setItem(profilesKey(userId), JSON.stringify(list));
   }, []);
 
   const enter = useCallback(async (p: Profile) => {
-    // Best effort: get the previous profile's last changes up first.
+    // Best effort: get the previous profile's last changes up first. Whatever doesn't make it
+    // goes up in the background with the next profile's sync rounds.
     await Promise.race([sync.flush(), new Promise((r) => setTimeout(r, 3000))]);
     await api.activateSpace(p.id);
     // This profile's settings as this device last synced them; reinstalling
@@ -147,6 +161,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return backend.auth.onChange((u) => {
       if (u || !["ready", "profiles", "onboarding"].includes(statusRef.current)) return;
       sync.stop();
+      sync.setProfiles([]);
       setUser(null);
       setProfile(null);
       void api.activateSpace(null).then(refreshLocalViews);
@@ -242,11 +257,18 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setProfiles(u.id, profiles.filter((p) => p.id !== id));
         if (profile?.id === id) setProfile(null);
       },
-      async signOut() {
+      signOutBlocked,
+      cancelSignOut: () => setSignOutBlocked(null),
+      async signOut(opts) {
         const b = need();
-        // Get the last changes up before the local copies are dropped.
-        await Promise.race([sync.flush(), new Promise((r) => setTimeout(r, 4000))]);
+        // Every profile's copy is dropped below: get all their changes up first (critique C2).
+        if (!opts?.discard) {
+          const left = await sync.pushEverything(profiles.map((p) => p.id), SIGN_OUT_PUSH_MS);
+          if (left > 0) return setSignOutBlocked(left);
+        }
+        setSignOutBlocked(null);
         sync.stop();
+        sync.setProfiles([]);
         await b.auth.signOut().catch(() => {});
         forgetLocal();
         await api.forgetSpace(null);
@@ -261,6 +283,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       async deleteAccount() {
         const b = need();
         sync.stop();
+        sync.setProfiles([]);
         await b.auth.deleteAccount();
         forgetLocal();
         await api.forgetSpace(null);
@@ -272,7 +295,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setStatus("signed-out");
       },
     };
-  }, [status, user, profiles, profile, canCancelSignIn, profilesView, afterSignIn, enter, setProfiles]);
+  }, [status, user, profiles, profile, canCancelSignIn, profilesView, signOutBlocked, afterSignIn, enter, setProfiles]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

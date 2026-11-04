@@ -9,6 +9,7 @@
  * again shortly after a failure.
  */
 import { api } from "../api";
+import type { AnimeLink } from "../identity";
 import { queryClient } from "../queries";
 import { onSettingsChange } from "../settingsChanges";
 import { backend } from "./index";
@@ -22,6 +23,7 @@ import {
   setPlaylistSpace,
 } from "../playlists";
 import { keys } from "../queryKeys";
+import { pushEach, pushSpace, unpushedCount, type PushDeps } from "./spacePush";
 
 const PERIOD_MS = 3 * 60_000;
 const AFTER_CHANGE_MS = 5_000;
@@ -33,6 +35,8 @@ let again = false;
 let pending: number | undefined;
 let interval: number | undefined;
 let failures = 0;
+/** The signed-in account's other profiles: their leftover changes go up in the background. */
+let others: string[] = [];
 
 const onWake = () => void run();
 
@@ -70,16 +74,9 @@ async function run(): Promise<void> {
   const isActive = () => space === active;
   running = (async () => {
     try {
-      const local = await api.syncChanges(space);
       // Links the server couldn't take before go again in full once it can.
-      const links = linksUnsent.has(space) ? await api.animeLinks() : local.links;
-      let unsent = false;
-      if (local.library.length || local.progress.length || links.length) {
-        const stored = await backend.sync.push(space, { library: local.library, progress: local.progress, links });
-        unsent = links.length > 0 && !stored.links;
-      }
-      setLinksUnsent(space, unsent);
-      await api.syncMarkPushed(space, local.cursor);
+      const allLinks = linksUnsent.has(space) ? await api.animeLinks() : undefined;
+      const { local } = await pushOne(space, allLinks);
 
       const remote = await backend.sync.pull(space, local.pulledAt);
       if (!isActive()) return; // switched profile mid-flight; its own run follows
@@ -96,6 +93,8 @@ async function run(): Promise<void> {
 
       if (isActive()) await syncSettings(space, backend, isActive);
       failures = 0;
+      // Profiles left with changes the last time they were used (switched away offline).
+      await pushEach(others.filter((s) => s !== active), (s) => pushOne(s));
     } catch (e) {
       console.warn("sync failed", e);
       // Try again soon, then less often; focus and reconnecting also retry.
@@ -109,6 +108,19 @@ async function run(): Promise<void> {
     }
   });
   return running;
+}
+
+const deps = (): PushDeps => ({
+  changes: api.syncChanges,
+  push: (space, changes) => backend!.sync.push(space, changes),
+  markPushed: api.syncMarkPushed,
+});
+
+/** Push one space (no pull) and remember whether its links still wait for the server. */
+async function pushOne(space: string, allLinks?: AnimeLink[]) {
+  const result = await pushSpace(space, deps(), { allLinks, wasUnsent: linksUnsent.has(space) });
+  setLinksUnsent(space, result.linksUnsent);
+  return result;
 }
 
 /** Run once after `ms`. Repeated calls (e.g. progress saves while playing) coalesce. */
@@ -155,6 +167,23 @@ export const sync = {
     window.clearTimeout(pending);
     pending = undefined;
     await run();
+  },
+  /** The account's profiles (all of them; the active one is skipped), for background pushes. */
+  setProfiles(ids: string[]) {
+    others = ids;
+  },
+  /**
+   * Before every profile's copy is dropped (sign-out): flush the active profile, push each other
+   * one, for at most `ms`, then count what still hasn't reached the server.
+   */
+  async pushEverything(ids: string[], ms: number): Promise<number> {
+    if (!backend) return 0;
+    const all = (async () => {
+      await sync.flush();
+      await pushEach(ids.filter((s) => s !== active), (s) => pushOne(s));
+    })();
+    await Promise.race([all, new Promise((r) => setTimeout(r, ms))]);
+    return unpushedCount(ids, api.syncChanges);
   },
   /** Flush, then stop, unless another profile started meanwhile. */
   async finish() {
