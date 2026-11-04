@@ -13,6 +13,7 @@ import type { MetaPreview } from "../lib/types";
 import { Check, Plus, PlaylistIcon } from "./icons";
 import { Img } from "./Img";
 import { Button, buttonClass } from "./ui/Button";
+import { TextField } from "./ui/TextField";
 
 /**
  * A playlist title as something a card can draw. Titles added here carry
@@ -83,13 +84,12 @@ export function PlaylistButton({ item }: { item: MetaPreview }) {
             )}
             {creating ? (
               <form className="playlist-menu-form" onSubmit={create}>
-                <input
-                  className="settings-input"
+                <TextField
                   autoFocus
                   maxLength={60}
                   placeholder="Playlist name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={setName}
                   onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setCreating(false))}
                 />
                 <Button variant="primary" disabled={!name.trim()}>

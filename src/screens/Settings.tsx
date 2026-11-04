@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ToggleChip } from "../components/ui/Chip";
 import { Switch } from "../components/ui/Switch";
+import { TextField } from "../components/ui/TextField";
 import {
   Captions,
   ChevronRight,
@@ -332,7 +333,7 @@ function DeleteAccountRow(props: Expandable) {
         This can't be undone. Type <strong>delete</strong> to confirm.
       </p>
       <div className="settings-expand-form">
-        <input className="settings-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="delete" />
+        <TextField value={typed} onChange={setTyped} placeholder="delete" />
         <Button
           variant="danger"
           disabled={typed.trim().toLowerCase() !== "delete" || remove.isPending}
@@ -654,11 +655,10 @@ function SourcesPage() {
             set({ excludeKeywords: words.trim() });
           }}
         >
-          <input
-            className="settings-input"
+          <TextField
             placeholder="HC, 3D, KORSUB"
             value={words}
-            onChange={(e) => setWords(e.target.value)}
+            onChange={setWords}
             spellCheck={false}
             aria-label="Words to hide"
           />
@@ -1255,11 +1255,10 @@ function AnimePage() {
             setGroups(tidyGroups);
           }}
         >
-          <input
-            className="settings-input"
+          <TextField
             placeholder="Group A, Group B"
             value={groups}
-            onChange={(e) => setGroups(e.target.value)}
+            onChange={setGroups}
             spellCheck={false}
             aria-label="Preferred release groups"
           />
@@ -1801,11 +1800,10 @@ function AddonsPage() {
             if (url.trim()) install.mutate(url.trim());
           }}
         >
-          <input
-            className="settings-input"
+          <TextField
             placeholder="https://…/manifest.json"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={setUrl}
             spellCheck={false}
           />
           <Button variant="primary" disabled={install.isPending || !url.trim()}>
@@ -1864,23 +1862,21 @@ function RatingsRow(props: Expandable) {
           save.mutate({ mdblistKey: mdb.trim() || null, omdbKey: omdb.trim() || null });
         }}
       >
-        <input
-          className="settings-input"
+        <TextField
           type="password"
           placeholder="MDBList key"
           aria-label="MDBList key"
           value={mdb}
-          onChange={(e) => setMdb(e.target.value)}
+          onChange={setMdb}
           spellCheck={false}
           autoComplete="off"
         />
-        <input
-          className="settings-input"
+        <TextField
           type="password"
           placeholder="OMDb key"
           aria-label="OMDb key"
           value={omdb}
-          onChange={(e) => setOmdb(e.target.value)}
+          onChange={setOmdb}
           spellCheck={false}
           autoComplete="off"
         />
@@ -1938,12 +1934,11 @@ function ArtworkRow(props: Expandable) {
           save.mutate({ tmdbKey: key.trim() || null });
         }}
       >
-        <input
-          className="settings-input"
+        <TextField
           type="password"
           placeholder="Paste your key"
           value={key}
-          onChange={(e) => setKey(e.target.value)}
+          onChange={setKey}
           spellCheck={false}
           autoComplete="off"
         />
@@ -1995,13 +1990,12 @@ function PreviewsRow(props: Expandable) {
           save.mutate({ seekrKey: k || null, seekPreviews: k ? true : data.seekPreviews });
         }}
       >
-        <input
-          className="settings-input"
+        <TextField
           type="password"
           placeholder="Paste your key"
           value={key}
-          onChange={(e) => {
-            setKey(e.target.value);
+          onChange={(v) => {
+            setKey(v);
             verify.reset();
           }}
           spellCheck={false}
