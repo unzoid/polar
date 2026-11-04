@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { IconButton } from "./ui/Button";
 
 /** How long the armed state waits for the second click before standing down. */
 const DISARM_AFTER = 3000;
@@ -27,10 +28,10 @@ export function ConfirmDeleteButton({
   }, [armed]);
 
   return (
-    <button
-      className={`btn btn-icon confirm-delete ${className}`}
+    <IconButton
+      className={className ? `confirm-delete ${className}` : "confirm-delete"}
       data-armed={armed || undefined}
-      aria-label={armed ? `Click again to delete ${label}` : `Delete ${label}`}
+      label={armed ? `Click again to delete ${label}` : `Delete ${label}`}
       title={armed ? "Click again to delete" : `Delete ${label}`}
       onClick={() => (armed ? onConfirm() : setArmed(true))}
       onBlur={() => setArmed(false)}
@@ -42,7 +43,7 @@ export function ConfirmDeleteButton({
       }}
     >
       <TrashLid />
-    </button>
+    </IconButton>
   );
 }
 

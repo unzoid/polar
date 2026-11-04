@@ -65,6 +65,7 @@ import { usePartySync } from "../components/player/usePartySync";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { WatchParty } from "../components/icons";
 import { stillFor } from "../lib/anime/stills";
+import { Button, IconButton } from "../components/ui/Button";
 
 const win = getCurrentWindow();
 const SAVE_EVERY = 5000;
@@ -1043,8 +1044,9 @@ export function Player({
               )}
               <span className="next-up-title">{next.title}</span>
               <div className="next-up-actions">
-                <button
-                  className="btn btn-primary next-up-play"
+                <Button
+                  variant="primary"
+                  className="next-up-play"
                   onClick={() => {
                     autoplayStreak = 0;
                     playVideo(next.id);
@@ -1054,10 +1056,10 @@ export function Player({
                     <span className="next-up-countdown" style={{ animationDuration: `${countdown}s` }} />
                   )}
                   {pad("skipOrNext", "nextEpisode") ?? <Play size={16} fill="currentColor" />} {ended && stillWatching ? "Keep Watching" : "Play Now"}
-                </button>
-                <button className="btn btn-glass btn-icon next-up-dismiss" onClick={() => setNextDismissed(true)} aria-label="Dismiss">
+                </Button>
+                <IconButton variant="glass" className="next-up-dismiss" onClick={() => setNextDismissed(true)} label="Dismiss">
                   <Close size={16} />
-                </button>
+                </IconButton>
               </div>
             </div>
           </motion.div>
@@ -1214,9 +1216,9 @@ function PlayerStatus({
         {failed && (
           <div className="player-status-actions">
             {/* Focused, so Enter (or a controller's A) picks it straight away. */}
-            <button className="btn btn-primary" onClick={onSources} autoFocus>
+            <Button variant="primary" onClick={onSources} autoFocus>
               <Sources size={17} /> Choose Another Source
-            </button>
+            </Button>
             <CopyDetails steps={steps} backend={backend} outcome={message} stage={stageAt} />
           </div>
         )}
@@ -1263,9 +1265,9 @@ function CopyDetails({ steps, backend, outcome, stage }: { steps: StartStep[]; b
     window.setTimeout(() => setCopied(null), 2500);
   };
   return (
-    <button className="btn btn-glass" onClick={() => void copy()}>
+    <Button variant="glass" onClick={() => void copy()}>
       {copied === "yes" ? "Copied" : copied === "no" ? "Couldn't copy" : "Copy Details"}
-    </button>
+    </Button>
   );
 }
 

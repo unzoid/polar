@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { api } from "../lib/api";
 import { useFileTrailer, type TrailerRequest as Open } from "../lib/trailers";
 import { Close, Trailer as TrailerIcon } from "./icons";
+import { Button, IconButton } from "./ui/Button";
 
 /** YouTube's privacy-enhanced player for a trailer, with YouTube's clutter turned down. */
 export function youtubeEmbed(ytId: string, opts: { muted?: boolean; controls?: boolean; api?: boolean } = {}) {
@@ -81,13 +82,13 @@ export function TrailerHost() {
         <div className="trailer-bar">
           <span className="trailer-name t-headline">{open.name}</span>
           {ytId && (
-            <button className="btn btn-glass" onClick={() => void api.openExternal(youtubeUrl(ytId))}>
+            <Button variant="glass" onClick={() => void api.openExternal(youtubeUrl(ytId))}>
               <TrailerIcon size={16} /> Open in YouTube
-            </button>
+            </Button>
           )}
-          <button className="btn btn-glass btn-icon" onClick={closeTrailer} aria-label="Close trailer" title="Close (Esc)">
+          <IconButton variant="glass" onClick={closeTrailer} label="Close trailer" title="Close (Esc)">
             <Close size={18} />
-          </button>
+          </IconButton>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import { Img } from "./Img";
 import { StillPlaceholder } from "./StillPlaceholder";
 import { ProgressBar } from "./PosterCard";
 import { Row } from "./Row";
+import { IconButton, buttonClass } from "./ui/Button";
 
 /**
  * A season as a horizontal shelf of episode lockups (tvOS): still with a
@@ -170,16 +171,17 @@ function EpisodeCard({
         </div>
       </button>
       {released && (
-        <button
-          className="episode-sources btn btn-glass btn-icon pressable"
+        <IconButton
+          variant="glass"
+          className="episode-sources pressable"
           onClick={() => onSources(v)}
-          aria-label={`Sources for episode ${v.episode}`}
+          label={`Sources for episode ${v.episode}`}
           title="Choose source"
         >
           <Sources size={17} />
-        </button>
+        </IconButton>
       )}
-      {released && item && <DownloadButton item={item} video={v} className="episode-download btn btn-glass btn-icon pressable" size={18} />}
+      {released && item && <DownloadButton item={item} video={v} className={buttonClass("glass", true, "episode-download pressable")} size={18} />}
     </div>
   );
 }

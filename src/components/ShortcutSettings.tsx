@@ -14,6 +14,7 @@ import {
   type Action,
 } from "../lib/keybinds";
 import { Close, Plus, Reset, Search } from "./icons";
+import { Button } from "./ui/Button";
 
 /**
  * Settings → Controls & TV → Keyboard Shortcuts, laid out like an editor's
@@ -46,10 +47,10 @@ export function ShortcutSettings() {
             onKeyDown={(e) => e.key === "Escape" && query && (e.stopPropagation(), setQuery(""))}
           />
         </label>
-        <button className="btn" disabled={!customized} onClick={() => resetBindings()}>
+        <Button disabled={!customized} onClick={() => resetBindings()}>
           <Reset size={15} />
           Reset All
-        </button>
+        </Button>
       </div>
 
       {GROUPS.map((g) => {

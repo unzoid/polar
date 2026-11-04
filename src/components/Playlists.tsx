@@ -12,6 +12,7 @@ import {
 import type { MetaPreview } from "../lib/types";
 import { Check, Plus, PlaylistIcon } from "./icons";
 import { Img } from "./Img";
+import { Button, buttonClass } from "./ui/Button";
 
 /**
  * A playlist title as something a card can draw. Titles added here carry
@@ -49,7 +50,7 @@ export function PlaylistButton({ item }: { item: MetaPreview }) {
       }}
     >
       <Popover.Trigger
-        className="btn btn-glass btn-icon"
+        className={buttonClass("glass", true)}
         aria-label="Add to playlist"
         title="Add to playlist"
         data-active={inAny || undefined}
@@ -91,9 +92,9 @@ export function PlaylistButton({ item }: { item: MetaPreview }) {
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setCreating(false))}
                 />
-                <button className="btn btn-primary" disabled={!name.trim()}>
+                <Button variant="primary" disabled={!name.trim()}>
                   Create
-                </button>
+                </Button>
               </form>
             ) : (
               <button className="playlist-menu-item playlist-menu-new" onClick={() => setCreating(true)}>

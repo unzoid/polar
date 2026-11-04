@@ -41,6 +41,7 @@ import { useLibrary, useMeta, useProgress, useSettings, useToggleLibrary } from 
 import { useRouter } from "../lib/router";
 import type { EpisodeLayout, Progress, RankedStream, Video } from "../lib/types";
 import { watchedFraction } from "../lib/watched";
+import { Button, IconButton } from "../components/ui/Button";
 
 /**
  * An anime's page, built from AniList with ani.zip filling in episode titles,
@@ -290,30 +291,30 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
         {paragraphs[0] && <p className="detail-description t-callout">{paragraphs[0]}</p>}
 
         <div className="detail-actions">
-          <button className="btn btn-primary detail-play" disabled={!target} onClick={() => play()} title={unavailable}>
+          <Button variant="primary" className="detail-play" disabled={!target} onClick={() => play()} title={unavailable}>
             {pb.next.resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
             {label}
-          </button>
+          </Button>
           {anime?.trailer?.site === "youtube" && (
-            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id })}>
+            <Button variant="glass" className="detail-trailer-btn" onClick={() => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id })}>
               <Trailer size={18} />
               Trailer
-            </button>
+            </Button>
           )}
           {pb.meta && (
-            <button
-              className="btn btn-glass btn-icon"
+            <IconButton
+              variant="glass"
               onClick={() => toggle.mutate(pb.meta!)}
-              aria-label={inLibrary ? "Remove from Library" : "Add to Library"}
+              label={inLibrary ? "Remove from Library" : "Add to Library"}
               title={inLibrary ? "Remove from Library" : "Add to Library"}
               aria-pressed={inLibrary}
             >
               <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
-            </button>
+            </IconButton>
           )}
-          <button className="btn btn-glass btn-icon" disabled={!target} onClick={() => setSourcesOpen(true)} aria-label="Choose source" title="Choose source">
+          <IconButton variant="glass" disabled={!target} onClick={() => setSourcesOpen(true)} label="Choose source" title="Choose source">
             <Sources size={19} />
-          </button>
+          </IconButton>
         </div>
         {unavailable && <p className="anime-unavailable t-caption">{unavailable}</p>}
       </div>
@@ -554,9 +555,9 @@ function Episodes({
       />
       {found && !found.length && <p className="empty t-body muted">No episode matches “{query.trim()}”.</p>}
       {capped && (
-        <button className="btn btn-glass anime-show-all" onClick={() => setExpanded(true)}>
+        <Button variant="glass" className="anime-show-all" onClick={() => setExpanded(true)}>
           Show all {pageList.length} episodes
-        </button>
+        </Button>
       )}
       <Sheet
         open={sheetOpen}

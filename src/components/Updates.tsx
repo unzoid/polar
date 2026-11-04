@@ -12,6 +12,7 @@ import {
   useUpdateDismissed,
   type WhatsNew,
 } from "../lib/updater";
+import { Button, IconButton } from "./ui/Button";
 
 /**
  * The bottom-centre notice for a new version. It steps through the whole flow
@@ -65,29 +66,28 @@ export function UpdateToast({ hidden }: { hidden: boolean }) {
             )}
           </span>
           {(s.phase === "available" || s.phase === "ready") && s.notes && (
-            <button className="btn btn-glass tv-prompt-go" onClick={() => setNotes(true)}>
+            <Button variant="glass" className="tv-prompt-go" onClick={() => setNotes(true)}>
               What's new
-            </button>
+            </Button>
           )}
           {s.phase === "available" && (
-            <button className="btn btn-primary tv-prompt-go" onClick={() => void downloadUpdate()}>
+            <Button variant="primary" className="tv-prompt-go" onClick={() => void downloadUpdate()}>
               Update
-            </button>
+            </Button>
           )}
           {s.phase === "ready" && (
-            <button className="btn btn-primary tv-prompt-go" onClick={() => void installUpdate()}>
+            <Button variant="primary" className="tv-prompt-go" onClick={() => void installUpdate()}>
               Restart now
-            </button>
+            </Button>
           )}
           {s.phase !== "installing" && (
-            <button
-              className="btn btn-icon"
-              aria-label={s.phase === "ready" ? "Later" : "Dismiss"}
+            <IconButton
+              label={s.phase === "ready" ? "Later" : "Dismiss"}
               title={s.phase === "ready" ? "Later — it'll wait in the top bar" : "Dismiss"}
               onClick={dismissUpdate}
             >
               <Close size={18} />
-            </button>
+            </IconButton>
           )}
         </div>
       )}
@@ -165,9 +165,9 @@ export function WhatsNewSheet() {
       <div className="whats-new">
         {info?.notes ? <ReleaseNotes text={info.notes} /> : <p>Fixes and improvements.</p>}
         <div className="whats-new-actions">
-          <button className="btn btn-primary" onClick={() => setOpen(false)}>
+          <Button variant="primary" onClick={() => setOpen(false)}>
             Got it
-          </button>
+          </Button>
           <a className="whats-new-link" href={releaseUrl(info?.version)} onClick={openExternally}>
             Full release notes
           </a>

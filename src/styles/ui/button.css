@@ -1,0 +1,77 @@
+/* Button and IconButton (components/ui/Button.tsx). Screens add layout through
+   their own class; the settings pages and the settings overlay restyle .btn by
+   scope (screens.css, settings-overlay.css) until the settings step of T-019. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 46px;
+  padding: 0 1.5rem;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+  font-size: var(--fs-lg);
+  letter-spacing: -0.008em;
+  white-space: nowrap;
+  flex: none;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-std);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.5;
+}
+.btn svg {
+  flex: none;
+}
+/* Primary: the light pill ("▶ Resume S2, E3"). One per screen. */
+.btn-primary {
+  background: var(--pill-light);
+  color: var(--text-on-light);
+  padding-left: 1.25rem;
+}
+/* Secondary: glass. Round when it holds a single icon. */
+.btn-glass {
+  background: var(--glass-control);
+  backdrop-filter: var(--blur-control);
+  box-shadow: var(--glass-highlight);
+}
+/* Icon-only buttons: just the glyph at rest — no fill, no blur, no edge. A faint
+   circle appears on hover/press. The glyph gets a soft shadow so it stays
+   legible over artwork. (Doubled selector beats .btn-glass regardless of order.) */
+.btn.btn-icon {
+  width: 46px;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-std);
+}
+.btn.btn-icon svg {
+  filter: drop-shadow(0 1px 5px rgb(0 0 0 / 0.45));
+}
+.btn.btn-icon:active {
+  background: rgb(255 255 255 / 0.16);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    background: #ffffff;
+  }
+  .btn-glass:hover {
+    background: var(--glass-control-hover);
+  }
+  .btn.btn-icon:hover {
+    background: var(--fill-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active {
+    transform: none;
+  }
+}

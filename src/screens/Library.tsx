@@ -24,6 +24,7 @@ import { useRouter } from "../lib/router";
 import { progressFraction, progressItem } from "../lib/shelves";
 import { formatBytes } from "../lib/sources";
 import type { ContentType } from "../lib/types";
+import { buttonClass } from "../components/ui/Button";
 
 type Collection = "saved" | "watched" | "playlists" | "downloads";
 type Open = { view: Collection } | { view: "playlist"; id: string; fresh: boolean } | null;
@@ -405,7 +406,7 @@ function DownloadRow({ d, series, play }: { d: DownloadRecord; series: boolean; 
                         ? { id: d.id, title: d.episodeTitle ?? "", season: d.season ?? 0, episode: d.episode ?? 0, thumbnail: d.thumbnail }
                         : undefined
                     }
-                    className="download-row-action btn btn-icon quiet-btn"
+                    className={buttonClass("plain", true, "download-row-action quiet-btn")}
                     size={18}
                   />
         </div>

@@ -13,6 +13,7 @@ import { isMac } from "./lib/platform";
 import "@fontsource-variable/inter/opsz.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
+import "./styles/ui/button.css";
 import "./styles/shell.css";
 import "./styles/cards.css";
 import "./styles/detail.css";

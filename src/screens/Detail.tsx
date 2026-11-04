@@ -28,6 +28,7 @@ import { anilistForImdb } from "../lib/anime/search";
 import { usePrefs } from "../lib/prefs";
 import { trailerFor, useFileTrailer } from "../lib/trailers";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
+import { Button, IconButton } from "../components/ui/Button";
 
 /**
  * An anime reached by its IMDb id (Search, Library, Continue Watching) opens
@@ -166,50 +167,52 @@ function DetailHero({
         </p>
 
         <div className="detail-actions">
-          <button
-            className="btn btn-primary detail-play"
+          <Button
+            variant="primary"
+            className="detail-play"
             disabled={!videoId}
             onClick={() => play()}
             onPointerEnter={() => videoId && prefetchStreams(item.type, videoId)}
           >
             {resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
             {primaryLabel}
-          </button>
+          </Button>
           {(meta?.trailerYtId || fileTrailer) && (
-            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer(trailerFor(item.name, item.id, meta))}>
+            <Button variant="glass" className="detail-trailer-btn" onClick={() => openTrailer(trailerFor(item.name, item.id, meta))}>
               <Trailer size={18} />
               Trailer
-            </button>
+            </Button>
           )}
-          <button
-            className="btn btn-glass btn-icon"
+          <IconButton
+            variant="glass"
             onClick={() => toggle.mutate(item)}
-            aria-label={inLibrary ? "Remove from Library" : "Add to Library"}
+            label={inLibrary ? "Remove from Library" : "Add to Library"}
             title={inLibrary ? "Remove from Library" : "Add to Library"}
             aria-pressed={inLibrary}
           >
             <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
-          </button>
+          </IconButton>
           <PlaylistButton item={item} />
-          <button
-            className="btn btn-glass btn-icon"
+          <IconButton
+            variant="glass"
             disabled={!videoId}
             onClick={() => setSourcesOpen(true)}
-            aria-label="Choose source"
+            label="Choose source"
             title="Choose source"
           >
             <Sources size={19} />
-          </button>
+          </IconButton>
           {item.type === "movie" && <DownloadButton item={item} />}
           {trailer.visible && (
-            <button
-              className="btn btn-glass btn-icon detail-mute"
+            <IconButton
+              variant="glass"
+              className="detail-mute"
               onClick={trailer.toggleMute}
-              aria-label={trailer.muted ? "Turn trailer sound on" : "Mute trailer"}
+              label={trailer.muted ? "Turn trailer sound on" : "Mute trailer"}
               title={trailer.muted ? "Sound on" : "Mute"}
             >
               {trailer.muted ? <VolumeMuted size={20} /> : <Volume size={20} />}
-            </button>
+            </IconButton>
           )}
         </div>
       </div>

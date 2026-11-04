@@ -24,6 +24,7 @@ import { useRouter } from "../lib/router";
 import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf } from "../lib/shelves";
 import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
+import { Button, IconButton } from "../components/ui/Button";
 
 /**
  * The page, top to bottom: featured carousel, what you're watching, then the
@@ -184,13 +185,14 @@ export function HeroCarousel({
             ))}
           </div>
         </div>
-        <button
-          className="hero-next btn btn-glass btn-icon pressable"
-          aria-label="Next featured"
+        <IconButton
+          variant="glass"
+          className="hero-next pressable"
+          label="Next featured"
           onClick={() => setIndex((index + 1) % count)}
         >
           <ChevronRight size={22} />
-        </button>
+        </IconButton>
       </div>
       {count > 1 && <HeroPeek item={items[(index + 1) % count]} side="next" onClick={() => setIndex((index + 1) % count)} />}
       </div>
@@ -231,18 +233,18 @@ function HeroContent({ item }: { item: MetaPreview }) {
       </p>
       <p className="hero-description t-body">{item.description}</p>
       <div className="hero-actions">
-        <button className="btn btn-primary" onClick={open} {...intent}>
+        <Button variant="primary" onClick={open} {...intent}>
           <Play size={18} fill="currentColor" /> Watch Now
-        </button>
-        <button
-          className="btn btn-glass btn-icon"
+        </Button>
+        <IconButton
+          variant="glass"
           onClick={() => toggle.mutate(item)}
-          aria-label={inLibrary ? "Remove from Library" : "Add to Library"}
+          label={inLibrary ? "Remove from Library" : "Add to Library"}
           title={inLibrary ? "Remove from Library" : "Add to Library"}
           aria-pressed={inLibrary}
         >
           <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
-        </button>
+        </IconButton>
       </div>
     </div>
   );
