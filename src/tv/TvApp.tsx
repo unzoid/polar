@@ -29,6 +29,7 @@ import { TvSettings } from "./TvSettings";
 import { TvJoinParty } from "./TvJoinParty";
 import { useJoinPartyOpen } from "../lib/party/party";
 import { ErrorBoundary } from "../components/ui/ErrorBoundary";
+import { StoreProblemToast } from "../components/StoreProblemToast";
 
 function TvScreen({ route }: { route: Route }) {
   switch (route.name) {
@@ -245,6 +246,7 @@ export function TvApp() {
           </button>
         )}
         <ControllerToast tv />
+        <StoreProblemToast tv />
       </main>
       <PlayerLayer player={player} leaving={leaving} />
     </div>

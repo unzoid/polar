@@ -212,3 +212,12 @@ How to check, with a TMDB key set in Settings:
   `throw new Error("x")` to the top of `screens/Calendar.tsx`'s component, open Calendar: the note shows in
   the page with the nav still working; on TV the note takes the TV look and its Reload must be reachable with
   the controller.
+- Saved data that can't be read (rewrite R1, critique C1; `src-tauri` store.rs/downloads.rs, built by reading
+  only): only a missing `polar.json`/`downloads.json` starts fresh now. Any other read error leaves the file
+  alone for the session (nothing is saved over it; actions that save report "could not save") and a toast says
+  so with the reason; a damaged file is copied aside as before, and if that copy fails nothing is saved
+  either. The decision is `polar_library::opened` (tested). To check: quit Polar, make `polar.json` in the app
+  data folder unreadable (`chmod 000 polar.json` on Linux/macOS; on Windows deny Read in its Security tab),
+  start Polar: the toast shows, adding a title fails, and after quitting and restoring the permission the
+  file still holds the old library. Then put `{` into a copy of the file: a `polar.corrupt-….json` appears
+  and the app starts empty.

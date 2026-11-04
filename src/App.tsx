@@ -33,6 +33,7 @@ import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
 import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import { StoreProblemToast } from "./components/StoreProblemToast";
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -259,6 +260,7 @@ function DesktopApp() {
           </section>
         ))}
         <ControllerToast tv={false} />
+        <StoreProblemToast tv={false} />
         <UpdateToast hidden={!!playing} />
       </main>
       <WhatsNewSheet />

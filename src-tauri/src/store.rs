@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use polar_addon::Manifest;
+use polar_library::opened::{self, Opened};
 pub use polar_library::{LibraryItem, Progress, Space};
 use serde::{Deserialize, Serialize};
 
@@ -313,28 +314,49 @@ impl Data {
 pub struct Store {
     path: PathBuf,
     pub data: Data,
+    /// Why the file couldn't be read at start-up: while set, nothing is saved
+    /// over it (critique C1) and the app says so (`store_problem`).
+    problem: Option<String>,
 }
 
 impl Store {
     pub fn load(path: PathBuf) -> Self {
-        let mut data: Data = match std::fs::read(&path) {
-            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|e| {
-                // Starting fresh would overwrite the user's library, history,
-                // addons and settings on the next save. Keep the unreadable
-                // file next to it so nothing is lost for good.
+        let (mut data, problem) = match opened::open::<Data>(std::fs::read(&path)) {
+            Opened::Data(data) => (data, None),
+            Opened::Fresh => (Data::default(), None),
+            Opened::Corrupt(e) => {
+                // Starting fresh overwrites the library, history, addons and
+                // settings on the next save, so the unreadable file is kept
+                // next to it first; without that copy nothing is saved.
                 let backup = path.with_extension(format!("corrupt-{}.json", now()));
-                eprintln!("polar: {} is unreadable ({e}); kept as {}", path.display(), backup.display());
-                let _ = std::fs::copy(&path, backup);
-                Data::default()
-            }),
-            Err(_) => Data::default(),
+                eprintln!("polar: {} is unreadable ({e}); keeping it as {}", path.display(), backup.display());
+                match std::fs::copy(&path, &backup) {
+                    Ok(_) => (Data::default(), None),
+                    Err(copy) => (
+                        Data::default(),
+                        Some(format!("{} is damaged and couldn't be backed up ({copy})", path.display())),
+                    ),
+                }
+            }
+            Opened::Unreadable(e) => {
+                eprintln!("polar: can't read {} ({e}); not saving over it", path.display());
+                (Data::default(), Some(format!("{} couldn't be read ({e})", path.display())))
+            }
         };
         data.migrate();
-        Self { path, data }
+        Self { path, data, problem }
+    }
+
+    /// Set when the file couldn't be read at start-up: changes this session aren't saved.
+    pub fn problem(&self) -> Option<&str> {
+        self.problem.as_deref()
     }
 
     /// Write via a temp file + rename so a crash never leaves half a file.
     pub fn save(&self) -> std::io::Result<()> {
+        if let Some(problem) = &self.problem {
+            return Err(std::io::Error::other(format!("not saved: {problem}")));
+        }
         if let Some(dir) = self.path.parent() {
             std::fs::create_dir_all(dir)?;
         }
