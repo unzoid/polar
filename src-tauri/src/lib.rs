@@ -118,6 +118,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::store_problem,
             commands::catalog,
             commands::recommend,
             commands::search,

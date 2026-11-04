@@ -6,8 +6,10 @@
 //! - [`identity`]: canonical title ids and aliases (one show, one item).
 //! - [`space`]: library, progress, Continue Watching, history, re-keying.
 //! - [`sync`]: changes since the last push, and merging pulled ones.
+//! - [`opened`]: what to make of a data file read at start-up (missing, unreadable, corrupt).
 
 pub mod identity;
+pub mod opened;
 pub mod space;
 pub mod sync;
 

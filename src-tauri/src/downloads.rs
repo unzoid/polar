@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use polar_addon::Stream;
+use polar_library::opened::{self, Opened};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tokio::io::AsyncWriteExt;
@@ -107,6 +108,9 @@ pub struct Downloads {
     dir: PathBuf,
     inner: Mutex<Inner>,
     http: reqwest::Client,
+    /// Why `downloads.json` couldn't be read at start-up: while set, the list
+    /// isn't saved over it (critique C1).
+    problem: Option<String>,
 }
 
 /// True for a path on this machine (what a finished download plays from), not a URL.
@@ -117,10 +121,23 @@ pub fn is_local(url: &str) -> bool {
 impl Downloads {
     pub fn load(app_data: &Path) -> Self {
         let dir = app_data.join("downloads");
-        let mut items: Vec<Download> = std::fs::read(dir.join("downloads.json"))
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default();
+        let path = dir.join("downloads.json");
+        let (mut items, problem): (Vec<Download>, _) = match opened::open(std::fs::read(&path)) {
+            Opened::Data(items) => (items, None),
+            Opened::Fresh => (Vec::new(), None),
+            // The files are still on disk; keep the record of them before starting over.
+            Opened::Corrupt(e) => match std::fs::copy(&path, path.with_extension(format!("corrupt-{}.json", now()))) {
+                Ok(_) => (Vec::new(), None),
+                Err(copy) => (
+                    Vec::new(),
+                    Some(format!("{} is damaged ({e}) and couldn't be backed up ({copy})", path.display())),
+                ),
+            },
+            Opened::Unreadable(e) => (Vec::new(), Some(format!("{} couldn't be read ({e})", path.display()))),
+        };
+        if let Some(problem) = &problem {
+            eprintln!("polar: {problem}; not saving the downloads list over it");
+        }
         for d in &mut items {
             // Cut off by the app quitting: comes back paused, ready to resume.
             if d.state == DownloadState::Downloading {
@@ -137,7 +154,13 @@ impl Downloads {
                 .connect_timeout(Duration::from_secs(15))
                 .build()
                 .unwrap_or_default(),
+            problem,
         }
+    }
+
+    /// Set when `downloads.json` couldn't be read at start-up.
+    pub fn problem(&self) -> Option<&str> {
+        self.problem.as_deref()
     }
 
     /// True when `path` is a finished download's file, so the player may open it.
@@ -147,6 +170,9 @@ impl Downloads {
     }
 
     fn save(&self, items: &[Download]) {
+        if self.problem.is_some() {
+            return;
+        }
         let _ = std::fs::create_dir_all(&self.dir);
         if let Ok(json) = serde_json::to_vec_pretty(items) {
             let tmp = self.dir.join("downloads.json.tmp");

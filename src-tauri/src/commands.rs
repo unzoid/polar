@@ -11,6 +11,7 @@ use polar_library::AnimeLink;
 use serde::Serialize;
 use tauri::State;
 
+use crate::downloads::Downloads;
 use crate::store::{now, InstalledAddon, LibraryItem, Progress, Settings};
 use crate::AppState;
 
@@ -315,6 +316,14 @@ pub fn anime_links(state: State<'_, AppState>) -> Vec<AnimeLink> {
 }
 
 // --- Settings ------------------------------------------------------------
+
+/// Why a data file couldn't be read at start-up, if one couldn't: changes
+/// then last only until the app quits, and the app says so (critique C1).
+#[tauri::command]
+pub fn store_problem(state: State<'_, AppState>, downloads: State<'_, Arc<Downloads>>) -> Option<String> {
+    let store = state.store.lock().unwrap().problem().map(str::to_owned);
+    store.or_else(|| downloads.problem().map(str::to_owned))
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

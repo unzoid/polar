@@ -98,4 +98,6 @@ export const api = {
   resetSettings: () => invoke<Settings>("settings_reset").then(changed),
 
   mpvAvailable: () => invoke<boolean>("mpv_available"),
+  /** Why saved data couldn't be read at start-up; `null` when it could. */
+  storeProblem: () => invoke<string | null>("store_problem"),
 };
