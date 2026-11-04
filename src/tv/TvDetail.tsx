@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, Edit, Episodes, Play, PlaylistIcon, Plus, Reset, Sources } from "../components/icons";
 import { useBackdropTrailer } from "../components/BackdropTrailer";
-import { TitleDetails } from "../components/TitleDetails";
+import { TitleDetails } from "../components/title/TitleDetails";
 import { Info } from "../components/icons";
 import { renamePlaylist, usePlaylists } from "../lib/playlists";
 import { usePlaylistChecklist } from "../components/title/PlaylistChecklist";
