@@ -1,6 +1,6 @@
 import type { SkipSegments, Span } from "../types";
 import { parseVideoId } from "../identity";
-import { fetchAniZip, regularEpisodes } from "./anizip";
+import { cachedAniZip, regularEpisodes } from "./anizip";
 import { animeLinks } from "./links";
 import { playContext } from "./playContext";
 
@@ -28,7 +28,7 @@ async function resolve(videoId: string): Promise<{ malId: number; episode: numbe
   const imdb = v.title.value;
   const season = v.season ?? 1;
   const episode = v.episode;
-  const zip = await fetchAniZip({ imdb_id: imdb }).catch(() => null);
+  const zip = await cachedAniZip({ imdb_id: imdb }).catch(() => null);
   const malId = zip?.mappings.mal_id;
   if (!zip || !malId) return null;
   // ani.zip answers with the show's first AniList entry, numbered by TVDB. Only

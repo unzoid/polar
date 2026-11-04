@@ -46,10 +46,10 @@ export const keys = {
 
   animeLinks: ["animeLinks"] as const,
   animeCache: ["anime-cache"] as const,
-  /** ani.zip's record for an AniList entry. */
+  /** ani.zip's record for an AniList entry, an IMDb show or a Kitsu entry. */
   aniZip: (anilistId: number) => ["anizip", "anilist", anilistId] as const,
-  /** Whether ani.zip knows an IMDb id (a boolean, not the record). */
-  isAnime: (imdb: string | undefined) => ["anizip", "imdb", imdb] as const,
+  aniZipImdb: (imdb: string) => ["anizip", "imdb", imdb] as const,
+  aniZipKitsu: (kitsu: number) => ["anizip", "kitsu", kitsu] as const,
   anime: {
     home: ["anime", "home"] as const,
     genre: (genre: string) => ["anime", "genre", genre] as const,

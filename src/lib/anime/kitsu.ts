@@ -1,7 +1,7 @@
 import type { ContentType, Meta, Video } from "../types";
 import { getPrefs } from "../prefs";
 import { fetchAnime } from "./anilist";
-import { animeArt, episodeTitle, fetchAniZip, regularEpisodes, type AniZipEpisode } from "./anizip";
+import { animeArt, episodeTitle, cachedAniZip, regularEpisodes, type AniZipEpisode } from "./anizip";
 import { cleanDescription, pickTitle } from "./format";
 
 /**
@@ -23,7 +23,7 @@ export const kitsuParts = (id: string) => {
 
 export async function kitsuMeta(type: ContentType, id: string): Promise<Meta> {
   const { kitsu } = kitsuParts(id);
-  const zip = await fetchAniZip({ kitsu_id: kitsu });
+  const zip = await cachedAniZip({ kitsu_id: kitsu });
   const anilistId = zip?.mappings.anilist_id;
   if (!zip || !anilistId) throw new Error("This anime isn't known to ani.zip");
   const anime = await fetchAnime(anilistId);

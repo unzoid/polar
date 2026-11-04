@@ -10,7 +10,7 @@ import {
   useAnimeHome,
   type AnimeCard,
 } from "../lib/anime/anilist";
-import { aniZipQuery, fetchAniZip, useAniZip } from "../lib/anime/anizip";
+import { aniZipQuery, useAniZip } from "../lib/anime/anizip";
 import { linkAnime } from "../lib/anime/links";
 import { imdbForAnime } from "../lib/anime/search";
 import { cachedLookup } from "../lib/queries";
@@ -205,7 +205,7 @@ export function TvAnimeDetail({ id }: { id: number }) {
   useEffect(() => {
     let live = true;
     void (async () => {
-      const z = await fetchAniZip({ anilist_id: id }).catch(() => null);
+      const z = await qc.fetchQuery(aniZipQuery(id)).catch(() => null);
       // As on desktop: the IMDb show with this entry's episodes, else Kitsu.
       let sure = true;
       let mal = z?.mappings.mal_id;

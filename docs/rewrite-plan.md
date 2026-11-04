@@ -29,6 +29,7 @@ removes the most cost first. Every step is a set of small commits that each leav
 | One Escape/Back stack | M25 | T-019 step 6 |
 | Dead UI code, CSS tokens and primitives | M24, L23 (part) | T-019, `docs/ui-components.md` |
 | P2P playback and its wording | — | T-014 |
+| AniList and ani.zip share a request budget; ani.zip lookups through the query cache | M10 | R3, `lib/net/limiter.ts` |
 
 ## 3. Order of the remaining work
 
@@ -69,7 +70,9 @@ Done in the same migration, so the server is changed once:
 - **M9** Validate at the edges: AniList, ani.zip, Jikan, addon responses and pulled rows through small
   parse functions (no new library) that drop what doesn't fit instead of casting.
 - **M10** One rate limiter (`lib/net/limiter.ts`) shared by AniList, ani.zip and Jikan; 429 honours
-  `Retry-After` and gives up after a bound.
+  `Retry-After` and gives up after a bound. Done for AniList and ani.zip (Jikan moved into
+  `crates/anime/src/fillers.rs`, which caps its retries); left: Cinemeta search in `imdbForAnime` through
+  the cache, `kitsuMeta` without the full `fetchAnime`.
 - **M11** Party messages parsed and bounded before use. **M12** Local data of a deleted profile and of
   a signed-out account removed; guest data offered to the first profile.
 - **L1** Errors as `{ code, message }` from Rust and the account backend, not sniffed strings.

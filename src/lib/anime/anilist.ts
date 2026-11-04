@@ -1,33 +1,29 @@
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrefs } from "../prefs";
 import { keys } from "../queryKeys";
+import { anilistLimiter, limitedFetch } from "../net/limiter";
 
 /**
  * AniList (graphql.anilist.co): the anime catalogue, seasons, the airing
  * schedule, relations, characters and voice actors. Public and keyless.
  *
  * It rate-limits per IP (30–90 requests a minute), so the Anime page asks for
- * all of its shelves in one request, results are cached generously, and a 429
- * waits out Retry-After once before giving up.
+ * all of its shelves in one request, results are cached generously, and every
+ * request goes through one shared budget that waits out a 429
+ * (lib/net/limiter.ts).
  */
 const ENDPOINT = "https://graphql.anilist.co";
 
-export async function gql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ query, variables }),
-    });
-    if (res.status === 429 && attempt === 0) {
-      const wait = Math.min(Number(res.headers.get("Retry-After")) || 5, 30);
-      await new Promise((r) => setTimeout(r, wait * 1000));
-      continue;
-    }
-    const json = (await res.json().catch(() => null)) as { data?: T; errors?: { message: string }[] } | null;
-    if (!res.ok || !json?.data) throw new Error(json?.errors?.[0]?.message ?? `AniList answered ${res.status}`);
-    return json.data;
-  }
+export async function gql<T>(query: string, variables: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
+  const res = await limitedFetch(anilistLimiter, ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ query, variables }),
+    signal,
+  });
+  const json = (await res.json().catch(() => null)) as { data?: T; errors?: { message: string }[] } | null;
+  if (!res.ok || !json?.data) throw new Error(json?.errors?.[0]?.message ?? `AniList answered ${res.status}`);
+  return json.data;
 }
 
 // --- Types -----------------------------------------------------------------
@@ -174,10 +170,10 @@ export interface AnimeHome {
 
 /** Every shelf on the Anime page, in one request. */
 export function useAnimeHome() {
-  return useQuery({ queryKey: keys.anime.home, staleTime: 30 * 60_000, queryFn: fetchAnimeHome });
+  return useQuery({ queryKey: keys.anime.home, staleTime: 30 * 60_000, queryFn: ({ signal }) => fetchAnimeHome(signal) });
 }
 
-export async function fetchAnimeHome(): Promise<AnimeHome> {
+export async function fetchAnimeHome(signal?: AbortSignal): Promise<AnimeHome> {
   const now = seasonOf();
   const next = nextSeason(now);
   const page = (args: string) => `Page(perPage: 24) { media(type: ANIME, isAdult: false, ${args}) { ${LISTED} } }`;
@@ -191,6 +187,7 @@ export async function fetchAnimeHome(): Promise<AnimeHome> {
       movies: ${page("format: MOVIE, sort: POPULARITY_DESC")}
     }`,
     { season: now.season, year: now.year, nextSeason: next.season, nextYear: next.year },
+    signal,
   );
   return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.media])) as unknown as AnimeHome;
 }
@@ -201,11 +198,12 @@ export function useAnimeGenre(genre: string, enabled: boolean) {
     queryKey: keys.anime.genre(genre),
     staleTime: 60 * 60_000,
     enabled,
-    queryFn: async () =>
+    queryFn: async ({ signal }) =>
       (
         await gql<{ Page: { media: AnimeCard[] } }>(
           `query ($genre: String) { Page(perPage: 24) { media(type: ANIME, isAdult: false, genre: $genre, sort: TRENDING_DESC) { ${LISTED} } } }`,
           { genre },
+          signal,
         )
       ).Page.media,
   });
@@ -245,11 +243,12 @@ export function useAnimeSeasons(anime: Anime | undefined) {
         client.fetchQuery({
           queryKey: keys.anime.link(id),
           staleTime: 24 * 60 * 60_000,
-          queryFn: async () =>
+          queryFn: async ({ signal }) =>
             (
               await gql<{ Media: ChainLink }>(
                 `query ($id: Int) { Media(id: $id, type: ANIME) { ${CARD} relations { edges { relationType(version: 2) node { id type format } } } } }`,
                 { id },
+                signal,
               )
             ).Media,
         });
@@ -290,12 +289,12 @@ export function useAnime(id: number, { keepPrevious = false } = {}) {
   return useQuery({
     queryKey: keys.anime.media(id),
     staleTime: 30 * 60_000,
-    queryFn: () => fetchAnime(id),
+    queryFn: ({ signal }) => fetchAnime(id, signal),
     placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
 }
 
-export async function fetchAnime(id: number): Promise<Anime> {
+export async function fetchAnime(id: number, signal?: AbortSignal): Promise<Anime> {
   type Edge = CharacterEdge & { voiceActors?: (Person & { languageV2?: string })[] };
   const media = (
         await gql<{ Media: Anime & { characters: { edges: Edge[] } } }>(
@@ -324,6 +323,7 @@ export async function fetchAnime(id: number): Promise<Anime> {
             }
           }`,
           { id },
+          signal,
         )
       ).Media;
   // Aliasing `voiceActors` twice on one edge comes back merged, so ask once and split by language.
@@ -355,7 +355,7 @@ export function useAiringSchedule(from: number, to: number, enabled = true) {
     enabled,
     // Never adult titles; the long tail of shorts nobody's tracking only if Settings → Anime asks.
     select: (slots: AiringSlot[]) => slots.filter((s) => !s.media.isAdult && (animeScheduleAll || (s.media.popularity ?? 0) >= 500)),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const out: AiringSlot[] = [];
       for (let page = 1; page <= 6; page++) {
         const data = await gql<{ Page: { pageInfo: { hasNextPage: boolean }; airingSchedules: AiringSlot[] } }>(
@@ -368,6 +368,7 @@ export function useAiringSchedule(from: number, to: number, enabled = true) {
             }
           }`,
           { page, from, to },
+          signal,
         );
         out.push(...data.Page.airingSchedules);
         if (!data.Page.pageInfo.hasNextPage) break;
@@ -414,7 +415,7 @@ export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
     queryKey: keys.anime.browse(f),
     staleTime: 15 * 60_000,
     initialPageParam: 1,
-    queryFn: async ({ pageParam }) => {
+    queryFn: async ({ pageParam, signal }) => {
       const vars: Record<string, unknown> = { page: pageParam, sort: f.search ? ["SEARCH_MATCH", f.sort] : [f.sort] };
       if (f.search) vars.search = f.search;
       if (f.genre) vars.genre = f.genre;
@@ -434,6 +435,7 @@ export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
           }
         }`,
         vars,
+        signal,
       );
       // A search shows each franchise once (oneFranchiseEach): keep just the prequel/sequel links it needs.
       const media = data.Page.media.map(({ relations, ...card }): AnimeCard =>
