@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { StartStage, StepTone } from "../../lib/startLog";
+import { listenProbe, nextProbeId, probeStep } from "./useStartLog";
 
 /** The slice of HTMLVideoElement the player, scrubber and track UI rely on. */
 export interface MediaLike extends EventTarget {
@@ -34,6 +36,15 @@ export interface MpvTrack {
   "demux-channel-count"?: number;
 }
 
+/** Detail of the `step` events MpvMedia fires for the loading screen's log. */
+export interface StepDetail {
+  text: string;
+  tone?: StepTone;
+  stage?: StartStage;
+  /** Same key as the step before: replaces it. */
+  key?: string;
+}
+
 /** How long time reports are ignored after a seek is sent, at most, if mpv never says it started. */
 const SEEK_STALE_MS = 1000;
 
@@ -44,6 +55,10 @@ const SEEK_STALE_MS = 1000;
  * object mirrors its state from `mpv://property` events and turns them into
  * the same DOM events a <video> fires (play, pause, waiting, playing,
  * loadedmetadata, timeupdate, ended, error), so the player logic is shared.
+ *
+ * It also fires `step` events (a CustomEvent<StepDetail>) while a file starts:
+ * the link check, mpv opening the file, buffering. The player's loading screen
+ * lists them.
  *
  * Time is reported by mpv ~4×/s; between reports `currentTime` is
  * interpolated from the playback rate, so the scrubber still moves every frame.
@@ -121,15 +136,28 @@ export class MpvMedia extends EventTarget implements MediaLike {
     this.tracks = [];
     this.chapters = [];
     this.emit("chapters");
+    this.reportedTracks = false;
+    const probeId = nextProbeId();
     this.enqueue(async () => {
       await this.listening; // never load before we can hear mpv's answers
-      await invoke("mpv_load", { url, start });
+      const unlisten = await listenProbe(probeId, (e) => this.step(...probeStep(e)));
+      try {
+        await invoke("mpv_load", { url, start, probeId });
+      } finally {
+        unlisten();
+      }
+      this.step("Handed to mpv, opening the file", "info", "player");
       // mpv_load un-pauses explicitly; mpv only reports *changes*, so if it was
       // already unpaused no event comes — state it here instead of waiting.
       this.isPaused = false;
       this.stamp = performance.now();
       this.emit("play");
-    }).catch((e) => this.fail(String(e)));
+    }).catch((e) => {
+      // The link check's verdicts all start "The source…" / "This source…"; anything else is mpv not starting.
+      const message = String(e);
+      this.step(message, "fail", /^(The|This) source/.test(message) ? "server" : "player");
+      this.fail(message);
+    });
   }
 
   command(...args: unknown[]) {
@@ -209,6 +237,12 @@ export class MpvMedia extends EventTarget implements MediaLike {
     this.dispatchEvent(new Event(type));
   }
 
+  private reportedTracks = false;
+
+  private step(text: string, tone?: StepTone, stage?: StartStage, key?: string) {
+    this.dispatchEvent(new CustomEvent<StepDetail>("step", { detail: { text, tone, stage, key } }));
+  }
+
   private fail(message: string, playerExited = false) {
     this.error = { code: 4, message, playerExited };
     this.emit("error");
@@ -265,8 +299,18 @@ export class MpvMedia extends EventTarget implements MediaLike {
       case "demuxer-cache-time":
         if (typeof data === "number") this.cacheEnd = data;
         break;
+      case "cache-buffering-state":
+        if (typeof data === "number" && (data < 100 || this.buffering)) this.step(`Buffering ${Math.round(data)}%`, "info", "player", "buffer");
+        break;
+      case "file-format":
+        if (typeof data === "string" && data) this.step(`Container: ${data}`, "info", "player");
+        break;
       case "track-list":
         this.tracks = Array.isArray(data) ? (data as MpvTrack[]) : [];
+        if (this.tracks.length && !this.reportedTracks) {
+          this.reportedTracks = true;
+          this.step(describeTracks(this.tracks), "info", "player");
+        }
         this.emit("tracks");
         break;
       case "chapter-list":
@@ -282,9 +326,29 @@ export class MpvMedia extends EventTarget implements MediaLike {
   }
 
   private onEvent(e: { event: string; reason?: string; file_error?: string }) {
-    if (e.event === "end-file" && e.reason === "error") this.fail(e.file_error ?? "mpv couldn't open this file");
-    if (e.event === "shutdown") this.fail("The player stopped unexpectedly.", true);
+    if (e.event === "file-loaded") this.step("mpv opened the file", "ok", "player");
+    if (e.event === "end-file" && e.reason === "error") {
+      this.step(`mpv couldn't play it: ${e.file_error ?? "unknown error"}`, "fail", "player");
+      this.fail(e.file_error ?? "mpv couldn't open this file");
+    }
+    if (e.event === "shutdown") {
+      this.step("mpv stopped unexpectedly", "fail", "player");
+      this.fail("The player stopped unexpectedly.", true);
+    }
   }
+}
+
+/** "Tracks: video hevc, 2 audio (eac3, aac), 3 subtitles". */
+function describeTracks(tracks: MpvTrack[]) {
+  const of = (t: MpvTrack["type"]) => tracks.filter((x) => x.type === t);
+  const codecs = (ts: MpvTrack[]) => [...new Set(ts.map((t) => t.codec).filter(Boolean))].join(", ");
+  const [video, audio, subs] = [of("video"), of("audio"), of("sub")];
+  const parts = [];
+  if (video.length) parts.push(`video ${codecs(video) || "?"}`);
+  else parts.push("no video");
+  if (audio.length) parts.push(`${audio.length} audio${codecs(audio) ? ` (${codecs(audio)})` : ""}`);
+  if (subs.length) parts.push(`${subs.length} subtitle${subs.length > 1 ? "s" : ""}`);
+  return `Tracks: ${parts.join(", ")}`;
 }
 
 export function isMpv(media: MediaLike | null): media is MpvMedia {

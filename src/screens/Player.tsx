@@ -40,7 +40,10 @@ import {
   forgetAssOverride,
   subtitleCueVars,
 } from "../components/player/SubtitleSettings";
-import { MpvMedia, type MediaLike } from "../components/player/mpvMedia";
+import { MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
+import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
+import { STAGE_LABEL, failedStage, formatReport, type StartStage, type StartStep } from "../lib/startLog";
+import { appVersion } from "../lib/updater";
 import { usePrefs } from "../lib/prefs";
 import { actionFor, withShortcut } from "../lib/keybinds";
 import { api } from "../lib/api";
@@ -116,7 +119,13 @@ export function Player({
     const p = getParty()?.playback;
     return p?.media.videoId === videoId ? p.media.hint : undefined;
   });
-  const source = useSource(type, metaId, videoId, stream, roomHint);
+  // What the loading screen lists as it happens (and copies for a bug report).
+  const { steps, add: logStep } = useStartLog();
+  useEffect(() => {
+    if (engine === "mpv") logStep("Player: mpv", "info", "player");
+    else if (engine === "html") logStep("Player: built-in (mpv isn't installed; MKV, HEVC and some audio won't play)", "info", "player");
+  }, [engine, logStep]);
+  const source = useSource(type, metaId, videoId, stream, roomHint, logStep);
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const media: MediaLike | null = engine === "mpv" ? mpv : videoEl;
@@ -127,6 +136,10 @@ export function Player({
   const [buffering, setBuffering] = useState(true);
   // Until the first frame actually plays, the loading screen stays up.
   const [started, setStarted] = useState(false);
+  const startedRef = useRef(false);
+  startedRef.current = started;
+  /** Why the link check turned the built-in player's source down (mpv reports its own). */
+  const linkError = useRef<string | null>(null);
   const [volume, setVolume] = useState(() => Number(localStorage.getItem("polar.volume") ?? 1));
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -345,11 +358,46 @@ export function Player({
       resumed.current = true;
       v.load(source.state.url, start);
     } else if (v instanceof HTMLVideoElement) {
-      v.src = source.state.url;
-      v.play().catch(() => setPaused(true));
+      const url = source.state.url;
+      const play = (src: string) => {
+        v.src = src;
+        v.play().catch(() => setPaused(true));
+      };
+      linkError.current = null;
+      if (isLocalFile(url)) return play(url);
+      // The same link check mpv_load runs, so this player gets the warmed link and the same steps.
+      let cancelled = false;
+      const id = nextProbeId();
+      const unlisten = listenProbe(id, (e) => logStep(...probeStep(e)));
+      api
+        .streamProbe(url, id)
+        .then(
+          (final) => !cancelled && play(final),
+          (e) => {
+            if (cancelled) return;
+            linkError.current = String(e);
+            logStep(String(e), "fail", "server");
+            v.dispatchEvent(new Event("error"));
+          },
+        )
+        .finally(() => void unlisten.then((f) => f()));
+      return () => {
+        cancelled = true;
+      };
     }
     // Volume is applied by its own effect; only a new source reloads.
   }, [source.state, media]);
+
+  // mpv's own steps (link check, opening, buffering) go to the log until the picture starts.
+  useEffect(() => {
+    if (!media) return;
+    const onStep = (e: Event) => {
+      const d = (e as CustomEvent<StepDetail>).detail;
+      if (!startedRef.current) logStep(d.text, d.tone, d.stage, d.key);
+    };
+    media.addEventListener("step", onStep);
+    return () => media.removeEventListener("step", onStep);
+  }, [media, logStep]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -371,6 +419,7 @@ export function Player({
   useEffect(() => {
     if (!inParty || started || source.state.status !== "ready") return;
     const t = window.setTimeout(() => {
+      logStep(`Not playing after ${PARTY_START_MS / 1000} s; the watch party is waiting`, "warn", "player");
       if (!sourceNext()) return;
       setNotice("That source was slow to start. Trying the next best one.");
       window.setTimeout(() => setNotice(null), 3500);
@@ -429,9 +478,13 @@ export function Player({
       setPaused(true);
       save();
     },
-    waiting: () => setBuffering(true),
+    waiting: () => {
+      setBuffering(true);
+      if (!startedRef.current) logStep("Buffering", "info", "player", "buffer");
+    },
     playing: () => {
       setBuffering(false);
+      if (!startedRef.current) logStep("Playing", "ok", "player");
       setStarted(true);
     },
     canplay: () => setBuffering(false),
@@ -440,6 +493,10 @@ export function Player({
       const start = partyPosition(videoId) ?? resumePoint(source.resume);
       if (!resumed.current && start != null) v.currentTime = start;
       resumed.current = true;
+      if (!startedRef.current) {
+        const length = Number.isFinite(v.duration) ? ` · ${formatTime(v.duration)} long` : " · live or unknown length";
+        logStep(`File opened${length}${start != null ? `, starting at ${formatTime(start)}` : ""}`, "ok", "player");
+      }
       setTime({ current: v.currentTime, duration: v.duration });
     },
     timeupdate: () => {
@@ -457,7 +514,13 @@ export function Player({
       // would just start mpv again (and if it keeps exiting, loop through
       // every source).
       const exited = videoRef.current instanceof MpvMedia && videoRef.current.error?.playerExited;
+      const el = videoRef.current;
+      if (el instanceof HTMLVideoElement && el.error) {
+        const kinds = ["", "loading was stopped", "network error", "couldn't decode it", "format not supported"];
+        logStep(`Built-in player: ${kinds[el.error.code] ?? `error ${el.error.code}`}${el.error.message ? ` (${el.error.message})` : ""}`, "fail", "player");
+      }
       if (!exited && source.next()) {
+        logStep("Trying the next source", "warn");
         setNotice("That source didn't load. Trying the next best one.");
         window.setTimeout(() => setNotice(null), 3500);
       } else {
@@ -465,7 +528,9 @@ export function Player({
         setError(
           v instanceof MpvMedia
             ? (v.error?.message ?? "This file couldn't be played.")
-            : isMac
+            : linkError.current
+              ? linkError.current
+              : isMac
               ? "This file's format needs mpv. Install it (brew install mpv) and Polarity will play it."
               : "This file's format needs mpv. Install mpv and Polarity will play it.",
         );
@@ -767,6 +832,8 @@ export function Player({
             logo={meta?.logo}
             name={meta?.name}
             background={meta?.background}
+            steps={steps}
+            backend={engine ?? "not chosen yet"}
             onSources={() => setOptions("sources")}
           />
         )}
@@ -1081,6 +1148,9 @@ const FILL = { searching: 34, resolving: 66, starting: 92, done: 100 } as const;
  * connecting, buffering the first frames. Real stages, not a fake timer: each
  * one moves the fill further, and a slow creep within a stage shows life
  * while a slow server answers.
+ *
+ * Under it, the steps as they happen (lib/startLog); on failure, which step
+ * failed, and a button that copies the whole log for a bug report.
  */
 function PlayerStatus({
   state,
@@ -1088,6 +1158,8 @@ function PlayerStatus({
   logo,
   name,
   background,
+  steps,
+  backend,
   onSources,
 }: {
   state: ReturnType<typeof useSource>["state"];
@@ -1095,9 +1167,12 @@ function PlayerStatus({
   logo?: string;
   name?: string;
   background?: string;
+  steps: StartStep[];
+  backend: string;
   onSources: () => void;
 }) {
   const failed = state.status === "failed" || !!error;
+  const stageAt = failed ? failedStage(steps) : undefined;
 
   const stage = state.status === "searching" ? "searching" : state.status === "resolving" ? "resolving" : "starting";
   const message = failed
@@ -1134,16 +1209,63 @@ function PlayerStatus({
         <p key={message} className="player-status-message t-callout" role="status">
           {message}
         </p>
+        {stageAt && <p className="player-status-where t-caption">Failed at {STAGE_LABEL[stageAt]}</p>}
+        <StartSteps steps={steps} all={failed} />
         {failed && (
           <div className="player-status-actions">
             {/* Focused, so Enter (or a controller's A) picks it straight away. */}
             <button className="btn btn-primary" onClick={onSources} autoFocus>
               <Sources size={17} /> Choose Another Source
             </button>
+            <CopyDetails steps={steps} backend={backend} outcome={message} stage={stageAt} />
           </div>
         )}
       </div>
     </motion.div>
+  );
+}
+
+/** Lines shown while loading; failed, the whole log scrolls. */
+const STEPS_SHOWN = 5;
+
+function StartSteps({ steps, all }: { steps: StartStep[]; all: boolean }) {
+  const list = useRef<HTMLOListElement>(null);
+  const shown = all ? steps : steps.slice(-STEPS_SHOWN);
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [shown.length, all]);
+  if (!shown.length) return null;
+  return (
+    <ol ref={list} className="player-steps" data-all={all} aria-label="Loading steps">
+      {shown.map((s, i) => (
+        <li key={steps.length - shown.length + i} data-tone={s.tone} data-current={!all && i === shown.length - 1}>
+          <span className="player-step-time">{(s.at / 1000).toFixed(1)}s</span>
+          <span className="player-step-text">{s.text}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const platformName = isMac ? "macOS" : /Win/i.test(navigator.platform || navigator.userAgent) ? "Windows" : "Linux";
+
+/** Copies the redacted log, with app version, platform and player, for a bug report. */
+function CopyDetails({ steps, backend, outcome, stage }: { steps: StartStep[]; backend: string; outcome: string; stage?: StartStage }) {
+  const [copied, setCopied] = useState<"yes" | "no" | null>(null);
+  const copy = async () => {
+    const app = await appVersion().catch(() => "unknown");
+    const text = formatReport(steps, { app, platform: platformName, backend, outcome, stage });
+    navigator.clipboard.writeText(text).then(
+      () => setCopied("yes"),
+      () => setCopied("no"),
+    );
+    window.setTimeout(() => setCopied(null), 2500);
+  };
+  return (
+    <button className="btn btn-glass" onClick={() => void copy()}>
+      {copied === "yes" ? "Copied" : copied === "no" ? "Couldn't copy" : "Copy Details"}
+    </button>
   );
 }
 
