@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Settings as Cog, Plus, Puzzle, Trash } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { keys, useAddons } from "../../lib/queries";
+import { keys, useAddons } from "../../lib/net";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded } from "../../components/settings/rows";

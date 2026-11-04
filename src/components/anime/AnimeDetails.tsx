@@ -1,7 +1,6 @@
-import type { Anime } from "../../lib/anime/anilist";
-import { cleanDescription, FORMAT_LABEL, fuzzyDate, SEASON_LABEL, SOURCE_LABEL, STATUS_LABEL, useAnimeTitle } from "../../lib/anime/format";
+import { type Anime, cleanDescription, FORMAT_LABEL, fuzzyDate, SEASON_LABEL, SOURCE_LABEL, STATUS_LABEL, useAnimeTitle } from "../../lib/anime";
 import { api } from "../../lib/api";
-import { setPrefs, usePrefs } from "../../lib/prefs";
+import { setPrefs, usePrefs } from "../../lib/settings";
 import { DetailsColumns, DetailsLinks, DetailsSection } from "../title/TitleDetails";
 import { Badge, Chip } from "../ui/Chip";
 

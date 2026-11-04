@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { pushEach, pushSpace, unpushedCount, type PushDeps } from "../src/lib/account/spacePush";
-import type { AnimeLink } from "../src/lib/identity";
+import type { AnimeLink } from "../src/lib/library/identity";
 import type { LocalChanges, Progress, SyncLibraryItem } from "../src/lib/types";
 
 const item = (id: string) => ({ id }) as unknown as SyncLibraryItem;

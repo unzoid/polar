@@ -8,7 +8,7 @@ import {
   useParty,
   type PartyMedia,
   type StreamHint,
-} from "../../lib/party/party";
+} from "../../lib/party";
 import { isMpv, type MediaLike } from "./mpvMedia";
 
 /** Within this, leave it alone. */

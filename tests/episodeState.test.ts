@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { episodeState } from "../src/lib/episodeState";
+import { episodeState } from "../src/lib/library/episodeState";
 import { shortRuntime } from "../src/lib/format";
 import type { Progress, Video } from "../src/lib/types";
 

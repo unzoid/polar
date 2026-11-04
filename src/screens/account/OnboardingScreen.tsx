@@ -3,8 +3,7 @@ import { Avatar } from "../../components/Avatar";
 import { Check } from "../../components/icons";
 import { Button } from "../../components/ui/Button";
 import { TextField } from "../../components/ui/TextField";
-import { AVATAR_GROUPS, AVATARS, type AvatarId } from "../../lib/account";
-import { useAccount } from "../../lib/account/AccountProvider";
+import { AVATAR_GROUPS, type AvatarId, AVATARS, useAccount } from "../../lib/account";
 import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
 

@@ -2,13 +2,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
 import { Close, Desktop, Power, Profile, Search, Settings, Tv, Users, WatchParty } from "../components/icons";
-import { partyAvailable, setJoinPartyOpen } from "../lib/party/party";
-import { useAccount } from "../lib/account/AccountProvider";
+import { partyAvailable, setJoinPartyOpen } from "../lib/party";
+import { useAccount } from "../lib/account";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
-import { usePrefs } from "../lib/prefs";
-import { useSettings } from "../lib/queries";
+import { shortcutText, usePrefs } from "../lib/settings";
+import { useSettings } from "../lib/net";
 import { buttonFor, usePadBindings, type NavAction, type PadButton, type PlayerPadAction } from "./padBindings";
-import { shortcutText } from "../lib/keybinds";
 import {
   dismissNotice,
   useControllerNotice,

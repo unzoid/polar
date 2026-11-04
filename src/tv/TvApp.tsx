@@ -14,11 +14,11 @@ import {
   move,
   ownsArrows,
 } from "./spatial";
-import { dismissTop, onDismissed } from "../lib/dismiss";
+import { dismissTop, onDismissed } from "../lib/ui";
 import { Desktop } from "../components/icons";
-import { actionFor, shortcutText } from "../lib/keybinds";
+import { actionFor, shortcutText } from "../lib/settings";
 import { playSound } from "./sounds";
-import { useSettings } from "../lib/queries";
+import { useSettings } from "../lib/net";
 import { setTvMode } from "./tvMode";
 import { ControllerToast, TvHints, TvMenu, TvNav, sameTab, useTvTabs } from "./TvChrome";
 import { TvCardMenuHost, useCardMenuOpen } from "./TvCardMenu";
@@ -27,7 +27,7 @@ import { TvDetail } from "./TvDetail";
 import { TvCalendar, TvDiscover, TvHome, TvLibrary, TvSearch } from "./TvScreens";
 import { TvSettings } from "./TvSettings";
 import { TvJoinParty } from "./TvJoinParty";
-import { useJoinPartyOpen } from "../lib/party/party";
+import { useJoinPartyOpen } from "../lib/party";
 import { ErrorBoundary } from "../components/ui/ErrorBoundary";
 import { StoreProblemToast } from "../components/StoreProblemToast";
 

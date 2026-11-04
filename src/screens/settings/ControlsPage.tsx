@@ -1,5 +1,5 @@
 import { ShortcutSettings } from "../../components/ShortcutSettings";
-import { usePrefs } from "../../lib/prefs";
+import { usePrefs } from "../../lib/settings";
 import { playSound } from "../../tv/sounds";
 import { setTvMode } from "../../tv/tvMode";
 import { ActionRow, Card } from "../../components/settings/rows";

@@ -1,9 +1,9 @@
 import { api } from "../../lib/api";
 import { formatDate, formatRuntime } from "../../lib/format";
-import { usePersonPhoto } from "../../lib/personPhoto";
+import { usePersonPhoto } from "../../lib/catalog";
 import { useQuery } from "@tanstack/react-query";
-import { useRatings, useStreams } from "../../lib/queries";
-import { isFresh, metacriticTone } from "../../lib/score";
+import { keys, useRatings, useStreams } from "../../lib/net";
+import { isFresh, metacriticTone } from "../../lib/ui";
 import type { ReactNode } from "react";
 import type { ContentType, ExternalRatings, Meta } from "../../lib/types";
 import { letterboxdUrl } from "../CardMenu";
@@ -12,7 +12,6 @@ import { ArrowUpRight } from "../icons";
 import { Img } from "../Img";
 import { imdbUrl } from "../RatingRing";
 import { Chip } from "../ui/Chip";
-import { keys } from "../../lib/queryKeys";
 
 /**
  * Everything about a title below the fold: what critics and audiences

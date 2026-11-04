@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isFresh, metacriticTone, scoreTone } from "../src/lib/score";
+import { isFresh, metacriticTone, scoreTone } from "../src/lib/ui/score";
 
 test("IMDb bands", () => {
   expect([7, 6.9, 5, 4.9].map(scoreTone)).toEqual(["good", "mid", "mid", "low"]);

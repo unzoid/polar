@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { keys } from "../queryKeys";
+import { keys } from "../net/queryKeys";
 
 /**
  * Which episodes are filler and which are recaps, what AniList doesn't track.

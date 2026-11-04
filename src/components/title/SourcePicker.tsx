@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PlayRequest } from "../../lib/titlePlayback";
-import { useTitlePlayback } from "../../lib/useTitlePlayback";
+import { type PlayRequest, useTitlePlayback } from "../../lib/playback";
 import { Sheet } from "../Sheet";
 import { StreamList } from "../StreamList";
 

@@ -1,4 +1,4 @@
-import type { ContentType } from "./types";
+import type { ContentType } from "../types";
 
 /**
  * Genres you can browse by, per type: the names the index's catalogs take

@@ -3,19 +3,13 @@ import { useDeferredValue, useEffect, useState } from "react";
 import { AnimeCard } from "../components/anime/AnimeCard";
 import { PosterCard } from "../components/PosterCard";
 import { Shelf } from "../components/title/Shelf";
-import type { AnimeCard as Card } from "../lib/anime/anilist";
-import { useAnimeResults } from "../lib/anime/search";
-import { withoutAnime } from "../lib/anime/merge";
-import { useAnimeAliases } from "../lib/anime/links";
+import { type AnimeCard as Card, useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
 import { api } from "../lib/api";
-import { BROWSE_GENRES, genreOf } from "../lib/genres";
-import { usePrefs } from "../lib/prefs";
-import { useSearch } from "../lib/queries";
-import { useSearchText } from "../lib/searchQuery";
-import { addRecentSearch } from "../lib/recentSearches";
+import { addRecentSearch, BROWSE_GENRES, genreOf, useSearchText } from "../lib/catalog";
+import { usePrefs } from "../lib/settings";
+import { keys, useSearch } from "../lib/net";
 import type { ContentType, MetaPreview } from "../lib/types";
 import { EmptyState } from "../components/ui/EmptyState";
-import { keys } from "../lib/queryKeys";
 
 /**
  * Results for whatever is typed in the navbar's search field, one row per

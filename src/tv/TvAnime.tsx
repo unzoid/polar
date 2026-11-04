@@ -9,17 +9,24 @@ import {
   useAnimeGenre,
   useAnimeHome,
   type AnimeCard,
-} from "../lib/anime/anilist";
-import { aniZipQuery, useAniZip } from "../lib/anime/anizip";
-import { linkAnime } from "../lib/anime/links";
-import { imdbForAnime } from "../lib/anime/search";
-import { cachedLookup } from "../lib/queries";
-import { countdown, isMature, SEASON_LABEL, untilAiring, useAnimeScore } from "../lib/anime/format";
-import { animePreview } from "../lib/anime/preview";
-import { useShelfVisible } from "../lib/anime/shelves";
-import { usePrefs } from "../lib/prefs";
+} from "../lib/anime";
+import {
+  animePreview,
+  aniZipQuery,
+  countdown,
+  imdbForAnime,
+  isMature,
+  linkAnime,
+  SEASON_LABEL,
+  untilAiring,
+  useAnimeScore,
+  useAniZip,
+  useShelfVisible,
+} from "../lib/anime";
+import { cachedLookup } from "../lib/net";
+import { usePrefs } from "../lib/settings";
 import { useRouter } from "../lib/router";
-import type { Shape } from "../lib/shelves";
+import type { Shape } from "../lib/catalog";
 import { playSound } from "./sounds";
 import { TvBrowse, TvCard, TvRail, TvSkeletonRail, type RailRow } from "./TvRails";
 import { useStage } from "./TvStage";

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
-import { getPrefs, type Prefs } from "../src/lib/prefs";
+import { getPrefs, type Prefs } from "../src/lib/settings/prefs";
 import {
   SETTINGS,
   choicesOf,
@@ -37,7 +37,7 @@ describe("settings schema", () => {
       "src/components/Marketplace.tsx",
       "src/components/ShortcutSettings.tsx",
       "src/components/player/SubtitleSettings.tsx",
-      "src/lib/marketplace.ts",
+      "src/lib/catalog/marketplace.ts",
     ];
     const source = files.map((f) => readFileSync(f, "utf8")).join("\n");
     const shown = (d: (typeof SETTINGS)[number]) =>

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { CardSkeleton } from "./Card";
-import { useInfiniteSentinel, type Pager } from "../../lib/viewport";
+import { useInfiniteSentinel, type Pager } from "../../lib/ui";
 
 /**
  * The grid of poster cards (docs/ui-components.md U3). With a `pager` (an infinite query) it shows skeletons

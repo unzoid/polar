@@ -4,8 +4,7 @@ import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
 import { IconButton } from "../ui/Button";
 import type { MediaLike } from "./mpvMedia";
-import { prefersReducedMotion } from "../../lib/reducedMotion";
-import { useLayer } from "../../lib/layer";
+import { prefersReducedMotion, useLayer } from "../../lib/ui";
 
 export interface OptionItem {
   id: string;
@@ -77,7 +76,7 @@ export function OptionsOverlay({
     return () => window.clearTimeout(t);
   }, [open]);
 
-  // Escape through the shared dismiss stack (lib/dismiss.ts), Tab kept inside, focus back to the
+  // Escape through the shared dismiss stack (lib/ui/dismiss.ts), Tab kept inside, focus back to the
   // opener on close. The parent passes a fresh onClose several times a second during playback;
   // useLayer reads the newest without re-running anything (which would snap the lists back mid-scroll).
   useLayer(root, open, onClose);

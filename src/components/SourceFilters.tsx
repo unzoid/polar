@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { SORTS, type SourceFilters } from "../lib/sources";
+import { SORTS, type SourceFilters } from "../lib/playback";
 import type { SourceSort } from "../lib/types";
 import { Close, Filters } from "./icons";
 import { Segmented } from "./Segmented";
@@ -9,7 +9,7 @@ import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
 import { SearchField } from "./ui/SearchField";
 
 /**
- * The controls over a source list (see lib/sources.ts). One decision is in
+ * The controls over a source list (see lib/playback/sources.ts). One decision is in
  * view, the one everybody makes - which picture - and the rest waits behind
  * a single button:
  *

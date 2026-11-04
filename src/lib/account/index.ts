@@ -4,6 +4,9 @@
  *
  * With no provider configured, `backend` is null and Polar runs fully
  * local (no sign-in screen).
+ *
+ * This file is the folder's public surface: code outside src/lib imports
+ * this folder, code inside src/lib imports the file.
  */
 import type { AccountBackend } from "./backend";
 import { createSupabaseBackend } from "./supabase";
@@ -19,3 +22,7 @@ export const backend = pick();
 
 export * from "./backend";
 export * from "./avatars";
+export * from "./AccountProvider";
+export * from "./sync";
+export * from "./settingsSync";
+export * from "./spacePush";

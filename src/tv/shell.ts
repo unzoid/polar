@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, type RefObject } from "react";
-import { useDismiss } from "../lib/dismiss";
+import { useDismiss } from "../lib/ui";
 import { focusWhenReady } from "./spatial";
 
 /** Whether this screen is the one on top (not under a pushed page, the player, or the menu). */
@@ -8,7 +8,7 @@ export const usePageActive = () => useContext(PageActive);
 
 /**
  * While `active`, Back (Esc, Backspace, B) runs `handler` instead of leaving the page. A layer on the one
- * dismiss stack (lib/dismiss.ts), so TV panels and the app's sheets and overlays close in the order they
+ * dismiss stack (lib/ui/dismiss.ts), so TV panels and the app's sheets and overlays close in the order they
  * opened.
  */
 export const useBack = useDismiss;

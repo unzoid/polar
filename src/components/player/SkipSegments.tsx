@@ -2,11 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { SkipForward } from "../icons";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../../lib/api";
-import { aniSkipSegments } from "../../lib/anime/aniskip";
-import { withShortcut } from "../../lib/keybinds";
+import { aniSkipSegments } from "../../lib/anime";
+import { withShortcut } from "../../lib/settings";
 import type { SkipSegments, Span } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvChapter } from "./mpvMedia";
-import { keys } from "../../lib/queryKeys";
+import { keys } from "../../lib/net";
 
 export interface ActiveSkip {
   kind: "intro" | "recap" | "credits";

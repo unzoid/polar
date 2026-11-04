@@ -1,5 +1,5 @@
-import { useMeta } from "../lib/queries";
-import type { Playlist, PlaylistItem } from "../lib/playlists";
+import { useMeta } from "../lib/net";
+import type { Playlist, PlaylistItem } from "../lib/library";
 import type { MetaPreview } from "../lib/types";
 import { PlaylistIcon } from "./icons";
 import { Img } from "./Img";

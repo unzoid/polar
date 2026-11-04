@@ -1,8 +1,8 @@
 import { Calendar, Edit, Profile, Settings, SignOut, WatchParty } from "./icons";
-import { partyAvailable, setJoinPartyOpen } from "../lib/party/party";
+import { partyAvailable, setJoinPartyOpen } from "../lib/party";
 import { useRouter } from "../lib/router";
-import { useAccount } from "../lib/account/AccountProvider";
-import { openSettings } from "../lib/settingsOverlay";
+import { useAccount } from "../lib/account";
+import { openSettings } from "../lib/settings";
 import { Avatar } from "./Avatar";
 import { MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "./ui/Menu";
 

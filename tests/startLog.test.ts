@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { describeProbe, describeStream, failedStage, formatBytes, formatReport, hostOf, redact, type StartStep } from "../src/lib/startLog";
+import { describeProbe, describeStream, failedStage, formatBytes, formatReport, hostOf, redact, type StartStep } from "../src/lib/playback/startLog";
 
 test("links keep only their host", () => {
   expect(hostOf("https://addon.example.com/eyJrZXkiOiJzZWNyZXQifQ/stream/movie/tt1.json")).toBe("addon.example.com");

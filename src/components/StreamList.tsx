@@ -1,9 +1,8 @@
 import { AlertCircle, Check } from "./icons";
 import { useRouter } from "../lib/router";
-import { openSettings } from "../lib/settingsOverlay";
-import type { PageId } from "../lib/settings/pages";
-import { useSettings, useStreams } from "../lib/queries";
-import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/sources";
+import { openSettings, type PageId } from "../lib/settings";
+import { useSettings, useStreams } from "../lib/net";
+import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/playback";
 import type { ContentType, RankedStream } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
 import { Button } from "./ui/Button";

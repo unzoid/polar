@@ -1,8 +1,8 @@
-import { api } from "./api";
-import { sync } from "./account/sync";
-import { isReleased } from "./format";
-import { keys, queryClient } from "./queries";
-import type { Meta, MetaPreview, Progress, Settings, Video } from "./types";
+import { api } from "../api";
+import { sync } from "../account/sync";
+import { isReleased } from "../format";
+import { keys, queryClient } from "../net/queries";
+import type { Meta, MetaPreview, Progress, Settings, Video } from "../types";
 
 /**
  * How much of a video has to be watched before it counts as watched

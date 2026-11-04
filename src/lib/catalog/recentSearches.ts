@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { getPrefs } from "./prefs";
+import { getPrefs } from "../settings/prefs";
 
 /** The last few searches you ran (pressed Enter on, or opened a result from), newest first. Kept on this machine. */
 const KEY = "polar.recentSearches";

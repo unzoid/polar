@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { AnimeCard } from "../src/lib/anime/anilist";
 import { withoutAnime } from "../src/lib/anime/merge";
-import { aliasTable, type AnimeLink } from "../src/lib/identity";
+import { aliasTable, type AnimeLink } from "../src/lib/library/identity";
 import type { MetaPreview } from "../src/lib/types";
 
 const card = (id: number, english: string, year: number, romaji = english): AnimeCard => ({

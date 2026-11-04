@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { appVersion } from "./updater";
-import { keys } from "./queryKeys";
+import { appVersion } from "../updater";
+import { keys } from "../net/queryKeys";
 
 /**
  * The Marketplace catalogue: add-ons the app lists itself, read from the

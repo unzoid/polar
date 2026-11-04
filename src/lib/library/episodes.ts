@@ -1,6 +1,6 @@
-import { isReleased } from "./format";
+import { isReleased } from "../format";
 import { watchedFraction } from "./watched";
-import type { Meta, Progress, Video } from "./types";
+import type { Meta, Progress, Video } from "../types";
 
 /** Season numbers with regular seasons first and specials (0) last. */
 export function seasonsOf(meta: Meta): number[] {

@@ -1,8 +1,8 @@
-import { episodeCode } from "./format";
+import { episodeCode } from "../format";
 import { inAnyPlaylist } from "./playlistChecklist";
 import { usePlaylists } from "./playlists";
-import { useLibrary, useMeta, useProgress, useToggleLibrary } from "./queries";
-import type { MetaPreview, Progress } from "./types";
+import { useLibrary, useMeta, useProgress, useToggleLibrary } from "../net/queries";
+import type { MetaPreview, Progress } from "../types";
 import { isWatched, markWatched, movieEntry, showEntries } from "./watched";
 
 /**

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { freshPlaylistName, inAnyPlaylist, playlistRows } from "../src/lib/playlistChecklist";
-import type { Playlist } from "../src/lib/playlists";
+import { freshPlaylistName, inAnyPlaylist, playlistRows } from "../src/lib/library/playlistChecklist";
+import type { Playlist } from "../src/lib/library/playlists";
 
 const list = (id: string, name: string, ids: string[]): Playlist => ({
   id,

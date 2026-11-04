@@ -1,11 +1,10 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { ease, springs } from "../../lib/motion";
+import { ease, springs } from "../../lib/ui";
 import logo from "../../assets/polarity-white.png";
 import { Button } from "../../components/ui/Button";
 import { TextField, type TextFieldProps } from "../../components/ui/TextField";
-import { AccountError } from "../../lib/account";
-import { useAccount } from "../../lib/account/AccountProvider";
+import { AccountError, useAccount } from "../../lib/account";
 import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
 

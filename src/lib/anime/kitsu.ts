@@ -1,7 +1,7 @@
 import type { ContentType, Meta, Video } from "../types";
-import { getPrefs } from "../prefs";
-import { queryClient } from "../queryClient";
-import { keys } from "../queryKeys";
+import { getPrefs } from "../settings/prefs";
+import { queryClient } from "../net/queryClient";
+import { keys } from "../net/queryKeys";
 import { fetchAnime } from "./anilist";
 import { animeArt, episodeTitle, cachedAniZip, regularEpisodes, type AniZipEpisode } from "./anizip";
 import { cleanDescription, pickTitle } from "./format";

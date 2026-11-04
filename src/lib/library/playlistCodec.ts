@@ -1,4 +1,4 @@
-import type { ContentType } from "./types";
+import type { ContentType } from "../types";
 
 /**
  * A playlist's titles as bytes, for storage (and later, share links).

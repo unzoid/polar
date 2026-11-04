@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { StartStage, StepTone } from "../../lib/startLog";
+import type { StartStage, StepTone } from "../../lib/playback";
 import { listenProbe, nextProbeId, probeStep } from "./useStartLog";
 import { errorCode, errorMessage, warnFailed } from "../../lib/errors";
 

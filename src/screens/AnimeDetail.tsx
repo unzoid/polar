@@ -7,10 +7,8 @@ import { AnimeRelated } from "../components/anime/AnimeRelated";
 import { Img } from "../components/Img";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
-import { useAnime, useAnimeSeasons, type Anime, type AnimeCard as Card } from "../lib/anime/anilist";
-import { animeArt, useAniZip } from "../lib/anime/anizip";
-import { useAnimeTitle } from "../lib/anime/format";
-import { useFoldSnap } from "../lib/useFoldSnap";
+import { type Anime, animeArt, type AnimeCard as Card, useAnime, useAnimeSeasons, useAnimeTitle, useAniZip } from "../lib/anime";
+import { useFoldSnap } from "../lib/ui";
 import type { EpisodeLayout } from "../lib/types";
 
 /**

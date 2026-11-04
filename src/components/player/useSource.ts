@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { useProgress, useSettings, useStreams } from "../../lib/queries";
-import { autoPickOrder } from "../../lib/sources";
+import { useProgress, useSettings, useStreams } from "../../lib/net";
+import { autoPickOrder, describeStream } from "../../lib/playback";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
-import { sameFile, type StreamHint } from "../../lib/party/party";
-import { describeStream } from "../../lib/startLog";
+import { sameFile, type StreamHint } from "../../lib/party";
 import { errorMessage } from "../../lib/errors";
 import type { LogStep } from "./useStartLog";
 

@@ -1,5 +1,5 @@
 import { MarketplacePage } from "../../components/Marketplace";
-import type { PageId } from "../../lib/settings/pages";
+import type { PageId } from "../../lib/settings";
 import { AboutPage } from "./AboutPage";
 import { AccountPage } from "./AccountPage";
 import { AddonsPage } from "./AddonsPage";

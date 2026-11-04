@@ -1,9 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
-import { queryClient } from "./queries";
-import { errorMessage } from "./errors";
-import type { ContentType, MetaPreview, RankedStream, Stream, Video } from "./types";
+import { queryClient } from "../net/queries";
+import { errorMessage } from "../errors";
+import type { ContentType, MetaPreview, RankedStream, Stream, Video } from "../types";
 
 /**
  * Downloads (src-tauri/src/downloads.rs): a movie or an episode saved to this

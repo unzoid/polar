@@ -17,14 +17,14 @@ import {
   VolumeMuted,
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
-import { ease } from "../lib/motion";
+import { ease, isMac } from "../lib/ui";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
 import { streamKey } from "../components/StreamList";
 import { SourceFilterBar } from "../components/SourceFilters";
-import { sourceRow, useSourceFilters } from "../lib/sources";
-import { isLocalFile } from "../lib/downloads";
+import { failedStage, formatReport, sourceRow, STAGE_LABEL, type StartStage, type StartStep, useSourceFilters } from "../lib/playback";
+import { episodeState, isLocalFile, nextVideo, progressMap, seasonsOf, watchedFraction } from "../lib/library";
 import { WindowControls } from "../components/WindowControls";
 import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
@@ -42,30 +42,22 @@ import {
 } from "../components/player/SubtitleSettings";
 import { MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
-import { STAGE_LABEL, failedStage, formatReport, type StartStage, type StartStep } from "../lib/startLog";
 import { appVersion } from "../lib/updater";
-import { usePrefs } from "../lib/prefs";
-import { actionFor, withShortcut } from "../lib/keybinds";
+import { actionFor, usePrefs, withShortcut } from "../lib/settings";
 import { api } from "../lib/api";
-import { sync } from "../lib/account/sync";
-import { nextVideo, progressMap, seasonsOf } from "../lib/episodes";
+import { sync, useAccount } from "../lib/account";
 import { episodeCode, formatDate, formatRemaining, formatTime, seasonLabel } from "../lib/format";
-import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
+import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/net";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, Stream, Video } from "../lib/types";
-import { playContext } from "../lib/anime/playContext";
-import { isMac } from "../lib/platform";
-import { watchedFraction } from "../lib/watched";
-import { episodeState } from "../lib/episodeState";
+import { playContext, stillFor } from "../lib/anime";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
-import { useAccount } from "../lib/account/AccountProvider";
-import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party/party";
+import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { WatchParty } from "../components/icons";
-import { stillFor } from "../lib/anime/stills";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage } from "../lib/errors";
 
@@ -1152,7 +1144,7 @@ const FILL = { searching: 34, resolving: 66, starting: 92, done: 100 } as const;
  * one moves the fill further, and a slow creep within a stage shows life
  * while a slow server answers.
  *
- * Under it, the steps as they happen (lib/startLog); on failure, which step
+ * Under it, the steps as they happen (lib/playback/startLog); on failure, which step
  * failed, and a button that copies the whole log for a bug report.
  */
 function PlayerStatus({

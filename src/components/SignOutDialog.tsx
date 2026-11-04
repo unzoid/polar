@@ -1,6 +1,6 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
-import { useAccount } from "../lib/account/AccountProvider";
+import { useAccount } from "../lib/account";
 import { SignOut } from "./icons";
 import { Button } from "./ui/Button";
 

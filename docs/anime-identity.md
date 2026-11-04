@@ -1,6 +1,6 @@
 # One show, one item: unifying anime identities
 
-Status: steps 1 and 2 done (`src/lib/identity.ts`, `crates/library`); steps 3-6 to do.
+Status: steps 1 and 2 done (`src/lib/library/identity.ts`, `crates/library`); steps 3-6 to do.
 Code references are to commit bcd0a85.
 
 ## The problem
@@ -86,7 +86,7 @@ handful of integers.
   re-keys after pulling a link reaches exactly the state the linking device pushed.
 - **Tauri commands** (`src-tauri/src/commands.rs`): `link_anime(link)` (sets `updatedAt`) and
   `anime_links()`; the library/progress commands call `crates/library`.
-- **Front end**: `src/lib/identity.ts` holds the id grammar (parse/format `tt`, `kitsu:`,
+- **Front end**: `src/lib/library/identity.ts` holds the id grammar (parse/format `tt`, `kitsu:`,
   `anilist:`, `mal:`, episode ids) and `canonicalId()`. The anime pages (desktop `AnimeDetail`, TV
   `TvAnime`) call `linkAnime` (`src/lib/anime/links.ts`) once the IMDb lookup has answered; the
   command ignores a link it already has, so no time changes and sync has nothing to send. What a
@@ -109,7 +109,7 @@ handful of integers.
 
 ## Steps
 
-1. `src/lib/identity.ts`: id grammar, alias resolution, canonical choice; unit tests.
+1. `src/lib/library/identity.ts`: id grammar, alias resolution, canonical choice; unit tests.
 2. Rust: `AnimeLink`, `Space.links`, alias resolution, canonicalising writes, re-keying on
    `link_anime`; unit tests for re-keying (library merge, progress `meta_id`, tombstones, chains,
    the never-join-two-`tt` rule).

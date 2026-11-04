@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { cardMenu } from "../components/CardMenu";
 import { Img } from "../components/Img";
-import { byDay, dayLabel, useCalendar, type CalendarEntry } from "../lib/calendar";
+import { byDay, dayLabel, useCalendar, type CalendarEntry } from "../lib/catalog";
 import { useRouter } from "../lib/router";
-import { episodeEntry } from "../lib/watched";
+import { episodeEntry } from "../lib/library";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 

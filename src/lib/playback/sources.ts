@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { languageName, langMatches } from "./languages";
-import type { RankedStream, Settings, SourceSort } from "./types";
+import { formatBytes } from "../format";
+import type { RankedStream, Settings, SourceSort } from "../types";
 
 /**
  * Filtering and sorting a title's sources, shared by every source list (the
@@ -85,12 +86,9 @@ export function tagsOf(r: RankedStream): string[] {
 /** Sources that say nothing about their audio are counted as English (the usual original). */
 const langsOf = (r: RankedStream) => (r.quality.languages?.length ? r.quality.languages : ["en"]);
 
-export const languageLabel = (code: string) => (code === "multi" ? "Multi-audio" : (languageName(code) ?? code.toUpperCase()));
-
 const GB = 1e9;
 
-/** "12.4 GB" / "850 MB", as the ranker writes it. */
-export const formatBytes = (b: number) => (b >= GB ? `${(b / GB).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`);
+export const languageLabel = (code: string) => (code === "multi" ? "Multi-audio" : (languageName(code) ?? code.toUpperCase()));
 
 /** "English, Italian +3": the first two audio languages, then a count. */
 export function languagesShort(codes: string[] | undefined) {

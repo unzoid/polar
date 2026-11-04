@@ -1,5 +1,5 @@
 import { api } from "../lib/api";
-import { scoreTone } from "../lib/score";
+import { scoreTone } from "../lib/ui";
 
 /** The title's IMDb page, for IMDb ids (`tt…`); undefined for anything else. */
 export const imdbUrl = (id: string) => (/^tt\d+$/.test(id) ? `https://www.imdb.com/title/${id}/` : undefined);

@@ -1,4 +1,4 @@
-import { canonicalId, dedupeByTitle } from "../identity";
+import { canonicalId, dedupeByTitle } from "../library/identity";
 import type { MetaPreview } from "../types";
 import type { AnimeCard } from "./anilist";
 

@@ -42,7 +42,7 @@ removes the most cost first. Every step is a set of small commits that each leav
    tests, in `crates/library` so it builds here.
 2. **C4** One `ErrorBoundary` component (`components/ui`) with a Reload button: around each page
    section in `App.tsx` and `TvApp.tsx`, around `PlayerLayer`, and at the root.
-3. **C5 / M29** Every query key from the `keys` factory in `lib/queries.ts`; the Search genre row gets
+3. **C5 / M29** Every query key from the `keys` factory in `lib/net/queries.ts`; the Search genre row gets
    its own key. A test asserts no two factories produce the same prefix.
 4. **C2** Sign-out and profile switch: flush every cached space, not only the active one; when
    something is still unpushed, the sign-out dialog says how many changes would be lost and asks.
@@ -72,7 +72,7 @@ Done in the same migration, so the server is changed once:
   optional field filled, and compares the field names with `contract/<crate>.json`; `src/lib/contract.ts` lists
   the TS mirror's names per Rust type (tsc rejects a missing or extra one), and `tests/contract.test.ts` checks
   the two agree, with fields left out on purpose (`unread`) or added in TS (`added`) named. The types stay in
-  `src/lib/types.ts`. Left for R4: the watched threshold's clamp is still in both `store.rs` and `lib/watched.ts`,
+  `src/lib/types.ts`. Left for R4: the watched threshold's clamp is still in both `store.rs` and `lib/library/watched.ts`,
   and stream ranking is still split (Rust scores and filters; TS re-sorts, tag filters, group boost, and applies
   `preferScreenResolution`/`sourceFiltersHide`).
 - **M9** Validate at the edges: AniList, ani.zip, Jikan, addon responses and pulled rows through small
@@ -106,7 +106,15 @@ Done in the same migration, so the server is changed once:
   watch party's "server not set up" is still read from Realtime's wording (it sends no code).
 - Layout: `lib/` keeps one folder per domain (`account`, `anime`, `party`, `settings`, `library`,
   `playback`, `net`), each with an `index.ts` that is its public surface; nothing in `lib` imports from
-  `screens` or `components`.
+  `screens` or `components`. Done: `account`, `anime`, `party`, `settings` (schema, prefs, shortcuts, fonts, the
+  settings search and overlay, credits), `library` (identity, playlists, watched and episode state, downloads, title
+  actions), `playback` (sources, Play targets, start-up log, trailers, languages), `catalog` (shelves, calendar,
+  genres, search query, recent searches, person photos, marketplace), `ui` (dismiss/layer stack, motion, viewport,
+  platform, score tones) and `net` (query client, keys, queries, limiter). What every domain shares stays at the
+  root: `api.ts` (Tauri commands), `types.ts`, `contract.ts`, `parse.ts`, `errors.ts`, `format.ts`, `router.tsx`,
+  `updater.ts`. Code outside `src/lib` imports a folder (its `index.ts`); code inside `src/lib` and the tests import
+  the file, so a barrel is never part of an import cycle and bun tests load only pure modules. `SoundPack` moved
+  from `tv/sounds.ts` into `lib/settings/prefs.ts`, so nothing in `lib` imports from outside it.
 
 ### R4. Rust crates and the shell (T-009)
 

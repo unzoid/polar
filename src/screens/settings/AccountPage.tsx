@@ -3,7 +3,7 @@ import { TextField } from "../../components/ui/TextField";
 import { Edit, Trash } from "../../components/icons";
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
-import { useAccount } from "../../lib/account/AccountProvider";
+import { useAccount } from "../../lib/account";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";

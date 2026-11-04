@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
-import type { RemotePlaylist } from "./account/backend";
-import { count, contentType, isRecord, listOf, str, storedJson, strings } from "./parse";
+import type { RemotePlaylist } from "../account/backend";
+import { count, contentType, isRecord, listOf, str, storedJson, strings } from "../parse";
 import { decodeItems, encodeItems, type PlaylistRef } from "./playlistCodec";
-import type { MetaPreview } from "./types";
+import type { MetaPreview } from "../types";
 
 /**
  * Playlists: named, ordered lists of titles, per profile. Local-first like

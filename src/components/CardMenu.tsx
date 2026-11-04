@@ -1,12 +1,12 @@
 import { useSyncExternalStore, type MouseEvent as ReactMouseEvent } from "react";
 import { api } from "../lib/api";
 import { useRouter } from "../lib/router";
-import { useTitleActions } from "../lib/titleActions";
+import { useTitleActions } from "../lib/library";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Check, Close, Info, Minus, Play, PlaylistIcon, Plus, Reset, Trailer, Watched } from "./icons";
 import { PlaylistChecklist } from "./title/PlaylistChecklist";
 import { imdbUrl } from "./RatingRing";
-import { trailerFor } from "../lib/trailers";
+import { trailerFor } from "../lib/playback";
 import { openTrailer } from "./Trailer";
 import { MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuSub } from "./ui/Menu";
 

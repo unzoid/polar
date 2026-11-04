@@ -1,6 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { freshPlaylistName, inAnyPlaylist, playlistRows, type PlaylistRow } from "../../lib/playlistChecklist";
-import { addToPlaylist, createPlaylist, removeFromPlaylist, usePlaylists } from "../../lib/playlists";
+import {
+  addToPlaylist,
+  createPlaylist,
+  freshPlaylistName,
+  inAnyPlaylist,
+  type PlaylistRow,
+  playlistRows,
+  removeFromPlaylist,
+  usePlaylists,
+} from "../../lib/library";
 import type { MetaPreview } from "../../lib/types";
 import { Check, Plus } from "../icons";
 import { Button } from "../ui/Button";

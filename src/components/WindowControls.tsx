@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { isMac } from "../lib/platform";
+import { isMac } from "../lib/ui";
 
 const win = getCurrentWindow();
 

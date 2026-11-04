@@ -3,7 +3,7 @@ import * as glass from "@dicebear/glass";
 import * as notionists from "@dicebear/notionists";
 import * as thumbs from "@dicebear/thumbs";
 import type { CSSProperties } from "react";
-import { avatarDef, type AvatarStyle } from "../lib/account/avatars";
+import { avatarDef, type AvatarStyle } from "../lib/account";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const STYLES: Record<AvatarStyle, Style<any>> = { glass, notionists, thumbs };

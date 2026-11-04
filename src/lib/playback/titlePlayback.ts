@@ -1,4 +1,4 @@
-import type { ContentType, RankedStream } from "./types";
+import type { ContentType, RankedStream } from "../types";
 
 /** What a Play button (a title's, an episode's) starts. */
 export interface PlayRequest {

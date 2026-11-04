@@ -1,5 +1,5 @@
 //! Title identity: which id a show is known by, and how other ids for the
-//! same show lead to it. The Rust half of `src/lib/identity.ts`; see
+//! same show lead to it. The Rust half of `src/lib/library/identity.ts`; see
 //! `docs/anime-identity.md`.
 //!
 //! Canonical ids are what every store keys titles by: an IMDb id (`tt…`) or,

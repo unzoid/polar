@@ -10,7 +10,7 @@ import {
   startDownload,
   useDownload,
   type Download as DownloadRecord,
-} from "../lib/downloads";
+} from "../lib/library";
 import { episodeCode } from "../lib/format";
 import { useRouter } from "../lib/router";
 import type { MetaPreview, Video } from "../lib/types";

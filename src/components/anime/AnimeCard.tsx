@@ -1,15 +1,24 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { fetchAnime, type AnimeCard as Media } from "../../lib/anime/anilist";
-import { cardFacts, countdown, FORMAT_LABEL, isMature, untilAiring, useAnimeScore, useAnimeTitle } from "../../lib/anime/format";
-import { usePrefs } from "../../lib/prefs";
+import {
+  type AnimeCard as Media,
+  aniZipQuery,
+  cardFacts,
+  countdown,
+  fetchAnime,
+  FORMAT_LABEL,
+  isMature,
+  untilAiring,
+  useAnimeScore,
+  useAnimeTitle,
+} from "../../lib/anime";
+import { usePrefs } from "../../lib/settings";
 import { useRouter } from "../../lib/router";
-import { aniZipQuery } from "../../lib/anime/anizip";
 import { menuPoint, openCardMenu } from "../CardMenu";
 import { api } from "../../lib/api";
-import { useCardIntent } from "../../lib/cardIntent";
+import { useCardIntent } from "../../lib/ui";
 import { ArtTitle, Card } from "../title/Card";
 import { Star, Warning } from "../icons";
-import { keys } from "../../lib/queryKeys";
+import { keys } from "../../lib/net";
 
 /**
  * Settings → Browsing → Mature content, "blur": the art behind dark frosted

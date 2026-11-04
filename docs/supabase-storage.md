@@ -14,7 +14,7 @@ nothing here is migrated until they are answered.
 | `profiles` | id | name, avatar, position | ≤ 5 per account |
 | `library_items` | profile, meta id | type, name, poster URL, added/updated ms, deleted | titles saved (and removed: tombstones stay) |
 | `watch_progress` | profile, video id | meta id, type, name, background URL, poster URL, season, episode, episode title, position, duration (float8), updated ms, legacy `stream` jsonb | **every episode and movie ever started** |
-| `playlists` | id | name, titles packed in `bytea` (~4-5 B a title, `src/lib/playlistCodec.ts`) | playlists (≤ 100 a profile) |
+| `playlists` | id | name, titles packed in `bytea` (~4-5 B a title, `src/lib/library/playlistCodec.ts`) | playlists (≤ 100 a profile) |
 | `profile_settings` | profile | one jsonb document ≤ 16 KB | 1 a profile |
 | `anime_links` | profile, AniList id | canonical id, MAL, Kitsu, updated ms | anime opened |
 

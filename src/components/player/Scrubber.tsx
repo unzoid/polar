@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { formatTime } from "../../lib/format";
-import { preloadImage } from "../../lib/queries";
+import { preloadImage } from "../../lib/net";
 import type { SeekCue, SeekTrack, Span } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvChapter } from "./mpvMedia";
 

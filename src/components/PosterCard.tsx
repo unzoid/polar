@@ -1,5 +1,5 @@
-import { useCardIntent } from "../lib/cardIntent";
-import { prefetchMeta, preloadImage } from "../lib/queries";
+import { useCardIntent } from "../lib/ui";
+import { prefetchMeta, preloadImage } from "../lib/net";
 import { useRouter } from "../lib/router";
 import type { MetaPreview, Progress } from "../lib/types";
 import { cardMenu } from "./CardMenu";

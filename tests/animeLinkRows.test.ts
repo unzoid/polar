@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { fromLinkRow, toLinkRow } from "../src/lib/account/supabase";
-import type { AnimeLink } from "../src/lib/identity";
+import type { AnimeLink } from "../src/lib/library/identity";
 
 describe("anime link rows", () => {
   test("round trip keeps every field and leaves absent ids out", () => {

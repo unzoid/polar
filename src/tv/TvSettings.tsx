@@ -1,9 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight } from "../components/icons";
-import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../lib/anime/shelves";
-import { usePrefs } from "../lib/prefs";
-import { choicesOf, numberLabel, shownNumber, storedNumber, tvNumberSteps } from "../lib/settings/schema";
-import { useSetting } from "../lib/settings/useSetting";
+import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../lib/anime";
+import { choicesOf, numberLabel, shownNumber, storedNumber, tvNumberSteps, usePrefs, useSetting } from "../lib/settings";
 import { useBack, usePageActive } from "./shell";
 import { playSound } from "./sounds";
 import { focusWhenReady } from "./spatial";

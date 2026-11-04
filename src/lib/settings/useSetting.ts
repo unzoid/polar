@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { setPrefs, usePrefs } from "../prefs";
-import { useSettings, useUpdateSettings } from "../queries";
+import { setPrefs, usePrefs } from "./prefs";
+import { useSettings, useUpdateSettings } from "../net/queries";
 import { patchFor, readSetting, settingDef, type SettingDef, type Value } from "./schema";
 
 /**

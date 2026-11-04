@@ -1,5 +1,4 @@
-import { useSetting } from "../../lib/settings/useSetting";
-import { choicesOf, shownNumber, storedNumber, type Value } from "../../lib/settings/schema";
+import { choicesOf, shownNumber, storedNumber, useSetting, type Value } from "../../lib/settings";
 import { Dropdown } from "../Dropdown";
 import { NumberRow, PickRow, ToggleRow } from "./rows";
 

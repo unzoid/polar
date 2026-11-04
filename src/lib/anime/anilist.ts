@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrefs } from "../prefs";
-import { keys } from "../queryKeys";
+import { usePrefs } from "../settings/prefs";
+import { keys } from "../net/queryKeys";
 import { anilistLimiter, limitedFetch } from "../net/limiter";
 import { isRecord, listOf, str } from "../parse";
 import { readAnime, readCard, readCards, readLinked, readPage, readSlot } from "./responses";

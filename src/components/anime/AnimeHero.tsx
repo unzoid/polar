@@ -1,8 +1,17 @@
-import type { Anime, AnimeCard } from "../../lib/anime/anilist";
-import { upNextLabel } from "../../lib/anime/episodes";
-import { cleanDescription, countdown, FORMAT_LABEL, SEASON_LABEL, STATUS_LABEL, untilAiring, useAnimeScore } from "../../lib/anime/format";
+import {
+  type Anime,
+  type AnimeCard,
+  cleanDescription,
+  countdown,
+  FORMAT_LABEL,
+  SEASON_LABEL,
+  STATUS_LABEL,
+  untilAiring,
+  upNextLabel,
+  useAnimeScore,
+} from "../../lib/anime";
 import { joinFacts } from "../../lib/format";
-import { usePrefs } from "../../lib/prefs";
+import { usePrefs } from "../../lib/settings";
 import { Star } from "../icons";
 import { SourcePicker, useSourcePicker } from "../title/SourcePicker";
 import { TitleActions } from "../title/TitleActions";

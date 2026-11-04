@@ -3,9 +3,9 @@ import { api } from "../api";
 import { listOf, storedJson } from "../parse";
 import { warnFailed } from "../errors";
 import { readProfile } from "./backend";
-import { backend, type AccountUser, type Profile, type ProfileInput } from "./index";
-import { forgetPlaylists, importLocalPlaylists } from "../playlists";
-import { clearRecentSearches } from "../recentSearches";
+import { backend, type AccountUser, type Profile, type ProfileInput } from ".";
+import { forgetPlaylists, importLocalPlaylists } from "../library/playlists";
+import { clearRecentSearches } from "../catalog/recentSearches";
 import { forgetSettings, keepDeviceSettings, markDeviceSettings, restoreDeviceSettings, restoreSettings } from "./settingsSync";
 import { forgetLinksUnsent, refreshLocalViews, sync } from "./sync";
 

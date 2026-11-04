@@ -1,4 +1,4 @@
-import { useLibrary, useToggleLibrary } from "../../lib/queries";
+import { useLibrary, useToggleLibrary } from "../../lib/net";
 import type { MetaPreview } from "../../lib/types";
 import { Check, Plus } from "../icons";
 import { SwapIcon } from "../SwapIcon";

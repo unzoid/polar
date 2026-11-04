@@ -1,6 +1,6 @@
-import { useSettings, useUpdateSettings } from "../../lib/queries";
+import { useSettings, useUpdateSettings } from "../../lib/net";
 import type { Settings as SettingsT } from "../../lib/types";
-import { setPrefs, usePrefs } from "../../lib/prefs";
+import { setPrefs, usePrefs } from "../../lib/settings";
 import { Card, NumberRow, PickRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 

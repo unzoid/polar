@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "../lib/api";
-import { MARKET_CATEGORIES, MARKETPLACE_REPO, searchMarketplace, useMarketplace, type MarketCategory } from "../lib/marketplace";
-import { keys, useAddons } from "../lib/queries";
-import { openSettings } from "../lib/settingsOverlay";
+import { MARKET_CATEGORIES, MARKETPLACE_REPO, searchMarketplace, useMarketplace, type MarketCategory } from "../lib/catalog";
+import { keys, useAddons } from "../lib/net";
+import { openSettings } from "../lib/settings";
 import { Captions, Check, Info, Play, type Icon } from "./icons";
 import { Button } from "./ui/Button";
 import { SearchField } from "./ui/SearchField";

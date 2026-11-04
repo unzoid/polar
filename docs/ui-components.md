@@ -42,12 +42,12 @@ relative to `src/`; each primitive's CSS is `styles/ui/<name>.css`, the title pa
 
 | Hook | Use it for |
 |---|---|
-| `useDismiss(active, onDismiss)` (`lib/dismiss.ts`) | Anything Escape (or TV's Back) should close. One stack: the newest layer closes first; what has focus (a field, an open Base UI popup) handles Escape before it. `dismissTop()` closes the top one from code; `onDismissed` listens |
-| `useLayer(root, open, onClose, { modal })` (`lib/layer.ts`) | A modal layer you draw yourself: `useDismiss` plus focus in on open, Tab kept inside, focus back to the opener on close. Give the root `tabIndex={-1}` and `data-layer`. Used by `Sheet`, the trailer, the player's `OptionsOverlay` |
+| `useDismiss(active, onDismiss)` (`lib/ui/dismiss.ts`) | Anything Escape (or TV's Back) should close. One stack: the newest layer closes first; what has focus (a field, an open Base UI popup) handles Escape before it. `dismissTop()` closes the top one from code; `onDismissed` listens |
+| `useLayer(root, open, onClose, { modal })` (`lib/ui/layer.ts`) | A modal layer you draw yourself: `useDismiss` plus focus in on open, Tab kept inside, focus back to the opener on close. Give the root `tabIndex={-1}` and `data-layer`. Used by `Sheet`, the trailer, the player's `OptionsOverlay` |
 | `useBack(active, handler)` (`tv/shell.ts`) | The same stack, named for TV panels |
-| `useNearViewport`, `useInfiniteSentinel` (`lib/viewport.ts`) | Lazy shelves; the next page of a grid |
-| `useCardIntent(warm, delay)` (`lib/cardIntent.ts`) | Prefetch after resting on a card (hover or focus) |
-| `useTitlePlayback(onPick, beforePlay?)` (`lib/useTitlePlayback.ts`), `needsPick` (`lib/titlePlayback.ts`) | Play now or ask for a source: the one rule (H14) |
+| `useNearViewport`, `useInfiniteSentinel` (`lib/ui/viewport.ts`) | Lazy shelves; the next page of a grid |
+| `useCardIntent(warm, delay)` (`lib/ui/cardIntent.ts`) | Prefetch after resting on a card (hover or focus) |
+| `useTitlePlayback(onPick, beforePlay?)` (`lib/playback/useTitlePlayback.ts`), `needsPick` (`lib/playback/titlePlayback.ts`) | Play now or ask for a source: the one rule (H14) |
 | `useSetting(id)` (`lib/settings/useSetting.ts`) | Read and save one setting from the schema |
 
 **Title parts (`components/title/`)**
@@ -63,7 +63,7 @@ relative to `src/`; each primitive's CSS is `styles/ui/<name>.css`, the title pa
 | `LibraryButton` | `item` | The + / ✓ library toggle |
 | `useSourcePicker(onOpen?)` + `SourcePicker` | `picker` | Play-or-choose with the sources sheet, once per page |
 | `SeasonPicker` | `value`, `options` {id, label}, `onChange` | Season tabs (up to 6) or a large dropdown |
-| `EpisodeCard`, `EpisodeShelf` | see the files | Desktop episodes; state from `episodeState` (`lib/episodeState.ts`) |
+| `EpisodeCard`, `EpisodeShelf` | see the files | Desktop episodes; state from `episodeState` (`lib/library/episodeState.ts`) |
 | `usePlaylistChecklist(item)` + `PlaylistChecklist` | `look` menu/popover | Add to playlists (TV draws its rows from the hook) |
 | `TitleDetails`, `DetailsSection`, `DetailsColumns`, `FactList`, `DetailsLinks` | | The Details tab and its parts |
 
@@ -288,7 +288,7 @@ screen.
 | U26 | Rating | `ImdbBadge`, `CardRating`, `RatingRing`, `ScoreCards`/`ScoreChips`, `.anime-score`; tone thresholds copied | — | `scoreTone()` in lib; components keep their looks | All looks kept |
 | U27 | Details section | `TitleDetails` vs hand copy in `AnimeDetail.tsx:833` | Anime adds rankings, tags, characters | `TitleDetails` with optional sections | — |
 | U28 | Nav and profile menu | `NavBar` vs `TvNav` (tab lists `TvChrome.tsx:23-40` vs `NavBar.tsx:47-49`), `ProfileMenu` vs `TvMenu` | Layout | `useNavTabs()` and `useProfileMenuItems()` shared; two renderers | Both |
-| U29 | Search screen | `Search` + NavBar suggestions vs `TvSearch`; debounce 180/250 ms; genre lists in 3 places | — | `useSearch()` (one debounce, one genre list in `lib/genres.ts`) | Both layouts |
+| U29 | Search screen | `Search` + NavBar suggestions vs `TvSearch`; debounce 180/250 ms; genre lists in 3 places | — | `useSearch()` (one debounce, one genre list in `lib/catalog/genres.ts`) | Both layouts |
 | U30 | Entrance animation | 8 keyframes for one effect, 3 plain fades | Distance 4–10 px | `@keyframes enter` with `--enter-y` and `--enter-blur` custom properties; one `fade-in` | Distances become per-use variables |
 | U31 | Module-store hosts | `CardMenu.tsx:32-77`, `Trailer.tsx:24-41`, `TvCardMenu` store, ~15 lib stores (M30) | — | `createStore()` in lib | — |
 | U32 | Icons | `PlaylistIcon` = `LayoutList`; `ExternalGlyph` vs `ArrowUpRight`; hand SVGs in `WindowControls`, `Updates`, `SkipIcon`, `Tomato`/`Splat` | — | Everything through `components/icons.tsx` | Same glyphs |
@@ -504,13 +504,13 @@ code draws, not what's on screen.
    frosted panel of the large season `Select` at 0.86 instead of 0.82 fill, with a 0.96 instead of 0.94
    entrance). Merging those into one `.surface-popover` is a visible change: left for the owner's look in the
    running app (docs/unverified.md). The playlist checklist's own rows go with U10 in step 4.
-   `lib/dismiss.ts` (`useDismiss(active, onDismiss)`, `pushDismiss`): one stack of open layers and one
+   `lib/ui/dismiss.ts` (`useDismiss(active, onDismiss)`, `pushDismiss`): one stack of open layers and one
    `document` keydown listener in the bubble phase. What has focus handles Escape first (a search field clears,
    an open Base UI menu/select/popover closes, an armed delete disarms, the slider's number box resets); then
    the topmost layer closes and the event stops; only then do the `window` listeners (Esc → Back, the player)
    see it. `Sheet` and the trailer use it instead of their capture-phase listeners, which used to close the
    sheet before anything inside it could react. `DesktopApp` now ignores an Escape that was already handled.
-   Tests in `tests/dismiss.test.ts`. `lib/layer.ts` `useLayer(root, open, onClose, { modal })` is the `Layer`
+   Tests in `tests/dismiss.test.ts`. `lib/ui/layer.ts` `useLayer(root, open, onClose, { modal })` is the `Layer`
    part: `useDismiss`, focus onto the layer when it opens (`tabIndex={-1}`, `data-layer`, no ring:
    `styles/ui/layer.css`), Tab kept inside the topmost layer (wraps at the edges; focus in a menu portalled
    outside is left alone), focus back to the opener on close if focus is still in the layer or dropped.
@@ -522,7 +522,7 @@ code draws, not what's on screen.
    `TvKeyboard` and `TvApp` (step 6), the settings dialog (Base UI's own Escape).
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
-   *Done:* `lib/viewport.ts` (`useNearViewport(eager, margin)`, `useInfiniteSentinel(pager, margin)`, both
+   *Done:* `lib/ui/viewport.ts` (`useNearViewport(eager, margin)`, `useInfiniteSentinel(pager, margin)`, both
    rooted at the page's `.scroll`): Home's `LazyShelf` and Anime's `GenreShelf` on the first, the infinite
    grids on the second (§6.9). `components/title/PosterGrid.tsx` (`pager` for skeletons and the next page,
    `stale` to dim, children are the cards): Discover, Anime → Browse and the four Library grids. Its CSS moved
@@ -532,9 +532,9 @@ code draws, not what's on screen.
    franchise's season choice, tabs up to 6 and a large dropdown above, written once (the two `MAX_SEASON_TABS`
    are gone). Same elements as before. Not yet: anime episode ranges (their own small tab look, threshold
    `RANGE_TABS`), the TV season column (TV layout).
-   The play-or-pick rule (H14) once: `needsPick()` in `lib/titlePlayback.ts` (with `PlayRequest`: type, ids,
+   The play-or-pick rule (H14) once: `needsPick()` in `lib/playback/titlePlayback.ts` (with `PlayRequest`: type, ids,
    picker subtitle, `resumable`; tested in `tests/titlePlayback.test.ts`) and `useTitlePlayback(onPick,
-   beforePlay?)` in `lib/useTitlePlayback.ts`. `components/title/SourcePicker.tsx`: `useSourcePicker(onOpen?)`
+   beforePlay?)` in `lib/playback/useTitlePlayback.ts`. `components/title/SourcePicker.tsx`: `useSourcePicker(onOpen?)`
    gives `play(req)`, `choose(req)` and the state, `<SourcePicker picker>` draws the Sheet + `StreamList`
    once. The four desktop copies (show and movie hero, show episodes, anime hero, anime episodes) use them;
    `TvDetail` uses `useTitlePlayback` with its sources panel. The sheet now keeps the request it was opened
@@ -544,7 +544,7 @@ code draws, not what's on screen.
    `components/title/LibraryButton.tsx` (`item`): the + / ✓ glass icon button of the Home hero, title pages and
    anime pages, written 3× before; same element. The anime page now checks "in Library" by the loaded meta's
    id instead of the linked id (the same id; it's what the button saves).
-   `lib/cardIntent.ts` `useCardIntent(warm, delay)`: the rest-then-prefetch timer of the desktop cards
+   `lib/ui/cardIntent.ts` `useCardIntent(warm, delay)`: the rest-then-prefetch timer of the desktop cards
    (`useIntent`, 120 ms), the anime cards (150 ms) and `TvCard` (450 ms, focus only), each keeping its delay.
    Anime cards now also warm on keyboard focus, and a pending timer is cleared when the card unmounts.
    `components/title/Card.tsx` `Card` (`shape`, `art` + `fallback`, children drawn on the art, `actions`,
@@ -575,17 +575,17 @@ code draws, not what's on screen.
    `components/title/EpisodeCard.tsx` and `EpisodeShelf.tsx` (moved from `components/`): the desktop episode
    card, same elements; its still is `Card`'s `CardArt` with the still placeholder (the copy `ShelfStill` is
    gone, and a new still URL now gets a fresh try). `episodeState(video, progress, threshold)` in
-   `lib/episodeState.ts` (released, fraction, watched, in progress) and `shortRuntime` in `lib/format.ts`,
+   `lib/library/episodeState.ts` (released, fraction, watched, in progress) and `shortRuntime` in `lib/format.ts`,
    tested in `tests/episodeState.test.ts`: the episode card, TV's episodes panel and the player's episode list
    computed them by hand (`shortRuntime` twice). The card's rest-to-warm timer is `useCardIntent` (150 ms, as
    before), so it now also warms on keyboard focus and stops on unmount.
-   `lib/score.ts` (`scoreTone`, `metacriticTone`, `isFresh`, tested in `tests/score.test.ts`): the IMDb bands
+   `lib/ui/score.ts` (`scoreTone`, `metacriticTone`, `isFresh`, tested in `tests/score.test.ts`): the IMDb bands
    that `ImdbBadge`, `CardRating` and `RatingRing` each wrote out, and the score cards' Metacritic and Rotten
    Tomatoes rules; the rating components keep their looks (U26).
    `components/title/PlaylistChecklist.tsx` (U10): `usePlaylistChecklist(item)` (rows, `inAny`, `toggle`,
    `create(name?)`) and `PlaylistChecklist look="menu" | "popover"`, the card menu's submenu and the detail
    page's popover, same elements and classes (CSS moved to `styles/title/playlist-checklist.css`, same rules).
-   TV's playlists and name panels draw their own rows from the hook. `lib/playlistChecklist.ts`
+   TV's playlists and name panels draw their own rows from the hook. `lib/library/playlistChecklist.ts`
    (`playlistRows`, `inAnyPlaylist`, `freshPlaylistName`, tested in `tests/playlistChecklist.test.ts`) replaces
    the two `freshName` copies and the "is it in a playlist" check written three times. The popover's name form
    now resets when the popover unmounts after its closing fade, not as it starts to close.
@@ -610,7 +610,7 @@ code draws, not what's on screen.
    makes stale (`invalidates`) and its TV label. `useSetting(id)` (`lib/settings/useSetting.ts`) reads and
    saves one. Desktop draws those with `components/settings/SettingRow.tsx` (switch, dropdown or slider, rows
    marked `data-setting={id}`); `tv/TvSettings.tsx` draws the same entries by id (left/right through the
-   choices or the number steps). The settings search is built from the schema (`lib/settingsIndex.ts`) and
+   choices or the number steps). The settings search is built from the schema (`lib/settings/searchIndex.ts`) and
    scrolls to `data-setting`, falling back to the title. `tests/settingsSchema.test.ts` checks unique ids, that
    every title the pages draw themselves is still written in them (it found two stale search entries: "With
    sound" and "Hide filler episodes"; and "Add-on Marketplace", which named no row), fallbacks and TV steps.

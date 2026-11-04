@@ -1,7 +1,7 @@
 import { Dropdown } from "../../components/Dropdown";
-import { useSettings, useUpdateSettings } from "../../lib/queries";
-import { usePrefs } from "../../lib/prefs";
-import { clearRecentSearches } from "../../lib/recentSearches";
+import { useSettings, useUpdateSettings } from "../../lib/net";
+import { usePrefs } from "../../lib/settings";
+import { clearRecentSearches } from "../../lib/catalog";
 import { Card, PickRow, ToggleRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 

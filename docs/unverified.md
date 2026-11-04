@@ -131,7 +131,7 @@ How to check, with a TMDB key set in Settings:
   submenu, the download menu, the profile menu and the navbar's "More". Open question for the owner's eye:
   the playlist popover (dark glass) and the source-filter popover (frosted, like the season list) still
   draw different surfaces; say whether they should become one.
-- Escape (T-019 step 3, `lib/dismiss.ts`): sheets and the trailer close on Escape through one stack now.
+- Escape (T-019 step 3, `lib/ui/dismiss.ts`): sheets and the trailer close on Escape through one stack now.
   Before, a sheet closed before anything inside it saw the key, so the "Escape empties the field first"
   above did not work in the episode and source-filter searches; now it should. Check, with a sources sheet
   open: Escape with the Filters popover open closes only the popover; with text in a source-filter search
@@ -158,7 +158,7 @@ How to check, with a TMDB key set in Settings:
   (season tabs, next-episode line, Play label resumes where you left off, filler switch, list layout "Show
   all", episode search on a 40+ episode show), a film, and the Details section next to a show's Details tab
   (Story, Tags, Watch Officially, Elsewhere, the facts column beside them).
-- Focus in sheets and the trailer (T-019, `lib/layer.ts`): a sources or Filters sheet and the trailer now take
+- Focus in sheets and the trailer (T-019, `lib/ui/layer.ts`): a sources or Filters sheet and the trailer now take
   focus when they open, keep Tab inside, and give focus back when they close. Check with the keyboard: open
   Sources from a show's Play button with Enter, press Tab several times (focus stays in the sheet and wraps),
   Shift+Tab from the first control goes to the last, Escape closes it and focus is on the Play button again;
@@ -181,7 +181,7 @@ How to check, with a TMDB key set in Settings:
   straight on Sources for "Source Filters" (Back goes to the category list); "Manage Add-ons" lands on the
   list as before. Switching from TV to desktop (the TV toggle shortcut) while on TV settings should open the
   settings window on desktop with the previous screen under it, or Home.
-- Player options and TV Back (T-019 step 6, `lib/dismiss.ts`, `lib/layer.ts`): the player's full-window
+- Player options and TV Back (T-019 step 6, `lib/ui/dismiss.ts`, `lib/ui/layer.ts`): the player's full-window
   picker (Speed, Subtitles & Audio, Episodes, Sources, Party) closes on Escape through the shared stack, keeps
   Tab inside, and gives focus back to what had it when it opened. TV's panels and card menu are on the same
   stack (TV's own Back stack is gone). Check on desktop: open Sources with its button, Tab several times (focus
@@ -208,7 +208,7 @@ How to check, with a TMDB key set in Settings:
   wrong here." with a way out (Reload; Back in the player) instead of a blank window. No test can make a render
   fail here (no DOM in `bun test`). To check: open Movies
   with Genre = Horror and Catalog = Popular after searching "horror" (the old crash, now fixed by
-  `lib/queryKeys.ts`, so the page must simply work), and for the note itself temporarily add
+  `lib/net/queryKeys.ts`, so the page must simply work), and for the note itself temporarily add
   `throw new Error("x")` to the top of `screens/Calendar.tsx`'s component, open Calendar: the note shows in
   the page with the nav still working; on TV the note takes the TV look and its Reload must be reachable with
   the controller.

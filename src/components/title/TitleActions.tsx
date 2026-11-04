@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { PlayRequest } from "../../lib/titlePlayback";
+import type { PlayRequest } from "../../lib/playback";
 import type { MetaPreview } from "../../lib/types";
 import { DownloadButton } from "../DownloadButton";
 import { Play, Reset, Sources, Trailer } from "../icons";

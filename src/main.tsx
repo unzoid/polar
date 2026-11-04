@@ -5,10 +5,10 @@ import { MotionConfig } from "motion/react";
 
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
-import { queryClient } from "./lib/queries";
+import { queryClient } from "./lib/net";
 import { isTauri } from "./lib/api";
-import { AccountProvider } from "./lib/account/AccountProvider";
-import { isMac } from "./lib/platform";
+import { AccountProvider } from "./lib/account";
+import { isMac } from "./lib/ui";
 
 // Inter with weight + optical-size axes: large titles get the Display cut automatically.
 import "@fontsource-variable/inter/opsz.css";

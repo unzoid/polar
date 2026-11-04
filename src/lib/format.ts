@@ -60,3 +60,8 @@ export function kindFacts(item: { type: string; genres?: string[] }): string[] {
 
 /** "49 min" → "49m" */
 export const shortRuntime = (runtime?: string) => runtime?.replace(/\s*min$/, "m");
+
+const GB = 1e9;
+
+/** "12.4 GB" / "850 MB", as the stream ranker writes sizes. */
+export const formatBytes = (b: number) => (b >= GB ? `${(b / GB).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`);
