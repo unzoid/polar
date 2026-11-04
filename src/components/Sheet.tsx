@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useMotionValue, type PanInfo } from "motion/react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { useDismiss } from "../lib/dismiss";
 import { ease, project, springs } from "../lib/motion";
 
 /**
@@ -30,17 +31,7 @@ export function Sheet({
   const x = useMotionValue(0);
   const panel = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [open, onClose]);
+  useDismiss(open, onClose);
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     const width = panel.current?.offsetWidth ?? 400;

@@ -419,6 +419,15 @@ code draws, not what's on screen.
    frosted panel of the large season `Select` at 0.86 instead of 0.82 fill, with a 0.96 instead of 0.94
    entrance). Merging those into one `.surface-popover` is a visible change: left for the owner's look in the
    running app (docs/unverified.md). The playlist checklist's own rows go with U10 in step 4.
+   `lib/dismiss.ts` (`useDismiss(active, onDismiss)`, `pushDismiss`): one stack of open layers and one
+   `document` keydown listener in the bubble phase. What has focus handles Escape first (a search field clears,
+   an open Base UI menu/select/popover closes, an armed delete disarms, the slider's number box resets); then
+   the topmost layer closes and the event stops; only then do the `window` listeners (Esc → Back, the player)
+   see it. `Sheet` and the trailer use it instead of their capture-phase listeners, which used to close the
+   sheet before anything inside it could react. `DesktopApp` now ignores an Escape that was already handled.
+   Tests in `tests/dismiss.test.ts`. Not yet: `Layer` (scrim, focus trap, focus restore), and the other
+   listeners: `OptionsOverlay` and the player (step 6), `ShortcutSettings`' key capture (its own job),
+   `TvKeyboard` and `TvApp` (step 6), the settings dialog (Base UI's own Escape).
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
