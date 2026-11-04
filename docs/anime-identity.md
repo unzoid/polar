@@ -62,7 +62,8 @@ see one title. The anime page already lines every AniList episode up with both i
 1. The user's own data: the id Polar actually played or added from (written when it happens).
 2. ani.zip's `mappings` (live, cached on disk for 7 days).
 3. Fribb/anime-lists `anime-list-mini.json`, fetched from GitHub at runtime and cached for a
-   week, only when ani.zip fails (pending I-001).
+   week, only when ani.zip fails (approved in I-001; `crates/anime/src/anime_lists.rs`, used by
+   `fetchAniZip` in `src/lib/anime/anizip.ts`).
 
 **Anime links.** For each canonical anime title Polar stores one small record, the *link*:
 `{ anilist, mal?, kitsu? }`, plus `imdb` when canonical is a `tt`. It is the persisted form of

@@ -156,7 +156,7 @@ const ROWS: SettingEntry[] = [
   { title: "Download updates automatically", page: "about", keywords: "auto update background" },
   { title: "Release notes", page: "about", keywords: "changelog what's new" },
   { title: "Data sources", page: "about", keywords: "credits attribution tmdb anilist thetvdb licence" },
-  { title: "Anime episode data", page: "about", keywords: "cache clear filler recap storage disk" },
+  { title: "Anime data", page: "about", keywords: "cache clear filler recap anime-lists ids storage disk" },
 ];
 
 /** Each rebindable shortcut, found under Controls & TV. */

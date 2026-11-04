@@ -1,7 +1,7 @@
 import type { ContentType, Meta, Video } from "../types";
 import { getPrefs } from "../prefs";
 import { fetchAnime } from "./anilist";
-import { animeArt, episodeTitle, fetchAniZip, regularEpisodes } from "./anizip";
+import { animeArt, episodeTitle, fetchAniZip, regularEpisodes, type AniZipEpisode } from "./anizip";
 import { cleanDescription, pickTitle } from "./format";
 
 /**
@@ -29,10 +29,14 @@ export async function kitsuMeta(type: ContentType, id: string): Promise<Meta> {
   const anime = await fetchAnime(anilistId);
   const lang = getPrefs().animeTitles;
 
+  // Without ani.zip's episode list (its fallback has ids only), numbered episodes from AniList's count.
+  const aired = anime.episodes ?? (anime.nextAiringEpisode ? anime.nextAiringEpisode.episode - 1 : 0);
+  const listed = regularEpisodes(zip);
+  const episodes = listed.length ? listed : Array.from({ length: aired }, (_, i) => ({ episode: String(i + 1) }) as AniZipEpisode);
   const videos: Video[] =
     type === "movie"
       ? []
-      : regularEpisodes(zip).map((e) => {
+      : episodes.map((e) => {
           const n = Number(e.episode);
           return {
             id: `${id}:${n}`,

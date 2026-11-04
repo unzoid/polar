@@ -21,6 +21,7 @@ export const CREDITS: Credit[] = [
   { name: "IMDb", url: "https://www.imdb.com", use: "Title ids, trailers and cast photos" },
   { name: "AniList", url: "https://anilist.co", use: "Anime catalogs, details and seasons" },
   { name: "ani.zip", use: "Which anime is which across sites, and anime episode details" },
+  { name: "Fribb/anime-lists", url: "https://github.com/Fribb/anime-lists", use: "Which anime is which across sites when ani.zip is down" },
   { name: "TheTVDB", url: "https://thetvdb.com", use: "Anime episode titles, stills and artwork, by way of ani.zip" },
   { name: "MyAnimeList, via Jikan", url: "https://jikan.moe", use: "Which anime episodes are filler or recaps" },
   { name: "Anime Filler List", url: "https://www.animefillerlist.com", use: "Filler episodes when Jikan has none" },
