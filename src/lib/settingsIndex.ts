@@ -1,4 +1,4 @@
-import type { PageId } from "../screens/Settings";
+import type { PageId } from "./settings/pages";
 import { ACTIONS } from "./keybinds";
 
 /**

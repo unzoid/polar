@@ -3,36 +3,23 @@ import { ToggleChip } from "../components/ui/Chip";
 import { Switch } from "../components/ui/Switch";
 import { TextField } from "../components/ui/TextField";
 import {
-  Captions,
-  ChevronRight,
-  Controls,
-  Desktop,
   Edit,
-  Gamepad,
   Reset,
   Settings as Cog,
-  Sources,
   Download,
-  Fire,
   Grid,
   Info,
   Picture,
-  Play,
   Plus,
-  Profile,
   Puzzle,
-  Services,
   Star,
-  Store,
   Trash,
-  type Icon as IconT,
 } from "../components/icons";
 import { MarketplacePage } from "../components/Marketplace";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Avatar } from "../components/Avatar";
 import { useAccount } from "../lib/account/AccountProvider";
 import { Dropdown } from "../components/Dropdown";
-import { SliderField } from "../components/SliderField";
 import { AUTO_TAG_CHOICES, screenResolution, SORTS, TAG_LABELS } from "../lib/sources";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleSettings, subtitleCueVars } from "../components/player/SubtitleSettings";
 import { api } from "../lib/api";
@@ -67,39 +54,9 @@ import { PadGlyph } from "../tv/TvChrome";
 import { ReleaseNotes } from "../components/Updates";
 import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl, useUpdate } from "../lib/updater";
 import { Button } from "../components/ui/Button";
-
-export type PageId =
-  | "account"
-  | "playback"
-  | "sources"
-  | "subtitles"
-  | "appearance"
-  | "browsing"
-  | "anime"
-  | "controls"
-  | "controller"
-  | "marketplace"
-  | "addons"
-  | "services"
-  | "advanced"
-  | "about";
-
-export const PAGES: { id: PageId; label: string; icon: IconT }[] = [
-  { id: "account", label: "Account", icon: Profile },
-  { id: "playback", label: "Playback", icon: Play },
-  { id: "sources", label: "Sources", icon: Sources },
-  { id: "subtitles", label: "Subtitles & Audio", icon: Captions },
-  { id: "appearance", label: "Appearance", icon: Desktop },
-  { id: "browsing", label: "Browsing", icon: Grid },
-  { id: "anime", label: "Anime", icon: Fire },
-  { id: "controls", label: "Controls & TV", icon: Controls },
-  { id: "controller", label: "Controller", icon: Gamepad },
-  { id: "marketplace", label: "Marketplace", icon: Store },
-  { id: "addons", label: "Add-ons", icon: Puzzle },
-  { id: "services", label: "Services", icon: Services },
-  { id: "advanced", label: "Advanced", icon: Cog },
-  { id: "about", label: "About & Updates", icon: Info },
-];
+import { Card, ExpandRow, LinkRow, NumberRow, PickRow, RowText, ToggleRow, useExpanded, type Expandable } from "../components/settings/rows";
+import { PAGES } from "../components/settings/pages";
+import type { PageId } from "../lib/settings/pages";
 
 /**
  * Sections in a sidebar, one page at a time on the right, options grouped
@@ -176,106 +133,6 @@ export function SettingsPageBody({ page }: { page: PageId }) {
   }
 }
 
-// --- Building blocks -------------------------------------------------------
-
-function Card({ title, footer, children }: { title?: string; footer?: ReactNode; children: ReactNode }) {
-  return (
-    <section className="settings-group">
-      {title && <h2 className="settings-group-title">{title}</h2>}
-      <div className="settings-card">{children}</div>
-      {footer && <p className="settings-footer">{footer}</p>}
-    </section>
-  );
-}
-
-function RowText({ title, caption }: { title: string; caption?: ReactNode }) {
-  return (
-    <span className="settings-row-text">
-      <span className="settings-row-title">{title}</span>
-      {caption && <span className="settings-row-caption">{caption}</span>}
-    </span>
-  );
-}
-
-function ToggleRow({
-  title,
-  caption,
-  checked,
-  onChange,
-  disabled,
-}: {
-  title: string;
-  caption?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="settings-row">
-      <RowText title={title} caption={caption} />
-      <Switch checked={checked} disabled={disabled} onChange={onChange} />
-    </label>
-  );
-}
-
-function PickRow({ title, caption, children }: { title: string; caption?: string; children: ReactNode }) {
-  return (
-    <div className="settings-row">
-      <RowText title={title} caption={caption} />
-      {children}
-    </div>
-  );
-}
-
-/** A row that opens in place to show its controls. */
-function ExpandRow({
-  icon: Icon,
-  title,
-  caption,
-  value,
-  open,
-  onToggle,
-  children,
-}: {
-  icon?: IconT;
-  title: string;
-  caption?: ReactNode;
-  /** Short current state on the right ("On", a server address…). */
-  value?: ReactNode;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="settings-expand" data-open={open}>
-      <button className="settings-row settings-row-button" aria-expanded={open} onClick={onToggle}>
-        {Icon && <Icon className="settings-row-icon" size={20} strokeWidth={1.9} />}
-        <RowText title={title} caption={caption} />
-        {value != null && <span className="settings-row-value">{value}</span>}
-        <ChevronRight className="settings-chevron" size={18} strokeWidth={2.25} />
-      </button>
-      {open && <div className="settings-expand-body">{children}</div>}
-    </div>
-  );
-}
-
-/** A row that leads somewhere else. */
-function LinkRow({ icon: Icon, title, caption, onClick }: { icon: IconT; title: string; caption?: string; onClick: () => void }) {
-  return (
-    <button className="settings-row settings-row-button" onClick={onClick}>
-      <Icon className="settings-row-icon" size={20} strokeWidth={1.9} />
-      <RowText title={title} caption={caption} />
-      <ChevronRight className="settings-chevron" size={18} strokeWidth={2.25} />
-    </button>
-  );
-}
-
-/** One open row per card; clicking it again closes it. */
-function useExpanded() {
-  const [open, setOpen] = useState<string | null>(null);
-  return (id: string) => ({ open: open === id, onToggle: () => setOpen((o) => (o === id ? null : id)) });
-}
-
 // --- Account ---------------------------------------------------------------
 
 function AccountPage() {
@@ -348,38 +205,6 @@ function DeleteAccountRow(props: Expandable) {
 }
 
 // --- Playback --------------------------------------------------------------
-
-/**
- * A number setting as a slider with the exact value in a box beside it, which
- * you can type into. `zero` names what 0 means ("Never", "Any size").
- */
-function NumberRow({
-  title,
-  caption,
-  value,
-  min,
-  max,
-  step,
-  unit,
-  zero,
-  onChange,
-}: {
-  title: string;
-  caption?: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  unit?: string;
-  zero?: string;
-  onChange: (n: number) => void;
-}) {
-  return (
-    <PickRow title={title} caption={caption}>
-      <SliderField label={title} value={value} min={min} max={max} step={step} unit={unit} zero={zero} onChange={onChange} />
-    </PickRow>
-  );
-}
 
 function PlaybackPage() {
   const qc = useQueryClient();
@@ -1887,8 +1712,6 @@ function RatingsRow(props: Expandable) {
     </ExpandRow>
   );
 }
-
-type Expandable = { open: boolean; onToggle: () => void };
 
 /** Saves typed settings and refreshes whatever depends on them. */
 function useSaveSettings(after?: () => void) {
