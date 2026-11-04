@@ -8,6 +8,8 @@
 //! - [`sync`]: changes since the last push, and merging pulled ones.
 //! - [`opened`]: what to make of a data file read at start-up (missing, unreadable, corrupt).
 
+#[cfg(test)]
+mod contract;
 pub mod identity;
 pub mod opened;
 pub mod space;

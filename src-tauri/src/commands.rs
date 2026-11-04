@@ -525,3 +525,8 @@ pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
     }
     app.opener().open_url(url, None::<&str>).map_err(|e| CmdError::Other(e.to_string()))
 }
+
+// Inside this module so it can build the result types above, whose fields are private.
+#[cfg(test)]
+#[path = "contract.rs"]
+mod contract;

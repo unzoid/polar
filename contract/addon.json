@@ -1,0 +1,12 @@
+{
+  "BehaviorHints": ["configurable","configurationRequired"],
+  "Manifest": ["behaviorHints","catalogs","description","id","idPrefixes","logo","name","resources","types","version"],
+  "Meta": ["background","cast","description","details","director","genres","id","imdbRating","logo","name","people","poster","releaseInfo","runtime","trailerSource","trailerYtId","type","videos"],
+  "MetaDetails": ["awards","budget","countries","episodes","languages","released","revenue","seasons","status","studios","tagline","tmdbId","votes","writers"],
+  "MetaPreview": ["background","description","genres","id","imdbRating","logo","name","poster","releaseInfo","type"],
+  "Person": ["character","name","photo"],
+  "RankedStream": ["addon","label","quality","score","stream"],
+  "Stream": ["behaviorHints","description","externalUrl","name","title","url","ytId"],
+  "StreamQuality": ["codec","direct","dolbyVision","hdr","languages","lowQualitySource","resolution","sizeBytes","source","tags"],
+  "Video": ["episode","id","overview","rating","released","season","thumbnail","title"]
+}

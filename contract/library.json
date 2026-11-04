@@ -1,0 +1,6 @@
+{
+  "AnimeLink": ["anilist","canonical","kitsu","mal","updatedAt"],
+  "LibraryItem": ["addedAt","id","name","poster","type","updatedAt"],
+  "Progress": ["background","duration","episode","episodeTitle","metaId","name","position","poster","season","stream","type","updatedAt","videoId"],
+  "SyncLibraryItem": ["addedAt","deleted","id","name","poster","type","updatedAt"]
+}

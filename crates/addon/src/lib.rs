@@ -9,6 +9,8 @@
 //!   so the player can pick the best source without the user reading 40 rows.
 
 pub mod client;
+#[cfg(test)]
+mod contract;
 pub mod numbering;
 pub mod probe;
 pub mod rank;

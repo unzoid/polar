@@ -261,3 +261,9 @@ How to check, with a TMDB key set in Settings:
   addon; sign out: the guest's subtitle size and addon are back, the playlist list is the guest's, the search
   box shows no recent searches, and `localStorage` (devtools) has no `polar.playlists.<profile id>` or
   `polar.settingsSync.<profile id>` keys.
+- Rust/TS field-name contract (rewrite R3, critique M5): `contract/addon.json` and `contract/library.json` were
+  written by the crates' own tests; `contract/app.json` was written by hand from `src-tauri`'s types, and its test
+  (`src-tauri/src/contract.rs`, a child of `commands.rs`) has never compiled. To check: `cargo test -p polar`
+  on a desktop (CI's `cargo test --workspace` runs it). If it fails, it prints what `contract/app.json` should
+  read: paste that in, then run `bun run test`; a failing `tests/contract.test.ts` names the TS type to fix in
+  `src/lib/types.ts` (and `src/lib/contract.ts`).
