@@ -1,4 +1,5 @@
 import { parseVideoId, titleOfVideo } from "../identity";
+import { count, isRecord, listOf, storedJson } from "../parse";
 
 /**
  * What the player needs to know about an anime episode that its video id
@@ -46,15 +47,29 @@ export interface KeyValue {
   setItem(key: string, value: string): void;
 }
 
+/** What an older version or a damaged store left: titles and fields that don't fit are left out (critique M9). */
+function readSaved(v: unknown): Saved {
+  if (!isRecord(v)) return {};
+  const out: Saved = {};
+  for (const [title, t] of Object.entries(v)) {
+    if (!isRecord(t)) continue;
+    const [mal, kitsu, at] = [count(t.mal), count(t.kitsu), count(t.at)];
+    const eps: Record<string, number> = {};
+    for (const [video, v] of Object.entries(isRecord(t.eps) ? t.eps : {})) {
+      const n = count(v);
+      if (n !== undefined) eps[video] = n;
+    }
+    const filler = listOf(t.filler, count);
+    out[title] = { ...(mal !== undefined && { mal }), ...(kitsu !== undefined && { kitsu }), eps, ...(filler.length > 0 && { filler }), at: at ?? 0 };
+  }
+  return out;
+}
+
 export function playContextStore(storage: KeyValue | undefined, now: () => number = Date.now) {
   let cache: Saved | undefined;
   const load = (): Saved => {
     if (cache) return cache;
-    try {
-      cache = (JSON.parse(storage?.getItem(STORAGE) ?? "null") as Saved | null) ?? {};
-    } catch {
-      cache = {};
-    }
+    cache = readSaved(storedJson(storage, STORAGE));
     return cache;
   };
   const save = () => {

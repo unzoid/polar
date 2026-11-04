@@ -16,6 +16,6 @@ describe("anime link rows", () => {
 
   test("bigint times that come back as strings are numbers again", () => {
     const row = { anilist: 1, canonical: "tt1", mal: null, kitsu: null, updated_at: "42" as unknown as number, synced_at: "" };
-    expect(fromLinkRow(row).updatedAt).toBe(42);
+    expect(fromLinkRow(row)?.updatedAt).toBe(42);
   });
 });

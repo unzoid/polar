@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { RemotePlaylist } from "./account/backend";
+import { count, contentType, isRecord, listOf, str, storedJson, strings } from "./parse";
 import { decodeItems, encodeItems, type PlaylistRef } from "./playlistCodec";
 import type { MetaPreview } from "./types";
 
@@ -23,7 +24,7 @@ export interface Playlist {
   deleted?: boolean;
 }
 
-interface Space {
+export interface Space {
   playlists: Playlist[];
   /** Ids changed here since the last push. */
   dirty: string[];
@@ -35,13 +36,30 @@ const LOCAL = "local";
 const storageKey = (space: string) => `polar.playlists.${space}`;
 
 function load(space: string): Space {
-  try {
-    const saved = JSON.parse(localStorage.getItem(storageKey(space)) ?? "null") as Space | null;
-    if (saved) return saved;
-  } catch {
-    // Unreadable: start over.
-  }
-  return { playlists: [], dirty: [], pulledAt: null };
+  return readSpace(storedJson(localStorage, storageKey(space)));
+}
+
+/** A stored space as far as it can be read: playlists or items that don't fit are left out (critique M9). */
+export function readSpace(v: unknown): Space {
+  if (!isRecord(v)) return { playlists: [], dirty: [], pulledAt: null };
+  const playlists = listOf(v.playlists, readPlaylist);
+  const ids = new Set(playlists.map((p) => p.id));
+  return { playlists, dirty: strings(v.dirty).filter((id) => ids.has(id)), pulledAt: str(v.pulledAt) ?? null };
+}
+
+function readPlaylist(v: unknown): Playlist | undefined {
+  if (!isRecord(v)) return;
+  const id = str(v.id);
+  if (!id) return;
+  const items = listOf(v.items, readItem);
+  return { id, name: str(v.name) ?? "", items, updatedAt: count(v.updatedAt) ?? 0, ...(v.deleted === true && { deleted: true }) };
+}
+
+function readItem(v: unknown): PlaylistItem | undefined {
+  if (!isRecord(v)) return;
+  const [id, type, name, poster] = [str(v.id), contentType(v.type), str(v.name), str(v.poster)];
+  if (!id || !type) return;
+  return { id, type, ...(name && { name }), ...(poster && { poster }) };
 }
 
 let spaceId = LOCAL;

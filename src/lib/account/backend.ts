@@ -5,7 +5,8 @@
  */
 import type { AnimeLink } from "../identity";
 import type { Progress, SyncLibraryItem } from "../types";
-import type { AvatarId } from "./avatars";
+import { count, isRecord, str } from "../parse";
+import { normalizeAvatar, type AvatarId } from "./avatars";
 
 export interface AccountUser {
   id: string;
@@ -20,6 +21,13 @@ export interface Profile {
 }
 
 export type ProfileInput = Pick<Profile, "name" | "avatar">;
+
+/** A profile row or this device's cached copy; `undefined` without an id (critique M9). */
+export function readProfile(v: unknown): Profile | undefined {
+  const id = isRecord(v) ? str(v.id) : undefined;
+  if (!isRecord(v) || !id) return;
+  return { id, name: str(v.name) ?? "", avatar: normalizeAvatar(str(v.avatar) ?? ""), position: count(v.position) ?? 0 };
+}
 
 export type AccountErrorCode =
   | "invalid_email"

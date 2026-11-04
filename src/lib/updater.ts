@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { isRecord, str, storedJson } from "./parse";
 import { getPrefs } from "./prefs";
 
 /**
@@ -145,10 +146,8 @@ export async function takeWhatsNew(): Promise<WhatsNew | null> {
   if (!previous || compareVersions(version, previous) <= 0) return null;
 
   let notes = "";
-  try {
-    const saved = JSON.parse(localStorage.getItem(PENDING_NOTES) ?? "null") as { version: string; notes: string } | null;
-    if (saved?.version === version) notes = saved.notes;
-  } catch {}
+  const saved = storedJson(localStorage, PENDING_NOTES);
+  if (isRecord(saved) && saved.version === version) notes = str(saved.notes) ?? "";
   localStorage.removeItem(PENDING_NOTES);
   // Installed by hand: ask GitHub for the release's notes.
   if (!notes) {

@@ -69,7 +69,11 @@ Done in the same migration, so the server is changed once:
   with a test that round-trips the JSON shapes the Rust tests emit (no code generator: that would be a
   new dependency).
 - **M9** Validate at the edges: AniList, ani.zip, Jikan, addon responses and pulled rows through small
-  parse functions (no new library) that drop what doesn't fit instead of casting.
+  parse functions (no new library) that drop what doesn't fit instead of casting. Done for stored and pulled
+  data (`lib/parse.ts`): playlists, prefs, key bindings, cached profiles, anime play context, update notes, the
+  synced settings document (settings only of the kind this device has, refused values left out one by one) and
+  library/progress/link/playlist/settings rows (bigint strings read as numbers, u32 fields checked). Left: AniList,
+  ani.zip and addon responses.
 - **M10** One rate limiter (`lib/net/limiter.ts`) shared by AniList, ani.zip and Jikan; 429 honours
   `Retry-After` and gives up after a bound. Done for AniList and ani.zip (Jikan moved into
   `crates/anime/src/fillers.rs`, which caps its retries). `imdbForAnime`'s Cinemeta search and `kitsuMeta`'s

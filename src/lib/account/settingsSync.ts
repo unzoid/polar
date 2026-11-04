@@ -14,8 +14,9 @@
  */
 import { api } from "../api";
 import { queryClient } from "../queries";
-import { applyBindingOverrides, bindingOverrides } from "../keybinds";
-import { getPrefs, setPrefs, SYNCED_PREFS, type Prefs } from "../prefs";
+import { applyBindingOverrides, bindingOverrides, readBindings } from "../keybinds";
+import { isRecord, likeTemplate, storedJson, strings } from "../parse";
+import { getPrefs, readPrefs, setPrefs, SYNCED_PREFS, type Prefs } from "../prefs";
 import type { Settings } from "../types";
 import { AccountError, type AccountBackend } from "./backend";
 import { keys } from "../queryKeys";
@@ -27,7 +28,8 @@ interface Doc {
   settings: Partial<Settings>;
   keybinds: Record<string, string[]>;
   prefs: Partial<Prefs>;
-  addons: string[];
+  /** Missing in a doc that never carried addons: those on the device stay. */
+  addons?: string[];
 }
 
 interface Saved {
@@ -42,11 +44,22 @@ interface Saved {
 const storageKey = (space: string) => `polar.settingsSync.${space}`;
 
 function load(space: string): Saved | null {
-  try {
-    return JSON.parse(localStorage.getItem(storageKey(space)) ?? "null");
-  } catch {
-    return null;
-  }
+  const v = storedJson(localStorage, storageKey(space));
+  if (!isRecord(v) || !isRecord(v.doc)) return null;
+  return { doc: readDoc(v.doc), at: typeof v.at === "number" ? v.at : 0, missing: strings(v.missing) };
+}
+
+/**
+ * A document from the server or this device's copy, another version's included, as far as it
+ * fits (critique M9). Settings are checked against this device's own when applied.
+ */
+function readDoc(v: Record<string, unknown>): Doc {
+  return {
+    settings: isRecord(v.settings) ? (v.settings as Partial<Settings>) : {},
+    keybinds: readBindings(v.keybinds) as Record<string, string[]>,
+    prefs: readPrefs(v.prefs),
+    ...(Array.isArray(v.addons) && { addons: strings(v.addons) }),
+  };
 }
 const save = (space: string, s: Saved) => localStorage.setItem(storageKey(space), JSON.stringify(s));
 export const forgetSettings = (space: string) => localStorage.removeItem(storageKey(space));
@@ -69,11 +82,9 @@ async function current(missing: string[]): Promise<Doc> {
 async function apply(doc: Doc): Promise<string[]> {
   applying = true;
   try {
-    const local = await api.settings();
-    const settings = { ...local, ...withoutDeviceOnly(doc.settings) };
-    queryClient.setQueryData(["settings"], await api.saveSettings(settings));
-    applyBindingOverrides(doc.keybinds ?? {});
-    const prefs = Object.fromEntries(SYNCED_PREFS.filter((k) => k in (doc.prefs ?? {})).map((k) => [k, doc.prefs[k]]));
+    queryClient.setQueryData(["settings"], await saveSynced(doc.settings));
+    applyBindingOverrides(doc.keybinds);
+    const prefs = Object.fromEntries(SYNCED_PREFS.filter((k) => k in doc.prefs).map((k) => [k, doc.prefs[k]]));
     setPrefs(prefs, { quiet: true });
 
     if (!Array.isArray(doc.addons)) return [];
@@ -94,8 +105,21 @@ async function apply(doc: Doc): Promise<string[]> {
   }
 }
 
-function withoutDeviceOnly(s: Partial<Settings>) {
-  return Object.fromEntries(Object.entries(s ?? {}).filter(([k]) => !DEVICE_ONLY.has(k)));
+/**
+ * Synced settings over this device's: only keys it knows, each of the kind it has here. When the
+ * store still refuses them (a value another version allows), they go in one at a time and the
+ * ones it refuses are left out, so a bad value can't stop the rest on every run.
+ */
+async function saveSynced(synced: Partial<Settings>): Promise<Settings> {
+  const local = await api.settings();
+  const wanted = Object.entries(likeTemplate(local, synced)).filter(([k]) => !DEVICE_ONLY.has(k));
+  try {
+    return await api.saveSettings({ ...local, ...Object.fromEntries(wanted) });
+  } catch {
+    let saved = local;
+    for (const [k, v] of wanted) saved = await api.saveSettings({ ...saved, [k]: v }).catch(() => saved);
+    return saved;
+  }
 }
 
 /** Entering a profile: put back what this device last synced for it. */
@@ -156,7 +180,7 @@ export async function syncSettings(space: string, backend: AccountBackend, isAct
     save(space, { doc: local, at, missing: saved?.missing ?? [] });
   };
   const take = async (r: { data: Record<string, unknown>; updatedAt: number }) => {
-    const doc = r.data as unknown as Doc;
+    const doc = readDoc(r.data);
     const missing = await apply(doc);
     save(space, { doc, at: r.updatedAt, missing });
   };
