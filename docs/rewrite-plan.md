@@ -67,7 +67,14 @@ Done in the same migration, so the server is changed once:
 
 - **M5** One contract file per Rust command group (`lib/api/*.ts`) next to the Rust types they mirror,
   with a test that round-trips the JSON shapes the Rust tests emit (no code generator: that would be a
-  new dependency).
+  new dependency). Done as a field-name contract instead of a file split: a test in each crate
+  (`crates/addon`, `crates/library`, `src-tauri`, each `src/contract.rs`) serialises every type it sends the UI, every
+  optional field filled, and compares the field names with `contract/<crate>.json`; `src/lib/contract.ts` lists
+  the TS mirror's names per Rust type (tsc rejects a missing or extra one), and `tests/contract.test.ts` checks
+  the two agree, with fields left out on purpose (`unread`) or added in TS (`added`) named. The types stay in
+  `src/lib/types.ts`. Left for R4: the watched threshold's clamp is still in both `store.rs` and `lib/watched.ts`,
+  and stream ranking is still split (Rust scores and filters; TS re-sorts, tag filters, group boost, and applies
+  `preferScreenResolution`/`sourceFiltersHide`).
 - **M9** Validate at the edges: AniList, ani.zip, Jikan, addon responses and pulled rows through small
   parse functions (no new library) that drop what doesn't fit instead of casting. Done for stored and pulled
   data (`lib/parse.ts`): playlists, prefs, key bindings, cached profiles, anime play context, update notes, the

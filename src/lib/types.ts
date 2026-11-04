@@ -1,4 +1,5 @@
-// Mirrors the Rust types in crates/addon, crates/library and src-tauri/src/store.rs.
+// Mirrors the Rust types in crates/addon, crates/library and src-tauri/src. Their JSON field names are
+// checked against contract/*.json, which the Rust tests write (src/lib/contract.ts, tests/contract.test.ts).
 
 import type { AnimeLink } from "./identity";
 
@@ -95,6 +96,8 @@ export interface Stream {
   name?: string;
   title?: string;
   description?: string;
+  /** The addon's hints as it sent them (`proxyHeaders`, `bingeGroup`…); read by the backend. */
+  behaviorHints?: Record<string, unknown>;
 }
 
 export interface StreamQuality {
@@ -126,6 +129,18 @@ export interface StreamsResult {
   failed: string[];
   /** Left out by the filters in Settings → Sources. */
   hidden?: number;
+}
+
+/** What `search` returns: matches of each kind. */
+export interface SearchResults {
+  movies: MetaPreview[];
+  series: MetaPreview[];
+}
+
+/** The anime cache folder (fillers.json, anime-list-mini.json) and the size of its files. */
+export interface CacheInfo {
+  path: string;
+  bytes: number;
 }
 
 export type Playable =

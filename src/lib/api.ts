@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { playContext } from "./anime/playContext";
 import { isKitsuId, kitsuMeta } from "./anime/kitsu";
 import type {
+  CacheInfo,
   ContentType,
   ExternalRatings,
   InstalledAddon,
@@ -13,6 +14,7 @@ import type {
   Settings,
   Stream,
   StreamsResult,
+  SearchResults,
   SubtitleOption,
   SeekTrack,
   SkipSegments,
@@ -35,14 +37,13 @@ export const api = {
   /** Opens an https page in the default browser. */
   openExternal: (url: string) => invoke<void>("open_external", { url }),
   /** The anime cache folder (fillers.json, anime-list-mini.json) and their size. */
-  animeCache: () => invoke<{ path: string; bytes: number }>("anime_cache"),
+  animeCache: () => invoke<CacheInfo>("anime_cache"),
   animeCacheClear: () => invoke<void>("anime_cache_clear"),
   catalog: (type: ContentType, id: string, skip = 0, genre?: string) =>
     invoke<MetaPreview[]>("catalog", { ty: type, id, skip, genre }),
   /** Titles like `id`, for "Because you watched …". */
   recommend: (type: ContentType, id: string) => invoke<MetaPreview[]>("recommend", { ty: type, id }),
-  search: (query: string) =>
-    invoke<{ movies: MetaPreview[]; series: MetaPreview[] }>("search", { query }),
+  search: (query: string) => invoke<SearchResults>("search", { query }),
   // Anime with no IMDb page carry a Kitsu id; no metadata addon serves those, so they're built from AniList.
   meta: (type: ContentType, id: string) => (isKitsuId(id) ? kitsuMeta(type, id) : invoke<Meta>("meta", { ty: type, id })),
   streams: (type: ContentType, videoId: string) =>
