@@ -97,9 +97,12 @@ handful of integers.
   the MAL id from the stored link. The anime page reads progress played under `kitsu:N:E` as the
   matching IMDb episode. Not covered: TV mode lines up no episodes itself, so an IMDb episode
   first played from TV, never from a desktop anime page, still falls back to ani.zip's mapping.
-- **Search**: AniList cards resolve through cached links/ani.zip to a canonical id; results with
-  the same canonical id merge into one card (the anime card, which opens the anime page), instead
-  of the title/year heuristic.
+- **Search** (`withoutAnime`, `src/lib/anime/merge.ts`): an AniList card with a stored link
+  resolves to its canonical id, and movie/series results with that canonical id are dropped (the
+  anime card opens the anime page); for a linked card only the id decides. Cards without a link
+  still use the title/year guess: search asks no ani.zip per card, since ani.zip's unchecked link
+  can name the wrong show (HNAW → Paleblade) and would cost a request per card. Results that are one
+  show under two ids (`kitsu:N` from an addon and its `tt…`) show once.
 - **Sync**: links are one more synced kind (compact encoding in `docs/supabase-storage.md`):
   `(profile, anilist id) → canonical id, mal, kitsu, updated_at`. Roughly 20-30 bytes per anime the
   user has touched.
