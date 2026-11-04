@@ -452,6 +452,9 @@ code draws, not what's on screen.
    with (before, the hero's sheet followed the page's next episode while open), and an anime episode that's
    only scheduled no longer opens an empty sources sheet. Not yet: `TitleActions`, `LibraryButton`, TV's
    `SourcesPanel` as the TV look of `SourcePicker`, the player's Sources overlay.
+   `components/title/LibraryButton.tsx` (`item`): the + / ✓ glass icon button of the Home hero, title pages and
+   anime pages, written 3× before; same element. The anime page now checks "in Library" by the loaded meta's
+   id instead of the linked id (the same id; it's what the button saves).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

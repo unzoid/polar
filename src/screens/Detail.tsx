@@ -1,4 +1,4 @@
-import { Check, LayoutList, LayoutRow, Play, Plus, Reset, Sources, Trailer, Volume, VolumeMuted } from "../components/icons";
+import { LayoutList, LayoutRow, Play, Reset, Sources, Trailer, Volume, VolumeMuted } from "../components/icons";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
@@ -16,11 +16,10 @@ import { PlaylistButton } from "../components/Playlists";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
 import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
-import { SwapIcon } from "../components/SwapIcon";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
 import { episodeCode, formatRuntime, seasonLabel } from "../lib/format";
 import { usePlayTarget } from "../lib/playTarget";
-import { prefetchStreams, useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
+import { prefetchStreams, useMeta, useProgress, useSettings, useStreams } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { anilistForImdb } from "../lib/anime/search";
@@ -29,6 +28,7 @@ import { trailerFor, useFileTrailer } from "../lib/trailers";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, Video } from "../lib/types";
 import type { PlayRequest } from "../lib/titlePlayback";
 import { Button, IconButton } from "../components/ui/Button";
+import { LibraryButton } from "../components/title/LibraryButton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 
@@ -122,12 +122,9 @@ function DetailHero({
   onSheet: (open: boolean) => void;
   trailer: { visible: boolean; muted: boolean; toggleMute: () => void };
 }) {
-  const { data: library } = useLibrary();
-  const toggle = useToggleLibrary();
   const picker = useSourcePicker(onSheet);
 
   const isSeries = item.type === "series";
-  const inLibrary = library?.some((l) => l.id === item.id);
   const { next, videoId, resumeAt, label: primaryLabel } = usePlayTarget(item, meta);
   const { data: fileTrailer } = useFileTrailer(item.id);
 
@@ -177,15 +174,7 @@ function DetailHero({
               Trailer
             </Button>
           )}
-          <IconButton
-            variant="glass"
-            onClick={() => toggle.mutate(item)}
-            label={inLibrary ? "Remove from Library" : "Add to Library"}
-            title={inLibrary ? "Remove from Library" : "Add to Library"}
-            aria-pressed={inLibrary}
-          >
-            <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
-          </IconButton>
+          <LibraryButton item={item} />
           <PlaylistButton item={item} />
           <IconButton
             variant="glass"

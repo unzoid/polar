@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AmbientWash } from "../components/AmbientWash";
-import { Check, ChevronRight, Play, Plus } from "../components/icons";
+import { ChevronRight, Play } from "../components/icons";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { CardSkeleton, LandscapeCard, PosterCard, ProgressBar, useIntent } from "../components/PosterCard";
 import { Row } from "../components/Row";
-import { SwapIcon } from "../components/SwapIcon";
 import { api } from "../lib/api";
 import { episodeCode, formatRemaining } from "../lib/format";
 import {
@@ -14,10 +13,8 @@ import {
   preloadImage,
   useCatalog,
   useContinueWatching,
-  useLibrary,
   useRecommend,
   useSettings,
-  useToggleLibrary,
 } from "../lib/queries";
 import { prefersReducedMotion } from "../lib/reducedMotion";
 import { useNearViewport } from "../lib/viewport";
@@ -26,6 +23,7 @@ import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownA
 import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Button, IconButton } from "../components/ui/Button";
+import { LibraryButton } from "../components/title/LibraryButton";
 import { Skeleton } from "../components/ui/Skeleton";
 
 /**
@@ -218,9 +216,6 @@ function HeroPeek({ item, side, onClick }: { item: MetaPreview; side: "prev" | "
 function HeroContent({ item }: { item: MetaPreview }) {
   const { navigate } = useRouter();
   const intent = useIntent(item);
-  const { data: library } = useLibrary();
-  const toggle = useToggleLibrary();
-  const inLibrary = library?.some((l) => l.id === item.id);
   const open = () => navigate({ name: "detail", type: item.type, id: item.id, preview: item });
 
   return (
@@ -238,15 +233,7 @@ function HeroContent({ item }: { item: MetaPreview }) {
         <Button variant="primary" onClick={open} {...intent}>
           <Play size={18} fill="currentColor" /> Watch Now
         </Button>
-        <IconButton
-          variant="glass"
-          onClick={() => toggle.mutate(item)}
-          label={inLibrary ? "Remove from Library" : "Add to Library"}
-          title={inLibrary ? "Remove from Library" : "Add to Library"}
-          aria-pressed={inLibrary}
-        >
-          <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
-        </IconButton>
+        <LibraryButton item={item} />
       </div>
     </div>
   );
