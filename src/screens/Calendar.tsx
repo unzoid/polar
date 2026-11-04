@@ -4,6 +4,7 @@ import { Img } from "../components/Img";
 import { byDay, dayLabel, useCalendar, type CalendarEntry } from "../lib/calendar";
 import { useRouter } from "../lib/router";
 import { episodeEntry } from "../lib/watched";
+import { EmptyState } from "../components/ui/EmptyState";
 
 /**
  * Episodes of your shows by the day they air (Settings → Browsing → Show the
@@ -23,10 +24,10 @@ export function Calendar() {
         </div>
       </header>
       {showCount === 0 && !loading && (
-        <p className="empty calendar-empty t-body muted">Add shows to your library, or start watching one, and their new episodes show up here.</p>
+        <EmptyState className="calendar-empty">Add shows to your library, or start watching one, and their new episodes show up here.</EmptyState>
       )}
       {showCount > 0 && !loading && !days.length && (
-        <p className="empty calendar-empty t-body muted">Nothing aired in the last week, and nothing's scheduled yet for your shows.</p>
+        <EmptyState className="calendar-empty">Nothing aired in the last week, and nothing's scheduled yet for your shows.</EmptyState>
       )}
       {loading && !days.length && (
         <div className="calendar">

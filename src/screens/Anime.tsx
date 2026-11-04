@@ -37,6 +37,7 @@ import { HeroCarousel } from "./Home";
 import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { SearchField } from "../components/ui/SearchField";
+import { EmptyState } from "../components/ui/EmptyState";
 
 type Shape = "poster" | "landscape";
 
@@ -59,12 +60,9 @@ export function Anime() {
   if (isError && !data) {
     return (
       <div className="scroll anime">
-        <div className="empty t-body muted anime-unreachable">
-          AniList didn't answer. It limits how often it can be asked, so give it a minute.{" "}
-          <button className="settings-link" onClick={() => void refetch()}>
-            Try again
-          </button>
-        </div>
+        <EmptyState className="anime-unreachable" action={{ label: "Try again", onClick: () => void refetch() }}>
+          AniList didn't answer. It limits how often it can be asked, so give it a minute.
+        </EmptyState>
       </div>
     );
   }
@@ -328,7 +326,7 @@ function ScheduleView() {
           </button>
         ))}
       </div>
-      {isError && <p className="empty t-body muted">Couldn't load the schedule from AniList.</p>}
+      {isError && <EmptyState>Couldn't load the schedule from AniList.</EmptyState>}
       {isLoading && (
         <div className="anime-slots">
           {Array.from({ length: 6 }, (_, i) => (
@@ -336,7 +334,7 @@ function ScheduleView() {
           ))}
         </div>
       )}
-      {data && !slots.length && <p className="empty t-body muted">Nothing airs this day.</p>}
+      {data && !slots.length && <EmptyState>Nothing airs this day.</EmptyState>}
       <div className="anime-slots">
         {slots.map((s) => (
           <ScheduleSlot key={s.id} slot={s} />
@@ -492,8 +490,8 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
         ))}
         {(q.isLoading || q.isFetchingNextPage) && Array.from({ length: 12 }, (_, i) => <CardSkeleton key={`s${i}`} />)}
       </div>
-      {q.data && !items.length && <p className="empty t-body muted">Nothing matches. Try fewer filters.</p>}
-      {q.isError && <p className="empty t-body muted">AniList didn't answer. Try again in a minute.</p>}
+      {q.data && !items.length && <EmptyState>Nothing matches. Try fewer filters.</EmptyState>}
+      {q.isError && <EmptyState>AniList didn't answer. Try again in a minute.</EmptyState>}
       <div ref={sentinel} />
     </div>
   );

@@ -451,9 +451,6 @@
   gap: 2rem 1.25rem;
   padding: 0 var(--gutter) 0 var(--content-start);
 }
-.empty {
-  padding: 3rem var(--gutter) 3rem var(--content-start);
-}
 
 /* --- Segmented control. The selected state is a clipped "active" copy; the
        clip moves with a transition, except for keyboard changes (instant). */

@@ -387,6 +387,11 @@ code draws, not what's on screen.
    `screens.css` to `styles/ui/text-field.css`; the built CSS is the same rules with the new name. Not yet: the
    account inputs (`.auth-input`, `.auth-field input`, `.profile-editor-name`), `.playlist-name-input`,
    `.party-join-input`.
+   `components/ui/EmptyState.tsx` (message as children, optional `action` link, `className` for spacing): the
+   21 `p.empty t-body muted` notes and Anime's "Try again" one, class renamed `.empty-state`, CSS moved from
+   `shell.css` to `styles/ui/empty-state.css` (same rules). Not yet: the panel-specific empty notes with their
+   own looks (`.stream-empty`, `.trailer-empty`, `.market-empty`, `.t3s-empty`, `.srcf-chiprow-empty`,
+   `.options-empty`, `.tv-empty`), `ErrorText`.
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).

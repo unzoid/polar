@@ -25,6 +25,7 @@ import { progressFraction, progressItem } from "../lib/shelves";
 import { formatBytes } from "../lib/sources";
 import type { ContentType } from "../lib/types";
 import { buttonClass } from "../components/ui/Button";
+import { EmptyState } from "../components/ui/EmptyState";
 
 type Collection = "saved" | "watched" | "playlists" | "downloads";
 type Open = { view: Collection } | { view: "playlist"; id: string; fresh: boolean } | null;
@@ -133,7 +134,7 @@ function Overview({ onOpen }: { onOpen: (o: Open) => void }) {
         />
       </div>
 
-      {nothing && <p className="empty t-body muted">Titles you save, download, watch or put in a playlist gather here.</p>}
+      {nothing && <EmptyState>Titles you save, download, watch or put in a playlist gather here.</EmptyState>}
 
       <div className="rows library-rows">
         {dl.length > 0 && (
@@ -276,10 +277,10 @@ function arrange<T extends { type: ContentType; name: string }>(items: T[] | und
 function Saved({ kind, sort }: { kind: Kind; sort: Sort }) {
   const { data } = useLibrary();
   const items = useMemo(() => arrange(data, kind, sort), [data, kind, sort]);
-  if (data?.length === 0) return <p className="empty t-body muted">Titles you save with + on their page appear here.</p>;
+  if (data?.length === 0) return <EmptyState>Titles you save with + on their page appear here.</EmptyState>;
   return (
     <>
-      {items?.length === 0 && <p className="empty t-body muted">Nothing here yet.</p>}
+      {items?.length === 0 && <EmptyState>Nothing here yet.</EmptyState>}
       <div className="poster-grid">
         {items?.map((item) => (
           <PosterCard key={item.id} item={item} />
@@ -292,10 +293,10 @@ function Saved({ kind, sort }: { kind: Kind; sort: Sort }) {
 function WatchedGrid({ kind, sort }: { kind: Kind; sort: Sort }) {
   const { data } = useWatchHistory();
   const items = useMemo(() => arrange(data, kind, sort), [data, kind, sort]);
-  if (data?.length === 0) return <p className="empty t-body muted">Movies and shows you watch appear here.</p>;
+  if (data?.length === 0) return <EmptyState>Movies and shows you watch appear here.</EmptyState>;
   return (
     <>
-      {items?.length === 0 && <p className="empty t-body muted">Nothing here yet.</p>}
+      {items?.length === 0 && <EmptyState>Nothing here yet.</EmptyState>}
       <div className="poster-grid">
         {items?.map((p) => (
           <PosterCard key={p.metaId} item={progressItem(p)} progress={progressFraction(p)} entry={p} />
@@ -322,9 +323,9 @@ function Downloads() {
 
   if (data?.length === 0) {
     return (
-      <p className="empty t-body muted">
+      <EmptyState>
         Download a movie or an episode with <Download size={15} className="inline-icon" /> on its page to watch it without a connection.
-      </p>
+      </EmptyState>
     );
   }
   return (
@@ -482,7 +483,7 @@ function PlaylistView({ id, fresh, onClose }: { id: string; fresh: boolean; onCl
         </div>
       </div>
       {n === 0 ? (
-        <p className="empty t-body muted">Add titles with the playlist button on their page.</p>
+        <EmptyState>Add titles with the playlist button on their page.</EmptyState>
       ) : (
         <div className="poster-grid">
           {playlist.items.map((item) => (
