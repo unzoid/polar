@@ -1,4 +1,3 @@
-import { Menu } from "@base-ui/react/menu";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -20,6 +19,7 @@ import { Sheet } from "./Sheet";
 import { Spinner } from "./Spinner";
 import { StreamList } from "./StreamList";
 import { buttonClass } from "./ui/Button";
+import { MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "./ui/Menu";
 
 /**
  * The download control, as on Netflix and Apple TV: an arrow to start; while
@@ -121,38 +121,46 @@ function DownloadMenu({ d, className, glyph, onRetry }: { d: DownloadRecord; cla
           : `Downloading${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`;
 
   return (
-    <Menu.Root modal={false}>
-      <Menu.Trigger className={className} data-download={d.state} aria-label={label} title={label}>
+    <MenuRoot modal={false}>
+      <MenuTrigger className={className} data-download={d.state} aria-label={label} title={label}>
         {glyph}
-      </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner side="bottom" align="center" sideOffset={8} collisionPadding={12} className="select-positioner">
-          <Menu.Popup className="ctx-menu" aria-label="Download">
-            <div className="ctx-menu-head">
-              <strong>{label.split(":")[0]}</strong>
-              <span>{d.quality}</span>
-            </div>
-            {d.state === "done" && (
-              <Item
-                icon={<Play fill="currentColor" />}
-                label="Play Download"
-                onClick={() => navigate({ name: "player", type: d.type, metaId: d.metaId, videoId: d.id, stream: localStream(d) })}
-              />
-            )}
-            {d.state === "downloading" && <Item icon={<Pause fill="currentColor" />} label="Pause Download" onClick={() => void pauseDownload(d.id)} />}
-            {d.state === "paused" && <Item icon={<Download />} label="Resume Download" onClick={() => void resumeDownload(d.id)} />}
-            {d.state === "failed" && <Item icon={<Reset />} label="Choose Another Source" onClick={onRetry} />}
-            {d.received > 0 && <Item icon={<Folder />} label="Show in Folder" onClick={() => void revealDownload(d.id)} />}
-            <Menu.Separator className="ctx-menu-sep" />
-            <Item
-              icon={<Trash />}
-              label={d.state === "done" ? "Delete Download" : "Cancel Download"}
-              onClick={() => void removeDownload(d.id)}
-            />
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
+      </MenuTrigger>
+      <MenuPopup side="bottom" align="center" sideOffset={8} collisionPadding={12} aria-label="Download">
+        <MenuHeader title={label.split(":")[0]} detail={d.quality} />
+        {d.state === "done" && (
+          <MenuItem
+            icon={<Play fill="currentColor" />}
+            onClick={() => navigate({ name: "player", type: d.type, metaId: d.metaId, videoId: d.id, stream: localStream(d) })}
+          >
+            Play Download
+          </MenuItem>
+        )}
+        {d.state === "downloading" && (
+          <MenuItem icon={<Pause fill="currentColor" />} onClick={() => void pauseDownload(d.id)}>
+            Pause Download
+          </MenuItem>
+        )}
+        {d.state === "paused" && (
+          <MenuItem icon={<Download />} onClick={() => void resumeDownload(d.id)}>
+            Resume Download
+          </MenuItem>
+        )}
+        {d.state === "failed" && (
+          <MenuItem icon={<Reset />} onClick={onRetry}>
+            Choose Another Source
+          </MenuItem>
+        )}
+        {d.received > 0 && (
+          <MenuItem icon={<Folder />} onClick={() => void revealDownload(d.id)}>
+            Show in Folder
+          </MenuItem>
+        )}
+        <MenuSeparator />
+        <MenuItem icon={<Trash />} onClick={() => void removeDownload(d.id)}>
+          {d.state === "done" ? "Delete Download" : "Cancel Download"}
+        </MenuItem>
+      </MenuPopup>
+    </MenuRoot>
   );
 }
 
@@ -196,14 +204,5 @@ function DoneGlyph({ size }: { size: number }) {
       <circle cx="12" cy="12" r="10" fill="currentColor" />
       <path d="m7.75 12.25 2.75 2.75 5.75-6" fill="none" stroke="var(--download-check, #0a0a0a)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-function Item({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
-  return (
-    <Menu.Item className="ctx-menu-item" onClick={onClick}>
-      {icon}
-      <span>{label}</span>
-    </Menu.Item>
   );
 }

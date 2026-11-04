@@ -1,5 +1,4 @@
 import logo from "../assets/polarity-white.png";
-import { Menu } from "@base-ui/react/menu";
 import { ChevronDown, ChevronLeft, Close, Search, Speed, Tv } from "./icons";
 import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../lib/recentSearches";
 import { setTvMode } from "../tv/tvMode";
@@ -16,6 +15,7 @@ import { UpdatePill } from "./Updates";
 import { useParty } from "../lib/party/party";
 import { PartyBadge } from "./party/PartyUI";
 import { Chip } from "./ui/Chip";
+import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "./ui/Menu";
 
 const LINKS: { route: TabRoute; label: string }[] = [
   { route: { name: "home" }, label: "Home" },
@@ -147,8 +147,8 @@ function NavLinks({ links, isActive, open }: { links: typeof LINKS; isActive: (r
           {l.label}
         </button>
       ))}
-      <Menu.Root modal={false}>
-        <Menu.Trigger
+      <MenuRoot modal={false}>
+        <MenuTrigger
           ref={more}
           className="navbar-link navbar-more"
           data-overflow={rest.length ? undefined : true}
@@ -156,19 +156,15 @@ function NavLinks({ links, isActive, open }: { links: typeof LINKS; isActive: (r
         >
           {rest.find((l) => isActive(l.route))?.label ?? "More"}
           <ChevronDown size={14} />
-        </Menu.Trigger>
-        <Menu.Portal>
-          <Menu.Positioner sideOffset={8} align="start" className="select-positioner">
-            <Menu.Popup className="profile-menu">
-              {rest.map((l) => (
-                <Menu.Item key={l.label} className="profile-menu-item" onClick={() => open(l.route)}>
-                  {l.label}
-                </Menu.Item>
-              ))}
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      </Menu.Root>
+        </MenuTrigger>
+        <MenuPopup look="roomy" sideOffset={8} align="start">
+          {rest.map((l) => (
+            <MenuItem key={l.label} onClick={() => open(l.route)}>
+              {l.label}
+            </MenuItem>
+          ))}
+        </MenuPopup>
+      </MenuRoot>
     </nav>
   );
 }
