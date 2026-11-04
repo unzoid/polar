@@ -15,8 +15,7 @@ import { TitleLogo } from "../components/TitleLogo";
 import { PlaylistButton } from "../components/Playlists";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
-import { Sheet } from "../components/Sheet";
-import { StreamList } from "../components/StreamList";
+import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
 import { SwapIcon } from "../components/SwapIcon";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
 import { episodeCode, formatRuntime, seasonLabel } from "../lib/format";
@@ -27,7 +26,8 @@ import { useQuery } from "@tanstack/react-query";
 import { anilistForImdb } from "../lib/anime/search";
 import { usePrefs } from "../lib/prefs";
 import { trailerFor, useFileTrailer } from "../lib/trailers";
-import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
+import type { ContentType, EpisodeLayout, Meta, MetaPreview, Video } from "../lib/types";
+import type { PlayRequest } from "../lib/titlePlayback";
 import { Button, IconButton } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -122,15 +122,9 @@ function DetailHero({
   onSheet: (open: boolean) => void;
   trailer: { visible: boolean; muted: boolean; toggleMute: () => void };
 }) {
-  const { navigate } = useRouter();
   const { data: library } = useLibrary();
   const toggle = useToggleLibrary();
-  const [sourcesOpen, setSourcesOpen] = useState(false);
-  useEffect(() => {
-    if (!sourcesOpen) return;
-    onSheet(true);
-    return () => onSheet(false);
-  }, [sourcesOpen, onSheet]);
+  const picker = useSourcePicker(onSheet);
 
   const isSeries = item.type === "series";
   const inLibrary = library?.some((l) => l.id === item.id);
@@ -140,14 +134,12 @@ function DetailHero({
   // Sources for the primary action load as soon as the page opens, so Play
   // (or the source list) is ready by the time the user reaches for it.
   useStreams(item.type, videoId);
-  const { data: settings } = useSettings();
-  const autoPick = settings?.autoPickSource ?? true;
-
-  const play = (stream?: RankedStream) => {
-    if (!videoId) return;
-    // Auto-pick off: choose a source first (resuming keeps the file you were on).
-    if (!stream && !autoPick && !resumeAt) return setSourcesOpen(true);
-    navigate({ name: "player", type: item.type, metaId: item.id, videoId, stream: stream?.stream });
+  const request = videoId && {
+    type: item.type,
+    metaId: item.id,
+    videoId,
+    resumable: !!resumeAt,
+    subtitle: isSeries && next?.video ? `${episodeCode(next.video.season, next.video.episode)} · ${next.video.title}` : item.name,
   };
 
   const facts = [item.releaseInfo, formatRuntime(meta?.runtime)].filter(Boolean);
@@ -173,7 +165,7 @@ function DetailHero({
             variant="primary"
             className="detail-play"
             disabled={!videoId}
-            onClick={() => play()}
+            onClick={() => request && picker.play(request)}
             onPointerEnter={() => videoId && prefetchStreams(item.type, videoId)}
           >
             {resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
@@ -198,7 +190,7 @@ function DetailHero({
           <IconButton
             variant="glass"
             disabled={!videoId}
-            onClick={() => setSourcesOpen(true)}
+            onClick={() => request && picker.choose(request)}
             label="Choose source"
             title="Choose source"
           >
@@ -234,25 +226,7 @@ function DetailHero({
         </dl>
       ) : null}
 
-      {videoId && (
-        <Sheet
-          open={sourcesOpen}
-          onClose={() => setSourcesOpen(false)}
-          title="Sources"
-          subtitle={
-            isSeries && next?.video ? `${episodeCode(next.video.season, next.video.episode)} · ${next.video.title}` : item.name
-          }
-        >
-          <StreamList
-            type={item.type}
-            videoId={videoId}
-            onPick={(s) => {
-              setSourcesOpen(false);
-              play(s);
-            }}
-          />
-        </Sheet>
-      )}
+      <SourcePicker picker={picker} />
     </section>
   );
 }
@@ -271,21 +245,13 @@ function SeriesBody({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) =>
 }
 
 function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => void }) {
-  const { navigate } = useRouter();
   const { data: progress } = useProgress(meta.id);
   const seasons = useMemo(() => seasonsOf(meta), [meta]);
   const next = useMemo(() => upNext(meta, progress ?? []), [meta, progress]);
   const [season, setSeason] = useState<number | undefined>();
   // This page's choice; until you pick one, the default from Settings.
   const [layoutChoice, setLayout] = useState<EpisodeLayout | undefined>();
-  // Kept after closing so the sheet keeps its content while it slides out.
-  const [sourcesFor, setSourcesFor] = useState<Video | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  useEffect(() => {
-    if (!sheetOpen) return;
-    onSheet(true);
-    return () => onSheet(false);
-  }, [sheetOpen, onSheet]);
+  const picker = useSourcePicker(onSheet);
 
   // Open on the season you're actually in, not always season 1 — so wait
   // for watch progress before choosing.
@@ -298,16 +264,15 @@ function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => vo
   const map = useMemo(() => progressMap(progress), [progress]);
 
   const { data: settings } = useSettings();
-  const autoPick = settings?.autoPickSource ?? true;
   const layout = layoutChoice ?? settings?.episodeLayout ?? "row";
-  const play = (v: Video, stream?: RankedStream) => {
-    // Auto-pick off: choose a source first (a started episode keeps its file).
-    if (!stream && !autoPick && !map.has(v.id)) {
-      setSourcesFor(v);
-      return setSheetOpen(true);
-    }
-    navigate({ name: "player", type: "series", metaId: meta.id, videoId: v.id, stream: stream?.stream });
-  };
+  // A started episode keeps its file.
+  const request = (v: Video): PlayRequest => ({
+    type: "series",
+    metaId: meta.id,
+    videoId: v.id,
+    resumable: map.has(v.id),
+    subtitle: `${episodeCode(v.season, v.episode)} · ${v.title}`,
+  });
 
   return (
     <section className="seasons">
@@ -332,30 +297,11 @@ function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => vo
         progress={map}
         runtime={meta.runtime}
         upNextId={next.kind !== "start" ? next.video?.id : undefined}
-        onPlay={(v) => play(v)}
-        onSources={(v) => {
-          setSourcesFor(v);
-          setSheetOpen(true);
-        }}
+        onPlay={(v) => picker.play(request(v))}
+        onSources={(v) => picker.choose(request(v))}
         menu={(v) => cardMenu(meta, episodeEntry(meta, v, map.get(v.id)), { episode: true })}
       />
-      <Sheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        title="Sources"
-        subtitle={sourcesFor ? `${episodeCode(sourcesFor.season, sourcesFor.episode)} · ${sourcesFor.title}` : undefined}
-      >
-        {sourcesFor && (
-          <StreamList
-            type="series"
-            videoId={sourcesFor.id}
-            onPick={(s) => {
-              setSheetOpen(false);
-              play(sourcesFor, s);
-            }}
-          />
-        )}
-      </Sheet>
+      <SourcePicker picker={picker} />
     </section>
   );
 }

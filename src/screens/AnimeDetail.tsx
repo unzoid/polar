@@ -10,8 +10,7 @@ import { TitleLogo } from "../components/TitleLogo";
 import { Row } from "../components/Row";
 import { Segmented } from "../components/Segmented";
 import { SeasonPicker } from "../components/title/SeasonPicker";
-import { Sheet } from "../components/Sheet";
-import { StreamList } from "../components/StreamList";
+import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
 import { SwapIcon } from "../components/SwapIcon";
 import { openTrailer } from "../components/Trailer";
 import { api } from "../lib/api";
@@ -38,8 +37,8 @@ import { useAnimeImdb } from "../lib/anime/search";
 import { formatTime } from "../lib/format";
 import { setPrefs, usePrefs } from "../lib/prefs";
 import { useLibrary, useMeta, useProgress, useSettings, useToggleLibrary } from "../lib/queries";
-import { useRouter } from "../lib/router";
-import type { EpisodeLayout, Progress, RankedStream, Video } from "../lib/types";
+import type { EpisodeLayout, Progress, Video } from "../lib/types";
+import type { PlayRequest } from "../lib/titlePlayback";
 import { watchedFraction } from "../lib/watched";
 import { Button, IconButton } from "../components/ui/Button";
 import { Badge, Chip } from "../components/ui/Chip";
@@ -247,21 +246,20 @@ function usePlayback(anime: Card | Anime) {
 // --- Hero ---------------------------------------------------------------------
 
 function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: string; name: string }) {
-  const { navigate } = useRouter();
   const pb = usePlayback(anime ?? item);
   const { data: library } = useLibrary();
   const toggle = useToggleLibrary();
-  const { data: settings } = useSettings();
-  const autoPick = settings?.autoPickSource ?? true;
-  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const picker = useSourcePicker();
   const prefs = usePrefs();
 
   const target = pb.isMovie ? pb.metaId : pb.next.ep?.video?.id;
   const inLibrary = !!pb.metaId && library?.some((l) => l.id === pb.metaId);
-  const play = (stream?: RankedStream) => {
-    if (!target || !pb.metaId) return;
-    if (!stream && !autoPick && !pb.next.resumeAt) return setSourcesOpen(true);
-    navigate({ name: "player", type: pb.isMovie ? "movie" : "series", metaId: pb.metaId, videoId: target, stream: stream?.stream });
+  const request = target && pb.metaId && {
+    type: pb.isMovie ? ("movie" as const) : ("series" as const),
+    metaId: pb.metaId,
+    videoId: target,
+    resumable: !!pb.next.resumeAt,
+    subtitle: pb.next.ep ? `Episode ${pb.next.ep.number}${pb.next.ep.title ? ` · ${pb.next.ep.title}` : ""}` : name,
   };
 
   const label = (() => {
@@ -314,7 +312,7 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
         {paragraphs[0] && <p className="detail-description t-callout">{paragraphs[0]}</p>}
 
         <div className="detail-actions">
-          <Button variant="primary" className="detail-play" disabled={!target} onClick={() => play()} title={unavailable}>
+          <Button variant="primary" className="detail-play" disabled={!target} onClick={() => request && picker.play(request)} title={unavailable}>
             {pb.next.resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
             {label}
           </Button>
@@ -335,30 +333,14 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
               <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
             </IconButton>
           )}
-          <IconButton variant="glass" disabled={!target} onClick={() => setSourcesOpen(true)} label="Choose source" title="Choose source">
+          <IconButton variant="glass" disabled={!target} onClick={() => request && picker.choose(request)} label="Choose source" title="Choose source">
             <Sources size={19} />
           </IconButton>
         </div>
         {unavailable && <p className="anime-unavailable t-caption">{unavailable}</p>}
       </div>
 
-      {target && pb.metaId && (
-        <Sheet
-          open={sourcesOpen}
-          onClose={() => setSourcesOpen(false)}
-          title="Sources"
-          subtitle={pb.next.ep ? `Episode ${pb.next.ep.number}${pb.next.ep.title ? ` · ${pb.next.ep.title}` : ""}` : name}
-        >
-          <StreamList
-            type={pb.isMovie ? "movie" : "series"}
-            videoId={target}
-            onPick={(s) => {
-              setSourcesOpen(false);
-              play(s);
-            }}
-          />
-        </Sheet>
-      )}
+      <SourcePicker picker={picker} />
     </section>
   );
 }
@@ -410,15 +392,12 @@ function Episodes({
   layoutChoice?: EpisodeLayout;
   onLayout: (l: EpisodeLayout) => void;
 }) {
-  const { navigate } = useRouter();
   const pb = usePlayback(anime);
   const prefs = usePrefs();
   const { data: flags } = useEpisodeFlags(pb.malId, [anime.title.english, anime.title.romaji]);
   const { data: settings } = useSettings();
-  const autoPick = settings?.autoPickSource ?? true;
   const layout = layoutChoice ?? settings?.episodeLayout ?? "row";
-  const [sourcesFor, setSourcesFor] = useState<Video | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const sources = useSourcePicker();
   useFranchiseStills(franchise ? franchise.seasons.map((s) => s.card.id) : [anime.id], pb.metaId, pb.meta?.videos);
 
   const hasFiller = !!flags && [...flags.values()].some((f) => f.filler);
@@ -465,14 +444,11 @@ function Episodes({
   // Paging or searching starts collapsed again.
   useEffect(() => setExpanded(false), [current, q]);
 
-  const play = (v: Video, stream?: RankedStream) => {
-    if (v.id.startsWith(PENDING) || !pb.metaId) return;
-    if (!stream && !autoPick && !pb.byVideo.has(v.id)) {
-      setSourcesFor(v);
-      return setSheetOpen(true);
-    }
-    navigate({ name: "player", type: "series", metaId: pb.metaId, videoId: v.id, stream: stream?.stream });
-  };
+  // Nothing to play yet for a scheduled episode, nor before the entry is linked to an IMDb or Kitsu id.
+  const request = (v: Video): PlayRequest | undefined =>
+    v.id.startsWith(PENDING) || !pb.metaId
+      ? undefined
+      : { type: "series", metaId: pb.metaId, videoId: v.id, resumable: pb.byVideo.has(v.id), subtitle: `Episode ${v.episode}${v.title ? ` · ${v.title}` : ""}` };
 
   if (!list.length) {
     const empty = <EmptyState className="anime-no-episodes">{pb.loading || pb.metaLoading ? "Loading episodes…" : "No episodes to play yet."}</EmptyState>;
@@ -566,10 +542,13 @@ function Episodes({
         progress={pb.byVideo}
         runtime={anime.duration ? `${anime.duration} min` : undefined}
         upNextId={upNextId}
-        onPlay={(v) => play(v)}
+        onPlay={(v) => {
+          const req = request(v);
+          if (req) sources.play(req);
+        }}
         onSources={(v) => {
-          setSourcesFor(v);
-          setSheetOpen(true);
+          const req = request(v);
+          if (req) sources.choose(req);
         }}
       />
       {found && !found.length && <EmptyState>No episode matches “{query.trim()}”.</EmptyState>}
@@ -578,23 +557,7 @@ function Episodes({
           Show all {pageList.length} episodes
         </Button>
       )}
-      <Sheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        title="Sources"
-        subtitle={sourcesFor ? `Episode ${sourcesFor.episode}${sourcesFor.title ? ` · ${sourcesFor.title}` : ""}` : undefined}
-      >
-        {sourcesFor && !sourcesFor.id.startsWith(PENDING) && (
-          <StreamList
-            type="series"
-            videoId={sourcesFor.id}
-            onPick={(s) => {
-              setSheetOpen(false);
-              play(sourcesFor, s);
-            }}
-          />
-        )}
-      </Sheet>
+      <SourcePicker picker={sources} />
     </section>
   );
 }
