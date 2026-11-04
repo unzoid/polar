@@ -1,4 +1,4 @@
-import { LayoutList, LayoutRow, Play, Reset, Sources, Trailer, Volume, VolumeMuted } from "../components/icons";
+import { LayoutList, LayoutRow, Volume, VolumeMuted } from "../components/icons";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
@@ -8,11 +8,9 @@ import { openTrailer, useTrailerOpen } from "../components/Trailer";
 import { episodeEntry } from "../lib/watched";
 import { EpisodeShelf } from "../components/EpisodeShelf";
 import { EdgeBlur } from "../components/EdgeBlur";
-import { DownloadButton } from "../components/DownloadButton";
 import { SeasonPicker } from "../components/title/SeasonPicker";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
-import { PlaylistButton } from "../components/Playlists";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
 import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
@@ -27,8 +25,8 @@ import { usePrefs } from "../lib/prefs";
 import { trailerFor, useFileTrailer } from "../lib/trailers";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, Video } from "../lib/types";
 import type { PlayRequest } from "../lib/titlePlayback";
-import { Button, IconButton } from "../components/ui/Button";
-import { LibraryButton } from "../components/title/LibraryButton";
+import { IconButton } from "../components/ui/Button";
+import { TitleActions } from "../components/title/TitleActions";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 
@@ -157,35 +155,17 @@ function DetailHero({
           <FormatBadges type={item.type} videoId={videoId} />
         </p>
 
-        <div className="detail-actions">
-          <Button
-            variant="primary"
-            className="detail-play"
-            disabled={!videoId}
-            onClick={() => request && picker.play(request)}
-            onPointerEnter={() => videoId && prefetchStreams(item.type, videoId)}
-          >
-            {resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
-            {primaryLabel}
-          </Button>
-          {(meta?.trailerYtId || fileTrailer) && (
-            <Button variant="glass" className="detail-trailer-btn" onClick={() => openTrailer(trailerFor(item.name, item.id, meta))}>
-              <Trailer size={18} />
-              Trailer
-            </Button>
-          )}
-          <LibraryButton item={item} />
-          <PlaylistButton item={item} />
-          <IconButton
-            variant="glass"
-            disabled={!videoId}
-            onClick={() => request && picker.choose(request)}
-            label="Choose source"
-            title="Choose source"
-          >
-            <Sources size={19} />
-          </IconButton>
-          {item.type === "movie" && <DownloadButton item={item} />}
+        <TitleActions
+          request={request}
+          picker={picker}
+          label={primaryLabel}
+          resume={!!resumeAt}
+          onWarm={() => videoId && prefetchStreams(item.type, videoId)}
+          onTrailer={meta?.trailerYtId || fileTrailer ? () => openTrailer(trailerFor(item.name, item.id, meta)) : undefined}
+          item={item}
+          playlist
+          download={item.type === "movie"}
+        >
           {trailer.visible && (
             <IconButton
               variant="glass"
@@ -197,7 +177,7 @@ function DetailHero({
               {trailer.muted ? <VolumeMuted size={20} /> : <Volume size={20} />}
             </IconButton>
           )}
-        </div>
+        </TitleActions>
       </div>
 
       {(meta?.cast?.length || meta?.director?.length) ? (

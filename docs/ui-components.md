@@ -469,7 +469,13 @@ code draws, not what's on screen.
    `Row` with skeletons of its shape until `items` is there; Home's catalog shelves, Anime's shelves and
    Airing Today, and Search's result rows are on it (the four "items or 8 skeletons" copies). The lazy part
    stays `useNearViewport` in the two callers that need it. `TvRail` keeps its own track (step 6).
-   Not yet: `TitleActions`, `TitleHeading`/`Facts`, `EpisodeCard`.
+   `components/title/TitleActions.tsx` (`request`, `picker`, `label`, `resume`, `playTitle`, `onWarm`,
+   `onTrailer`, `item` with `playlist`/`download`, children for page-own trailing buttons): the action row of
+   the show/movie page and the anime page, Play → Trailer → Library → Playlist → Choose source → Download,
+   same elements and classes as before. Play and "Choose source" are disabled exactly when there's no
+   request; on the anime page that was "no target" before, which differed only when an episode was known
+   but no meta id (a button that did nothing on click). The show page's mute button stays its own child.
+   Not yet: `TitleHeading`/`Facts`, `EpisodeCard`, the TV column of pills (step 6).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

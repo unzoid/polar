@@ -2,7 +2,7 @@ import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { AnimeCard } from "../components/anime/AnimeCard";
-import { ChevronDown, LayoutList, LayoutRow, Play, Reset, Sources, Star, Trailer } from "../components/icons";
+import { ChevronDown, LayoutList, LayoutRow, Star } from "../components/icons";
 import { EpisodeShelf } from "../components/EpisodeShelf";
 import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
@@ -39,8 +39,8 @@ import { useMeta, useProgress, useSettings } from "../lib/queries";
 import type { EpisodeLayout, Progress, Video } from "../lib/types";
 import type { PlayRequest } from "../lib/titlePlayback";
 import { watchedFraction } from "../lib/watched";
-import { Button, IconButton } from "../components/ui/Button";
-import { LibraryButton } from "../components/title/LibraryButton";
+import { Button } from "../components/ui/Button";
+import { TitleActions } from "../components/title/TitleActions";
 import { Badge, Chip } from "../components/ui/Chip";
 import { SearchField } from "../components/ui/SearchField";
 import { Switch } from "../components/ui/Switch";
@@ -308,22 +308,19 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
         {item.genres?.length ? <p className="anime-genres t-caption">{item.genres.join("  ·  ")}</p> : null}
         {paragraphs[0] && <p className="detail-description t-callout">{paragraphs[0]}</p>}
 
-        <div className="detail-actions">
-          <Button variant="primary" className="detail-play" disabled={!target} onClick={() => request && picker.play(request)} title={unavailable}>
-            {pb.next.resumeAt ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
-            {label}
-          </Button>
-          {anime?.trailer?.site === "youtube" && (
-            <Button variant="glass" className="detail-trailer-btn" onClick={() => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id })}>
-              <Trailer size={18} />
-              Trailer
-            </Button>
-          )}
-          {pb.meta && <LibraryButton item={pb.meta} />}
-          <IconButton variant="glass" disabled={!target} onClick={() => request && picker.choose(request)} label="Choose source" title="Choose source">
-            <Sources size={19} />
-          </IconButton>
-        </div>
+        <TitleActions
+          request={request}
+          picker={picker}
+          label={label}
+          resume={!!pb.next.resumeAt}
+          playTitle={unavailable}
+          onTrailer={
+            anime?.trailer?.site === "youtube"
+              ? () => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id })
+              : undefined
+          }
+          item={pb.meta}
+        />
         {unavailable && <p className="anime-unavailable t-caption">{unavailable}</p>}
       </div>
 
