@@ -19,6 +19,7 @@ import { AlertCircle, Download, Folder, Pause, Play, Reset, Trash } from "./icon
 import { Sheet } from "./Sheet";
 import { Spinner } from "./Spinner";
 import { StreamList } from "./StreamList";
+import { buttonClass } from "./ui/Button";
 
 /**
  * The download control, as on Netflix and Apple TV: an arrow to start; while
@@ -30,7 +31,7 @@ import { StreamList } from "./StreamList";
 export function DownloadButton({
   item,
   video,
-  className = "btn btn-glass btn-icon",
+  className = buttonClass("glass", true),
   size = 20,
 }: {
   item: MetaPreview;

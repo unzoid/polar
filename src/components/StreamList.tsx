@@ -4,6 +4,7 @@ import { useSettings, useStreams } from "../lib/queries";
 import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/sources";
 import type { ContentType, RankedStream } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
+import { Button } from "./ui/Button";
 
 /**
  * Sources for one video, with the filters on top (add-on, resolution,
@@ -53,13 +54,13 @@ export function StreamList({
               : "No sources found."}
         </p>
         {hidden ? (
-          <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "sources" })}>
+          <Button variant="glass" onClick={() => tab({ name: "settings", page: "sources" })}>
             Source Filters
-          </button>
+          </Button>
         ) : (
-          <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "addons" })}>
+          <Button variant="glass" onClick={() => tab({ name: "settings", page: "addons" })}>
             Manage Add-ons
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -78,9 +79,9 @@ export function StreamList({
       {!shown.length && (
         <div className="stream-empty">
           <p className="t-body muted">No sources match these filters.</p>
-          <button className="btn btn-glass" onClick={f.clear}>
+          <Button variant="glass" onClick={f.clear}>
             Clear Filters
-          </button>
+          </Button>
         </div>
       )}
 

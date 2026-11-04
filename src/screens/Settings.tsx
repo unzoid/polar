@@ -64,6 +64,7 @@ import {
 import { PadGlyph } from "../tv/TvChrome";
 import { ReleaseNotes } from "../components/Updates";
 import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl, useUpdate } from "../lib/updater";
+import { Button } from "../components/ui/Button";
 
 export type PageId =
   | "account"
@@ -291,9 +292,9 @@ function AccountPage() {
       <Card footer="Your library and watch history move into your first profile.">
         <div className="settings-row">
           <RowText title="Not signed in" caption="Sign in to keep profiles, your library, history and settings on every device." />
-          <button className="btn btn-primary" onClick={account.showSignIn}>
+          <Button variant="primary" onClick={account.showSignIn}>
             Sign In
-          </button>
+          </Button>
         </div>
       </Card>
     );
@@ -304,9 +305,9 @@ function AccountPage() {
       <Card footer="Your library, watch history, playlists, settings, shortcuts and addons sync automatically. Volume and TV mode stay on this device.">
         <div className="settings-row">
           <RowText title="Email" caption={account.user?.email} />
-          <button className="btn" onClick={() => void account.signOut()}>
+          <Button onClick={() => void account.signOut()}>
             Sign Out
-          </button>
+          </Button>
         </div>
       </Card>
 
@@ -338,13 +339,13 @@ function DeleteAccountRow(props: Expandable) {
       </p>
       <div className="settings-expand-form">
         <input className="settings-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="delete" />
-        <button
-          className="btn btn-danger"
+        <Button
+          variant="danger"
           disabled={typed.trim().toLowerCase() !== "delete" || remove.isPending}
           onClick={() => remove.mutate()}
         >
           Delete Account
-        </button>
+        </Button>
       </div>
       {remove.isError && <p className="settings-error">{String((remove.error as Error).message)}</p>}
     </ExpandRow>
@@ -667,9 +668,9 @@ function SourcesPage() {
             spellCheck={false}
             aria-label="Words to hide"
           />
-          <button className="btn btn-primary" disabled={!wordsDirty || update.isPending}>
+          <Button variant="primary" disabled={!wordsDirty || update.isPending}>
             Save
-          </button>
+          </Button>
         </form>
       </Card>
 
@@ -1268,9 +1269,9 @@ function AnimePage() {
             spellCheck={false}
             aria-label="Preferred release groups"
           />
-          <button className="btn btn-primary" disabled={tidyGroups === prefs.animePreferredGroups}>
+          <Button variant="primary" disabled={tidyGroups === prefs.animePreferredGroups}>
             Save
-          </button>
+          </Button>
         </form>
       </Card>
     </>
@@ -1347,9 +1348,9 @@ function ResetRow(props: Expandable) {
         Your library, history, profiles, add-ons, keyboard shortcuts, and API keys stay as they are.
       </p>
       <div className="settings-expand-actions">
-        <button className="btn btn-danger" disabled={reset.isPending} onClick={() => reset.mutate()}>
+        <Button variant="danger" disabled={reset.isPending} onClick={() => reset.mutate()}>
           <Reset size={15} /> Reset Settings
-        </button>
+        </Button>
       </div>
       {reset.isError && <p className="settings-error">{String(reset.error)}</p>}
     </ExpandRow>
@@ -1395,21 +1396,20 @@ function AboutPage() {
           <RowText title="Software update" caption={s.phase === "ready" ? "Takes a few seconds; Polarity reopens by itself" : undefined} />
           <div className="settings-expand-actions">
             {s.phase === "available" ? (
-              <button className="btn btn-primary" onClick={() => void downloadUpdate()}>
+              <Button variant="primary" onClick={() => void downloadUpdate()}>
                 <Download size={15} /> Download {s.version}
-              </button>
+              </Button>
             ) : s.phase === "ready" ? (
-              <button className="btn btn-primary" onClick={() => void installUpdate()}>
+              <Button variant="primary" onClick={() => void installUpdate()}>
                 <Reset size={15} /> Restart to Update
-              </button>
+              </Button>
             ) : (
-              <button
-                className="btn"
+              <Button
                 disabled={s.phase === "checking" || s.phase === "downloading" || s.phase === "installing"}
                 onClick={() => void checkForUpdates()}
               >
                 Check for Updates
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -1490,9 +1490,9 @@ function CacheCard() {
     <Card title="Cache" footer={data ? <>Kept in {data.path}</> : undefined}>
       <div className="settings-row">
         <RowText title="Anime data" caption={`Filler and recap episodes, kept a day; the anime id list used when ani.zip is down, kept a week · ${size}`} />
-        <button className="btn" disabled={!data?.bytes || clear.isPending} onClick={() => clear.mutate()}>
+        <Button disabled={!data?.bytes || clear.isPending} onClick={() => clear.mutate()}>
           <Trash size={15} /> Clear
-        </button>
+        </Button>
       </div>
     </Card>
   );
@@ -1508,9 +1508,9 @@ function ControlsPage() {
       <Card title="TV Mode">
         <div className="settings-row">
           <RowText title="TV mode" caption="A fullscreen interface for the couch, made for a remote or controller." />
-          <button className="btn" onClick={() => setTvMode(true)}>
+          <Button onClick={() => setTvMode(true)}>
             Open TV Mode
-          </button>
+          </Button>
         </div>
         <ToggleRow
           title="TV mode button in the top bar"
@@ -1621,10 +1621,10 @@ function PadBindingsCard({ layout, title, footer }: { layout: Layout; title: str
       ))}
       <div className="settings-row">
         <RowText title="Standard layout" caption="Put every button back as it came" />
-        <button className="btn" disabled={!padBindingsCustomized(bindings, layout)} onClick={() => resetPadBindings(layout)}>
+        <Button disabled={!padBindingsCustomized(bindings, layout)} onClick={() => resetPadBindings(layout)}>
           <Reset size={15} />
           Reset
-        </button>
+        </Button>
       </div>
     </Card>
   );
@@ -1781,17 +1781,16 @@ function AddonsPage() {
               <p className="settings-expand-text settings-url">{a.manifestUrl}</p>
               <div className="settings-expand-actions">
                 {a.manifest.behaviorHints?.configurable && (
-                  <button
-                    className="btn"
+                  <Button
                     onClick={() => void api.openExternal(a.manifestUrl.replace(/\/manifest\.json$/, "/configure"))}
                     title="Opens the addon's settings page. Install the new link it gives you to apply them."
                   >
                     <Cog size={15} /> Configure
-                  </button>
+                  </Button>
                 )}
-                <button className="btn btn-danger" onClick={() => remove.mutate(a.manifest.id)} disabled={remove.isPending}>
+                <Button variant="danger" onClick={() => remove.mutate(a.manifest.id)} disabled={remove.isPending}>
                   <Trash size={15} /> Remove
-                </button>
+                </Button>
               </div>
             </ExpandRow>
           ))}
@@ -1815,9 +1814,9 @@ function AddonsPage() {
             onChange={(e) => setUrl(e.target.value)}
             spellCheck={false}
           />
-          <button className="btn btn-primary" disabled={install.isPending || !url.trim()}>
+          <Button variant="primary" disabled={install.isPending || !url.trim()}>
             <Plus size={16} /> {install.isPending ? "Installing…" : "Install"}
-          </button>
+          </Button>
         </form>
         {install.isError && <p className="settings-error settings-card-pad">{String(install.error)}</p>}
       </Card>
@@ -1891,9 +1890,9 @@ function RatingsRow(props: Expandable) {
           spellCheck={false}
           autoComplete="off"
         />
-        <button className="btn btn-primary" disabled={!dirty || save.isPending}>
+        <Button variant="primary" disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </form>
     </ExpandRow>
   );
@@ -1954,9 +1953,9 @@ function ArtworkRow(props: Expandable) {
           spellCheck={false}
           autoComplete="off"
         />
-        <button className="btn btn-primary" disabled={!dirty || save.isPending}>
+        <Button variant="primary" disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </form>
     </ExpandRow>
   );
@@ -2014,9 +2013,9 @@ function PreviewsRow(props: Expandable) {
           spellCheck={false}
           autoComplete="off"
         />
-        <button className="btn btn-primary" disabled={saved && !key}>
+        <Button variant="primary" disabled={saved && !key}>
           {saved && key ? "Check" : "Save"}
-        </button>
+        </Button>
       </form>
       {status && (
         <p className={`settings-expand-text${(verify.isSuccess && !verify.data) || verify.isError ? " settings-error" : ""}`}>

@@ -5,6 +5,7 @@ import { MARKET_CATEGORIES, MARKETPLACE_REPO, searchMarketplace, useMarketplace,
 import { keys, useAddons } from "../lib/queries";
 import { openSettings } from "../lib/settingsOverlay";
 import { Captions, Check, Close, Info, Play, Search, type Icon } from "./icons";
+import { Button } from "./ui/Button";
 
 const CATEGORY_ICON: Record<MarketCategory, Icon> = {
   Subtitles: Captions,
@@ -83,9 +84,9 @@ export function MarketplacePage() {
                     </span>
                     <span className="market-actions">
                       {a.configure && (installed || !a.setupRequired) && (
-                        <button className="btn" onClick={() => void api.openExternal(a.configure!)}>
+                        <Button onClick={() => void api.openExternal(a.configure!)}>
                           Configure
-                        </button>
+                        </Button>
                       )}
                       {installed ? (
                         <span className="market-installed">
@@ -93,17 +94,17 @@ export function MarketplacePage() {
                         </span>
                       ) : a.setupRequired ? (
                         // Its setup page hands back a personal link; that goes in Install from URL.
-                        <button
-                          className="btn btn-primary"
+                        <Button
+                          variant="primary"
                           title="Set it up on its own page, then paste the link it gives you under Add-ons → Install from URL"
                           onClick={() => void api.openExternal(a.configure!)}
                         >
                           Set Up
-                        </button>
+                        </Button>
                       ) : (
-                        <button className="btn btn-primary" disabled={busy} onClick={() => install.mutate(a.install)}>
+                        <Button variant="primary" disabled={busy} onClick={() => install.mutate(a.install)}>
                           {busy ? "Installing…" : "Install"}
-                        </button>
+                        </Button>
                       )}
                     </span>
                   </div>

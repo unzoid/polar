@@ -355,6 +355,13 @@ code draws, not what's on screen.
 3. **Primitives:** `Button`, `IconButton`, `Chip`, `SearchField`/`TextField`, `Switch`, `EmptyState`,
    `Skeleton`, `Toast`, `Menu`/`Popover` surface, `Layer`/`useDismiss`. Move screens over one primitive at a
    time, account screens included.
+   *Done:* `components/ui/Button.tsx` (`Button`, `IconButton`, `buttonClass()` for Base UI triggers and
+   components that take a class) with its CSS moved from `base.css` to `styles/ui/button.css` (imported right
+   after `base.css`, so the cascade is unchanged). Every `.btn` in the TSX goes through them; they emit the
+   same class lists as before, so nothing changes on screen. `IconButton` requires `label`. The class names
+   stay `.btn*` for now: the settings pages and the overlay restyle `.btn` by scope until step 5. Not yet:
+   `size`, `variant="link"`, the account screens' `.auth-btn` (different height and font: needs the `lg`
+   size), the other icon-button classes (`.options-head-btn`, `.t3s-icon-btn`, player glyph buttons, §2.5).
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).

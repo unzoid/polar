@@ -13,6 +13,7 @@ import { Avatar } from "../Avatar";
 import { BusyLabel } from "../BusyLabel";
 import { Spinner } from "../Spinner";
 import { Check, WatchParty } from "../icons";
+import { Button } from "../ui/Button";
 
 type Me = Pick<Member, "name" | "avatar">;
 
@@ -24,9 +25,9 @@ export function PartyStart({ onStart, me }: { onStart: () => void; me: Me }) {
         Watch in sync with friends. Everyone plays from their own sources; pausing, seeking and changing episodes happen
         for the whole room.
       </p>
-      <button className="btn btn-primary party-start" onClick={onStart}>
+      <Button variant="primary" className="party-start" onClick={onStart}>
         <WatchParty size={18} /> Start a Watch Party
-      </button>
+      </Button>
       <div className="party-or" aria-hidden>
         <span>or join one</span>
       </div>
@@ -65,17 +66,17 @@ export function PartyInvite({ party }: { party: PartyState }) {
             : "Friends join from their profile menu with this code."}
       </p>
       <div className="party-buttons">
-        <button className="btn btn-primary party-copy" onClick={copy} data-copied={copied}>
+        <Button variant="primary" className="party-copy" onClick={copy} data-copied={copied}>
           <span className="party-copy-label" data-shown={!copied}>
             Copy Invite
           </span>
           <span className="party-copy-label" data-shown={copied} aria-hidden={!copied}>
             <Check size={16} /> Copied
           </span>
-        </button>
-        <button className="btn btn-glass" onClick={leaveParty}>
+        </Button>
+        <Button variant="glass" onClick={leaveParty}>
           Leave Party
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -170,9 +171,9 @@ export function JoinForm({ me, onJoined }: { me: Me; onJoined?: () => void }) {
         data-invalid={!!error}
         onChange={(e) => change(e.target.value)}
       />
-      <button className="btn btn-glass party-join-btn" type="submit" disabled={busy || !code} aria-busy={busy}>
+      <Button variant="glass" className="party-join-btn" type="submit" disabled={busy || !code} aria-busy={busy}>
         <BusyLabel busy={busy}>Join</BusyLabel>
-      </button>
+      </Button>
       <p className="party-join-error" role="alert" data-shown={!!error}>
         {error}
       </p>

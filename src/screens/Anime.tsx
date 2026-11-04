@@ -34,6 +34,7 @@ import { usePrefs } from "../lib/prefs";
 import { useRouter } from "../lib/router";
 import type { MetaPreview } from "../lib/types";
 import { HeroCarousel } from "./Home";
+import { Button } from "../components/ui/Button";
 
 type Shape = "poster" | "landscape";
 
@@ -189,9 +190,9 @@ function AnimeHeroContent({ card, item }: { card: Card; item: MetaPreview }) {
       </p>
       <p className="hero-description t-body">{item.description}</p>
       <div className="hero-actions">
-        <button className="btn btn-primary" {...open}>
+        <Button variant="primary" {...open}>
           <Play size={18} fill="currentColor" /> Watch Now
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -14,11 +14,12 @@ import {
   useControllerNotice,
   useGamepadConnected,
   usePadFamily,
-  type Button,
+  type Button as PadKey,
   type PadFamily,
 } from "./gamepad";
 import { useBack, useFocusTrap } from "./shell";
 import { setTvMode } from "./tvMode";
+import { Button, IconButton } from "../components/ui/Button";
 
 export const TV_TABS: { route: TabRoute; label: string }[] = [
   { route: { name: "search" }, label: "Search" },
@@ -212,7 +213,7 @@ function Hint({ glyphs, label }: { glyphs: GlyphButton[]; label: string }) {
   );
 }
 
-type GlyphButton = Exclude<Button, "up" | "down" | "left" | "right">;
+type GlyphButton = Exclude<PadKey, "up" | "down" | "left" | "right">;
 
 /** PlayStation's face buttons are shapes, drawn rather than typed so they look the same everywhere. */
 const shape = (d: ReactNode) => (
@@ -295,14 +296,14 @@ export function ControllerToast({ tv }: { tv: boolean }) {
         )}
       </span>
       {offerTv && (
-        <button className="btn btn-primary tv-prompt-go" onClick={() => setTvMode(true)}>
+        <Button variant="primary" className="tv-prompt-go" onClick={() => setTvMode(true)}>
           Open TV Mode
-        </button>
+        </Button>
       )}
       {!tv && (
-        <button className="btn btn-icon" aria-label="Dismiss" onClick={dismissNotice}>
+        <IconButton label="Dismiss" onClick={dismissNotice}>
           <Close size={18} />
-        </button>
+        </IconButton>
       )}
     </div>
   );
