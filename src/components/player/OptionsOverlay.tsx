@@ -2,6 +2,7 @@ import { Check, Close } from "../icons";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
+import { IconButton } from "../ui/Button";
 import type { MediaLike } from "./mpvMedia";
 import { prefersReducedMotion } from "../../lib/reducedMotion";
 import { useLayer } from "../../lib/layer";
@@ -134,9 +135,9 @@ export function OptionsOverlay({
     >
       <VideoBackdrop media={media} />
       <div className="options-shade" aria-hidden />
-      <button className="player-icon pressable options-close" onClick={onClose} aria-label="Close" title="Close (Esc)">
+      <IconButton variant="player" className="options-close" onClick={onClose} label="Close" title="Close (Esc)">
         <Close size={26} />
-      </button>
+      </IconButton>
       <div className="options-columns" data-count={columns.length}>
         {columns.map((col, c) => (
           <section key={col.title} className="options-column" data-column={c} data-size={col.size ?? "narrow"}>

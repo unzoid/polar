@@ -846,9 +846,9 @@ export function Player({
 
       {/* Top: back, what's playing, window-level controls. Drag lives here. */}
       <div className="player-top" data-tauri-drag-region>
-        <button className="player-icon pressable" onClick={() => void exit()} aria-label="Back" title="Back (Esc)">
+        <IconButton variant="player" onClick={() => void exit()} label="Back" title="Back (Esc)">
           <ArrowLeft size={26} />
-        </button>
+        </IconButton>
         <div className="player-heading" data-tauri-drag-region>
           <span className="player-heading-title">{heading}</span>
           {current && <span className="player-heading-show">{title}</span>}
@@ -856,9 +856,9 @@ export function Player({
         <div className="player-top-actions">
           {party && <PartyBadge party={party} onOpen={() => setOptions("party")} />}
           <div className="player-volume">
-            <button className="player-icon pressable" onClick={() => setMuted((m) => !m)} aria-label={muted ? "Unmute" : "Mute"} title={withShortcut("Mute", "mute")}>
+            <IconButton variant="player" onClick={() => setMuted((m) => !m)} label={muted ? "Unmute" : "Mute"} title={withShortcut("Mute", "mute")}>
               <VolumeIcon size={22} />
-            </button>
+            </IconButton>
             <input
               type="range"
               min={0}
@@ -874,9 +874,9 @@ export function Player({
             />
           </div>
           {!tv && (
-            <button className="player-icon pressable" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
+            <IconButton variant="player" onClick={() => void toggleFullscreen()} label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
               {fullscreen ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
-            </button>
+            </IconButton>
           )}
         </div>
         {!fullscreen && !tv && <WindowControls />}
@@ -885,10 +885,10 @@ export function Player({
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
       {ready && started && (
         <div className="player-center">
-          <button className="player-transport pressable" onClick={() => seekBy(-seekStep)} aria-label={`Back ${seekStep} seconds`} title={withShortcut(`Back ${seekStep}s`, "seekBack")}>
+          <IconButton variant="transport" onClick={() => seekBy(-seekStep)} label={`Back ${seekStep} seconds`} title={withShortcut(`Back ${seekStep}s`, "seekBack")}>
             <SkipIcon direction="back" seconds={seekStep} size={56} />
-          </button>
-          <button className="player-transport player-transport-main pressable" onClick={togglePlay} aria-label={paused ? "Play" : "Pause"} title={withShortcut("Play/Pause", "playPause")}>
+          </IconButton>
+          <IconButton variant="transport" className="player-transport-main" onClick={togglePlay} label={paused ? "Play" : "Pause"} title={withShortcut("Play/Pause", "playPause")}>
             {buffering ? (
               <Spinner className="player-spinner" size={52} label="Buffering" />
             ) : paused ? (
@@ -896,10 +896,10 @@ export function Player({
             ) : (
               <Pause size={64} fill="currentColor" strokeWidth={0} />
             )}
-          </button>
-          <button className="player-transport pressable" onClick={() => seekBy(seekStep)} aria-label={`Forward ${seekStep} seconds`} title={withShortcut(`Forward ${seekStep}s`, "seekForward")}>
+          </IconButton>
+          <IconButton variant="transport" onClick={() => seekBy(seekStep)} label={`Forward ${seekStep} seconds`} title={withShortcut(`Forward ${seekStep}s`, "seekForward")}>
             <SkipIcon direction="forward" seconds={seekStep} size={56} />
-          </button>
+          </IconButton>
         </div>
       )}
 

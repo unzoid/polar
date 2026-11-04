@@ -43,7 +43,16 @@ export function Button({ variant = "plain", busy, className, children, ...rest }
   );
 }
 
-export type IconButtonProps = Omit<ButtonProps, "busy" | "aria-label"> & {
+/**
+ * Over the playing video (styles/player.css): `player` the glyphs in the player's top bar and the options
+ * close, `transport` the large bare seek and play glyphs in the middle. Both press like `.pressable`.
+ */
+export type PlayerIconVariant = "player" | "transport";
+
+const PLAYER_ICON: Record<PlayerIconVariant, string> = { player: "player-icon pressable", transport: "player-transport pressable" };
+
+export type IconButtonProps = Omit<ButtonProps, "busy" | "aria-label" | "variant"> & {
+  variant?: ButtonVariant | PlayerIconVariant;
   /** What the button does; becomes its accessible name. Required: an icon has no text. */
   label: string;
 };
@@ -53,8 +62,10 @@ export type IconButtonProps = Omit<ButtonProps, "busy" | "aria-label"> & {
  * `variant="glass"` only matters where a screen styles `.btn-glass.btn-icon`.
  */
 export function IconButton({ variant = "plain", label, className, children, ...rest }: IconButtonProps) {
+  const cls =
+    variant === "player" || variant === "transport" ? PLAYER_ICON[variant] + (className ? ` ${className}` : "") : buttonClass(variant, true, className);
   return (
-    <button className={buttonClass(variant, true, className)} aria-label={label} {...rest}>
+    <button className={cls} aria-label={label} {...rest}>
       {children}
     </button>
   );
