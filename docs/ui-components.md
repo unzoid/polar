@@ -86,7 +86,8 @@ draws), `StillPlaceholder`/`Still`.
 
 **Planned in §4 and not built** (each would change what's on screen, or wasn't needed): `Button`
 `variant="link"`, `CopyButton`, `ToastHost` and toast placement, `ErrorText`, `ChoiceGrid`, `Segmented` as a
-radio group with looks, a `Slider` primitive in `ui/`, one `Dialog`, one popover surface, a `Facts` component
+radio group with looks, a `Slider` primitive in `ui/`, one `Dialog` (the sign-out confirm, `components/SignOutDialog.tsx`, borrows the
+party dialog's classes until then; its buttons are `Button size="block"`, `danger` there is red text), one popover surface, a `Facts` component
 (the two helpers in `lib/format.ts` instead), and the player and party notes as `Toast`s (docs/unverified.md asks the owner).
 `SearchField` `expandable` was dropped (T-024): the navbar's field (`SearchBox` in `components/NavBar.tsx`) is the
 only one that opens out of its glyph, blurs on Escape when empty instead of letting a layer close, saves recent
