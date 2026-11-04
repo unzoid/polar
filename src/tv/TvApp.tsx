@@ -13,8 +13,8 @@ import {
   landingIn,
   move,
   ownsArrows,
-  runBack,
 } from "./spatial";
+import { dismissTop, onDismissed } from "../lib/dismiss";
 import { Desktop } from "../components/icons";
 import { actionFor, shortcutText } from "../lib/keybinds";
 import { playSound } from "./sounds";
@@ -91,7 +91,6 @@ export function TvApp() {
   }, []);
 
   const goBack = useCallback(() => {
-    if (runBack()) return;
     if (stack.length > 1) return back();
     if (activeTab.name !== "home") return tab({ name: "home" });
     setMenuOpen(true);
@@ -100,6 +99,8 @@ export function TvApp() {
   // Arrows move focus; Esc / Backspace / B go back. The player owns the keyboard while it's up.
   useEffect(() => {
     if (playing) return;
+    // An open panel, menu or sheet closes first: Escape does that before it gets here, the other keys below.
+    const offDismissed = onDismissed(() => playSound("back"));
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const dir = KEY_DIRS[e.key];
@@ -116,6 +117,7 @@ export function TvApp() {
       }
       if (e.key === "Escape" || e.key === "GoBack" || e.key === "BrowserBack" || (e.key === "Backspace" && !typing)) {
         e.preventDefault();
+        if (dismissTop()) return;
         playSound("back");
         goBack();
         return;
@@ -126,7 +128,10 @@ export function TvApp() {
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      offDismissed();
+      window.removeEventListener("keydown", onKey);
+    };
   }, [playing, goBack, tab]);
 
   // Controller-only shortcuts: shoulders switch sections, Y searches, Menu opens the menu.

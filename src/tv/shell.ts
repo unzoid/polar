@@ -1,16 +1,17 @@
-import { createContext, useContext, useEffect, useRef, type RefObject } from "react";
-import { focusWhenReady, pushBack } from "./spatial";
+import { createContext, useContext, useEffect, type RefObject } from "react";
+import { useDismiss } from "../lib/dismiss";
+import { focusWhenReady } from "./spatial";
 
 /** Whether this screen is the one on top (not under a pushed page, the player, or the menu). */
 export const PageActive = createContext(true);
 export const usePageActive = () => useContext(PageActive);
 
-/** While `active`, Back (Esc, Backspace, B) runs `handler` instead of leaving the page. */
-export function useBack(active: boolean, handler: () => void) {
-  const ref = useRef(handler);
-  ref.current = handler;
-  useEffect(() => (active ? pushBack(ref) : undefined), [active]);
-}
+/**
+ * While `active`, Back (Esc, Backspace, B) runs `handler` instead of leaving the page. A layer on the one
+ * dismiss stack (lib/dismiss.ts), so TV panels and the app's sheets and overlays close in the order they
+ * opened.
+ */
+export const useBack = useDismiss;
 
 /**
  * For panels and menus: take focus when opened, and hand it back to whatever
