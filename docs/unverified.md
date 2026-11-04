@@ -169,6 +169,6 @@ How to check:
   dropdown open, Escape closes only the dropdown. On TV: B over the picker closes it; B in a title's Playlists
   panel goes back to the menu, then the card; Backspace does the same; the back sound plays once each time.
   Changed on purpose: on TV, closing a sources sheet or the trailer with B now also plays the back sound.
-- Notes in the player (T-019 step 6): the top note ("Couldn't load…"), the party's "Waiting for…" pill and its
+- Notes in the player (T-019 step 6): the top note ("That source didn't load. Trying the next best one."), the party's "Waiting for…" pill and its
   activity notes still draw their own pills (flat dark surface), unlike the app's toasts (glass with an edge).
   Say whether they should look like the toasts; nothing changed.
