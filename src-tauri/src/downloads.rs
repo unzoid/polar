@@ -24,6 +24,7 @@ use tauri::{AppHandle, Manager, State};
 use tokio::io::AsyncWriteExt;
 
 use crate::commands::{resolve, CmdError, Playable, Result};
+use crate::locks::Locked;
 use crate::store::now;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,8 +184,7 @@ impl Downloads {
 
     /// True when `path` is a finished download's file, so the player may open it.
     pub fn owns(&self, path: &str) -> bool {
-        is_local(path)
-            && self.inner.lock().unwrap().items.iter().any(|d| d.state == DownloadState::Done && d.file == path)
+        is_local(path) && self.inner.locked().items.iter().any(|d| d.state == DownloadState::Done && d.file == path)
     }
 
     fn save(&self, items: &[Download]) {
@@ -197,7 +197,7 @@ impl Downloads {
     }
 
     fn update(&self, id: &str, f: impl FnOnce(&mut Download), persist: bool) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.locked();
         if let Some(d) = inner.items.iter_mut().find(|d| d.id == id) {
             f(d);
         }
@@ -208,7 +208,7 @@ impl Downloads {
 
     /// A running transfer updates its own record by file, never a newer one for the same video.
     fn update_file(&self, file: &str, f: impl FnOnce(&mut Download), persist: bool) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.locked();
         if let Some(d) = inner.items.iter_mut().find(|d| d.file == file) {
             f(d);
         }
@@ -218,11 +218,11 @@ impl Downloads {
     }
 
     fn get(&self, id: &str) -> Option<Download> {
-        self.inner.lock().unwrap().items.iter().find(|d| d.id == id).cloned()
+        self.inner.locked().items.iter().find(|d| d.id == id).cloned()
     }
 
     fn stop(&self, id: &str) {
-        if let Some(flag) = self.inner.lock().unwrap().running.remove(id) {
+        if let Some(flag) = self.inner.locked().running.remove(id) {
             flag.store(true, Ordering::Relaxed);
         }
     }
@@ -231,7 +231,7 @@ impl Downloads {
     fn spawn(self: &Arc<Self>, id: String) {
         let flag = Arc::new(AtomicBool::new(false));
         let file = {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.locked();
             if inner.running.contains_key(&id) {
                 return;
             }
@@ -243,14 +243,14 @@ impl Downloads {
             self.save(&inner.items);
             file
         };
-        let writer = self.inner.lock().unwrap().writers.entry(file.clone()).or_default().clone();
+        let writer = self.inner.locked().writers.entry(file.clone()).or_default().clone();
         let me = self.clone();
         tauri::async_runtime::spawn(async move {
             // A paused transfer may still be inside a chunk; it lets go at the
             // next one (or after IDLE), and only then does this one append.
             let _writing = writer.lock().await;
             let outcome = if flag.load(Ordering::Relaxed) { Ok(false) } else { me.transfer(&file, &flag).await };
-            let mut inner = me.inner.lock().unwrap();
+            let mut inner = me.inner.locked();
             // Only the transfer still registered may clear itself or set the
             // state: a paused or restarted one has no say any more.
             let current = inner.running.get(&id).is_some_and(|f| Arc::ptr_eq(f, &flag));
@@ -283,7 +283,7 @@ impl Downloads {
 
     /// Copy the file down. Ok(true) when finished, Ok(false) when stopped.
     async fn transfer(&self, file: &str, stop: &AtomicBool) -> std::result::Result<bool, String> {
-        let Some(d) = self.inner.lock().unwrap().items.iter().find(|d| d.file == file).cloned() else {
+        let Some(d) = self.inner.locked().items.iter().find(|d| d.file == file).cloned() else {
             return Ok(false);
         };
         let path = part(file);
@@ -423,7 +423,7 @@ type Shared<'a> = State<'a, Arc<Downloads>>;
 
 #[tauri::command]
 pub fn downloads_list(downloads: Shared<'_>) -> Vec<Download> {
-    let mut items = downloads.inner.lock().unwrap().items.clone();
+    let mut items = downloads.inner.locked().items.clone();
     items.sort_by_key(|i| std::cmp::Reverse(i.added_at));
     items
 }
@@ -467,7 +467,7 @@ pub async fn download_start(downloads: Shared<'_>, req: DownloadRequest) -> Resu
         headers: proxy_headers(&req.stream),
     };
     {
-        let mut inner = downloads.inner.lock().unwrap();
+        let mut inner = downloads.inner.locked();
         // The old file goes now if nothing holds it; a running transfer deletes it when it stops.
         if let Some(old) = inner.items.iter().find(|x| x.id == d.id).map(|x| x.file.clone()) {
             remove_files(&old);
@@ -516,7 +516,7 @@ pub fn download_reveal(downloads: Shared<'_>, id: String) -> Result<()> {
 #[tauri::command]
 pub fn download_remove(downloads: Shared<'_>, id: String) {
     downloads.stop(&id);
-    let mut inner = downloads.inner.lock().unwrap();
+    let mut inner = downloads.inner.locked();
     if let Some(file) = inner.items.iter().find(|d| d.id == id).map(|d| d.file.clone()) {
         remove_files(&file);
         inner.writers.remove(&file);

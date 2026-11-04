@@ -8,6 +8,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::commands::Result;
+use crate::locks::Locked;
 use crate::store::{now, LOCAL_SPACE};
 use crate::AppState;
 
@@ -64,7 +65,7 @@ pub fn space_forget(state: State<'_, AppState>, space: Option<String>) -> Result
 /// Everything changed locally since the last push.
 #[tauri::command]
 pub fn sync_changes(state: State<'_, AppState>, space: String) -> LocalChanges {
-    let store = state.store.lock().unwrap();
+    let store = state.store.locked();
     let cursor = now();
     match store.data.spaces.get(&space) {
         Some(s) => LocalChanges { changes: s.changes_since(s.pushed_at), cursor, pulled_at: s.pulled_at.clone() },

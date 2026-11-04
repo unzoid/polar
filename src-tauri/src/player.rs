@@ -37,6 +37,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use ipc::Stream as IpcStream;
 
 use crate::commands::CmdError;
+use crate::locks::Locked;
 use crate::AppState;
 
 const OBSERVED: &[&str] = &[
@@ -415,7 +416,7 @@ impl Mpv {
         tokio::spawn(read_loop(app.clone(), BufReader::new(reader), pending.clone(), quiet.clone(), closed.clone()));
         *guard = Some(Conn { engine, writer, pending, quiet, closed });
         // A fresh mpv starts from the launch arguments above.
-        *self.tuned.lock().unwrap() = Tune::default();
+        *self.tuned.locked() = Tune::default();
         drop(guard);
 
         for (i, name) in OBSERVED.iter().enumerate() {
@@ -430,7 +431,7 @@ impl Mpv {
         {
             let mut guard = self.conn.lock().await;
             let conn = guard.as_mut().ok_or("mpv isn't running")?;
-            conn.pending.lock().unwrap().insert(id, tx);
+            conn.pending.locked().insert(id, tx);
             let mut line = serde_json::to_vec(&json!({ "command": command, "request_id": id })).unwrap();
             line.push(b'\n');
             conn.writer.write_all(&line).await.map_err(|e| e.to_string())?;
@@ -591,7 +592,7 @@ async fn read_loop(
         let Ok(msg) = serde_json::from_str::<Value>(&line) else { continue };
 
         if let Some(id) = msg.get("request_id").and_then(Value::as_u64) {
-            if let Some(tx) = pending.lock().unwrap().remove(&id) {
+            if let Some(tx) = pending.locked().remove(&id) {
                 let ok = msg.get("error").and_then(Value::as_str) == Some("success");
                 let result = if ok {
                     Ok(msg.get("data").cloned().unwrap_or(Value::Null))
@@ -606,7 +607,7 @@ async fn read_loop(
         match msg.get("event").and_then(Value::as_str) {
             Some("property-change") => {
                 if let Some(id) = msg.get("id").and_then(Value::as_u64).filter(|id| *id >= CROP_OBSERVE_BASE) {
-                    if let Some((_, tx)) = app.state::<AppState>().mpv.crop_events.lock().unwrap().as_ref() {
+                    if let Some((_, tx)) = app.state::<AppState>().mpv.crop_events.locked().as_ref() {
                         let _ = tx.send((id, msg.get("data").cloned().unwrap_or(Value::Null)));
                     }
                     continue;
@@ -838,7 +839,7 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
         return Ok(());
     }
     let mpv = &state.mpv;
-    let was = *mpv.tuned.lock().unwrap();
+    let was = *mpv.tuned.locked();
     if was == tune {
         return Ok(());
     }
@@ -869,7 +870,7 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
         mpv.request(json!(["set_property", "cache-secs", secs])).await?;
         mpv.request(json!(["set_property", "demuxer-max-bytes", bytes])).await?;
     }
-    *mpv.tuned.lock().unwrap() = tune;
+    *mpv.tuned.locked() = tune;
     if tune.autocrop && !was.autocrop {
         let run = mpv.autocrop_run.fetch_add(1, Ordering::SeqCst) + 1;
         tauri::async_runtime::spawn(autocrop(app, run));
@@ -947,7 +948,7 @@ async fn autocrop(app: AppHandle, run: u64) {
     let (tx, mut rx) = mpsc::unbounded_channel();
     {
         let state = app.state::<AppState>();
-        *state.mpv.crop_events.lock().unwrap() = Some((run, tx));
+        *state.mpv.crop_events.locked() = Some((run, tx));
         let _ = state.mpv.request(json!(["observe_property", meta_id, "vf-metadata/autocrop"])).await;
         let _ = state.mpv.request(json!(["observe_property", frame_id, "time-pos"])).await;
     }
@@ -960,7 +961,7 @@ async fn autocrop(app: AppHandle, run: u64) {
         let event = tokio::time::timeout(Duration::from_millis(500), rx.recv()).await;
         let state = app.state::<AppState>();
         let mpv = &state.mpv;
-        if !mpv.tuned.lock().unwrap().autocrop || mpv.autocrop_run.load(Ordering::SeqCst) != run {
+        if !mpv.tuned.locked().autocrop || mpv.autocrop_run.load(Ordering::SeqCst) != run {
             break;
         }
         let frame = match event {
@@ -984,7 +985,7 @@ async fn autocrop(app: AppHandle, run: u64) {
         };
         // HDR and SDR need different thresholds: swap the filter when the video's changes.
         if g.filter != filter {
-            if !mpv.tuned.lock().unwrap().autocrop {
+            if !mpv.tuned.locked().autocrop {
                 break;
             }
             mpv.request(json!(["vf", "remove", "@autocrop"])).await.ok();
@@ -1004,7 +1005,7 @@ async fn autocrop(app: AppHandle, run: u64) {
     }
     let state = app.state::<AppState>();
     {
-        let mut slot = state.mpv.crop_events.lock().unwrap();
+        let mut slot = state.mpv.crop_events.locked();
         if slot.as_ref().is_some_and(|(r, _)| *r == run) {
             *slot = None;
         }
