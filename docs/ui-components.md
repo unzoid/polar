@@ -493,8 +493,15 @@ code draws, not what's on screen.
    `lib/score.ts` (`scoreTone`, `metacriticTone`, `isFresh`, tested in `tests/score.test.ts`): the IMDb bands
    that `ImdbBadge`, `CardRating` and `RatingRing` each wrote out, and the score cards' Metacritic and Rotten
    Tomatoes rules; the rating components keep their looks (U26).
+   `components/title/PlaylistChecklist.tsx` (U10): `usePlaylistChecklist(item)` (rows, `inAny`, `toggle`,
+   `create(name?)`) and `PlaylistChecklist look="menu" | "popover"`, the card menu's submenu and the detail
+   page's popover, same elements and classes (CSS moved to `styles/title/playlist-checklist.css`, same rules).
+   TV's playlists and name panels draw their own rows from the hook. `lib/playlistChecklist.ts`
+   (`playlistRows`, `inAnyPlaylist`, `freshPlaylistName`, tested in `tests/playlistChecklist.test.ts`) replaces
+   the two `freshName` copies and the "is it in a playlist" check written three times. The popover's name form
+   now resets when the popover unmounts after its closing fade, not as it starts to close.
    Not yet: the TV column of pills and TV's episode row as `EpisodeCard variant="tv"` (step 6),
-   `PlaylistChecklist` (U10), `TitleDetails` for the anime page (U27, with the `AnimeDetail` split, T-008).
+   `TitleDetails` for the anime page (U27, with the `AnimeDetail` split, T-008).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

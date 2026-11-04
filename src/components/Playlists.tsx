@@ -1,19 +1,11 @@
-import { useState, type FormEvent } from "react";
 import { useMeta } from "../lib/queries";
-import {
-  addToPlaylist,
-  createPlaylist,
-  removeFromPlaylist,
-  usePlaylists,
-  type Playlist,
-  type PlaylistItem,
-} from "../lib/playlists";
+import type { Playlist, PlaylistItem } from "../lib/playlists";
 import type { MetaPreview } from "../lib/types";
-import { Check, Plus, PlaylistIcon } from "./icons";
+import { PlaylistIcon } from "./icons";
 import { Img } from "./Img";
-import { Button, buttonClass } from "./ui/Button";
+import { PlaylistChecklist, usePlaylistChecklist } from "./title/PlaylistChecklist";
+import { buttonClass } from "./ui/Button";
 import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
-import { TextField } from "./ui/TextField";
 
 /**
  * A playlist title as something a card can draw. Titles added here carry
@@ -29,27 +21,9 @@ export function usePlaylistItem(item: PlaylistItem): MetaPreview | undefined {
 
 /** Detail page button: tick the playlists a title belongs in, or start a new one. */
 export function PlaylistButton({ item }: { item: MetaPreview }) {
-  const playlists = usePlaylists();
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const inAny = playlists.some((p) => p.items.some((i) => i.id === item.id));
-
-  const create = (e: FormEvent) => {
-    e.preventDefault();
-    createPlaylist(name, item);
-    setName("");
-    setCreating(false);
-  };
-
+  const { inAny } = usePlaylistChecklist(item);
   return (
-    <PopoverRoot
-      onOpenChange={(open) => {
-        if (!open) {
-          setCreating(false);
-          setName("");
-        }
-      }}
-    >
+    <PopoverRoot>
       <PopoverTrigger
         className={buttonClass("glass", true)}
         aria-label="Add to playlist"
@@ -60,48 +34,7 @@ export function PlaylistButton({ item }: { item: MetaPreview }) {
       </PopoverTrigger>
       <PopoverPopup sideOffset={8} align="start" className="playlist-menu">
         <p className="playlist-menu-title">Save to playlist</p>
-        {playlists.length > 0 && (
-          <div className="playlist-menu-list">
-            {playlists.map((p) => {
-              const has = p.items.some((i) => i.id === item.id);
-              return (
-                <button
-                  key={p.id}
-                  className="playlist-menu-item"
-                  role="menuitemcheckbox"
-                  aria-checked={has}
-                  onClick={() => (has ? removeFromPlaylist(p.id, item.id) : addToPlaylist(p.id, item))}
-                >
-                  <span className="playlist-menu-check">{has && <Check size={14} strokeWidth={2.5} />}</span>
-                  <span className="playlist-menu-name">{p.name}</span>
-                  <span className="playlist-menu-count tabular">{p.items.length}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {creating ? (
-          <form className="playlist-menu-form" onSubmit={create}>
-            <TextField
-              autoFocus
-              maxLength={60}
-              placeholder="Playlist name"
-              value={name}
-              onChange={setName}
-              onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setCreating(false))}
-            />
-            <Button variant="primary" disabled={!name.trim()}>
-              Create
-            </Button>
-          </form>
-        ) : (
-          <button className="playlist-menu-item playlist-menu-new" onClick={() => setCreating(true)}>
-            <span className="playlist-menu-check">
-              <Plus size={15} strokeWidth={2.25} />
-            </span>
-            New Playlist
-          </button>
-        )}
+        <PlaylistChecklist item={item} look="popover" />
       </PopoverPopup>
     </PopoverRoot>
   );
