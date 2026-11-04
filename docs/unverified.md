@@ -120,3 +120,13 @@ How to check:
   open the source Filters popover inside the sheet and Tab there (the popover should behave as before); the
   same with the trailer (Tab stays on its buttons; inside the YouTube player Tab is YouTube's own). No focus
   ring should appear on the sheet or trailer box itself.
+- Settings from one schema (T-019 step 5, `lib/settings/schema.ts`): about 35 rows on desktop and every
+  row in TV settings are now drawn from it. Desktop should look and behave as before; check the Playback,
+  Sources, Browsing, Anime, Controls & TV and Controller pages (titles, captions, dropdown choices, the
+  Countdown and Sound volume sliders, Crop black bars greyed out without mpv, a click when Interface sounds
+  turns on). Changed on purpose: Highest quality also offers 1440p; desktop and TV share choices. On TV,
+  check: Mature Anime has Show / Blur posters / Hide; Highest Quality adds 480p; Seek Step goes 1, 5, 10 ...
+  120 (and keeps a value like 7 set on desktop); Sound Volume 5%, 10%, 20% ... 100%; choice names now read as
+  on desktop ("Best match", "Out of ten (8.6)", "Default" audio); changing a Sources row refreshes the source
+  list. Settings search: "with sound", "filler", "marketplace" now lead to a row (each used to land on the
+  page with nothing highlighted).

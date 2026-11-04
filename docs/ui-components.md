@@ -518,6 +518,26 @@ code draws, not what's on screen.
    streaming links) stay in `AnimeDetails`. Same elements and classes on both pages.
    Not yet: the TV column of pills and TV's episode row as `EpisodeCard variant="tv"` (step 6).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
+   Rows (60c038c): `components/settings/rows.tsx` holds `Card`, `RowText`, `ToggleRow`, `PickRow`, `NumberRow`,
+   `ExpandRow`, `LinkRow`, `useExpanded` and the `Expandable` type, out of `Settings.tsx`; the pages' ids and
+   labels are `lib/settings/pages.ts` (`PageId`, `PAGE_LABELS`), the icons `components/settings/pages.ts`
+   (`PAGES`), so `lib` no longer imports `screens/Settings`. Marketplace's groups are `Card`s.
+   Schema: `lib/settings/schema.ts` lists every searchable setting once (`id`, page, title, caption,
+   keywords) and, for the ones a generic row can draw, its store (`bind`: synced settings with a fallback, or
+   prefs), its `control` (toggle, choice list, number range with `tvStep`/`scale`/TV label), what a change
+   makes stale (`invalidates`) and its TV label. `useSetting(id)` (`lib/settings/useSetting.ts`) reads and
+   saves one. Desktop draws those with `components/settings/SettingRow.tsx` (switch, dropdown or slider, rows
+   marked `data-setting={id}`); `tv/TvSettings.tsx` draws the same entries by id (left/right through the
+   choices or the number steps). The settings search is built from the schema (`lib/settingsIndex.ts`) and
+   scrolls to `data-setting`, falling back to the title. `tests/settingsSchema.test.ts` checks unique ids, that
+   every title the pages draw themselves is still written in them (it found two stale search entries: "With
+   sound" and "Hide filler episodes"; and "Add-on Marketplace", which named no row), fallbacks and TV steps.
+   H15 fixed by sharing: resolution offers Any/4K/1440p/1080p/720p/480p on both; mature content show/blur/hide
+   on TV too; seek step 1-120 with TV steps of 5 plus whatever was set; languages list the current one on TV
+   too; missing values fall back once, in the schema; TV source changes now refresh source lists as desktop's
+   do. TV keeps its own row labels (`tv`) but shows desktop's choice wording.
+   Not yet: the other ~60 rows drawn from the schema; `ActionRow`/`FormRow`; one Settings UI (M26: the old
+   page, `StreamList` routing); `Settings.tsx` split into `screens/settings/<page>.tsx`.
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
    record of what was merged.
