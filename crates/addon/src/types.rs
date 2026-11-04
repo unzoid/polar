@@ -130,6 +130,10 @@ pub struct Meta {
     pub director: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trailer_yt_id: Option<String>,
+    /// Where `trailer_yt_id` comes from: `"tmdb"` when TMDB's videos chose it
+    /// (played before IMDb's file), none for an addon's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trailer_source: Option<String>,
     /// Episodes (series) — empty for movies.
     #[serde(default)]
     pub videos: Vec<Video>,

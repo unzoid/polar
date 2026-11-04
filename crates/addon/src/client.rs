@@ -200,6 +200,7 @@ impl RawMeta {
             cast: rest.cast,
             director: rest.director,
             trailer_yt_id: rest.trailer,
+            trailer_source: None,
             videos,
             people: rest.people,
             details: rest.details,

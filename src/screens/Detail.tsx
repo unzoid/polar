@@ -26,7 +26,7 @@ import { useRouter } from "../lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { anilistForImdb } from "../lib/anime/search";
 import { usePrefs } from "../lib/prefs";
-import { useFileTrailer } from "../lib/trailers";
+import { trailerFor, useFileTrailer } from "../lib/trailers";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 
 /**
@@ -69,7 +69,7 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   const [sheets, setSheets] = useState(0);
   const onSheet = useCallback((open: boolean) => setSheets((n) => Math.max(0, n + (open ? 1 : -1))), []);
   const bigTrailer = !!useTrailerOpen();
-  const trailer = useBackdropTrailer(id, meta?.trailerYtId, {
+  const trailer = useBackdropTrailer(id, {
     active: onTop,
     paused: scrolledAway || sheets > 0 || bigTrailer,
   });
@@ -176,7 +176,7 @@ function DetailHero({
             {primaryLabel}
           </button>
           {(meta?.trailerYtId || fileTrailer) && (
-            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer({ name: item.name, imdbId: item.id, ytId: meta?.trailerYtId })}>
+            <button className="btn btn-glass detail-trailer-btn" onClick={() => openTrailer(trailerFor(item.name, item.id, meta))}>
               <Trailer size={18} />
               Trailer
             </button>

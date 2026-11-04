@@ -85,7 +85,7 @@ const ROWS: SettingEntry[] = [
   { title: "Show details", page: "browsing", keywords: "cards year" },
   { title: "Show IMDb ratings", page: "browsing", keywords: "cards rating score badge imdb posters" },
   { title: "Rating position", page: "browsing", keywords: "imdb badge on poster under corner overlay" },
-  { title: "Play trailers on title pages", page: "browsing", keywords: "trailer autoplay background video youtube" },
+  { title: "Play trailers on title pages", page: "browsing", keywords: "trailer autoplay background video" },
   { title: "With sound", page: "browsing", keywords: "trailer muted audio volume" },
   { title: "Show the Calendar", page: "browsing", keywords: "calendar upcoming episodes schedule air dates new" },
   { title: "Colour-code IMDb ratings", page: "browsing", keywords: "color colour rating score badge imdb yellow green red" },

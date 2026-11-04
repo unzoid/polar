@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { api } from "../lib/api";
-import { useFileTrailer } from "../lib/trailers";
+import { useFileTrailer, type TrailerRequest as Open } from "../lib/trailers";
 import { Close, Trailer as TrailerIcon } from "./icons";
 
 /** YouTube's privacy-enhanced player for a trailer, with YouTube's clutter turned down. */
@@ -20,14 +20,6 @@ export function youtubeEmbed(ytId: string, opts: { muted?: boolean; controls?: b
 }
 
 export const youtubeUrl = (ytId: string) => `https://www.youtube.com/watch?v=${encodeURIComponent(ytId)}`;
-
-interface Open {
-  name: string;
-  /** IMDb id: its trailer plays as a file, in the app's own player. */
-  imdbId?: string;
-  /** YouTube, for when IMDb has none (and for anime AniList only knows on YouTube). */
-  ytId?: string;
-}
 
 let current: Open | null = null;
 const listeners = new Set<() => void>();
@@ -63,11 +55,11 @@ export function TrailerHost() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open]);
-  const file = useFileTrailer(open?.imdbId, !!open);
+  const file = useFileTrailer(open?.imdbId, !!open && !open.ytFirst);
   if (!open) return null;
-  // IMDb first; YouTube once it's clear IMDb has nothing.
-  const waiting = file.isLoading;
-  const url = file.data?.url;
+  // TMDB's trailer when it comes first; else IMDb's file, and YouTube once it's clear IMDb has nothing.
+  const waiting = !open.ytFirst && file.isLoading;
+  const url = open.ytFirst ? undefined : file.data?.url;
   const ytId = !waiting && !url ? open.ytId : undefined;
   return (
     <div className="trailer-layer" role="dialog" aria-label={`${open.name} trailer`} onClick={(e) => e.target === e.currentTarget && closeTrailer()}>

@@ -16,7 +16,7 @@ export interface Credit {
 export const TMDB_NOTICE = "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.";
 
 export const CREDITS: Credit[] = [
-  { name: "TMDB", url: "https://www.themoviedb.org", use: "Catalogs, search, details, episodes and images, with your TMDB key" },
+  { name: "TMDB", url: "https://www.themoviedb.org", use: "Catalogs, search, details, episodes, images and trailers, with your TMDB key" },
   { name: "Cinemeta (Stremio)", url: "https://www.stremio.com", use: "Catalogs and details without a TMDB key, and artwork" },
   { name: "IMDb", url: "https://www.imdb.com", use: "Title ids, trailers and cast photos" },
   { name: "AniList", url: "https://anilist.co", use: "Anime catalogs, details and seasons" },

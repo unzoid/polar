@@ -2,7 +2,8 @@
 //! itself uses): signed MP4s up to 1080p on IMDb's CDN, which the webview
 //! plays in its own <video> — no YouTube embed, no yt-dlp. The links expire
 //! after a day, so callers shouldn't keep them longer than a few hours.
-//! "No trailer" is `None`, never an error: the app falls back to YouTube.
+//! "No trailer" is `None`, never an error. The trailer player falls back to
+//! YouTube; the trailer behind a title's page plays only these files.
 
 use serde::{Deserialize, Serialize};
 
