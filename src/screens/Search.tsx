@@ -4,7 +4,9 @@ import { AnimeCard } from "../components/anime/AnimeCard";
 import { PosterCard, PosterSkeleton } from "../components/PosterCard";
 import { Row } from "../components/Row";
 import type { AnimeCard as Card } from "../lib/anime/anilist";
-import { useAnimeResults, withoutAnime } from "../lib/anime/search";
+import { useAnimeResults } from "../lib/anime/search";
+import { withoutAnime } from "../lib/anime/merge";
+import { useAnimeAliases } from "../lib/anime/links";
 import { api } from "../lib/api";
 import { BROWSE_GENRES, genreOf } from "../lib/genres";
 import { usePrefs } from "../lib/prefs";
@@ -36,13 +38,14 @@ export function Search() {
   const hasQuery = deferred.length > 1;
   const genre = hasQuery ? genreOf(deferred) : undefined;
   const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "");
+  const aliases = useAnimeAliases();
 
   if (text.trim().length < 2) return <div className="scroll search-page" />;
 
   // Titles without art are almost always stubs nobody's looking for.
   // An anime shows once, as the anime (AniList), not again as a series or movie.
-  const movies = withoutAnime(data?.movies.filter((m) => m.poster), anime.items);
-  const series = withoutAnime(data?.series.filter((m) => m.poster), anime.items);
+  const movies = withoutAnime(data?.movies.filter((m) => m.poster), anime.items, aliases);
+  const series = withoutAnime(data?.series.filter((m) => m.poster), anime.items, aliases);
   const waiting = !hasQuery || !data;
   const nothing = !waiting && !genre && !movies!.length && !series!.length && !anime.items?.length && !anime.loading;
 

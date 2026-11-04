@@ -27,7 +27,9 @@ import { useRouter } from "../lib/router";
 import { TvBrowse, TvCard, TvContinueRail, TvItemsRail, TvRail, TvShelfRail, type RailRow } from "./TvRails";
 import { TvKeyboard } from "./TvKeyboard";
 import { TvAnimeRail } from "./TvAnime";
-import { useAnimeResults, withoutAnime } from "../lib/anime/search";
+import { useAnimeResults } from "../lib/anime/search";
+import { withoutAnime } from "../lib/anime/merge";
+import { useAnimeAliases } from "../lib/anime/links";
 import { usePrefs } from "../lib/prefs";
 import { byDay, dayLabel, useCalendar } from "../lib/calendar";
 
@@ -206,8 +208,9 @@ export function TvSearch() {
   // Anime from AniList, as on desktop; a show that's anime shows once, as the anime.
   const { animeEnabled } = usePrefs();
   const anime = useAnimeResults(animeEnabled && searching ? query : "");
-  const movies = withoutAnime(data?.movies, anime.items);
-  const series = withoutAnime(data?.series, anime.items);
+  const aliases = useAnimeAliases();
+  const movies = withoutAnime(data?.movies, anime.items, aliases);
+  const series = withoutAnime(data?.series, anime.items, aliases);
   const empty =
     searching && data && !isPlaceholderData && !movies!.length && !series!.length && !anime.loading && !anime.items?.length;
 
