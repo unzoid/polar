@@ -12,6 +12,7 @@ import { useSearch } from "../lib/queries";
 import { useSearchText } from "../lib/searchQuery";
 import { addRecentSearch } from "../lib/recentSearches";
 import type { ContentType, MetaPreview } from "../lib/types";
+import { EmptyState } from "../components/ui/EmptyState";
 
 /**
  * Results for whatever is typed in the navbar's search field, one row per
@@ -55,7 +56,7 @@ export function Search() {
         <ResultRow title={genre ? "Series Named Like It" : "Series"} items={waiting ? undefined : series} />
         {animeEnabled && <AnimeRow title={anime.title} items={anime.items} loading={anime.loading} />}
       </div>
-      {nothing && <p className="empty t-body muted">Nothing found for “{deferred}”.</p>}
+      {nothing && <EmptyState>Nothing found for “{deferred}”.</EmptyState>}
     </div>
   );
 }

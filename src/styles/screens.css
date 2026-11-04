@@ -1318,7 +1318,7 @@ button.shortcut-combo:hover {
   width: 100%;
 }
 /* An empty playlist's note sits right under its title, on the same left edge. */
-.playlist-view .empty {
+.playlist-view .empty-state {
   padding-top: 0.25rem;
 }
 .playlist-remove {

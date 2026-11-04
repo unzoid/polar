@@ -6,6 +6,7 @@ import { Dropdown } from "../components/Dropdown";
 import { api } from "../lib/api";
 import { BROWSE_GENRES } from "../lib/genres";
 import type { ContentType } from "../lib/types";
+import { EmptyState } from "../components/ui/EmptyState";
 
 const CATALOGS = [
   { id: "trending", label: "Trending" },
@@ -70,7 +71,7 @@ export function Discover({ type }: { type: ContentType }) {
         {(query.isLoading || query.isFetchingNextPage) &&
           Array.from({ length: 12 }, (_, i) => <PosterSkeleton key={`s${i}`} />)}
       </div>
-      {query.isError && <p className="empty t-body muted">Couldn't load this catalog. Check your connection.</p>}
+      {query.isError && <EmptyState>Couldn't load this catalog. Check your connection.</EmptyState>}
       <div ref={sentinel} />
     </div>
   );

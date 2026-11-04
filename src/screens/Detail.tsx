@@ -29,6 +29,7 @@ import { usePrefs } from "../lib/prefs";
 import { trailerFor, useFileTrailer } from "../lib/trailers";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 import { Button, IconButton } from "../components/ui/Button";
+import { EmptyState } from "../components/ui/EmptyState";
 
 /**
  * An anime reached by its IMDb id (Search, Library, Continue Watching) opens
@@ -78,7 +79,7 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   const scroller = useRef<HTMLDivElement>(null);
   useFoldSnap(scroller, !!shown);
 
-  if (isError && !shown) return <p className="empty t-body muted">Couldn't load this title: {String(error)}</p>;
+  if (isError && !shown) return <EmptyState>Couldn't load this title: {String(error)}</EmptyState>;
   if (!shown) return <div className="detail-loading skeleton" />;
 
   return (

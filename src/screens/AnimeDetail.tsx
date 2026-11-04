@@ -45,6 +45,7 @@ import { Button, IconButton } from "../components/ui/Button";
 import { Badge, Chip } from "../components/ui/Chip";
 import { SearchField } from "../components/ui/SearchField";
 import { Switch } from "../components/ui/Switch";
+import { EmptyState } from "../components/ui/EmptyState";
 
 /**
  * An anime's page, built from AniList with ani.zip filling in episode titles,
@@ -72,7 +73,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   const scroller = useRef<HTMLDivElement>(null);
   useFoldSnap(scroller, !!shown);
 
-  if (isError && !shown) return <p className="empty t-body muted">Couldn't load this anime from AniList. Try again in a minute.</p>;
+  if (isError && !shown) return <EmptyState>Couldn't load this anime from AniList. Try again in a minute.</EmptyState>;
   if (!shown) return <div className="detail-loading skeleton" />;
 
   const { background: art, logo } = animeArt(shown, zip);
@@ -455,7 +456,7 @@ function Episodes({
   };
 
   if (!list.length) {
-    const empty = <p className="empty t-body muted anime-no-episodes">{pb.loading || pb.metaLoading ? "Loading episodes…" : "No episodes to play yet."}</p>;
+    const empty = <EmptyState className="anime-no-episodes">{pb.loading || pb.metaLoading ? "Loading episodes…" : "No episodes to play yet."}</EmptyState>;
     // A season that hasn't started yet still sits among the others.
     return franchise ? (
       <section className="seasons">
@@ -552,7 +553,7 @@ function Episodes({
           setSheetOpen(true);
         }}
       />
-      {found && !found.length && <p className="empty t-body muted">No episode matches “{query.trim()}”.</p>}
+      {found && !found.length && <EmptyState>No episode matches “{query.trim()}”.</EmptyState>}
       {capped && (
         <Button variant="glass" className="anime-show-all" onClick={() => setExpanded(true)}>
           Show all {pageList.length} episodes
@@ -757,7 +758,7 @@ function Characters({ anime }: { anime: Anime }) {
   const lang = prefs.animeVoices;
   const edges = anime.characters.edges;
   const [actorsOpen, setActorsOpen] = useState(false);
-  if (!edges.length) return <p className="empty t-body muted">AniList has no characters for this one yet.</p>;
+  if (!edges.length) return <EmptyState>AniList has no characters for this one yet.</EmptyState>;
   return (
     <section className="anime-characters-wrap" data-expanded={actorsOpen}>
       <div className="anime-cast-heading">
