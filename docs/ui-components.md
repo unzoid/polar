@@ -536,8 +536,11 @@ code draws, not what's on screen.
    on TV too; seek step 1-120 with TV steps of 5 plus whatever was set; languages list the current one on TV
    too; missing values fall back once, in the schema; TV source changes now refresh source lists as desktop's
    do. TV keeps its own row labels (`tv`) but shows desktop's choice wording.
+   Pages: each page is `screens/settings/<Name>Page.tsx` (with the rows only it uses); `screens/Settings.tsx`
+   keeps the old sidebar page and `SettingsPageBody`, which picks one. The lines moved unchanged (not
+   reformatted, so `git blame -C` follows them); `tests/settingsSchema.test.ts` reads every page file.
    Not yet: the other ~60 rows drawn from the schema; `ActionRow`/`FormRow`; one Settings UI (M26: the old
-   page, `StreamList` routing); `Settings.tsx` split into `screens/settings/<page>.tsx`.
+   page, `StreamList` routing).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
    record of what was merged.

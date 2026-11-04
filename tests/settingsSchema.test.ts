@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import type { Prefs } from "../src/lib/prefs";
 import { SETTINGS, languageChoices, readSetting, settingDef, tvNumberSteps, type Control } from "../src/lib/settings/schema";
 import type { Settings } from "../src/lib/types";
@@ -21,8 +21,9 @@ describe("settings schema", () => {
 
   // Rows the pages draw themselves are found by their title (or a data-setting mark), so it has to be there.
   test("every unbound title is written in the settings UI", () => {
+    const pages = readdirSync("src/screens/settings").map((f) => `src/screens/settings/${f}`);
     const files = [
-      "src/screens/Settings.tsx",
+      ...pages,
       "src/components/Marketplace.tsx",
       "src/components/ShortcutSettings.tsx",
       "src/components/player/SubtitleSettings.tsx",
