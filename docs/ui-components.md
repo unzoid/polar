@@ -87,6 +87,10 @@ draws), `StillPlaceholder`/`Still`.
 `variant="link"`, `CopyButton`, `ToastHost` and toast placement, `ErrorText`, `ChoiceGrid`, `Segmented` as a
 radio group with looks, a `Slider` primitive in `ui/`, one `Dialog`, one popover surface, a `Facts` component
 (the two helpers in `lib/format.ts` instead), and the player and party notes as `Toast`s (docs/unverified.md asks the owner).
+`SearchField` `expandable` was dropped (T-024): the navbar's field (`SearchBox` in `components/NavBar.tsx`) is the
+only one that opens out of its glyph, blurs on Escape when empty instead of letting a layer close, saves recent
+searches on Enter and hangs suggestions under itself; a mode for one caller would cost more than it shares.
+It stays its own component, with `.navbar-search*` in `styles/shell.css`.
 
 ---
 
