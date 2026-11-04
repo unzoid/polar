@@ -412,7 +412,13 @@ code draws, not what's on screen.
    roomy rows from `.profile-menu-item` to `.menu-roomy-item`; `.profile-menu-sep` (identical) is `.menu-sep`
    now and a real separator. CSS in `styles/ui/menu.css` (after `toast.css`); the profile header keeps its
    own classes in `account.css`. Built CSS: the same rules with the renames mapped back, apart from that split.
-   Not yet: `Popover` (`PlaylistButton`, source filters, `.select-popup`) and the TV menus (step 6).
+   Not yet: the TV menus (step 6).
+   `components/ui/Popover.tsx` (`PopoverRoot`, `PopoverTrigger`, `PopoverPopup` with `className` and the
+   positioner props): `PlaylistButton` and the source filters. Structure only: the surfaces stay as they are,
+   because they differ on screen (`.playlist-menu` is the dark glass of the toasts, `.srcf-popover` the
+   frosted panel of the large season `Select` at 0.86 instead of 0.82 fill, with a 0.96 instead of 0.94
+   entrance). Merging those into one `.surface-popover` is a visible change: left for the owner's look in the
+   running app (docs/unverified.md). The playlist checklist's own rows go with U10 in step 4.
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).

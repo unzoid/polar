@@ -59,3 +59,8 @@ Not covered: HLS playlists are checked like files (the first 1 KB of the playlis
   the system's own clear "x"), and Escape first empties a field with text before it closes the sheet or
   overlay around it (new in Marketplace, Anime → Browse, the episode and source-filter searches). Check
   the clear button fits in the small source-filter field (9.5 rem wide).
+- Primitives Skeleton, Toast, Menu, Popover (T-019 step 3): same rules under new class names (built CSS
+  compared). Worth a glance: the controller and update toasts, the title right-click menu with its playlist
+  submenu, the download menu, the profile menu and the navbar's "More". Open question for the owner's eye:
+  the playlist popover (dark glass) and the source-filter popover (frosted, like the season list) still
+  draw different surfaces; say whether they should become one.
