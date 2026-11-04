@@ -28,6 +28,8 @@ pub struct AppState {
     pub ratings: ratings::RatingsClient,
     /// Filler and recap episodes, cached in the app's cache folder.
     pub fillers: polar_anime::Fillers,
+    /// Anime id mappings for when ani.zip is down, in the same folder.
+    pub anime_lists: polar_anime::AnimeLists,
 }
 
 impl AppState {
@@ -96,6 +98,7 @@ pub fn run() {
             migrate_legacy_store(&dir, &path);
             downloads::manage(app.handle(), &dir);
             let store = store::Store::load(path);
+            let cache = app.path().app_cache_dir()?;
             let indexer = Indexer::new(index_config(&store.data.settings));
             app.manage(AppState {
                 indexer: RwLock::new(Arc::new(indexer)),
@@ -105,7 +108,8 @@ pub fn run() {
                 mpv: player::Mpv::default(),
                 introdb: introdb::IntroDb::default(),
                 ratings: ratings::RatingsClient::default(),
-                fillers: polar_anime::Fillers::new(app.path().app_cache_dir()?),
+                fillers: polar_anime::Fillers::new(cache.clone()),
+                anime_lists: polar_anime::AnimeLists::new(cache),
             });
             app.manage(controllers::Controllers::default());
             controllers::watch(app.handle().clone());
@@ -143,6 +147,7 @@ pub fn run() {
             commands::settings_reset,
             commands::open_external,
             commands::anime_episode_flags,
+            commands::anime_ids,
             commands::anime_cache,
             commands::anime_cache_clear,
             commands::trailer,

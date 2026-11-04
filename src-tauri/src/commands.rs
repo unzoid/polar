@@ -476,23 +476,45 @@ pub async fn anime_episode_flags(
     Ok(state.fillers.get(mal_id, &slugs).await)
 }
 
+/// An anime's ids from Fribb/anime-lists, for when ani.zip can't be reached:
+/// `key` is `anilist_id`, `mal_id`, `kitsu_id` or `imdb_id`, as ani.zip takes them.
+#[tauri::command]
+pub async fn anime_ids(
+    state: State<'_, AppState>,
+    key: String,
+    value: String,
+) -> Result<Option<polar_anime::AnimeMapping>> {
+    use polar_anime::AnimeKey;
+    let num = || value.parse::<u32>().ok();
+    let key = match key.as_str() {
+        "anilist_id" => num().map(AnimeKey::Anilist),
+        "mal_id" => num().map(AnimeKey::Mal),
+        "kitsu_id" => num().map(AnimeKey::Kitsu),
+        "imdb_id" => Some(AnimeKey::Imdb(value.clone())),
+        _ => None,
+    };
+    let Some(key) = key else { return Ok(None) };
+    Ok(state.anime_lists.find(&key).await)
+}
+
 #[derive(Serialize)]
 pub struct CacheInfo {
     path: String,
     bytes: u64,
 }
 
-/// Where the anime cache file is and how big it is, for Settings.
+/// The anime cache folder and the size of what the app keeps there, for Settings.
 #[tauri::command]
 pub async fn anime_cache(state: State<'_, AppState>) -> Result<CacheInfo> {
-    let f = &state.fillers;
-    Ok(CacheInfo { path: f.path().display().to_string(), bytes: f.size().await })
+    let dir = state.fillers.path().parent().map(|d| d.display().to_string()).unwrap_or_default();
+    Ok(CacheInfo { path: dir, bytes: state.fillers.size().await + state.anime_lists.size().await })
 }
 
-/// Deletes the anime cache file; shows refetch on their next visit.
+/// Deletes the anime cache files; they are fetched again when next needed.
 #[tauri::command]
 pub async fn anime_cache_clear(state: State<'_, AppState>) -> Result<()> {
     state.fillers.clear().await;
+    state.anime_lists.clear().await;
     Ok(())
 }
 

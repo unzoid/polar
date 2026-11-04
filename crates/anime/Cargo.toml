@@ -1,6 +1,6 @@
 [package]
 name = "polar-anime"
-description = "Anime data Polar fetches itself: filler and recap episodes, cached on disk"
+description = "Anime data Polar fetches itself: filler and recap episodes, the anime id lists, cached on disk"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

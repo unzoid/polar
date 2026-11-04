@@ -1474,11 +1474,11 @@ function CacheCard() {
       void qc.removeQueries({ queryKey: ["anime", "episodeFlags"] });
     },
   });
-  const size = !data ? "…" : data.bytes ? `${Math.max(1, Math.round(data.bytes / 1000))} KB` : "empty";
+  const size = !data ? "…" : !data.bytes ? "empty" : data.bytes >= 1e6 ? `${(data.bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(data.bytes / 1000))} KB`;
   return (
     <Card title="Cache" footer={data ? <>Kept in {data.path}</> : undefined}>
       <div className="settings-row">
-        <RowText title="Anime episode data" caption={`Which episodes are filler or recaps, kept a day per show · ${size}`} />
+        <RowText title="Anime data" caption={`Filler and recap episodes, kept a day; the anime id list used when ani.zip is down, kept a week · ${size}`} />
         <button className="btn" disabled={!data?.bytes || clear.isPending} onClick={() => clear.mutate()}>
           <Trash size={15} /> Clear
         </button>

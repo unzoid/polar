@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import type { Video } from "../types";
 
 /**
@@ -41,17 +42,37 @@ export interface AniZip {
     thetvdb_id?: number | null;
     anidb_id?: number | null;
     type?: string;
+    /** Only from the Fribb/anime-lists fallback: the TVDB/TMDB season and episode offset of this entry. */
+    season?: { tvdb?: number; tmdb?: number };
+    episode_offset?: { tvdb?: number; tmdb?: number };
   };
   episodes: Record<string, AniZipEpisode>;
 }
 
+/**
+ * ani.zip's answer; `null` when it doesn't know the show. When ani.zip can't
+ * be reached, the ids alone from Fribb/anime-lists (kept by the app,
+ * crates/anime/src/anime_lists.rs), with no episodes or images.
+ */
 export async function fetchAniZip(params: { anilist_id: number } | { imdb_id: string } | { kitsu_id: number }): Promise<AniZip | null> {
   const [k, v] = Object.entries(params)[0];
-  const res = await fetch(`https://api.ani.zip/mappings?${k}=${encodeURIComponent(String(v))}`);
+  let res: Response;
+  try {
+    res = await fetch(`https://api.ani.zip/mappings?${k}=${encodeURIComponent(String(v))}`);
+  } catch (e) {
+    return fallback(k, String(v), e);
+  }
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`ani.zip answered ${res.status}`);
+  if (!res.ok) return fallback(k, String(v), new Error(`ani.zip answered ${res.status}`));
   const json = (await res.json()) as AniZip;
   return json?.mappings ? json : null;
+}
+
+/** Fribb/anime-lists' ids in ani.zip's shape, or the original error if it has none. */
+async function fallback(key: string, value: string, error: unknown): Promise<AniZip | null> {
+  const mappings = await invoke<AniZip["mappings"] | null>("anime_ids", { key, value }).catch(() => null);
+  if (!mappings) throw error;
+  return { mappings, episodes: {} };
 }
 
 export const aniZipQuery = (anilistId: number) => ({
