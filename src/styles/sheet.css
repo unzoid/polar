@@ -149,10 +149,6 @@
   background: rgb(255 255 255 / 0.12);
   white-space: nowrap;
 }
-.badge-good {
-  background: rgb(94 211 154 / 0.16);
-  color: var(--good);
-}
 .badge-bad {
   background: rgb(255 107 94 / 0.16);
   color: var(--danger);

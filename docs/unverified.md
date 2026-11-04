@@ -44,3 +44,6 @@ Not covered: HLS playlists are checked like files (the first 1 KB of the playlis
 - Trailers: Detail/TV backdrop plays IMDb video files only; the trailer dialog prefers TMDB's YouTube id.
 - Removed playback path (T-014): `src-tauri` edits checked by reading only; the old saved setting for the
   removed playback server is ignored on load, and `sourceSort: "peers"` falls back to best.
+- UI clean-up (T-019 step 1): profile set-up and profile editor forms rise 8 px and fade in again
+  (`auth-form-in` had been renamed away in 1215be7, so they appeared without it). Dead CSS removed by
+  grep only (no class built at runtime matched); look for any unstyled About/Library/sign-in element.

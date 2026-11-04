@@ -295,6 +295,13 @@
     animation-name: fade-in;
   }
 }
+/* Profile set-up and editor forms (.onboard, .onboard-group). */
+@keyframes auth-form-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
 @keyframes auth-step-in {
   from {
     opacity: 0;
@@ -901,28 +908,7 @@
   outline: none;
   box-shadow: 0 0 0 2px var(--text-2);
 }
-.navbar-signin {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  margin-left: 0.25rem;
-  padding: 0 0.875rem;
-  border-radius: var(--r-pill);
-  background: var(--pill-light);
-  color: var(--text-on-light);
-  font-size: 0.875rem;
-  font-weight: 600;
-  white-space: nowrap; /* never wraps to two lines when the bar is tight */
-  touch-action: manipulation;
-}
 @media (max-width: 860px) {
-  .navbar-signin {
-    margin-left: 0;
-    padding: 0 0.75rem;
-    font-size: 0.8125rem;
-  }
   .navbar-profile {
     margin-left: 0;
   }
