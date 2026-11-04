@@ -499,29 +499,3 @@ img[data-logo-tone="dark"] {
   flex: none;
   opacity: 0.85;
 }
-
-/* A search field in the same pill (AnimeDetail's episode search). */
-.pill-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: 32px;
-  padding: 0 0.875rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: var(--fill-1);
-  color: var(--text-3);
-  cursor: text;
-}
-.pill-search:focus-within {
-  border-color: var(--hairline-strong);
-}
-.pill-search input {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: 0;
-  outline: none;
-  color: var(--text);
-  font-size: var(--fs-sm);
-}

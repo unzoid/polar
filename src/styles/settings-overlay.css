@@ -107,41 +107,26 @@
   overflow-x: hidden;
 }
 .t3s-search {
-  display: flex;
-  align-items: center;
   gap: 0.625rem;
   height: 2.5rem;
   padding: 0 0.625rem;
   border-radius: var(--r-sm);
   color: color-mix(in srgb, var(--t3-muted-fg) 80%, transparent);
-  cursor: text;
   transition: background-color 120ms var(--ease-std);
 }
 .t3s-search:hover,
 .t3s-search:focus-within {
   background: var(--t3-hover);
 }
-.t3s-search svg {
-  flex: none;
-}
 .t3s-search input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: none;
-  outline: none;
   color: var(--t3-fg);
-  font: inherit;
   font-weight: 500;
   user-select: text;
 }
 .t3s-search input::placeholder {
   color: var(--t3-muted-fg);
 }
-.t3s-search input::-webkit-search-cancel-button {
-  display: none;
-}
-.t3s-kbd {
+.t3s-search .search-field-kbd {
   display: grid;
   place-items: center;
   min-width: 20px;
@@ -177,17 +162,12 @@
   font-size: 14px;
   color: var(--t3-muted-fg);
 }
-.t3s-search-clear {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
+.t3s-search .search-field-clear {
   border-radius: 4px;
   color: var(--t3-muted-fg);
   cursor: pointer;
 }
-.t3s-search-clear:hover {
+.t3s-search .search-field-clear:hover {
   background: rgb(255 255 255 / 0.08);
   color: var(--t3-fg);
 }

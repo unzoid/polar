@@ -4,8 +4,9 @@ import { api } from "../lib/api";
 import { MARKET_CATEGORIES, MARKETPLACE_REPO, searchMarketplace, useMarketplace, type MarketCategory } from "../lib/marketplace";
 import { keys, useAddons } from "../lib/queries";
 import { openSettings } from "../lib/settingsOverlay";
-import { Captions, Check, Close, Info, Play, Search, type Icon } from "./icons";
+import { Captions, Check, Info, Play, type Icon } from "./icons";
 import { Button } from "./ui/Button";
+import { SearchField } from "./ui/SearchField";
 
 const CATEGORY_ICON: Record<MarketCategory, Icon> = {
   Subtitles: Captions,
@@ -36,23 +37,7 @@ export function MarketplacePage() {
 
   return (
     <div className="market">
-      <label className="market-search">
-        <Search size={16} aria-hidden />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search add-ons"
-          aria-label="Search add-ons"
-          spellCheck={false}
-          autoComplete="off"
-        />
-        {query && (
-          <button type="button" className="market-search-clear" aria-label="Clear search" onClick={() => setQuery("")}>
-            <Close size={14} strokeWidth={2.5} />
-          </button>
-        )}
-      </label>
+      <SearchField value={query} onChange={setQuery} label="Search add-ons" placeholder="Search add-ons" />
 
       {groups.map(({ category, items }) => {
         const Cat = CATEGORY_ICON[category];

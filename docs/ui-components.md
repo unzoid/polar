@@ -373,6 +373,16 @@ code draws, not what's on screen.
    checkboxes; CSS moved from `screens.css` to `styles/ui/switch.css` (after `chip.css`, same check). The
    anime "Skip filler" switch gained `role="switch"`, like the others. The overlay's `.t3s .switch` restyle
    stays until step 5.
+   `components/ui/SearchField.tsx` (`value`, `onChange(string)`, required `label`, `look` box/pill/mini/plain,
+   `kbd`, native input props and `ref` to the input): the Marketplace, Shortcuts, Anime → Browse, episode,
+   source-filter and settings-overlay searches. CSS in `styles/ui/search-field.css`: shared structure, clear
+   button and three looks taken over rule for rule from `.market-search`/`.shortcut-search` (identical),
+   `.pill-search` and `.srcf-chiprow-search`; screens keep only width (`.anime-search`,
+   `.anime-episode-search`, `.srcf-chiprow-search`, `.shortcut-search`). The overlay uses `look="plain"` and
+   draws its box in `.t3s-search`. Every field now has the clear button and Esc-clears-first (written once
+   instead of 3×; listed in `docs/unverified.md`). Not yet: the NavBar field (opens out of an icon, Esc
+   clears then blurs, suggestions under it: `expandable` later), `TextField` for `.settings-input` and the
+   account inputs.
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).

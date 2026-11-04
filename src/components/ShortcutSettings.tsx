@@ -13,7 +13,8 @@ import {
   useBindings,
   type Action,
 } from "../lib/keybinds";
-import { Close, Plus, Reset, Search } from "./icons";
+import { Close, Plus, Reset } from "./icons";
+import { SearchField } from "./ui/SearchField";
 import { Button } from "./ui/Button";
 
 /**
@@ -37,16 +38,7 @@ export function ShortcutSettings() {
     <section className="settings-group">
       <h2 className="settings-group-title">Keyboard Shortcuts</h2>
       <div className="shortcut-toolbar">
-        <label className="shortcut-search">
-          <Search size={16} />
-          <input
-            className="shortcut-search-input"
-            placeholder="Search shortcuts"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && query && (e.stopPropagation(), setQuery(""))}
-          />
-        </label>
+        <SearchField className="shortcut-search" value={query} onChange={setQuery} label="Search shortcuts" placeholder="Search shortcuts" />
         <Button disabled={!customized} onClick={() => resetBindings()}>
           <Reset size={15} />
           Reset All

@@ -2,7 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimeCard, AnimeLandscapeCard, useAnimeHandlers, useOpenAnime } from "../components/anime/AnimeCard";
 import { Dropdown } from "../components/Dropdown";
-import { Calendar, Close, Filters, Grid, Play, Search } from "../components/icons";
+import { Calendar, Close, Filters, Grid, Play } from "../components/icons";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { CardSkeleton } from "../components/PosterCard";
@@ -36,6 +36,7 @@ import type { MetaPreview } from "../lib/types";
 import { HeroCarousel } from "./Home";
 import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
+import { SearchField } from "../components/ui/SearchField";
 
 type Shape = "poster" | "landscape";
 
@@ -434,23 +435,7 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
   return (
     <div className="anime-browse">
       <div className="anime-filters">
-        <label className="market-search anime-search">
-          <Search size={16} aria-hidden />
-          <input
-            type="search"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Search anime"
-            aria-label="Search anime"
-            spellCheck={false}
-            autoComplete="off"
-          />
-          {text && (
-            <button type="button" className="market-search-clear" aria-label="Clear search" onClick={() => setText("")}>
-              <Close size={14} strokeWidth={2.5} />
-            </button>
-          )}
-        </label>
+        <SearchField className="anime-search" value={text} onChange={setText} label="Search anime" placeholder="Search anime" />
         <button className="anime-filter-button pressable" aria-label="Filters" title="Filters" aria-expanded={panel} onClick={() => setPanel(true)}>
           <Filters size={18} />
           {active.length > 0 && <span className="anime-filter-count tabular">{active.length}</span>}

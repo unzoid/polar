@@ -2,7 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { AnimeCard } from "../components/anime/AnimeCard";
-import { Check, ChevronDown, LayoutList, LayoutRow, Play, Plus, Reset, Search, Sources, Star, Trailer } from "../components/icons";
+import { Check, ChevronDown, LayoutList, LayoutRow, Play, Plus, Reset, Sources, Star, Trailer } from "../components/icons";
 import { EpisodeShelf } from "../components/EpisodeShelf";
 import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
@@ -43,6 +43,7 @@ import type { EpisodeLayout, Progress, RankedStream, Video } from "../lib/types"
 import { watchedFraction } from "../lib/watched";
 import { Button, IconButton } from "../components/ui/Button";
 import { Badge, Chip } from "../components/ui/Chip";
+import { SearchField } from "../components/ui/SearchField";
 import { Switch } from "../components/ui/Switch";
 
 /**
@@ -495,18 +496,14 @@ function Episodes({
   const tools = (
         <div className="anime-episodes-tools">
           {searchable && (
-            <label className="pill-search anime-episode-search">
-              <Search size={15} aria-hidden />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Find episode"
-                aria-label="Find an episode by number or title"
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </label>
+            <SearchField
+              look="pill"
+              className="anime-episode-search"
+              value={query}
+              onChange={setQuery}
+              label="Find an episode by number or title"
+              placeholder="Find episode"
+            />
           )}
           {hasFiller && (
             <label className="anime-toggle t-callout">

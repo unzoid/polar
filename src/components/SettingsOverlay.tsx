@@ -1,7 +1,8 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
-import { Close, Reset, Search, SignOut } from "./icons";
+import { Close, Reset, SignOut } from "./icons";
+import { SearchField } from "./ui/SearchField";
 import { useAccount } from "../lib/account/AccountProvider";
 import { prefsCustomized, resetPrefs, usePrefs } from "../lib/prefs";
 import { closeSettings, useSettingsOverlay } from "../lib/settingsOverlay";
@@ -109,50 +110,29 @@ export function SettingsOverlay() {
           }}
         >
           <nav className="t3s-sidebar" aria-label="Settings sections">
-            <label className="t3s-search">
-              <Search size={16} strokeWidth={2} />
-              <input
-                ref={searchInput}
-                type="search"
-                placeholder="Search"
-                aria-label="Search settings"
-                role="combobox"
-                aria-expanded={searching}
-                aria-controls="t3s-results"
-                aria-activedescendant={searching && results.length ? `t3s-result-${selected}` : undefined}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                    if (!results.length) return;
-                    e.preventDefault();
-                    const step = e.key === "ArrowDown" ? 1 : -1;
-                    setSelected((i) => (i + step + results.length) % results.length);
-                  }
-                  if (e.key === "Enter" && results[selected]) pick(results[selected]);
-                  if (e.key === "Escape" && query) {
-                    e.stopPropagation();
-                    setQuery("");
-                  }
-                }}
-                spellCheck={false}
-              />
-              {query ? (
-                <button
-                  className="t3s-search-clear"
-                  aria-label="Clear search"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setQuery("");
-                    searchInput.current?.focus();
-                  }}
-                >
-                  <Close size={14} strokeWidth={2.2} />
-                </button>
-              ) : (
-                <kbd className="t3s-kbd">/</kbd>
-              )}
-            </label>
+            <SearchField
+              ref={searchInput}
+              look="plain"
+              className="t3s-search"
+              value={query}
+              onChange={setQuery}
+              label="Search settings"
+              placeholder="Search"
+              kbd="/"
+              role="combobox"
+              aria-expanded={searching}
+              aria-controls="t3s-results"
+              aria-activedescendant={searching && results.length ? `t3s-result-${selected}` : undefined}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  if (!results.length) return;
+                  e.preventDefault();
+                  const step = e.key === "ArrowDown" ? 1 : -1;
+                  setSelected((i) => (i + step + results.length) % results.length);
+                }
+                if (e.key === "Enter" && results[selected]) pick(results[selected]);
+              }}
+            />
 
             <div className="t3s-groups">
               {searching ? (
