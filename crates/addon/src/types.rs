@@ -224,10 +224,6 @@ pub struct Stream {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub yt_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub content_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub file_idx: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub external_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

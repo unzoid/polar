@@ -91,8 +91,6 @@ export interface ExternalRatings {
 export interface Stream {
   url?: string;
   ytId?: string;
-  content_id?: string;
-  fileIdx?: number;
   externalUrl?: string;
   name?: string;
   title?: string;
@@ -105,15 +103,13 @@ export interface StreamQuality {
   dolbyVision: boolean;
   codec?: string;
   sizeBytes?: number;
-  sources?: number;
-  cached: boolean;
   lowQualitySource: boolean;
   direct: boolean;
   /** Audio languages the source mentions (ISO 639-1, or "multi"); empty when it says nothing. */
   languages?: string[];
   /** "Remux", "Atmos", "HDR10+", "10-bit"… */
   tags?: string[];
-  /** The release group ("SubsPlease", "FLUX"), else the site it came from ("site"). */
+  /** The group named in the release ("[Group] Show - 01", "Movie.2024.1080p.WEB-DL-GROUP"). */
   source?: string | null;
 }
 
@@ -205,7 +201,6 @@ export type EpisodeLayout = "row" | "list";
 export interface Settings {
   tmdbKey?: string | null;
   language: string;
-  bridge: string;
   autoplayNext: boolean;
   /** Seekr (seekr.tv) API key — enables seek-bar thumbnails. */
   seekrKey?: string | null;
@@ -300,7 +295,7 @@ export interface Settings {
   showCalendar?: boolean;
 }
 
-export type SourceSort = "best" | "quality" | "sizeDesc" | "sizeAsc" | "peers";
+export type SourceSort = "best" | "quality" | "sizeDesc" | "sizeAsc";
 
 export interface SubtitleOption {
   id: string;

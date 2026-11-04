@@ -52,7 +52,7 @@ points at a canonical id. Two rules keep this from merging different shows:
    loop.
 
 **Episodes are not re-keyed.** A progress row keeps the video id it was played under
-(`kitsu:N:E` stays playable: stream addons such as addon accept Kitsu ids). Only its
+(`kitsu:N:E` stays playable: many stream addons accept Kitsu ids). Only its
 `meta_id` is the canonical title, so grouping, history, continue watching and "watched" flags
 see one title. The anime page already lines every AniList episode up with both ids (the
 `alignByAirDate`/`matchVideo` work in `AnimeDetail.tsx`); it looks progress up under both.

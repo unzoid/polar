@@ -7,7 +7,6 @@ import {
   Episodes,
   ExitFullscreen,
   Fullscreen,
-  Instant,
   Pause,
   Play,
   Settings as Cog,
@@ -583,11 +582,7 @@ export function Player({
       // Filters that only order the list: what doesn't match follows under its own heading.
       heading: n === sourceFilters.matched && !match ? "Other sources" : undefined,
       detail: [row.size, row.detail].filter(Boolean).join(" · "),
-      badge: r.quality.lowQualitySource
-        ? { text: "CAM", tone: "bad" as const }
-        : r.quality.cached
-          ? { text: "Instant", tone: "good" as const, icon: <Instant size={14} fill="currentColor" strokeWidth={0} /> }
-          : undefined,
+      badge: r.quality.lowQualitySource ? { text: "CAM", tone: "bad" as const } : undefined,
     };
   });
   const currentSourceIndex = rankedStreams.findIndex((r) => streamKey(r) === currentKey);

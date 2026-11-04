@@ -161,40 +161,20 @@ pub enum Playable {
     },
 }
 
-/// Turn a stream into something playable. p2ps go through the configured
-/// bridge until the embedded engine (librqbit) lands.
+/// Turn a stream into something playable: a link, or a YouTube video opened outside.
 #[tauri::command]
-pub async fn resolve_stream(state: State<'_, AppState>, stream: Stream) -> Result<Playable> {
-    Ok(resolve(&state, stream).await)
+pub fn resolve_stream(stream: Stream) -> Result<Playable> {
+    Ok(resolve(stream))
 }
 
 /// Shared by playback and downloads.
-pub async fn resolve(state: &AppState, stream: Stream) -> Playable {
+pub fn resolve(stream: Stream) -> Playable {
     if let Some(url) = stream.url {
         // A download played back: a path on this machine, which may have been deleted since.
         if crate::downloads::is_local(&url) && !std::path::Path::new(&url).exists() {
             return Playable::Unsupported { reason: "This download is no longer on this device.".into() };
         }
         return Playable::Url { url };
-    }
-    if let Some(hash) = stream.content_id {
-        let server = state.store.lock().unwrap().data.settings.bridge.clone();
-        let server = server.trim_end_matches('/');
-        let reachable = reqwest::Client::new()
-            .get(format!("{server}/settings"))
-            .timeout(Duration::from_millis(800))
-            .send()
-            .await
-            .is_ok();
-        if !reachable {
-            return Playable::Unsupported {
-                reason:
-                    "p2p streams need a bridge. Start Stremio's server, or wait for the built-in engine."
-                        .into(),
-            };
-        }
-        let file = stream.file_idx.map(|f| f.to_string()).unwrap_or_else(|| "-1".into());
-        return Playable::Url { url: format!("{server}/{}/{file}", hash.to_lowercase()) };
     }
     if let Some(yt) = stream.yt_id {
         return Playable::External { url: format!("https://www.youtube.com/watch?v={yt}") };
@@ -356,7 +336,7 @@ pub fn settings_set(state: State<'_, AppState>, settings: Settings) -> Result<Se
 }
 
 /// Everything back to the defaults, except what took effort to set up: API
-/// keys, the bridge's address and the metadata language.
+/// keys and the metadata language.
 #[tauri::command]
 pub fn settings_reset(state: State<'_, AppState>) -> Result<SettingsView> {
     let current = state.store.lock().unwrap().data.settings.clone();
@@ -365,7 +345,6 @@ pub fn settings_reset(state: State<'_, AppState>) -> Result<SettingsView> {
         seekr_key: current.seekr_key,
         mdblist_key: current.mdblist_key,
         omdb_key: current.omdb_key,
-        bridge: current.bridge,
         language: current.language,
         ..Settings::default()
     };

@@ -37,7 +37,7 @@ export function PlayerLayer({ player, leaving }: { player: PlayerRoute | null; l
   return (
     <div className="player-layer" data-leaving={leaving} inert={leaving}>
       <Player
-        key={`${player.videoId}|${player.stream?.content_id ?? player.stream?.url ?? ""}`}
+        key={`${player.videoId}|${player.stream?.url ?? ""}`}
         type={player.type}
         metaId={player.metaId}
         videoId={player.videoId}

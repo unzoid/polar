@@ -41,7 +41,6 @@ const SORTS: Choice<SourceSort>[] = [
   { value: "quality", label: "Quality" },
   { value: "sizeDesc", label: "Largest First" },
   { value: "sizeAsc", label: "Smallest First" },
-  { value: "peers", label: "Most Peers" },
 ];
 
 const RATING_POSITIONS: Choice<"poster" | "below">[] = [

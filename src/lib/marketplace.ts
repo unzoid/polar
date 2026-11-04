@@ -7,10 +7,9 @@ import { appVersion } from "./updater";
  * update (and anyone can propose one with a pull request). A copy is bundled
  * for first launch and offline use.
  *
- * Only add-ons for lawful content belong there. The app ships with no
- * p2p, service or piracy add-ons and must not list any; people who want
- * something else can still paste an add-on's link under Add-ons → Install
- * from URL, which is their own choice and responsibility.
+ * Only add-ons for lawful content belong there, and the app must not list
+ * any other kind. An add-on pasted under Add-ons → Install from URL is the
+ * user's own choice and responsibility.
  */
 export const MARKETPLACE_URL = "https://raw.githubusercontent.com/unzoid/polarity-addons/main/addons.json";
 export const MARKETPLACE_REPO = "https://github.com/unzoid/polarity-addons";

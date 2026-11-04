@@ -63,7 +63,7 @@ export function useStreams(type: ContentType, videoId: string | undefined) {
         ...d,
         hidden: (d.hidden ?? 0) + d.streams.length - kept.length,
         // Sources that say nothing about their audio have the original's: fansub
-        // releases (SubsPlease, Erai-raws) never name their Japanese audio.
+        // releases never name their Japanese audio.
         // And Settings → Anime: your preferred release groups go to the top of
         // "Best match", so they're what autoplay tries first.
         streams: kept.map((r) => ({

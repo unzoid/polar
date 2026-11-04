@@ -50,10 +50,7 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
       // preferences in Settings, when they leave something.
       const ranked = autoPickOrder(streams.data.streams, settings, metaId);
       // The room's file first, even past Settings' filters: same file, same timing.
-      // Unless it isn't cached on this account while others are: someone else's
-      // instant file can be a long download here, and the whole room waits on it.
-      const match = prefer ? streams.data.streams.find((r) => sameFile(r.stream, prefer)) : undefined;
-      const same = match && (match.quality.cached || !ranked.some((r) => r.quality.cached)) ? match : undefined;
+      const same = prefer ? streams.data.streams.find((r) => sameFile(r.stream, prefer)) : undefined;
       setCandidates(
         (same ? [same, ...ranked.filter((r) => r !== same)] : ranked)
           .slice(0, 5)

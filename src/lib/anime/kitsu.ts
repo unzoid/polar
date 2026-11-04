@@ -6,8 +6,8 @@ import { cleanDescription, pickTitle } from "./format";
 
 /**
  * Anime with no IMDb page. Many shows (most donghua, plenty of ONAs and OVAs)
- * aren't on IMDb as a series ani.zip can map to, but stream addons such as
- * addon and Comet know them by Kitsu id: `kitsu:48036:5` is episode 5 of
+ * aren't on IMDb as a series ani.zip can map to, but many stream addons
+ * know them by Kitsu id: `kitsu:48036:5` is episode 5 of
  * Renegade Immortal. For these the app's own id is the Kitsu one, and this
  * builds the title page's data (what a metadata addon would send) from AniList
  * and ani.zip, so the title page, the player, watch history and the library
