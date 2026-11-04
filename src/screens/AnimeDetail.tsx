@@ -9,6 +9,7 @@ import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { Row } from "../components/Row";
 import { Segmented } from "../components/Segmented";
+import { SeasonPicker } from "../components/title/SeasonPicker";
 import { Sheet } from "../components/Sheet";
 import { StreamList } from "../components/StreamList";
 import { SwapIcon } from "../components/SwapIcon";
@@ -601,9 +602,6 @@ function Episodes({
 /** Id prefix for an episode that's scheduled but has nothing to play yet. */
 const PENDING = "anime-pending:";
 
-/** More entries than this: a dropdown, as for a show's seasons. */
-const MAX_SEASON_TABS = 6;
-
 /**
  * The franchise's seasons (and films) as tabs, like a show's, on a row of
  * their own so long names (Paleblade's arcs) all show. Switching swaps the
@@ -614,17 +612,7 @@ function SeasonTabs({ franchise: { seasons, active, select } }: { franchise: Fra
   const labels = distinctLabels(seasons.map((s) => title(s.card.title)), seasons.map((s) => s.label));
   return (
     <div className="seasons-tabs">
-      {seasons.length > MAX_SEASON_TABS ? (
-        <Dropdown
-          label="Season"
-          size="large"
-          value={String(active)}
-          onChange={(v) => select(Number(v))}
-          options={seasons.map((s, i) => ({ value: String(s.card.id), label: labels[i] }))}
-        />
-      ) : (
-        <Segmented label="Season" variant="large" value={active} onChange={select} options={seasons.map((s, i) => ({ id: s.card.id, label: labels[i] }))} />
-      )}
+      <SeasonPicker value={active} onChange={select} options={seasons.map((s, i) => ({ id: s.card.id, label: labels[i] }))} />
     </div>
   );
 }

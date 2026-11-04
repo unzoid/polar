@@ -439,6 +439,10 @@ code draws, not what's on screen.
    `stale` to dim, children are the cards): Discover, Anime → Browse and the four Library grids. Its CSS moved
    from `shell.css` to `styles/title/poster-grid.css` (after `ui/menu.css`; no rule in between matches the
    grid); `.discover-grid` folded into `.poster-grid[data-stale]`. Built CSS: the same rules plus that merge.
+   `components/title/SeasonPicker.tsx` (`value`, `options` id/label, `onChange`): the show page's and the anime
+   franchise's season choice, tabs up to 6 and a large dropdown above, written once (the two `MAX_SEASON_TABS`
+   are gone). Same elements as before. Not yet: anime episode ranges (their own small tab look, threshold
+   `RANGE_TABS`), the TV season column (TV layout).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

@@ -9,7 +9,7 @@ import { episodeEntry } from "../lib/watched";
 import { EpisodeShelf } from "../components/EpisodeShelf";
 import { EdgeBlur } from "../components/EdgeBlur";
 import { DownloadButton } from "../components/DownloadButton";
-import { Dropdown } from "../components/Dropdown";
+import { SeasonPicker } from "../components/title/SeasonPicker";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { PlaylistButton } from "../components/Playlists";
@@ -257,9 +257,6 @@ function DetailHero({
   );
 }
 
-/** Up to this many seasons show as tabs; more become a dropdown. */
-const MAX_SEASON_TABS = 6;
-
 /** A show below the fold: its episodes, then everything else about it, as a movie's About. */
 function SeriesBody({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => void }) {
   return (
@@ -316,24 +313,7 @@ function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => vo
     <section className="seasons">
       <div className="seasons-bar">
         <div className="seasons-picker">
-          {seasons.length > MAX_SEASON_TABS ? (
-            // Long-running shows: tabs would scroll off-screen and hide most seasons.
-            <Dropdown
-              label="Season"
-              size="large"
-              value={String(current)}
-              onChange={(v) => setSeason(Number(v))}
-              options={seasons.map((s) => ({ value: String(s), label: seasonLabel(s) }))}
-            />
-          ) : (
-            <Segmented
-              label="Season"
-              variant="large"
-              value={current}
-              onChange={setSeason}
-              options={seasons.map((s) => ({ id: s, label: seasonLabel(s) }))}
-            />
-          )}
+          <SeasonPicker value={current} onChange={setSeason} options={seasons.map((s) => ({ id: s, label: seasonLabel(s) }))} />
         </div>
         <Segmented
           label="Episode layout"
