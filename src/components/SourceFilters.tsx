@@ -2,10 +2,11 @@ import { Popover } from "@base-ui/react/popover";
 import { useLayoutEffect, useRef, useState } from "react";
 import { SORTS, type SourceFilters } from "../lib/sources";
 import type { SourceSort } from "../lib/types";
-import { Close, Filters, Search } from "./icons";
+import { Close, Filters } from "./icons";
 import { Segmented } from "./Segmented";
 import { Dropdown } from "./Dropdown";
 import { Chip } from "./ui/Chip";
+import { SearchField } from "./ui/SearchField";
 
 /**
  * The controls over a source list (see lib/sources.ts). One decision is in
@@ -259,18 +260,14 @@ function ChipRow({ label, chips, collapsible = false }: Section & { collapsible?
       <div className="srcf-chiprow-head">
         <span className="srcf-chiprow-label">{label}</span>
         {searchable && (
-          <label className="srcf-chiprow-search">
-            <Search size={13} aria-hidden />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search"
-              aria-label={`Search ${label.toLowerCase()}`}
-              spellCheck={false}
-              autoComplete="off"
-            />
-          </label>
+          <SearchField
+            look="mini"
+            className="srcf-chiprow-search"
+            value={query}
+            onChange={setQuery}
+            label={`Search ${label.toLowerCase()}`}
+            placeholder="Search"
+          />
         )}
       </div>
       <div className="srcf-chips" ref={box} data-folded={folded || undefined}>

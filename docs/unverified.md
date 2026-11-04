@@ -53,3 +53,9 @@ Not covered: HLS playlists are checked like files (the first 1 KB of the playlis
   tokens back and diffing all CSS). Only with Windows "high contrast"/`prefers-contrast: more` on: two
   borders that used the hairline colour as a literal (a sign-in form border in `account.css` and a row
   border in the player's options panel) now strengthen with the other hairlines.
+- Search fields (T-019 step 3, `SearchField`): the boxes are the same rules under new classes (checked by
+  reading). Changed on purpose: every field shows the app's round clear button once it has text (new in
+  Settings → Shortcuts, the anime episode search and the source-filter searches; the episode search loses
+  the system's own clear "x"), and Escape first empties a field with text before it closes the sheet or
+  overlay around it (new in Marketplace, Anime → Browse, the episode and source-filter searches). Check
+  the clear button fits in the small source-filter field (9.5 rem wide).
