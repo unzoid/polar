@@ -986,15 +986,15 @@ export function Player({
             title: "Subtitles",
             size: subSettingsOpen ? "medium" : "narrow",
             header: (
-              <button
-                className="options-head-btn"
+              <IconButton
+                variant="panel"
                 aria-pressed={subSettingsOpen}
-                aria-label="Subtitle settings"
+                label="Subtitle settings"
                 title="Subtitle settings"
                 onClick={() => setSubSettingsOpen((v) => !v)}
               >
                 <Cog size={19} strokeWidth={2.1} />
-              </button>
+              </IconButton>
             ),
             content: subSettingsOpen ? (
               <SubtitleSettings

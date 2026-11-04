@@ -2,6 +2,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { Close, Reset, SignOut } from "./icons";
+import { iconButtonClass } from "./ui/Button";
 import { SearchField } from "./ui/SearchField";
 import { useAccount } from "../lib/account/AccountProvider";
 import { prefsCustomized, resetPrefs, usePrefs } from "../lib/prefs";
@@ -219,7 +220,7 @@ export function SettingsOverlay() {
                   <Reset size={14} strokeWidth={2.2} />
                   Restore device defaults
                 </button>
-                <Dialog.Close className="t3s-icon-btn" aria-label="Close settings">
+                <Dialog.Close className={iconButtonClass("settings")} aria-label="Close settings">
                   <Close size={16} strokeWidth={2.2} />
                 </Dialog.Close>
               </div>
