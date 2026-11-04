@@ -72,8 +72,10 @@ Done in the same migration, so the server is changed once:
   parse functions (no new library) that drop what doesn't fit instead of casting. Done for stored and pulled
   data (`lib/parse.ts`): playlists, prefs, key bindings, cached profiles, anime play context, update notes, the
   synced settings document (settings only of the kind this device has, refused values left out one by one) and
-  library/progress/link/playlist/settings rows (bigint strings read as numbers, u32 fields checked). Left: AniList,
-  ani.zip and addon responses.
+  library/progress/link/playlist/settings rows (bigint strings read as numbers, u32 fields checked). Done for remote
+  answers too (`lib/anime/responses.ts`): AniList cards, pages, airing slots, franchise links and the anime page, ani.zip
+  records and AniSkip times; IMDb's name search and GitHub's release notes checked in place. Addon responses are read
+  by serde in `crates/addon`, so they were never cast.
 - **M10** One rate limiter (`lib/net/limiter.ts`) shared by AniList, ani.zip and Jikan; 429 honours
   `Retry-After` and gives up after a bound. Done for AniList and ani.zip (Jikan moved into
   `crates/anime/src/fillers.rs`, which caps its retries). `imdbForAnime`'s Cinemeta search and `kitsuMeta`'s

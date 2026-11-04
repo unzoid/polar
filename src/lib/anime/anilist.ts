@@ -2,6 +2,8 @@ import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@t
 import { usePrefs } from "../prefs";
 import { keys } from "../queryKeys";
 import { anilistLimiter, limitedFetch } from "../net/limiter";
+import { isRecord, listOf, str } from "../parse";
+import { readAnime, readCard, readCards, readLinked, readPage, readSlot } from "./responses";
 
 /**
  * AniList (graphql.anilist.co): the anime catalogue, seasons, the airing
@@ -14,16 +16,21 @@ import { anilistLimiter, limitedFetch } from "../net/limiter";
  */
 const ENDPOINT = "https://graphql.anilist.co";
 
-export async function gql<T>(query: string, variables: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
+/** The `data` of AniList's answer, unread: callers take what they asked for through lib/anime/responses.ts. */
+export async function gql(query: string, variables: Record<string, unknown> = {}, signal?: AbortSignal): Promise<Record<string, unknown>> {
   const res = await limitedFetch(anilistLimiter, ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ query, variables }),
     signal,
   });
-  const json = (await res.json().catch(() => null)) as { data?: T; errors?: { message: string }[] } | null;
-  if (!res.ok || !json?.data) throw new Error(json?.errors?.[0]?.message ?? `AniList answered ${res.status}`);
-  return json.data;
+  const json: unknown = await res.json().catch(() => null);
+  const data = isRecord(json) && isRecord(json.data) ? json.data : undefined;
+  if (!res.ok || !data) {
+    const error = isRecord(json) && Array.isArray(json.errors) && isRecord(json.errors[0]) ? str(json.errors[0].message) : undefined;
+    throw new Error(error ?? `AniList answered ${res.status}`);
+  }
+  return data;
 }
 
 // --- Types -----------------------------------------------------------------
@@ -177,42 +184,53 @@ export async function fetchAnimeHome(signal?: AbortSignal): Promise<AnimeHome> {
   const now = seasonOf();
   const next = nextSeason(now);
   const page = (args: string) => `Page(perPage: 24) { media(type: ANIME, isAdult: false, ${args}) { ${LISTED} } }`;
-  const data = await gql<Record<keyof AnimeHome, { media: AnimeCard[] }>>(
-    `query ($season: MediaSeason, $year: Int, $nextSeason: MediaSeason, $nextYear: Int) {
-      trending: ${page("sort: TRENDING_DESC")}
-      season: ${page("season: $season, seasonYear: $year, sort: POPULARITY_DESC")}
-      upcoming: ${page("season: $nextSeason, seasonYear: $nextYear, sort: POPULARITY_DESC")}
-      top: ${page("sort: SCORE_DESC, popularity_greater: 20000")}
-      popular: ${page("sort: POPULARITY_DESC")}
-      movies: ${page("format: MOVIE, sort: POPULARITY_DESC")}
-    }`,
-    { season: now.season, year: now.year, nextSeason: next.season, nextYear: next.year },
-    signal,
+  const data = await gql(
+`query ($season: MediaSeason, $year: Int, $nextSeason: MediaSeason, $nextYear: Int) {
+  trending: ${page("sort: TRENDING_DESC")}
+  season: ${page("season: $season, seasonYear: $year, sort: POPULARITY_DESC")}
+  upcoming: ${page("season: $nextSeason, seasonYear: $nextYear, sort: POPULARITY_DESC")}
+  top: ${page("sort: SCORE_DESC, popularity_greater: 20000")}
+  popular: ${page("sort: POPULARITY_DESC")}
+  movies: ${page("format: MOVIE, sort: POPULARITY_DESC")}
+}`,
+{ season: now.season, year: now.year, nextSeason: next.season, nextYear: next.year },
+signal,
   );
-  return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.media])) as unknown as AnimeHome;
+  const shelf = (k: keyof AnimeHome) => readCards(isRecord(data[k]) ? data[k].media : undefined);
+  return {
+    trending: shelf("trending"),
+    season: shelf("season"),
+    upcoming: shelf("upcoming"),
+    top: shelf("top"),
+    popular: shelf("popular"),
+    movies: shelf("movies"),
+  };
 }
 
 /** One shelf per genre, fetched when it scrolls near. */
 export function useAnimeGenre(genre: string, enabled: boolean) {
   return useQuery({
-    queryKey: keys.anime.genre(genre),
-    staleTime: 60 * 60_000,
-    enabled,
-    queryFn: async ({ signal }) =>
-      (
-        await gql<{ Page: { media: AnimeCard[] } }>(
-          `query ($genre: String) { Page(perPage: 24) { media(type: ANIME, isAdult: false, genre: $genre, sort: TRENDING_DESC) { ${LISTED} } } }`,
-          { genre },
-          signal,
-        )
-      ).Page.media,
+queryKey: keys.anime.genre(genre),
+staleTime: 60 * 60_000,
+enabled,
+queryFn: async ({ signal }) =>
+  readCards(
+    readPage(
+      await gql(
+        `query ($genre: String) { Page(perPage: 24) { media(type: ANIME, isAdult: false, genre: $genre, sort: TRENDING_DESC) { ${LISTED} } } }`,
+        { genre },
+        signal,
+      ),
+      "media",
+    ).items,
+  ),
   });
 }
 
 // --- Seasons ---------------------------------------------------------------
 
 /** One step along a franchise: the entry, and where its prequel and sequel lead. */
-interface ChainLink extends AnimeCard {
+export interface ChainLink extends AnimeCard {
   relations: { edges: { relationType: RelationType; node: { id: number; type?: string | null; format?: MediaFormat | null } }[] };
 }
 
@@ -235,48 +253,50 @@ export interface AnimeSeason {
 export function useAnimeSeasons(anime: Anime | undefined) {
   const client = useQueryClient();
   return useQuery({
-    queryKey: keys.anime.seasons(anime?.id),
-    enabled: !!anime,
-    staleTime: 6 * 60 * 60_000,
-    queryFn: async (): Promise<AnimeSeason[]> => {
-      const link = (id: number) =>
-        client.fetchQuery({
-          queryKey: keys.anime.link(id),
-          staleTime: 24 * 60 * 60_000,
-          queryFn: async ({ signal }) =>
-            (
-              await gql<{ Media: ChainLink }>(
-                `query ($id: Int) { Media(id: $id, type: ANIME) { ${CARD} relations { edges { relationType(version: 2) node { id type format } } } } }`,
-                { id },
-                signal,
-              )
-            ).Media,
-        });
-      const root = anime as unknown as ChainLink;
-      const seen = new Set([root.id]);
-      const walk = async (from: ChainLink, way: "PREQUEL" | "SEQUEL") => {
-        const out: ChainLink[] = [];
-        let at = from;
-        for (let hop = 0; hop < MAX_HOPS; hop++) {
-          const next = at.relations.edges
-            .filter((e) => e.relationType === way && e.node.type !== "MANGA" && !seen.has(e.node.id))
-            // Several prequels (a film and a series): follow the series.
-            .sort((a, b) => Number(!SEASON_FORMATS.has(a.node.format!)) - Number(!SEASON_FORMATS.has(b.node.format!)))[0];
-          if (!next) break;
-          seen.add(next.node.id);
-          at = await link(next.node.id);
-          out.push(at);
-        }
-        return out;
-      };
-      const [before, after] = await Promise.all([walk(root, "PREQUEL"), walk(root, "SEQUEL")]);
-      const chain = [...before.reverse(), root, ...after].filter((n) => SEASON_FORMATS.has(n.format!));
-      let season = 0;
-      return chain.map((card) => ({
-        card,
-        label: card.format === "MOVIE" ? "Movie" : `Season ${++season}`,
-      }));
-    },
+queryKey: keys.anime.seasons(anime?.id),
+enabled: !!anime,
+staleTime: 6 * 60 * 60_000,
+queryFn: async (): Promise<AnimeSeason[]> => {
+  const link = (id: number) =>
+    client.fetchQuery({
+      queryKey: keys.anime.link(id),
+      staleTime: 24 * 60 * 60_000,
+      queryFn: async ({ signal }) => {
+        const data = await gql(
+          `query ($id: Int) { Media(id: $id, type: ANIME) { ${CARD} relations { edges { relationType(version: 2) node { id type format } } } } }`,
+          { id },
+          signal,
+        );
+        const linked = readLinked(data.Media);
+        if (!linked) throw new Error(`AniList has no anime ${id}`);
+        return linked;
+      },
+    });
+  const root: ChainLink = anime!;
+  const seen = new Set([root.id]);
+  const walk = async (from: ChainLink, way: "PREQUEL" | "SEQUEL") => {
+    const out: ChainLink[] = [];
+    let at = from;
+    for (let hop = 0; hop < MAX_HOPS; hop++) {
+      const next = at.relations.edges
+        .filter((e) => e.relationType === way && e.node.type !== "MANGA" && !seen.has(e.node.id))
+        // Several prequels (a film and a series): follow the series.
+        .sort((a, b) => Number(!SEASON_FORMATS.has(a.node.format!)) - Number(!SEASON_FORMATS.has(b.node.format!)))[0];
+      if (!next) break;
+      seen.add(next.node.id);
+      at = await link(next.node.id);
+      out.push(at);
+    }
+    return out;
+  };
+  const [before, after] = await Promise.all([walk(root, "PREQUEL"), walk(root, "SEQUEL")]);
+  const chain = [...before.reverse(), root, ...after].filter((n) => SEASON_FORMATS.has(n.format!));
+  let season = 0;
+  return chain.map((card) => ({
+    card,
+    label: card.format === "MOVIE" ? "Movie" : `Season ${++season}`,
+  }));
+},
   });
 }
 
@@ -287,55 +307,44 @@ export function useAnimeSeasons(anime: Anime | undefined) {
  */
 export function useAnime(id: number, { keepPrevious = false } = {}) {
   return useQuery({
-    queryKey: keys.anime.media(id),
-    staleTime: 30 * 60_000,
-    queryFn: ({ signal }) => fetchAnime(id, signal),
-    placeholderData: keepPrevious ? keepPreviousData : undefined,
+queryKey: keys.anime.media(id),
+staleTime: 30 * 60_000,
+queryFn: ({ signal }) => fetchAnime(id, signal),
+placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
 }
 
 export async function fetchAnime(id: number, signal?: AbortSignal): Promise<Anime> {
-  type Edge = CharacterEdge & { voiceActors?: (Person & { languageV2?: string })[] };
-  const media = (
-        await gql<{ Media: Anime & { characters: { edges: Edge[] } } }>(
-          `query ($id: Int) {
-            Media(id: $id, type: ANIME) {
-              ${CARD}
-              description(asHtml: false)
-              synonyms source hashtag meanScore favourites isAdult countryOfOrigin
-              endDate { year month day }
-              trailer { id site }
-              studios { edges { isMain node { id name isAnimationStudio } } }
-              tags { name rank description isMediaSpoiler isGeneralSpoiler category }
-              relations { edges { relationType(version: 2) node { ${CARD} } } }
-              characters(sort: [ROLE, RELEVANCE, ID], perPage: 25) {
-                edges {
-                  role
-                  node { id name { full native } image { large } }
-                  voiceActors(sort: [RELEVANCE, ID]) { id name { full native } image { large } languageV2 }
-                }
-              }
-              staff(sort: [RELEVANCE, ID], perPage: 12) { edges { role node { id name { full native } image { large } } } }
-              recommendations(sort: [RATING_DESC, ID], perPage: 16) { nodes { mediaRecommendation { ${CARD} } } }
-              externalLinks { site url type color icon language }
-              rankings { rank type context allTime season year }
-              airingSchedule(perPage: 50) { nodes { episode airingAt } }
-            }
-          }`,
-          { id },
-          signal,
-        )
-      ).Media;
-  // Aliasing `voiceActors` twice on one edge comes back merged, so ask once and split by language.
-  for (const e of media.characters.edges) {
-    const all = e.voiceActors ?? [];
-    e.ja = all.filter((p) => p.languageV2 === "Japanese");
-    e.en = all.filter((p) => p.languageV2 === "English");
-    delete e.voiceActors;
-  }
-  // MAIN, then SUPPORTING, then BACKGROUND (AniList's ROLE sort puts them the other way round).
-  const order = { MAIN: 0, SUPPORTING: 1, BACKGROUND: 2 };
-  media.characters.edges.sort((a, b) => order[a.role] - order[b.role]);
+  const data = await gql(
+    `query ($id: Int) {
+      Media(id: $id, type: ANIME) {
+        ${CARD}
+        description(asHtml: false)
+        synonyms source hashtag meanScore favourites isAdult countryOfOrigin
+        endDate { year month day }
+        trailer { id site }
+        studios { edges { isMain node { id name isAnimationStudio } } }
+        tags { name rank description isMediaSpoiler isGeneralSpoiler category }
+        relations { edges { relationType(version: 2) node { ${CARD} } } }
+        characters(sort: [ROLE, RELEVANCE, ID], perPage: 25) {
+          edges {
+            role
+            node { id name { full native } image { large } }
+            voiceActors(sort: [RELEVANCE, ID]) { id name { full native } image { large } languageV2 }
+          }
+        }
+        staff(sort: [RELEVANCE, ID], perPage: 12) { edges { role node { id name { full native } image { large } } } }
+        recommendations(sort: [RATING_DESC, ID], perPage: 16) { nodes { mediaRecommendation { ${CARD} } } }
+        externalLinks { site url type color icon language }
+        rankings { rank type context allTime season year }
+        airingSchedule(perPage: 50) { nodes { episode airingAt } }
+      }
+    }`,
+    { id },
+    signal,
+  );
+  const media = readAnime(data.Media);
+  if (!media) throw new Error(`AniList has no anime ${id}`);
   return media;
 }
 
@@ -358,7 +367,7 @@ export function useAiringSchedule(from: number, to: number, enabled = true) {
     queryFn: async ({ signal }) => {
       const out: AiringSlot[] = [];
       for (let page = 1; page <= 6; page++) {
-        const data = await gql<{ Page: { pageInfo: { hasNextPage: boolean }; airingSchedules: AiringSlot[] } }>(
+        const data = await gql(
           `query ($page: Int, $from: Int, $to: Int) {
             Page(page: $page, perPage: 50) {
               pageInfo { hasNextPage }
@@ -370,8 +379,9 @@ export function useAiringSchedule(from: number, to: number, enabled = true) {
           { page, from, to },
           signal,
         );
-        out.push(...data.Page.airingSchedules);
-        if (!data.Page.pageInfo.hasNextPage) break;
+        const { items, hasNextPage } = readPage(data, "airingSchedules");
+        out.push(...listOf(items, readSlot));
+        if (!hasNextPage) break;
       }
       return out;
     },
@@ -424,8 +434,7 @@ export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
       if (f.year) vars.year = f.year;
       if (f.format) vars.format = f.format;
       if (f.status) vars.status = f.status;
-      type Hit = AnimeCard & { relations?: { edges: { relationType: RelationType; node: { id: number } }[] } };
-      const data = await gql<{ Page: { pageInfo: { hasNextPage: boolean }; media: Hit[] } }>(
+      const data = await gql(
         `query ($page: Int, $search: String, $genre: String, $tag: String, $season: MediaSeason, $year: Int, $format: MediaFormat, $status: MediaStatus, $sort: [MediaSort]) {
           Page(page: $page, perPage: 36) {
             pageInfo { hasNextPage }
@@ -438,12 +447,14 @@ export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
         signal,
       );
       // A search shows each franchise once (oneFranchiseEach): keep just the prequel/sequel links it needs.
-      const media = data.Page.media.map(({ relations, ...card }): AnimeCard =>
-        relations
-          ? { ...card, chain: relations.edges.filter((e) => e.relationType === "PREQUEL" || e.relationType === "SEQUEL").map((e) => e.node.id) }
-          : card,
-      );
-      return { ...data.Page, media };
+      const { items, hasNextPage } = readPage(data, "media");
+      const media = listOf(items, (hit) => {
+        const linked = f.search ? readLinked(hit) : undefined;
+        if (!linked) return readCard(hit);
+        const { relations, ...card } = linked;
+        return { ...card, chain: relations.edges.filter((e) => e.relationType === "PREQUEL" || e.relationType === "SEQUEL").map((e) => e.node.id) };
+      });
+      return { pageInfo: { hasNextPage }, media };
     },
     getNextPageParam: (last, pages) => (last.pageInfo.hasNextPage ? pages.length + 1 : undefined),
   });
