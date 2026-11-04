@@ -28,6 +28,7 @@ import { TvCalendar, TvDiscover, TvHome, TvLibrary, TvSearch } from "./TvScreens
 import { TvSettings } from "./TvSettings";
 import { TvJoinParty } from "./TvJoinParty";
 import { useJoinPartyOpen } from "../lib/party/party";
+import { ErrorBoundary } from "../components/ui/ErrorBoundary";
 
 function TvScreen({ route }: { route: Route }) {
   switch (route.name) {
@@ -223,7 +224,9 @@ export function TvApp() {
               inert={!isTop || !!playing}
             >
               <PageActive.Provider value={isTop && !playing && !menuOpen && !cardMenuOpen}>
-                <TvScreen route={entry.route} />
+                <ErrorBoundary where={`tv page ${entry.route.name}`} variant="tv">
+                  <TvScreen route={entry.route} />
+                </ErrorBoundary>
               </PageActive.Provider>
             </section>
           );

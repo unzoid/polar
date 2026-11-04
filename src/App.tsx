@@ -32,6 +32,7 @@ import { isSettingsOpen, openSettings } from "./lib/settingsOverlay";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
 import { PartyHost } from "./components/party/PartyHost";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -252,7 +253,9 @@ function DesktopApp() {
             aria-hidden={entry !== topPage || !!playing}
             inert={entry !== topPage || !!playing}
           >
-            <Screen route={entry.route} />
+            <ErrorBoundary where={`page ${entry.route.name}`}>
+              <Screen route={entry.route} />
+            </ErrorBoundary>
           </section>
         ))}
         <ControllerToast tv={false} />

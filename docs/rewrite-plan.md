@@ -11,7 +11,7 @@ removes the most cost first. Every step is a set of small commits that each leav
   can't be run here.
 - **Checks after every commit:** `bun run typecheck`, `bun run test`, `vite build`,
   `cargo test -p polar-addon -p polar-library -p polar-anime`, `cargo clippy` and `rustfmt` on those
-  crates, and the no-p2p-wording grep (NOTES). `src-tauri` and `polar-index` don't build here
+  crates, and the legal wording grep (work NOTES). `src-tauri` and `polar-index` don't build here
   (WebKitGTK; T-012): edits there are checked by reading and rustfmt, and listed as unverified.
 - **Pure logic in its own file** with a test next to the other tests (`tests/` for TS, `#[cfg(test)]`
   for Rust). Components and Tauri commands stay thin wrappers around it.
