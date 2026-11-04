@@ -42,5 +42,5 @@ Not covered: HLS playlists are checked like files (the first 1 KB of the playlis
 
 - Settings → About → Cache and Credits cards (TMDB logo 12 px under the notice): look only.
 - Trailers: Detail/TV backdrop plays IMDb video files only; the trailer dialog prefers TMDB's YouTube id.
-- p2p removal (T-014): `src-tauri` edits by reading only; an old saved `bridge` setting
-  is ignored on load, and `sourceSort: "peers"` falls back to best.
+- Removed playback path (T-014): `src-tauri` edits checked by reading only; the old saved setting for the
+  removed playback server is ignored on load, and `sourceSort: "peers"` falls back to best.
