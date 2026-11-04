@@ -4,6 +4,7 @@ import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
 import type { MediaLike } from "./mpvMedia";
 import { prefersReducedMotion } from "../../lib/reducedMotion";
+import { useLayer } from "../../lib/layer";
 
 export interface OptionItem {
   id: string;
@@ -75,11 +76,10 @@ export function OptionsOverlay({
     return () => window.clearTimeout(t);
   }, [open]);
 
-  // The parent re-renders several times a second during playback and passes a
-  // fresh onClose each time; read it through a ref so nothing below re-runs
-  // (re-running would snap the lists back to the selection mid-scroll).
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // Escape through the shared dismiss stack (lib/dismiss.ts), Tab kept inside, focus back to the
+  // opener on close. The parent passes a fresh onClose several times a second during playback;
+  // useLayer reads the newest without re-running anything (which would snap the lists back mid-scroll).
+  useLayer(root, open, onClose);
 
   // Once per opening: show the current choice in every column, focus it for the keyboard.
   useEffect(() => {
@@ -90,7 +90,8 @@ export function OptionsOverlay({
       const list = el.closest<HTMLElement>(".options-list");
       if (list) list.scrollTop = el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2;
     });
-    root.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
+    // Nothing chosen yet: the layer itself, so Tab and the arrows start inside it.
+    (root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? root.current)?.focus({ preventScroll: true });
   }, [open, mounted]);
 
   useEffect(() => {
@@ -99,14 +100,9 @@ export function OptionsOverlay({
       // An open dropdown inside the overlay handles its own keys.
       if (document.querySelector(".select-popup, .srcf-popover")) return;
       // A slider (the source list's size range) takes the arrows for itself.
-      if ((e.target as HTMLElement | null)?.closest?.('[role="slider"], input[type="range"]') && e.key !== "Escape") return;
+      if ((e.target as HTMLElement | null)?.closest?.('[role="slider"], input[type="range"]')) return;
       // A text field (the party code) keeps its caret keys.
-      if ((e.target as HTMLElement | null)?.matches?.('input:not([type]), input[type="text"]') && e.key !== "Escape") return;
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onCloseRef.current();
-        return;
-      }
+      if ((e.target as HTMLElement | null)?.matches?.('input:not([type]), input[type="text"]')) return;
       if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.stopPropagation();
         e.preventDefault();
@@ -127,6 +123,8 @@ export function OptionsOverlay({
       data-open={open}
       role="dialog"
       aria-modal
+      tabIndex={-1}
+      data-layer=""
       // Anywhere on the blur closes; only the columns themselves (and popups opened from them) don't.
       onPointerDown={(e) => {
         if (e.button !== 0) return;

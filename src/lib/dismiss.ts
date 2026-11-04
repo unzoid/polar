@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 
 /**
  * One Escape for every layer (docs/ui-components.md U11, critique M25). Each open layer (a sheet, the
- * trailer) pushes itself on a stack; Escape closes the one on top, and only that one.
+ * trailer, the player's options, a TV panel or menu) pushes itself on a stack; Escape closes the one on
+ * top, and only that one. TV's other Back keys close it through `dismissTop`.
  *
  * The listener sits on `document` in the bubble phase, so the order is:
  * 1. what has focus: a search field clears itself, an open Base UI menu, select or popover closes itself
@@ -32,15 +33,29 @@ export const dismissDepth = () => stack.length;
 
 type EscapeEvent = Pick<KeyboardEvent, "key" | "defaultPrevented" | "isComposing" | "preventDefault" | "stopPropagation">;
 
-/** Closes the top layer for an unhandled Escape. Returns whether it did. Exported for tests. */
-export function handleDismissKey(e: EscapeEvent): boolean {
-  if (e.key !== "Escape" || e.defaultPrevented || e.isComposing) return false;
+const dismissed = new Set<() => void>();
+
+/** Calls `listener` after each layer closes through Escape or `dismissTop` (TV plays its back sound). */
+export function onDismissed(listener: () => void): () => void {
+  dismissed.add(listener);
+  return () => void dismissed.delete(listener);
+}
+
+/** Closes the topmost layer, if there is one: for TV's other Back keys (Backspace, a remote's Back). */
+export function dismissTop(): boolean {
   const top = stack[stack.length - 1];
   if (!top) return false;
+  top.dismiss();
+  dismissed.forEach((l) => l());
+  return true;
+}
+
+/** Closes the top layer for an unhandled Escape. Returns whether it did. Exported for tests. */
+export function handleDismissKey(e: EscapeEvent): boolean {
+  if (e.key !== "Escape" || e.defaultPrevented || e.isComposing || !stack.length) return false;
   e.preventDefault();
   e.stopPropagation();
-  top.dismiss();
-  return true;
+  return dismissTop();
 }
 
 let installed = false;

@@ -160,3 +160,15 @@ How to check:
   straight on Sources for "Source Filters" (Back goes to the category list); "Manage Add-ons" lands on the
   list as before. Switching from TV to desktop (the TV toggle shortcut) while on TV settings should open the
   settings window on desktop with the previous screen under it, or Home.
+- Player options and TV Back (T-019 step 6, `lib/dismiss.ts`, `lib/layer.ts`): the player's full-window
+  picker (Speed, Subtitles & Audio, Episodes, Sources, Party) closes on Escape through the shared stack, keeps
+  Tab inside, and gives focus back to what had it when it opened. TV's panels and card menu are on the same
+  stack (TV's own Back stack is gone). Check on desktop: open Sources with its button, Tab several times (focus
+  stays in the picker), Escape closes it and the Sources button has focus again (Space then still plays or
+  pauses, nothing reopens); with the source size slider focused, Escape closes the picker; with a filter
+  dropdown open, Escape closes only the dropdown. On TV: B over the picker closes it; B in a title's Playlists
+  panel goes back to the menu, then the card; Backspace does the same; the back sound plays once each time.
+  Changed on purpose: on TV, closing a sources sheet or the trailer with B now also plays the back sound.
+- Notes in the player (T-019 step 6): the top note ("Couldn't load…"), the party's "Waiting for…" pill and its
+  activity notes still draw their own pills (flat dark surface), unlike the app's toasts (glass with an edge).
+  Say whether they should look like the toasts; nothing changed.

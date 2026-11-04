@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { dismissDepth, handleDismissKey, pushDismiss } from "../src/lib/dismiss";
+import { dismissDepth, dismissTop, handleDismissKey, onDismissed, pushDismiss } from "../src/lib/dismiss";
 
 const key = (k: string, init: { defaultPrevented?: boolean; isComposing?: boolean } = {}) => {
   const e = { key: k, defaultPrevented: !!init.defaultPrevented, isComposing: !!init.isComposing, stopped: false };
@@ -47,4 +47,23 @@ test("removing a lower layer first keeps the top one on top", () => {
   expect(closed).toEqual(["b"]);
   offB();
   expect(dismissDepth()).toBe(0);
+});
+
+test("Back without Escape closes the top layer and tells the listeners; nothing open, nothing told", () => {
+  const closed: string[] = [];
+  let told = 0;
+  const offTold = onDismissed(() => told++);
+  const offA = pushDismiss(() => closed.push("a"));
+  const offB = pushDismiss(() => closed.push("b"));
+  expect(dismissTop()).toBe(true);
+  expect(closed).toEqual(["b"]);
+  offB();
+  handleDismissKey(key("Escape"));
+  expect(closed).toEqual(["b", "a"]);
+  expect(told).toBe(2);
+  offA();
+  expect(dismissTop()).toBe(false);
+  handleDismissKey(key("Escape"));
+  expect(told).toBe(2);
+  offTold();
 });

@@ -320,23 +320,3 @@ export function ownsArrows(target: EventTarget | null) {
   if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
   return target instanceof HTMLInputElement && !["button", "checkbox", "radio", "submit"].includes(target.type);
 }
-
-// --- Back -------------------------------------------------------------------
-
-/** Handlers for Back (Esc, Backspace, B), innermost last: an open panel closes before the page goes back. */
-const backStack: { current: () => void }[] = [];
-
-export function pushBack(handler: { current: () => void }) {
-  backStack.push(handler);
-  return () => {
-    const i = backStack.lastIndexOf(handler);
-    if (i >= 0) backStack.splice(i, 1);
-  };
-}
-
-export function runBack() {
-  const top = backStack[backStack.length - 1];
-  if (!top) return false;
-  top.current();
-  return true;
-}

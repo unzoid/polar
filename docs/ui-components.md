@@ -562,6 +562,18 @@ code draws, not what's on screen.
    swatches, Version, the update row (four states), the two-key ratings form, the Seekr key form (save and check)
    and the delete-account confirm. The first four now carry `data-setting`, so search lands on the row itself.
 6. **TV and player** onto the primitives.
+   Layers: `OptionsOverlay` (the player's picker, desktop and TV) uses `useLayer`: Escape through the dismiss
+   stack instead of its own capture-phase branch, Tab kept inside, focus back to the opener; with nothing
+   checked the layer itself takes focus (`tabIndex={-1}`, `data-layer`). Its capture listener keeps only the
+   arrows and Space/Enter. TV's Back stack (`pushBack`/`runBack` in `tv/spatial.ts`) is gone: `useBack` in
+   `tv/shell.ts` is `useDismiss`, so TV panels, the card menu, sheets and the trailer sit on one stack in the
+   order they opened. Escape reaches it on `document`; `TvApp` sends Backspace and a remote's Back to
+   `dismissTop()` and plays the back sound from `onDismissed` (while not playing). `TvKeyboard`'s listener
+   takes only typing keys, so it stays. TV's `useFocusTrap` (focus in when ready, back on close; no Tab trap,
+   the arrows are the TV's navigation) stays its own.
+   Kept apart on purpose: the player's top note (`.player-notice`), the party's hold pill and activity notes
+   are not `Toast`s: other surface (`--surface-float`, no glass edge), other place (top centre, bottom left
+   following the controls) and motion; one look for all of them is the owner's call (docs/unverified.md).
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
    record of what was merged.
 
