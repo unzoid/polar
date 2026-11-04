@@ -49,7 +49,6 @@ export const screenResKey = (): ResKey => {
 
 /** Tag keys, in the order the chips show. */
 export const TAG_LABELS: Record<string, string> = {
-  instant: "Instant",
   dv: "Dolby Vision",
   "hdr10+": "HDR10+",
   hdr: "HDR",
@@ -71,12 +70,11 @@ export const TAG_LABELS: Record<string, string> = {
 };
 
 /** Tags offered in Settings → Sources to switch on by themselves. */
-export const AUTO_TAG_CHOICES = ["dv", "hdr", "hdr10+", "remux", "atmos", "instant", "hevc", "10-bit"];
+export const AUTO_TAG_CHOICES = ["dv", "hdr", "hdr10+", "remux", "atmos", "hevc", "10-bit"];
 
 export function tagsOf(r: RankedStream): string[] {
   const q = r.quality;
   const t: string[] = [];
-  if (q.cached) t.push("instant");
   if (q.dolbyVision) t.push("dv");
   if (q.hdr) t.push("hdr");
   for (const x of q.tags ?? []) t.push(x.toLowerCase());
@@ -110,9 +108,7 @@ export function sourceRow(r: RankedStream) {
   return {
     title: r.label.replace(/ · [\d.]+ [MG]B$/, ""),
     size: r.quality.sizeBytes ? formatBytes(r.quality.sizeBytes) : null,
-    detail: [r.addon, r.quality.source, languagesShort(r.quality.languages), r.quality.sources != null ? `${r.quality.sources} peers` : null]
-      .filter(Boolean)
-      .join(" · "),
+    detail: [r.addon, r.quality.source, languagesShort(r.quality.languages)].filter(Boolean).join(" · "),
   };
 }
 
@@ -124,7 +120,7 @@ const size = (r: RankedStream) => r.quality.sizeBytes ?? 0;
 /**
  * "Best match", aware of this screen: on a 1080p (or smaller) display a 4K
  * file is a bigger download for no visible gain, so it ranks as if it were a
- * notch lower. Cached (instant) sources still come first.
+ * notch lower.
  */
 export function bestScore(r: RankedStream, screen: number, preferScreen: boolean) {
   const over = preferScreen && screen < 1300 && res(r) > Math.max(screen, 1080);
@@ -136,7 +132,6 @@ export const SORTS: Record<SourceSort, string> = {
   quality: "Highest Quality",
   sizeDesc: "Largest File",
   sizeAsc: "Smallest File",
-  peers: "Most Peers",
 };
 
 export function compareBy(sort: SourceSort, screen: number, preferScreen: boolean) {
@@ -147,8 +142,6 @@ export function compareBy(sort: SourceSort, screen: number, preferScreen: boolea
       return (a: RankedStream, b: RankedStream) => size(b) - size(a);
     case "sizeAsc":
       return (a: RankedStream, b: RankedStream) => (size(a) || Infinity) - (size(b) || Infinity);
-    case "peers":
-      return (a: RankedStream, b: RankedStream) => (b.quality.sources ?? 0) - (a.quality.sources ?? 0);
     default:
       return (a: RankedStream, b: RankedStream) => bestScore(b, screen, preferScreen) - bestScore(a, screen, preferScreen);
   }

@@ -9,9 +9,9 @@
  *   positions are extrapolated to "now" without trusting anyone's system time.
  * - The host (first to have joined) holds the room while anyone is loading or
  *   buffering, and answers newcomers. Leaving hands the role to the next.
- * - Stream URLs never leave the device (service links carry API keys): only a
- *   hint — the p2p hash and release name — so others pick the same file
- *   from their own add-ons.
+ * - Stream URLs never leave the device (add-on links can carry API keys):
+ *   only a hint — the release name — so others pick the same file from their
+ *   own add-ons.
  * - Leaving the player isn't leaving the room: a member who's browsing is
  *   "away" (not waited for), and whatever anyone puts on next brings them back.
  */
@@ -22,7 +22,6 @@ import { partyChime } from "./sounds";
 import type { ContentType, Stream } from "../types";
 
 export interface StreamHint {
-  hash?: string;
   release?: string;
 }
 
@@ -130,16 +129,13 @@ export function partyPosition(videoId: string) {
 /** What others need to find the same file, without the URL itself. */
 export function streamHint(s?: Stream): StreamHint | undefined {
   if (!s) return undefined;
-  const hash = (s.content_id ?? s.url?.match(/\b[a-f0-9]{40}\b/i)?.[0])?.toLowerCase();
   const release = (s.title ?? s.description ?? "").split("\n")[0].trim() || undefined;
-  return hash || release ? { hash, release } : undefined;
+  return release ? { release } : undefined;
 }
 
 export function sameFile(s: Stream, hint: StreamHint) {
   const h = streamHint(s);
-  if (!h) return false;
-  if (hint.hash && h.hash) return hint.hash === h.hash;
-  return !!hint.release && hint.release.toLowerCase() === h.release?.toLowerCase();
+  return !!h && !!hint.release && hint.release.toLowerCase() === h.release?.toLowerCase();
 }
 
 export function normalizeCode(input: string) {

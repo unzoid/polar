@@ -69,8 +69,8 @@ export function useDownload(videoId: string | undefined) {
   return { download: videoId ? data?.find((d) => d.id === videoId) : undefined, pending: p };
 }
 
-/** A source the backend can copy as a file: a link, or a p2p through the bridge. */
-export const downloadable = (s: Stream) => !!(s.url || s.content_id);
+/** A source the backend can copy as a file: a link. */
+export const downloadable = (s: Stream) => !!s.url;
 
 /** Start downloading `pick`, the source chosen in the download sheet. */
 export async function startDownload(item: MetaPreview, video: Video | undefined, pick: RankedStream) {

@@ -1,4 +1,4 @@
-import { AlertCircle, Check, Instant } from "./icons";
+import { AlertCircle, Check } from "./icons";
 import { useRouter } from "../lib/router";
 import { useSettings, useStreams } from "../lib/queries";
 import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/sources";
@@ -142,7 +142,7 @@ function StreamRow({
       title={s.stream.title ?? s.stream.description}
     >
       <span className="stream-lead" aria-hidden>
-        {current ? <Check size={16} strokeWidth={2.5} /> : s.quality.cached ? <Instant size={15} fill="currentColor" strokeWidth={0} /> : null}
+        {current ? <Check size={16} strokeWidth={2.5} /> : null}
       </span>
       <span className="stream-text">
         <span className="stream-main">
@@ -155,7 +155,7 @@ function StreamRow({
           {s.quality.lowQualitySource && <span className="badge badge-bad">CAM</span>}
         </span>
         <span className="stream-sub t-caption">
-          {current ? "Playing · " : s.quality.cached ? "Instant · " : ""}
+          {current ? "Playing · " : ""}
           {row.detail}
         </span>
       </span>
@@ -166,5 +166,5 @@ function StreamRow({
 
 export function streamKey(s: RankedStream | { stream: RankedStream["stream"] }) {
   const st = s.stream;
-  return st.content_id ? `${st.content_id}:${st.fileIdx ?? 0}` : (st.url ?? st.ytId ?? "");
+  return st.url ?? st.ytId ?? "";
 }

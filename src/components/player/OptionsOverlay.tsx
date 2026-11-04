@@ -14,7 +14,7 @@ export interface OptionItem {
   thumbnail?: string;
   /** 0–1 watch progress drawn under the thumbnail. */
   progress?: number;
-  /** Small trailing tag: "Instant", "Watched", "CAM". */
+  /** Small trailing tag: "Watched", "CAM". */
   /** Trailing tag. With `icon`, the icon is shown and `text` becomes its label. */
   badge?: { text: string; tone?: "good" | "bad"; icon?: ReactNode };
   icon?: ReactNode;

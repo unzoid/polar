@@ -15,9 +15,6 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     pub tmdb_key: Option<String>,
     pub language: String,
-    /// A Stremio-compatible bridge that turns p2ps into HTTP
-    /// (`{server}/{content_id}/{fileIdx}`). Bridge until the built-in engine lands.
-    pub bridge: String,
     /// Auto-play the next episode when one ends.
     pub autoplay_next: bool,
     /// Seekr (seekr.tv) API key for seek-bar thumbnails. Optional feature.
@@ -183,7 +180,6 @@ impl Default for Settings {
         Self {
             tmdb_key: None,
             language: "en-US".into(),
-            bridge: "http://127.0.0.1:11470".into(),
             autoplay_next: true,
             seekr_key: None,
             seek_previews: true,

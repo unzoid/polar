@@ -1,7 +1,6 @@
 //! Downloads: a movie or an episode saved to this device to watch offline.
 //!
-//! A download is the source's HTTP file (a service link, a direct URL, or the
-//! bridge's file for a p2p) copied to `<app data>/downloads`.
+//! A download is the source's HTTP file copied to `<app data>/downloads`.
 //! The list lives beside it in `downloads.json`. Pausing stops the transfer
 //! and keeps the partial file; resuming asks for the rest with a Range
 //! request (or starts over if the server can't do ranges). A transfer cut off
@@ -23,7 +22,6 @@ use tokio::io::AsyncWriteExt;
 
 use crate::commands::{resolve, CmdError, Playable, Result};
 use crate::store::now;
-use crate::AppState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -245,8 +243,8 @@ impl Downloads {
         // Each start writes a new file, so whatever is on disk is this download's own.
         let have = tokio::fs::metadata(&path).await.map(|m| m.len()).unwrap_or(0);
 
-        // Always ask for a range, as a video player does: bridges
-        // (p2ps) and some service hosts refuse a plain GET with 400.
+        // Always ask for a range, as a video player does: some file hosts
+        // refuse a plain GET with 400.
         let mut req = self.http.get(&d.url).header(reqwest::header::RANGE, format!("bytes={have}-"));
         for (k, v) in &d.headers {
             req = req.header(k.as_str(), v.as_str());
@@ -347,12 +345,8 @@ pub fn downloads_list(downloads: Shared<'_>) -> Vec<Download> {
 }
 
 #[tauri::command]
-pub async fn download_start(
-    state: State<'_, AppState>,
-    downloads: Shared<'_>,
-    req: DownloadRequest,
-) -> Result<Download> {
-    let url = match resolve(&state, req.stream.clone()).await {
+pub async fn download_start(downloads: Shared<'_>, req: DownloadRequest) -> Result<Download> {
+    let url = match resolve(req.stream.clone()) {
         Playable::Url { url } if !is_local(&url) => url,
         Playable::Url { .. } => return Err(CmdError::Other("This is already on your device.".into())),
         Playable::External { .. } => {

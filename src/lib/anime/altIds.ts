@@ -1,8 +1,8 @@
 /**
  * Other ids an anime episode is known by. An episode played from an IMDb page
- * is asked of the stream addons by its IMDb id, which anime p2ps rarely
+ * is asked of the stream addons by its IMDb id, which anime releases rarely
  * follow (they number by absolute episode, not IMDb's seasons); the Kitsu id
- * (`kitsu:48036:5`) is what addon and Comet index them under. The Anime
+ * (`kitsu:48036:5`) is what many anime add-ons index them under. The Anime
  * page leaves it here and `api.streams` asks for both, so the sources of
  * either show up.
  */

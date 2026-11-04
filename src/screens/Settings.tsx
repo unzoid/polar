@@ -14,7 +14,6 @@ import {
   Fire,
   Grid,
   Info,
-  Instant,
   Picture,
   Play,
   Plus,
@@ -32,7 +31,7 @@ import { Avatar } from "../components/Avatar";
 import { useAccount } from "../lib/account/AccountProvider";
 import { Dropdown } from "../components/Dropdown";
 import { SliderField } from "../components/SliderField";
-import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../lib/sources";
+import { AUTO_TAG_CHOICES, screenResolution, SORTS, TAG_LABELS } from "../lib/sources";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleSettings, subtitleCueVars } from "../components/player/SubtitleSettings";
 import { api } from "../lib/api";
 import tmdbLogo from "../assets/tmdb-short.svg";
@@ -302,7 +301,7 @@ function AccountPage() {
 
   return (
     <>
-      <Card footer="Your library, watch history, playlists, settings, shortcuts and addons sync automatically. The bridge, volume and TV mode stay on this device.">
+      <Card footer="Your library, watch history, playlists, settings, shortcuts and addons sync automatically. Volume and TV mode stay on this device.">
         <div className="settings-row">
           <RowText title="Email" caption={account.user?.email} />
           <button className="btn" onClick={() => void account.signOut()}>
@@ -678,14 +677,13 @@ function SourcesPage() {
         <PickRow title="Sort by" caption="How the Sources list in the player is ordered when it opens">
           <Dropdown
             label="Sort by"
-            value={data.sourceSort ?? "best"}
+            value={data.sourceSort in SORTS ? data.sourceSort : "best"}
             onChange={(v) => set({ sourceSort: v })}
             options={[
               { value: "best", label: "Best match" },
               { value: "quality", label: "Highest quality" },
               { value: "sizeDesc", label: "Largest file" },
               { value: "sizeAsc", label: "Smallest file" },
-              { value: "peers", label: "Most peers" },
             ]}
           />
         </PickRow>
@@ -1346,7 +1344,7 @@ function ResetRow(props: Expandable) {
   return (
     <ExpandRow icon={Reset} title="Reset all settings" caption="Put every option back to how it started" {...props}>
       <p className="settings-expand-text">
-        Your library, history, profiles, add-ons, keyboard shortcuts, API keys and bridge stay as they are.
+        Your library, history, profiles, add-ons, keyboard shortcuts, and API keys stay as they are.
       </p>
       <div className="settings-expand-actions">
         <button className="btn btn-danger" disabled={reset.isPending} onClick={() => reset.mutate()}>
@@ -1835,7 +1833,6 @@ function ServicesPage() {
     <Card>
       <ArtworkRow {...expand("artwork")} />
       <RatingsRow {...expand("ratings")} />
-      <p2pRow {...expand("p2p")} />
       <PreviewsRow {...expand("previews")} />
     </Card>
   );
@@ -1959,38 +1956,6 @@ function ArtworkRow(props: Expandable) {
         />
         <button className="btn btn-primary" disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save"}
-        </button>
-      </form>
-    </ExpandRow>
-  );
-}
-
-function p2pRow(props: Expandable) {
-  const { data } = useSettings();
-  const [address, setAddress] = useState("");
-  useEffect(() => setAddress(data?.bridge ?? ""), [data?.bridge]);
-  const save = useSaveSettings();
-  if (!data) return null;
-  const dirty = address.trim() !== data.bridge;
-
-  return (
-    <ExpandRow
-      icon={Instant}
-      title="p2p playback"
-      caption="The address of the server that turns p2ps into video you can watch"
-      value={data.bridge.replace(/^https?:\/\//, "")}
-      {...props}
-    >
-      <form
-        className="settings-expand-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save.mutate({ bridge: address.trim() });
-        }}
-      >
-        <input className="settings-input" value={address} onChange={(e) => setAddress(e.target.value)} spellCheck={false} />
-        <button className="btn btn-primary" disabled={!dirty || !address.trim() || save.isPending}>
-          Save
         </button>
       </form>
     </ExpandRow>

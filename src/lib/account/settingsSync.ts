@@ -4,8 +4,8 @@
  * addons (as manifest URLs; manifests are fetched again on arrival). One
  * small JSON document per profile, last write wins.
  *
- * What stays on the device: the bridge (it's usually this
- * machine), volume, TV mode and its sounds, controller alerts.
+ * What stays on the device: the metadata source, volume, TV mode and its
+ * sounds, controller alerts.
  *
  * Settings are global in the Rust store, so entering a profile first puts
  * back the copy this device last synced for it (`restore`), then `syncSettings`
@@ -19,7 +19,7 @@ import type { Settings } from "../types";
 import { AccountError, type AccountBackend } from "./backend";
 
 /** Settings keys that describe this machine, not the person. */
-const DEVICE_ONLY = new Set<string>(["bridge", "metadataSource"]);
+const DEVICE_ONLY = new Set<string>(["metadataSource"]);
 
 interface Doc {
   settings: Partial<Settings>;

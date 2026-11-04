@@ -1007,7 +1007,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
     color: var(--text);
   }
 }
-/* Icon badges (⚡ cached): a round chip in the badge's colour. */
+/* Icon badges: a round chip in the badge's colour. */
 .options-badge[data-icon="true"] {
   display: grid;
   place-items: center;

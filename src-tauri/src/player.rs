@@ -1,6 +1,6 @@
 //! Embedded mpv playback engine.
 //!
-//! WebView2's `<video>` can't decode much of what p2ps carry: HEVC in MKV,
+//! WebView2's `<video>` can't decode much of what add-ons link to: HEVC in MKV,
 //! AC3/E-AC3/DTS/TrueHD audio (files play silently), PGS/ASS subtitles. mpv
 //! plays all of it, so when it's available it becomes the player and the
 //! React UI simply draws on top:
@@ -672,8 +672,8 @@ const ALLOWED_PROPERTIES: &[&str] = &[
     "sub-delay",
 ];
 
-/// Media and subtitles only ever come from the network (addons, or the local
-/// bridge); never local files or mpv's special protocols.
+/// Media and subtitles only ever come from the network (addons, or a server
+/// on this machine); never local files or mpv's special protocols.
 fn is_web_url(url: &str) -> bool {
     let lower = url.trim_start().to_ascii_lowercase();
     lower.starts_with("https://") || lower.starts_with("http://")
@@ -716,7 +716,7 @@ pub async fn mpv_load(
     if !is_web_url(&url) && !downloaded {
         return Err("only http(s) streams and downloads can be played".into());
     }
-    // A service link that's not ready yet, or a status clip in place of the video.
+    // A link that's not ready yet, or a placeholder clip in place of the video.
     let url = if downloaded { url } else { crate::streamcheck::prepare(&url).await? };
     state.mpv.touch();
     state.mpv.ensure(&app, &window).await?;
@@ -1398,7 +1398,7 @@ mod tests {
         assert!(check_command(&[json!("sub-add"), json!("C:/secret.txt")]).is_err());
         assert!(check_command(&[]).is_err());
         assert!(check_property("screenshot-directory").is_err());
-        assert!(!is_web_url("file:///C:/x.mkv") && is_web_url("HTTP://127.0.0.1:11470/a/0"));
+        assert!(!is_web_url("file:///C:/x.mkv") && is_web_url("HTTP://127.0.0.1:8080/a.mkv"));
     }
 }
 

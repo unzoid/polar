@@ -24,7 +24,7 @@ const ROWS: SettingEntry[] = [
   { title: "Show Up Next", page: "playback", keywords: "next episode card credits end post-play" },
   { title: "Skip intros", page: "playback", keywords: "opening credits auto skip intro" },
   { title: "Skip recaps", page: "playback", keywords: "previously on auto skip recap" },
-  { title: "Use the file's own chapters for intros", page: "playback", keywords: "intro recap credits skip p2p chapters introdb" },
+  { title: "Use the file's own chapters for intros", page: "playback", keywords: "intro recap credits skip chapters introdb" },
   { title: "Resume where you left off", page: "playback", keywords: "continue position start beginning" },
   { title: "Back up when resuming", page: "playback", keywords: "rewind resume seconds" },
   { title: "Count as watched at", page: "playback", keywords: "watched threshold percent played finished mark" },
@@ -141,7 +141,6 @@ const ROWS: SettingEntry[] = [
   // Services
   { title: "Artwork and episode info", page: "services", keywords: "tmdb api key metadata posters" },
   { title: "Critic and audience scores", page: "services", keywords: "rotten tomatoes metacritic letterboxd trakt mdblist omdb ratings reviews" },
-  { title: "p2p playback", page: "services", keywords: "bridge source" },
   { title: "Timeline previews", page: "services", keywords: "seekr thumbnails scrubbing" },
 
   // Advanced

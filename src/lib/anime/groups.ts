@@ -18,7 +18,7 @@ const groupKey = (g: string) => g.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 
 /**
  * How much to add to a source's score for its group. A source's own score
- * stays within a few hundred (resolution, instant start, sources), so 1000
+ * stays within a few hundred (resolution, codec, size), so 1000
  * per place puts the first group above the second and both above everything
  * else, while each group's own sources keep their usual order.
  */

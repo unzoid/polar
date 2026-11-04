@@ -1,9 +1,8 @@
-//! A look at a stream before mpv gets it. service links (addon/Comet via
-//! site and the like) redirect to a CDN link the service creates on demand,
-//! and that link can answer 400 for a moment until it's ready; mpv gives up
-//! on the first error ("loading failed"). And when the service can't serve
-//! the file at all, addons redirect to a short "failed" / "downloading" clip
-//! instead of an error. So: follow the redirect, retry a not-ready link a
+//! A look at a stream before mpv gets it. Some add-ons redirect to a CDN link
+//! created on demand, and that link can answer 400 for a moment until it's
+//! ready; mpv gives up on the first error ("loading failed"). And when the
+//! file can't be served at all, some add-ons redirect to a short "failed" /
+//! "downloading" clip instead of an error. So: follow the redirect, retry a not-ready link a
 //! few times, spot those clips, and hand mpv the warmed final link.
 
 use std::time::Duration;
@@ -18,7 +17,7 @@ const PLACEHOLDER_MAX_BYTES: u64 = 10 * 1024 * 1024;
 /// The URL mpv should open, or why this source won't play.
 pub async fn prepare(url: &str) -> Result<String, String> {
     let Ok(parsed) = reqwest::Url::parse(url) else { return Ok(url.to_owned()) };
-    // The local bridge (p2ps) answers for itself.
+    // A server on this machine answers for itself.
     if parsed.host_str().is_some_and(|h| h == "127.0.0.1" || h == "localhost") {
         return Ok(url.to_owned());
     }
@@ -44,7 +43,10 @@ pub async fn prepare(url: &str) -> Result<String, String> {
         let status = res.status();
         if status.is_success() {
             if is_placeholder(&res) {
-                return Err("This source isn't ready on your service service (it sent a status clip instead of the video). Choose another source.".into());
+                return Err(
+                    "This source isn't ready (it sent a placeholder clip instead of the video). Choose another source."
+                        .into(),
+                );
             }
             return Ok(res.url().to_string());
         }
@@ -75,15 +77,4 @@ fn total_size(res: &reqwest::Response) -> Option<u64> {
         return range.rsplit('/').next()?.trim().parse().ok();
     }
     res.content_length()
-}
-
-#[cfg(test)]
-mod tests {
-    /// addon's own "failed" clip. Network: `cargo test -p polar streamcheck -- --ignored`.
-    #[tokio::test]
-    #[ignore]
-    async fn spots_status_clip() {
-        let r = super::prepare("https://addon.strem.fun/videos/failed_unexpected_v3.mp4").await;
-        assert!(r.is_err(), "{r:?}");
-    }
 }
