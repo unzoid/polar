@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { keys } from "../../lib/queries";
 import { resetPrefs } from "../../lib/prefs";
 import { Button } from "../../components/ui/Button";
+import { errorMessage } from "../../lib/errors";
 import { Card, ExpandRow, useExpanded, type Expandable } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
@@ -49,7 +50,7 @@ function ResetRow(props: Expandable) {
           <Reset size={15} /> Reset Settings
         </Button>
       </div>
-      {reset.isError && <p className="settings-error">{String(reset.error)}</p>}
+      {reset.isError && <p className="settings-error">{errorMessage(reset.error)}</p>}
     </ExpandRow>
   );
 }

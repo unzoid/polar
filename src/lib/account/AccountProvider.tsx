@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
 import { listOf, storedJson } from "../parse";
+import { warnFailed } from "../errors";
 import { readProfile } from "./backend";
 import { backend, type AccountUser, type Profile, type ProfileInput } from "./index";
 import { forgetPlaylists, importLocalPlaylists } from "../playlists";
@@ -92,10 +93,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     // goes up in the background with the next profile's sync rounds.
     await Promise.race([sync.flush(), new Promise((r) => setTimeout(r, 3000))]);
     await api.activateSpace(p.id);
-    await keepDeviceSettings(p.id).catch(() => {});
+    await keepDeviceSettings(p.id).catch(warnFailed("Keeping this device's settings"));
     // This profile's settings as this device last synced them; reinstalling
     // addons can take a moment, so don't hold the app for it.
-    await Promise.race([restoreSettings(p.id).catch(() => {}), new Promise((r) => setTimeout(r, 1500))]);
+    await Promise.race([restoreSettings(p.id).catch(warnFailed("Restoring the profile's settings")), new Promise((r) => setTimeout(r, 1500))]);
     localStorage.setItem(LAST_PROFILE_KEY, p.id);
     setProfile(p);
     refreshLocalViews();
@@ -166,7 +167,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setProfile(null);
       void api
         .activateSpace(null)
-        .then(() => restoreDeviceSettings().catch(() => {}))
+        .then(() => restoreDeviceSettings().catch(warnFailed("Restoring this device's settings")))
         .then(refreshLocalViews);
       setStatus("signed-out");
     });
@@ -198,7 +199,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       clearRecentSearches();
       await api.forgetSpace(null);
       await api.activateSpace(null);
-      await restoreDeviceSettings().catch(() => {});
+      await restoreDeviceSettings().catch(warnFailed("Restoring this device's settings"));
       refreshLocalViews();
     };
 
@@ -288,7 +289,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setSignOutBlocked(null);
         sync.stop();
         sync.setProfiles([]);
-        await b.auth.signOut().catch(() => {});
+        await b.auth.signOut().catch(warnFailed("Signing out on the server"));
         await forgetLocal();
         setUser(null);
         setProfile(null);

@@ -5,6 +5,7 @@ import { autoPickOrder } from "../../lib/sources";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
 import { sameFile, type StreamHint } from "../../lib/party/party";
 import { describeStream } from "../../lib/startLog";
+import { errorMessage } from "../../lib/errors";
 import type { LogStep } from "./useStartLog";
 
 export type SourceState =
@@ -81,7 +82,7 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
           .map((s) => ({ stream: s.stream, label: s.label, addon: s.addon })),
       );
     } else if (streams.isError) {
-      log(`Couldn't ask the add-ons: ${String(streams.error)}`, "fail", "sources");
+      log(`Couldn't ask the add-ons: ${errorMessage(streams.error)}`, "fail", "sources");
       setCandidates([]);
     }
   }, [candidates, picked, prefer, saved, streams.data, streams.isError, streams.error, settings, metaId, log]);
@@ -117,7 +118,7 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
         } else if (p.kind === "unsupported") fail(p.reason);
         else fail("This source opens outside the player.");
       })
-      .catch((e) => !cancelled && fail(String(e)));
+      .catch((e) => !cancelled && fail(errorMessage(e)));
     return () => {
       cancelled = true;
     };

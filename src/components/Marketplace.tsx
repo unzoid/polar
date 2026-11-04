@@ -8,6 +8,7 @@ import { Captions, Check, Info, Play, type Icon } from "./icons";
 import { Button } from "./ui/Button";
 import { SearchField } from "./ui/SearchField";
 import { Card } from "./settings/rows";
+import { errorMessage } from "../lib/errors";
 
 const CATEGORY_ICON: Record<MarketCategory, Icon> = {
   Subtitles: Captions,
@@ -108,7 +109,7 @@ export function MarketplacePage() {
         </p>
       )}
 
-      {install.isError && <p className="settings-error">{String(install.error)}</p>}
+      {install.isError && <p className="settings-error">{errorMessage(install.error)}</p>}
 
       <p className="settings-footer">
         Polarity doesn't provide or endorse third-party add-ons. Add-ons you install from a link are your own choice,

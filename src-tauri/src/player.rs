@@ -36,6 +36,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 
 use ipc::Stream as IpcStream;
 
+use crate::commands::CmdError;
 use crate::AppState;
 
 const OBSERVED: &[&str] = &[
@@ -715,16 +716,16 @@ pub async fn mpv_load(
     url: String,
     start: Option<f64>,
     probe_id: Option<u32>,
-) -> Result<(), String> {
+) -> Result<(), CmdError> {
     // Web streams, or a finished download - never any other path on disk.
     let downloaded = app.state::<Arc<crate::downloads::Downloads>>().owns(&url);
     if !is_web_url(&url) && !downloaded {
-        return Err("only http(s) streams and downloads can be played".into());
+        return Err(CmdError::Unsupported("only http(s) streams and downloads can be played".into()));
     }
     // A link that's not ready yet, or a placeholder clip in place of the video.
     let url = if downloaded { url } else { crate::streamcheck::prepare(&app, &url, probe_id).await? };
     state.mpv.touch();
-    state.mpv.ensure(&app, &window).await?;
+    state.mpv.ensure(&app, &window).await.map_err(CmdError::Player)?;
     let mut options = String::new();
     if let Some(s) = start.filter(|s| *s > 1.0) {
         options = format!("start={s:.2}");
@@ -732,8 +733,8 @@ pub async fn mpv_load(
     // A new file is measured afresh (autocrop): drop the last one's crop.
     state.mpv.loads.fetch_add(1, Ordering::SeqCst);
     state.mpv.request(json!(["set_property", "video-zoom", 0])).await.ok();
-    state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await?;
-    state.mpv.request(json!(["set_property", "pause", false])).await?;
+    state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await.map_err(CmdError::Player)?;
+    state.mpv.request(json!(["set_property", "pause", false])).await.map_err(CmdError::Player)?;
     state.mpv.set_visible(true).await;
     Ok(())
 }

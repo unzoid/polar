@@ -11,7 +11,7 @@ use polar_library::Changes;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
-use super::{CacheInfo, Playable, SearchResults, SettingsView, StreamsResult, SubtitleOption};
+use super::{CacheInfo, CmdError, Playable, SearchResults, SettingsView, StreamsResult, SubtitleOption};
 use crate::downloads::{Download, DownloadState};
 use crate::store::{InstalledAddon, Settings, SubtitleStyle};
 use crate::sync::LocalChanges;
@@ -100,6 +100,7 @@ fn field_names_match_contract() {
     add("Span", keys(&crate::introdb::Span { start: 0.0, end: 1.0 }));
     add("Segments", keys(&crate::introdb::Segments::default()));
     add("Ratings", keys(&crate::ratings::Ratings::default()));
+    add("CmdError", keys(&CmdError::Other("x".into())));
 
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../contract/app.json");
     let actual = Value::Object(types);

@@ -6,6 +6,7 @@ import { TextField } from "../../components/ui/TextField";
 import { BusyRing } from "../../components/BusyLabel";
 import { AVATAR_GROUPS, AVATARS, nextAvatar, type AvatarId, type Profile } from "../../lib/account";
 import { useAccount } from "../../lib/account/AccountProvider";
+import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
 
 const MAX_PROFILES = 5;
@@ -155,7 +156,7 @@ export function ProfileEditor({
       await fn();
       done();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

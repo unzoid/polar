@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { StartStage, StepTone } from "../../lib/startLog";
 import { listenProbe, nextProbeId, probeStep } from "./useStartLog";
+import { errorCode, errorMessage, warnFailed } from "../../lib/errors";
 
 /** The slice of HTMLVideoElement the player, scrubber and track UI rely on. */
 export interface MediaLike extends EventTarget {
@@ -153,9 +154,9 @@ export class MpvMedia extends EventTarget implements MediaLike {
       this.stamp = performance.now();
       this.emit("play");
     }).catch((e) => {
-      // The link check's verdicts all start "The source…" / "This source…"; anything else is mpv not starting.
-      const message = String(e);
-      this.step(message, "fail", /^(The|This) source/.test(message) ? "server" : "player");
+      // The link check's verdict, or mpv not starting.
+      const message = errorMessage(e);
+      this.step(message, "fail", errorCode(e) === "source" ? "server" : "player");
       this.fail(message);
     });
   }
@@ -164,7 +165,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
     return invoke("mpv_command", { args });
   }
   set(name: string, value: unknown) {
-    return invoke("mpv_set", { name, value }).catch(() => {});
+    return invoke("mpv_set", { name, value }).catch(warnFailed(`mpv_set ${name}`));
   }
 
   // --- HTMLVideoElement surface -------------------------------------------

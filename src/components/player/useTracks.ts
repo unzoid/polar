@@ -5,6 +5,7 @@ import type { ContentType, SubtitleOption } from "../../lib/types";
 import { ISO3, langMatches, languageName } from "../../lib/languages";
 import { isMpv, type MediaLike, type MpvTrack } from "./mpvMedia";
 import { keys } from "../../lib/queryKeys";
+import { warnFailed } from "../../lib/errors";
 
 export interface TrackOption {
   id: string;
@@ -188,7 +189,7 @@ export function useTracks(
           if (!sub) return;
           const loaded = mpv.tracks.find((t) => t.type === "sub" && t["external-filename"] === sub.url);
           if (loaded) void mpv.set("sid", loaded.id);
-          else await mpv.command("sub-add", sub.url, "select", languageName(sub.lang) ?? sub.lang, ISO3[sub.lang] ?? sub.lang).catch(() => {});
+          else await mpv.command("sub-add", sub.url, "select", languageName(sub.lang) ?? sub.lang, ISO3[sub.lang] ?? sub.lang).catch(warnFailed("Adding the subtitle"));
         }
         if (remember) {
           const lang =

@@ -7,6 +7,7 @@ import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/sources"
 import type { ContentType, RankedStream } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
 import { Button } from "./ui/Button";
+import { errorMessage } from "../lib/errors";
 import { Skeleton } from "./ui/Skeleton";
 
 /**
@@ -44,7 +45,7 @@ export function StreamList({
       </div>
     );
   }
-  if (isError) return <p className="t-body muted">Couldn't load sources: {String(error)}</p>;
+  if (isError) return <p className="t-body muted">Couldn't load sources: {errorMessage(error)}</p>;
   if (!data) return null;
 
   const hidden = data.hidden ?? 0;

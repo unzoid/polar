@@ -67,6 +67,7 @@ import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStar
 import { WatchParty } from "../components/icons";
 import { stillFor } from "../lib/anime/stills";
 import { Button, IconButton } from "../components/ui/Button";
+import { errorMessage } from "../lib/errors";
 
 const win = getCurrentWindow();
 const SAVE_EVERY = 5000;
@@ -377,8 +378,8 @@ export function Player({
           (final) => !cancelled && play(final),
           (e) => {
             if (cancelled) return;
-            linkError.current = String(e);
-            logStep(String(e), "fail", "server");
+            linkError.current = errorMessage(e);
+            logStep(errorMessage(e), "fail", "server");
             v.dispatchEvent(new Event("error"));
           },
         )

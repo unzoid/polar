@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { isRecord, str, storedJson } from "./parse";
+import { errorMessage } from "./errors";
 import { getPrefs } from "./prefs";
 
 /**
@@ -106,7 +107,7 @@ export async function installUpdate() {
 }
 
 function describe(e: unknown) {
-  const s = String(e);
+  const s = errorMessage(e);
   if (/network|dns|connect|timed out|offline/i.test(s)) return "Couldn't reach the update server. Check your connection.";
   return s;
 }
