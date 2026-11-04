@@ -88,8 +88,9 @@ export const api = {
   forgetSpace: (space: string | null) => invoke<void>("space_forget", { space }),
   syncChanges: (space: string) => invoke<LocalChanges>("sync_changes", { space }),
   syncMarkPushed: (space: string, cursor: number) => invoke<void>("sync_mark_pushed", { space, cursor }),
-  syncApply: (space: string, library: SyncLibraryItem[], progress: Progress[], pulledAt: string | null) =>
-    invoke<boolean>("sync_apply", { space, library, progress, pulledAt }),
+  /** `links: null` leaves the links alone (the server has none to give). */
+  syncApply: (space: string, remote: { library: SyncLibraryItem[]; progress: Progress[]; links: AnimeLink[] | null }, pulledAt: string | null) =>
+    invoke<boolean>("sync_apply", { space, ...remote, pulledAt }),
 
   settings: () => invoke<Settings>("settings_get"),
   saveSettings: (settings: Settings) => invoke<Settings>("settings_set", { settings }).then(changed),

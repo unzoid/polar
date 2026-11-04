@@ -173,7 +173,7 @@ export interface SyncLibraryItem {
 export interface LocalChanges {
   library: SyncLibraryItem[];
   progress: Progress[];
-  /** Anime links changed since the last push. Not sent to the server yet (docs/anime-identity.md step 5). */
+  /** Anime links changed since the last push (docs/anime-identity.md). */
   links: AnimeLink[];
   cursor: number;
   pulledAt: string | null;

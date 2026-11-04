@@ -103,7 +103,7 @@ handful of integers.
   still use the title/year guess: search asks no ani.zip per card, since ani.zip's unchecked link
   can name the wrong show (HNAW → Paleblade) and would cost a request per card. Results that are one
   show under two ids (`kitsu:N` from an addon and its `tt…`) show once.
-- **Sync**: links are one more synced kind (compact encoding in `docs/supabase-storage.md`):
+- **Sync**: links are one more synced kind (table `anime_links`, step 5):
   `(profile, anilist id) → canonical id, mal, kitsu, updated_at`. Roughly 20-30 bytes per anime the
   user has touched.
 
@@ -116,7 +116,12 @@ handful of integers.
 3. Anime pages and TV: call `linkAnime` with the chosen id; replace `altIds`/`aniskip`/`filler`
    maps with lookups through the link (persisted), so playback from anywhere has them.
 4. Search: merge AniList and Cinemeta/TMDB results by canonical id.
-5. Sync: push/pull links; apply re-keying on pull. Supabase table in the storage redesign (T-010).
+5. Sync: push/pull links; apply re-keying on pull. Done: table `anime_links`
+   (`supabase/migrations/20261104000000_anime_links.sql`, owner's answer I-005: same row-level
+   security and last-write-wins trigger as the library), pushed and pulled with library and
+   progress under one cursor (`src/lib/account/sync.ts`, `supabase.ts`). A server without the
+   table still syncs the rest; the profile's links are then sent in full once it has it. The
+   storage redesign (T-010) keeps this table as it is: it is already one small row per anime.
 6. Episode numbering: store progress for `tt` shows under IMDb (Cinemeta) numbering always; when
    the metadata source is TMDB, map TMDB `S:E` to IMDb `S:E` by air date before saving (the same
    matching the anime pages use). Stream addons expect IMDb numbering too.

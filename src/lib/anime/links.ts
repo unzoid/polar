@@ -1,5 +1,6 @@
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { sync } from "../account/sync";
 import { api, isTauri } from "../api";
 import { aliasTable, type AnimeLink } from "../identity";
 
@@ -11,13 +12,15 @@ import { aliasTable, type AnimeLink } from "../identity";
  * already has costs nothing (it answers "unchanged" without saving).
  */
 
-/** Record a link; when it moved anything, what shows library and progress reloads. */
+/** Record a link; when it changed anything, what shows library and progress reloads and sync sends it. */
 export async function linkAnime(qc: QueryClient, link: Omit<AnimeLink, "updatedAt">) {
   if (!isTauri) return;
   const changed = await api.linkAnime(link).catch(() => false);
   // A stored link can change without moving anything; it's a local read, so just ask again.
   void qc.invalidateQueries({ queryKey: ["animeLinks"] });
-  if (changed) for (const k of ["library", "progress", "continue", "history"]) void qc.invalidateQueries({ queryKey: [k] });
+  if (!changed) return;
+  for (const k of ["library", "progress", "continue", "history"]) void qc.invalidateQueries({ queryKey: [k] });
+  sync.schedule();
 }
 
 /** The stored links. */
