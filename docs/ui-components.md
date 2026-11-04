@@ -544,7 +544,14 @@ code draws, not what's on screen.
    TV's settings screen on TV, which now opens on the asked category when it has one (Sources). The settings
    route on desktop (only reached by switching from TV on that screen) opens the overlay and steps off the
    route (`SettingsRoute` in `App.tsx`).
-   Not yet: the other ~60 rows drawn from the schema; `ActionRow`/`FormRow`.
+   `ActionRow` (title, caption, one button: `label`, `glyph`, `variant`, `pending`/`pendingLabel`) and `FormRow`
+   (one `TextField` and its submit button; enabled when the value tidied by `tidy`, default trim, differs from
+   `saved`, or is non-empty with no `saved`; `pending`/`pendingLabel`, `error` under the row, `look="expand"`
+   inside an `ExpandRow`) in `rows.tsx`: Sign In, Sign Out, Open TV Mode, the controller Reset and the anime
+   cache Clear; the add-on install, preferred release groups, hidden words and TMDB key forms. Each page's own
+   dirty check and busy text went into them; same elements and classes as before.
+   Not yet: the other ~60 rows drawn from the schema; the update row (four states), the two-key ratings form,
+   the Seekr key form (save and check) and the delete-account confirm stay hand-written.
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
    record of what was merged.

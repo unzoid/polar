@@ -3,8 +3,7 @@ import { ShortcutSettings } from "../../components/ShortcutSettings";
 import { setPrefs, usePrefs } from "../../lib/prefs";
 import { playSound, SOUND_PACKS } from "../../tv/sounds";
 import { setTvMode } from "../../tv/tvMode";
-import { Button } from "../../components/ui/Button";
-import { Card, PickRow, RowText, ToggleRow } from "../../components/settings/rows";
+import { ActionRow, Card, PickRow, ToggleRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 export function ControlsPage() {
@@ -13,12 +12,12 @@ export function ControlsPage() {
   return (
     <>
       <Card title="TV Mode">
-        <div className="settings-row">
-          <RowText title="TV mode" caption="A fullscreen interface for the couch, made for a remote or controller." />
-          <Button onClick={() => setTvMode(true)}>
-            Open TV Mode
-          </Button>
-        </div>
+        <ActionRow
+          title="TV mode"
+          caption="A fullscreen interface for the couch, made for a remote or controller."
+          label="Open TV Mode"
+          onClick={() => setTvMode(true)}
+        />
         <ToggleRow
           title="TV mode button in the top bar"
           caption="Off hides it; TV mode stays one click away here"

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
 import { useAccount } from "../../lib/account/AccountProvider";
 import { Button } from "../../components/ui/Button";
-import { Card, ExpandRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
+import { ActionRow, Card, ExpandRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
 
 export function AccountPage() {
   const account = useAccount();
@@ -14,12 +14,13 @@ export function AccountPage() {
   if (account.status === "guest") {
     return (
       <Card footer="Your library and watch history move into your first profile.">
-        <div className="settings-row">
-          <RowText title="Not signed in" caption="Sign in to keep profiles, your library, history and settings on every device." />
-          <Button variant="primary" onClick={account.showSignIn}>
-            Sign In
-          </Button>
-        </div>
+        <ActionRow
+          title="Not signed in"
+          caption="Sign in to keep profiles, your library, history and settings on every device."
+          label="Sign In"
+          variant="primary"
+          onClick={account.showSignIn}
+        />
       </Card>
     );
   }
@@ -27,12 +28,7 @@ export function AccountPage() {
   return (
     <>
       <Card footer="Your library, watch history, playlists, settings, shortcuts and addons sync automatically. Volume and TV mode stay on this device.">
-        <div className="settings-row">
-          <RowText title="Email" caption={account.user?.email} />
-          <Button onClick={() => void account.signOut()}>
-            Sign Out
-          </Button>
-        </div>
+        <ActionRow title="Email" caption={account.user?.email} label="Sign Out" onClick={() => void account.signOut()} />
       </Card>
 
       <Card title="Profiles">

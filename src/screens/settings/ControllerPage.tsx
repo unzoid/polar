@@ -16,8 +16,7 @@ import {
   type PadButton,
 } from "../../tv/padBindings";
 import { PadGlyph } from "../../tv/TvChrome";
-import { Button } from "../../components/ui/Button";
-import { Card, PickRow, RowText, ToggleRow } from "../../components/settings/rows";
+import { ActionRow, Card, PickRow, RowText, ToggleRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 /** Where each button sits, the same on every maker's controller (the glyph says what it's called). */
@@ -77,13 +76,14 @@ function PadBindingsCard({ layout, title, footer }: { layout: Layout; title: str
       {PAD_BUTTONS.map((b) => (
         <PadBindingRow key={b} layout={layout} button={b} lit={lit === b} />
       ))}
-      <div className="settings-row">
-        <RowText title="Standard layout" caption="Put every button back as it came" />
-        <Button disabled={!padBindingsCustomized(bindings, layout)} onClick={() => resetPadBindings(layout)}>
-          <Reset size={15} />
-          Reset
-        </Button>
-      </div>
+      <ActionRow
+        title="Standard layout"
+        caption="Put every button back as it came"
+        label="Reset"
+        glyph={<Reset size={15} />}
+        disabled={!padBindingsCustomized(bindings, layout)}
+        onClick={() => resetPadBindings(layout)}
+      />
     </Card>
   );
 }

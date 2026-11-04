@@ -1,12 +1,10 @@
 import { ToggleChip } from "../../components/ui/Chip";
-import { TextField } from "../../components/ui/TextField";
 import { useEffect, useState } from "react";
 import { Dropdown } from "../../components/Dropdown";
 import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../../lib/anime/shelves";
 import { preferredGroups } from "../../lib/anime/groups";
 import { setPrefs, usePrefs } from "../../lib/prefs";
-import { Button } from "../../components/ui/Button";
-import { Card, PickRow, ToggleRow } from "../../components/settings/rows";
+import { Card, FormRow, PickRow, ToggleRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 /** The Anime section's own preferences (kept in prefs, and follow the profile). With it off, there's only the switch. */
@@ -16,7 +14,7 @@ export function AnimePage() {
   const [groups, setGroups] = useState(prefs.animePreferredGroups);
   useEffect(() => setGroups(prefs.animePreferredGroups), [prefs.animePreferredGroups]);
   // Saved tidy: one ", " between groups, so the box shows what's in effect.
-  const tidyGroups = preferredGroups(groups).join(", ");
+  const tidyGroups = (g: string) => preferredGroups(g).join(", ");
   const section = (
     <Card footer={prefs.animeEnabled ? undefined : "Your watch history and saved titles stay as they are."}>
       <SettingRow id="animeEnabled" />
@@ -95,25 +93,18 @@ export function AnimePage() {
         title="Preferred Release Groups"
         footer="Their sources go to the top of an anime's source list and are what autoplay picks first, in the order you list them. Separate with commas. Filters and other sorts still apply."
       >
-        <form
-          className="settings-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPrefs({ animePreferredGroups: tidyGroups });
-            setGroups(tidyGroups);
+        <FormRow
+          placeholder="Group A, Group B"
+          aria-label="Preferred release groups"
+          value={groups}
+          onChange={setGroups}
+          saved={prefs.animePreferredGroups}
+          tidy={tidyGroups}
+          onSubmit={(g) => {
+            setPrefs({ animePreferredGroups: g });
+            setGroups(g);
           }}
-        >
-          <TextField
-            placeholder="Group A, Group B"
-            value={groups}
-            onChange={setGroups}
-            spellCheck={false}
-            aria-label="Preferred release groups"
-          />
-          <Button variant="primary" disabled={tidyGroups === prefs.animePreferredGroups}>
-            Save
-          </Button>
-        </form>
+        />
       </Card>
     </>
   );

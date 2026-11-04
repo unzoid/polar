@@ -1,12 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ToggleChip } from "../../components/ui/Chip";
-import { TextField } from "../../components/ui/TextField";
 import { useEffect, useState } from "react";
 import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../../lib/sources";
 import { useSettings, useUpdateSettings } from "../../lib/queries";
 import type { Settings as SettingsT } from "../../lib/types";
-import { Button } from "../../components/ui/Button";
-import { Card, NumberRow } from "../../components/settings/rows";
+import { Card, FormRow, NumberRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 export function SourcesPage() {
@@ -19,7 +17,6 @@ export function SourcesPage() {
   // Filters run in Rust when sources are fetched, so cached lists are stale.
   const set = (patch: Partial<SettingsT>) =>
     update.mutate(patch, { onSuccess: () => qc.invalidateQueries({ queryKey: ["streams"] }) });
-  const wordsDirty = words.trim() !== (data.excludeKeywords ?? "").trim();
   const autoTags = data.sourceAutoTags ?? [];
   const screen = screenResolution();
   const screenLabel = screen >= 2160 ? "4K" : `${screen}p`;
@@ -59,24 +56,15 @@ export function SourcesPage() {
         title="Hide Sources Containing"
         footer="Separate words with commas, e.g. HC, 3D, KORSUB. Whole words only, upper or lower case."
       >
-        <form
-          className="settings-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            set({ excludeKeywords: words.trim() });
-          }}
-        >
-          <TextField
-            placeholder="HC, 3D, KORSUB"
-            value={words}
-            onChange={setWords}
-            spellCheck={false}
-            aria-label="Words to hide"
-          />
-          <Button variant="primary" disabled={!wordsDirty || update.isPending}>
-            Save
-          </Button>
-        </form>
+        <FormRow
+          placeholder="HC, 3D, KORSUB"
+          aria-label="Words to hide"
+          value={words}
+          onChange={setWords}
+          saved={(data.excludeKeywords ?? "").trim()}
+          pending={update.isPending}
+          onSubmit={(w) => set({ excludeKeywords: w })}
+        />
       </Card>
 
       <Card title="Source List">

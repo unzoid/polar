@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { ChevronRight, type Icon as IconT } from "../icons";
 import { SliderField } from "../SliderField";
+import { Button, type ButtonVariant } from "../ui/Button";
 import { Switch } from "../ui/Switch";
+import { TextField, type TextFieldProps } from "../ui/TextField";
 
 /**
  * The settings building blocks (docs/ui-components.md §4, U26): a titled card of rows, and the
@@ -61,6 +63,102 @@ export function PickRow({ setting, title, caption, children }: { setting?: strin
       <RowText title={title} caption={caption} />
       {children}
     </div>
+  );
+}
+
+/**
+ * A row with one button that does something now ("Sign Out", "Clear"). While `pending`
+ * the button is disabled and reads `pendingLabel` (default: `label`).
+ */
+export function ActionRow({
+  setting,
+  title,
+  caption,
+  label,
+  glyph,
+  variant,
+  onClick,
+  disabled,
+  pending,
+  pendingLabel,
+}: {
+  setting?: string;
+  title: string;
+  caption?: ReactNode;
+  label: ReactNode;
+  /** A small icon before the label, sized by the caller (15px in settings). */
+  glyph?: ReactNode;
+  variant?: ButtonVariant;
+  onClick: () => void;
+  disabled?: boolean;
+  pending?: boolean;
+  pendingLabel?: ReactNode;
+}) {
+  return (
+    <div className="settings-row" data-setting={setting}>
+      <RowText title={title} caption={caption} />
+      <Button variant={variant} disabled={disabled || pending} onClick={onClick}>
+        {glyph}
+        {pending ? (pendingLabel ?? label) : label}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * One text field and its submit button. The button is enabled when the tidied value
+ * (`tidy`, default trim) differs from `saved`, or, with no `saved`, when it isn't empty;
+ * `onSubmit` gets the tidied value. `look="expand"` lays it out inside an `ExpandRow`.
+ * Other props go to the field (`placeholder`, `aria-label`, `type`…).
+ */
+export function FormRow({
+  setting,
+  value,
+  onChange,
+  onSubmit,
+  saved,
+  tidy = (v) => v.trim(),
+  submit = "Save",
+  glyph,
+  pending,
+  pendingLabel,
+  error,
+  look = "row",
+  spellCheck = false,
+  ...field
+}: Omit<TextFieldProps, "onSubmit"> & {
+  setting?: string;
+  onSubmit: (value: string) => void;
+  saved?: string;
+  tidy?: (value: string) => string;
+  submit?: ReactNode;
+  glyph?: ReactNode;
+  pending?: boolean;
+  pendingLabel?: ReactNode;
+  /** Shown under the row. */
+  error?: ReactNode;
+  look?: "row" | "expand";
+}) {
+  const next = tidy(value);
+  const ready = saved === undefined ? next !== "" : next !== saved;
+  return (
+    <>
+      <form
+        className={look === "row" ? "settings-row" : "settings-expand-form"}
+        data-setting={setting}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (ready && !pending) onSubmit(next);
+        }}
+      >
+        <TextField value={value} onChange={onChange} spellCheck={spellCheck} {...field} />
+        <Button variant="primary" disabled={!ready || pending}>
+          {glyph}
+          {pending ? (pendingLabel ?? submit) : submit}
+        </Button>
+      </form>
+      {error && <p className="settings-error settings-card-pad">{error}</p>}
+    </>
   );
 }
 

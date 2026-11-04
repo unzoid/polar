@@ -1,11 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { TextField } from "../../components/ui/TextField";
 import { Settings as Cog, Plus, Puzzle, Trash } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { keys, useAddons } from "../../lib/queries";
 import { Button } from "../../components/ui/Button";
-import { Card, ExpandRow, useExpanded } from "../../components/settings/rows";
+import { Card, ExpandRow, FormRow, useExpanded } from "../../components/settings/rows";
 
 const hintsTried = new Set<string>();
 
@@ -67,24 +66,17 @@ export function AddonsPage() {
         title="Install from URL"
         footer="Looking for something to add? Browse the Marketplace."
       >
-        <form
-          className="settings-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (url.trim()) install.mutate(url.trim());
-          }}
-        >
-          <TextField
-            placeholder="https://…/manifest.json"
-            value={url}
-            onChange={setUrl}
-            spellCheck={false}
-          />
-          <Button variant="primary" disabled={install.isPending || !url.trim()}>
-            <Plus size={16} /> {install.isPending ? "Installing…" : "Install"}
-          </Button>
-        </form>
-        {install.isError && <p className="settings-error settings-card-pad">{String(install.error)}</p>}
+        <FormRow
+          placeholder="https://…/manifest.json"
+          value={url}
+          onChange={setUrl}
+          onSubmit={(u) => install.mutate(u)}
+          submit="Install"
+          glyph={<Plus size={16} />}
+          pending={install.isPending}
+          pendingLabel="Installing…"
+          error={install.isError && String(install.error)}
+        />
       </Card>
     </>
   );
