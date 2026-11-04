@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { PosterCard, PosterSkeleton } from "../components/PosterCard";
+import { useState } from "react";
+import { PosterCard } from "../components/PosterCard";
+import { PosterGrid } from "../components/title/PosterGrid";
 import { Segmented } from "../components/Segmented";
 import { Dropdown } from "../components/Dropdown";
 import { api } from "../lib/api";
@@ -20,7 +21,6 @@ const CATALOGS = [
 export function Discover({ type }: { type: ContentType }) {
   const [catalog, setCatalog] = useState("trending");
   const [picked, setGenre] = useState<string>();
-  const sentinel = useRef<HTMLDivElement>(null);
   // Movies and Series share this screen: a genre from one may not exist in the other.
   const genre = picked && BROWSE_GENRES[type].includes(picked) ? picked : undefined;
 
@@ -33,18 +33,6 @@ export function Discover({ type }: { type: ContentType }) {
     // collapsing to skeletons and back, which jolts the page each time.
     placeholderData: keepPreviousData,
   });
-
-  // Load the next page well before the user hits the bottom.
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([e]) => e.isIntersecting && query.hasNextPage && !query.isFetchingNextPage && query.fetchNextPage(),
-      { rootMargin: "1200px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [query]);
 
   // Dedupe across pages — upstream catalogs occasionally repeat items.
   const seen = new Set<string>();
@@ -64,15 +52,12 @@ export function Discover({ type }: { type: ContentType }) {
           <Segmented options={CATALOGS} value={catalog} onChange={setCatalog} label="Catalog" />
         </div>
       </header>
-      <div className="poster-grid discover-grid" data-stale={query.isPlaceholderData}>
+      <PosterGrid pager={query} stale={query.isPlaceholderData}>
         {items.map((item) => (
           <PosterCard key={item.id} item={item} />
         ))}
-        {(query.isLoading || query.isFetchingNextPage) &&
-          Array.from({ length: 12 }, (_, i) => <PosterSkeleton key={`s${i}`} />)}
-      </div>
+      </PosterGrid>
       {query.isError && <EmptyState>Couldn't load this catalog. Check your connection.</EmptyState>}
-      <div ref={sentinel} />
     </div>
   );
 }

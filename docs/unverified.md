@@ -91,3 +91,8 @@ How to check:
   above did not work in the episode and source-filter searches; now it should. Check, with a sources sheet
   open: Escape with the Filters popover open closes only the popover; with text in a source-filter search
   it clears the text; a second Escape closes the sheet; a third goes Back. Same for the trailer over a page.
+- Poster grids (T-019 step 4, `PosterGrid`): Movies, Series and Anime → Browse used to ask for the next
+  page only once the end of the grid was on screen, though the code meant 1200 px before it (the margin was
+  measured from the window, and the page scrolls in its own box, which clips it). It now counts from that
+  box, so the next page should arrive before you reach the bottom: scroll Movies → Trending quickly and the
+  skeleton row should rarely be seen. Library grids are the same rules (built CSS compared).

@@ -1,0 +1,11 @@
+/* PosterGrid (components/title/PosterGrid.tsx). Dimmed while it still shows the previous query's cards. */
+.poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--poster-w), 1fr));
+  gap: 2rem 1.25rem;
+  padding: 0 var(--gutter) 0 var(--content-start);
+  transition: opacity 150ms var(--ease-std);
+}
+.poster-grid[data-stale="true"] {
+  opacity: 0.5;
+}

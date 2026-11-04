@@ -1,5 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AnimeCard, AnimeLandscapeCard, useAnimeHandlers, useOpenAnime } from "../components/anime/AnimeCard";
 import { Dropdown } from "../components/Dropdown";
 import { Calendar, Close, Filters, Grid, Play } from "../components/icons";
@@ -7,6 +7,7 @@ import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { CardSkeleton } from "../components/PosterCard";
 import { Row } from "../components/Row";
+import { PosterGrid } from "../components/title/PosterGrid";
 import { Sheet } from "../components/Sheet";
 import {
   ANIME_GENRES,
@@ -27,6 +28,7 @@ import {
 } from "../lib/anime/anilist";
 import { aniZipQuery } from "../lib/anime/anizip";
 import { oneFranchiseEach } from "../lib/anime/search";
+import { useNearViewport } from "../lib/viewport";
 import { countdown, FORMAT_LABEL, SEASON_LABEL, STATUS_LABEL, untilAiring, useAnimeTitle } from "../lib/anime/format";
 import { animePreview } from "../lib/anime/preview";
 import { useShelfVisible, type AnimeShelfId } from "../lib/anime/shelves";
@@ -242,16 +244,7 @@ function Shelf({
 
 /** Genre shelves below the fold only ask AniList once they're close. */
 function GenreShelf({ genre, shape, action }: { genre: string; shape: Shape; action?: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [near, setNear] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (near || !el) return;
-    // The page scrolls inside its own container, so that's the observer's root.
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setNear(true), { root: el.closest(".scroll"), rootMargin: "0px 0px 700px 0px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [near]);
+  const [ref, near] = useNearViewport<HTMLDivElement>();
   const { data } = useAnimeGenre(genre, near);
   return (
     <div ref={ref}>
@@ -403,16 +396,6 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
   }, [text]);
   const set = (patch: Partial<BrowseFilters>) => setF((f) => ({ ...f, ...patch }));
   const q = useAnimeBrowse(f);
-  const sentinel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el) return;
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && q.hasNextPage && !q.isFetchingNextPage && q.fetchNextPage(), {
-      rootMargin: "1200px",
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [q]);
 
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: thisYear + 2 - 1970 }, (_, i) => thisYear + 1 - i);
@@ -485,15 +468,13 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
           )}
         </div>
       )}
-      <div className="poster-grid">
+      <PosterGrid pager={q}>
         {items.map((a) => (
           <AnimeCard key={a.id} item={a} />
         ))}
-        {(q.isLoading || q.isFetchingNextPage) && Array.from({ length: 12 }, (_, i) => <CardSkeleton key={`s${i}`} />)}
-      </div>
+      </PosterGrid>
       {q.data && !items.length && <EmptyState>Nothing matches. Try fewer filters.</EmptyState>}
       {q.isError && <EmptyState>AniList didn't answer. Try again in a minute.</EmptyState>}
-      <div ref={sentinel} />
     </div>
   );
 }
