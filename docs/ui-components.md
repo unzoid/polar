@@ -580,6 +580,14 @@ code draws, not what's on screen.
    `player-transport pressable`) for the top bar's Back, Mute and Fullscreen, the options close and the three
    centre transport glyphs, so they get `label` as their name like every other icon button; same elements and
    classes. The labelled `player-action` buttons stay `ActionButton` in `Player.tsx` (text + glyph, one place).
+   `Still` (episode stills: TV's episodes panel, the player's episode rows) is on `useCardArt` too, instead of
+   its own failed flag reset one render late.
+   TV layouts kept as they are (§4 "TV": TV shares primitives and logic, not layout), each already on
+   the shared logic: the card menu and the side menu (own placement beside the card, spatial focus; actions
+   from `useTitleActions`, as the desktop card menu), the episodes panel row (`episodeState`, `ProgressBar`,
+   `Still`), the season column, `TvRail`'s track, the sources panel (`useTitlePlayback`) and the player's
+   Sources picker (`OptionsOverlay` with `useSourceFilters`, as the title page). Making them `EpisodeCard`,
+   `Menu` or `SeasonPicker` with a `tv` variant would put two layouts in one component.
    Kept apart on purpose: the player's top note (`.player-notice`), the party's hold pill and activity notes
    are not `Toast`s: other surface (`--surface-float`, no glass edge), other place (top centre, bottom left
    following the controls) and motion; one look for all of them is the owner's call (docs/unverified.md).
