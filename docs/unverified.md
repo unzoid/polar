@@ -108,3 +108,8 @@ How to check:
   untick a playlist (counts change), New Playlist (desktop menu: made at once as "New Playlist", "New
   Playlist 2", ...; popover: asks a name, Esc closes the form only; TV: on-screen keyboard). Changed on
   purpose: when the popover closes with the name form open, the form stays during the closing fade.
+- Anime page split (T-019 step 4, `components/anime/`, 440eff9): no change meant; same elements and classes,
+  the play model moved to `lib/anime/episodes.ts` with tests. Check on an airing show with several seasons
+  (season tabs, next-episode line, Play label resumes where you left off, filler switch, list layout "Show
+  all", episode search on a 40+ episode show), a film, and the Details section next to a show's Details tab
+  (Story, Tags, Watch Officially, Elsewhere, the facts column beside them).
