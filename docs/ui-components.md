@@ -32,6 +32,7 @@ relative to `src/`; each primitive's CSS is `styles/ui/<name>.css`, the title pa
 | `SearchField` | `value`, `onChange(string)`, `label` (required), `look` box/pill/mini/plain, `kbd`, `ref` to the input | Every search box: clear button, Escape clears first |
 | `TextField` | `value`, `onChange(string)`, `look` box/block, native input props | One-line text (keys, names). `block`: the account screens' full-width field |
 | `EmptyState` | message as children, `action` {label, onClick}, `variant="tv"`, `className` for spacing | What a screen or section shows instead of content: nothing there, or it failed |
+| `ErrorBoundary` | `where` (console label), `action` (default Reload), `variant="tv"` | Around each page, the player layer and the app root, so a render error shows an `EmptyState` with a way out instead of a blank window |
 | `Skeleton` | `shape` block/line, `as` div/span, `width`, `height`, `className` for the box | Placeholders while loading (`aria-hidden`) |
 | `Toast` | `icon`, text as children (`<strong>` + `<span>` lines), `actions`, `variant="tv"` | A floating notice (controller, update). The caller decides when and how long |
 | `MenuRoot`/`MenuTrigger`/`MenuPopup`, `MenuHeader`, `MenuItem`, `MenuCheckItem`, `MenuSeparator`, `MenuSub` | `MenuPopup`: `look` compact/roomy, positioner props; `MenuItem`: `icon`, `onClick`, `disabled` | Any popup or right-click menu (Base UI Menu, one surface) |
