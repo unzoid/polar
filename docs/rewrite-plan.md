@@ -78,7 +78,10 @@ Done in the same migration, so the server is changed once:
   a timeline only for its sender and only from someone present, at most 50 versions ahead unless from the host,
   positions/lag/text clamped, presence entries must carry their key. Ids are still self-declared (no server of
   our own): a member can claim another's id or an early `joinedAt`. **M12** Local data of a deleted profile and of
-  a signed-out account removed; guest data offered to the first profile.
+  a signed-out account removed; guest data offered to the first profile. Done: playlists, cached settings,
+  unsent-link markers, last profile and recent searches forgotten; every profile's playlists pushed and counted
+  before sign-out; guest playlists copied into the first profile like the library; the device's own settings kept
+  aside while a profile is in use and put back at sign-out.
 - **L1** Errors as `{ code, message }` from Rust and the account backend, not sniffed strings.
 - Layout: `lib/` keeps one folder per domain (`account`, `anime`, `party`, `settings`, `library`,
   `playback`, `net`), each with an `index.ts` that is its public surface; nothing in `lib` imports from
