@@ -6,7 +6,7 @@ import { ChevronDown, LayoutList, LayoutRow, Star } from "../components/icons";
 import { EpisodeShelf } from "../components/EpisodeShelf";
 import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
-import { TitleLogo } from "../components/TitleLogo";
+import { TitleHeading } from "../components/title/TitleHeading";
 import { Row } from "../components/Row";
 import { Segmented } from "../components/Segmented";
 import { SeasonPicker } from "../components/title/SeasonPicker";
@@ -33,7 +33,7 @@ import { useEpisodeFlags } from "../lib/anime/episodeFlags";
 import { linkAnime } from "../lib/anime/links";
 import { playContext } from "../lib/anime/playContext";
 import { useAnimeImdb } from "../lib/anime/search";
-import { formatTime } from "../lib/format";
+import { formatTime, joinFacts } from "../lib/format";
 import { setPrefs, usePrefs } from "../lib/prefs";
 import { useMeta, useProgress, useSettings } from "../lib/queries";
 import type { EpisodeLayout, Progress, Video } from "../lib/types";
@@ -278,7 +278,7 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
   return (
     <section className="detail-hero anime-hero">
       <div className="detail-hero-main">
-        {logo ? <TitleLogo src={logo} alt={name} className="detail-logo" loading="eager" /> : <h1 className="t-display detail-title">{name}</h1>}
+        <TitleHeading name={name} logo={logo} look="detail" />
         {nativeTitle && nativeTitle !== name && <p className="anime-native t-callout">{nativeTitle}</p>}
         <p className="detail-facts anime-meta-line t-callout tabular">
           {score && (
@@ -286,15 +286,13 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
               <Star size={13} /> {score}
             </span>
           )}
-          {[
+          {joinFacts([
             item.format && FORMAT_LABEL[item.format],
             item.season && item.seasonYear ? `${SEASON_LABEL[item.season]} ${item.seasonYear}` : item.seasonYear,
             item.format === "MOVIE" ? item.duration && `${item.duration} min` : item.episodes && `${item.episodes} episodes`,
             item.status && STATUS_LABEL[item.status],
             studio,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+          ])}
         </p>
         {next && (
           <p className="anime-next t-callout tabular" title={new Date(next.airingAt * 1000).toLocaleString()}>

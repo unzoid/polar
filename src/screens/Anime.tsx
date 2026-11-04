@@ -4,7 +4,8 @@ import { AnimeCard, AnimeLandscapeCard, useAnimeHandlers, useOpenAnime } from ".
 import { Dropdown } from "../components/Dropdown";
 import { Calendar, Close, Filters, Grid, Play } from "../components/icons";
 import { Img } from "../components/Img";
-import { TitleLogo } from "../components/TitleLogo";
+import { TitleHeading } from "../components/title/TitleHeading";
+import { joinFacts } from "../lib/format";
 import { Shelf } from "../components/title/Shelf";
 import { PosterGrid } from "../components/title/PosterGrid";
 import { Sheet } from "../components/Sheet";
@@ -185,11 +186,9 @@ function AnimeHeroContent({ card, item }: { card: Card; item: MetaPreview }) {
   const next = animeCardCountdown ? card.nextAiringEpisode : undefined;
   return (
     <div className="hero-content">
-      {item.logo ? <TitleLogo src={item.logo} alt={item.name} className="hero-logo" loading="eager" /> : <h1 className="t-display hero-title">{item.name}</h1>}
+      <TitleHeading name={item.name} logo={item.logo} look="hero" />
       <p className="hero-kind t-callout tabular">
-        {[card.format && FORMAT_LABEL[card.format], ...(card.genres ?? []).slice(0, 2), next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`]
-          .filter(Boolean)
-          .join(" · ")}
+        {joinFacts([card.format && FORMAT_LABEL[card.format], ...(card.genres ?? []).slice(0, 2), next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`])}
       </p>
       <p className="hero-description t-body">{item.description}</p>
       <div className="hero-actions">

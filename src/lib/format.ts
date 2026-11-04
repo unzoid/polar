@@ -47,3 +47,13 @@ export function formatDate(iso?: string) {
 export function seasonLabel(season: number) {
   return season === 0 ? "Specials" : `Season ${season}`;
 }
+
+/** A facts line under a title: the parts that are there, joined by " · " ("Movie · Drama · 2h 10m"). */
+export function joinFacts(parts: readonly (string | number | false | null | undefined)[]) {
+  return parts.filter(Boolean).join(" · ");
+}
+
+/** What kind of title it is: "Movie" or "Series" and its first two genres. */
+export function kindFacts(item: { type: string; genres?: string[] }): string[] {
+  return [item.type === "movie" ? "Movie" : "Series", ...(item.genres ?? []).slice(0, 2)];
+}

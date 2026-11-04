@@ -10,12 +10,12 @@ import { EpisodeShelf } from "../components/EpisodeShelf";
 import { EdgeBlur } from "../components/EdgeBlur";
 import { SeasonPicker } from "../components/title/SeasonPicker";
 import { Img } from "../components/Img";
-import { TitleLogo } from "../components/TitleLogo";
+import { TitleHeading } from "../components/title/TitleHeading";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
 import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
 import { progressMap, seasonsOf, upNext } from "../lib/episodes";
-import { episodeCode, formatRuntime, seasonLabel } from "../lib/format";
+import { episodeCode, formatRuntime, joinFacts, seasonLabel } from "../lib/format";
 import { usePlayTarget } from "../lib/playTarget";
 import { prefetchStreams, useMeta, useProgress, useSettings, useStreams } from "../lib/queries";
 import { useRouter } from "../lib/router";
@@ -137,20 +137,16 @@ function DetailHero({
     subtitle: isSeries && next?.video ? `${episodeCode(next.video.season, next.video.episode)} · ${next.video.title}` : item.name,
   };
 
-  const facts = [item.releaseInfo, formatRuntime(meta?.runtime)].filter(Boolean);
+  const facts = joinFacts([item.releaseInfo, formatRuntime(meta?.runtime)]);
 
   return (
     <section className="detail-hero">
       <div className="detail-hero-main">
-        {item.logo ? (
-          <TitleLogo src={item.logo} alt={item.name} className="detail-logo" loading="eager" />
-        ) : (
-          <h1 className="t-display detail-title">{item.name}</h1>
-        )}
+        <TitleHeading name={item.name} logo={item.logo} look="detail" />
         {item.description && <p className="detail-description t-callout">{item.description}</p>}
         <p className="detail-facts t-callout tabular">
           {item.imdbRating && <RatingRing value={item.imdbRating} imdbId={item.id} />}
-          {facts.length > 0 && <span>{facts.join(" · ")}</span>}
+          {facts && <span>{facts}</span>}
           <ScoreChips type={item.type} id={item.id} />
           <FormatBadges type={item.type} videoId={videoId} />
         </p>
