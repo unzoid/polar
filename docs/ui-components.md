@@ -8,9 +8,86 @@ every visual constant is a **token**, and the look and every feature stay as the
 Paths are relative to `src/`. `file:line` points at `b31ccbe`. Critique ids (H14, M30 …) refer to
 `docs/critique.md`.
 
-Contents: [1 Facts](#1-facts) · [2 Inventory](#2-inventory) · [3 Duplicate groups](#3-duplicate-groups) ·
+Contents: [0 The component set (as built)](#0-the-component-set-as-built) · [1 Facts](#1-facts) · [2 Inventory](#2-inventory) · [3 Duplicate groups](#3-duplicate-groups) ·
 [4 Target component set](#4-target-component-set) · [5 Tokens](#5-tokens) · [6 Bugs found on the way](#6-bugs-found-on-the-way) ·
 [7 Conventions](#7-conventions) · [8 Order of work](#8-order-of-work)
+
+---
+
+## 0. The component set (as built)
+
+What T-019 built, for whoever writes the next screen: use these before writing markup (§7). Paths are
+relative to `src/`; each primitive's CSS is `styles/ui/<name>.css`, the title parts' `styles/title/` or
+`styles/cards.css`. §3 stays the record of what was merged into what; §8 says how and what changed.
+
+**Primitives (`components/ui/`)**
+
+| Component | Props | Use it for |
+|---|---|---|
+| `Button` | `variant` primary/glass/plain/danger, `busy`, `className` for layout, native button props | Any text button. One `primary` per screen. `busy` swaps the label for a spinner after a short delay |
+| `IconButton` | `label` (required, the accessible name), `variant` plain/glass, or `player`/`transport` over the video | A button holding one glyph |
+| `buttonClass(variant, icon, extra)` | | The button look on an element that isn't ours (a Base UI trigger) |
+| `Chip`, `ToggleChip`, `Badge` | `Chip`: `variant` filter/tag/choice/link/badge, `pressed`; `ToggleChip`: `on`, `label`, `onToggle`; `Badge`: `variant` rank/tag | Filters and genre links (`Chip`), on/off filters with a check (`ToggleChip`), static labels (`Badge`) |
+| `Switch` | `checked`, `onChange(boolean)`, native input props | An on/off setting; name it with the `<label>` around it |
+| `SearchField` | `value`, `onChange(string)`, `label` (required), `look` box/pill/mini/plain, `kbd`, `ref` to the input | Every search box: clear button, Escape clears first |
+| `TextField` | `value`, `onChange(string)`, native input props | One-line text (keys, names) |
+| `EmptyState` | message as children, `action` {label, onClick}, `variant="tv"`, `className` for spacing | What a screen or section shows instead of content: nothing there, or it failed |
+| `Skeleton` | `shape` block/line, `as` div/span, `width`, `height`, `className` for the box | Placeholders while loading (`aria-hidden`) |
+| `Toast` | `icon`, text as children (`<strong>` + `<span>` lines), `actions`, `variant="tv"` | A floating notice (controller, update). The caller decides when and how long |
+| `MenuRoot`/`MenuTrigger`/`MenuPopup`, `MenuHeader`, `MenuItem`, `MenuCheckItem`, `MenuSeparator`, `MenuSub` | `MenuPopup`: `look` compact/roomy, positioner props; `MenuItem`: `icon`, `onClick`, `disabled` | Any popup or right-click menu (Base UI Menu, one surface) |
+| `PopoverRoot`/`PopoverTrigger`/`PopoverPopup` | `className` for the surface, positioner props | A panel that opens from a button (playlists, source filters) |
+
+**Layers and behaviour (`lib/`)**
+
+| Hook | Use it for |
+|---|---|
+| `useDismiss(active, onDismiss)` (`lib/dismiss.ts`) | Anything Escape (or TV's Back) should close. One stack: the newest layer closes first; what has focus (a field, an open Base UI popup) handles Escape before it. `dismissTop()` closes the top one from code; `onDismissed` listens |
+| `useLayer(root, open, onClose, { modal })` (`lib/layer.ts`) | A modal layer you draw yourself: `useDismiss` plus focus in on open, Tab kept inside, focus back to the opener on close. Give the root `tabIndex={-1}` and `data-layer`. Used by `Sheet`, the trailer, the player's `OptionsOverlay` |
+| `useBack(active, handler)` (`tv/shell.ts`) | The same stack, named for TV panels |
+| `useNearViewport`, `useInfiniteSentinel` (`lib/viewport.ts`) | Lazy shelves; the next page of a grid |
+| `useCardIntent(warm, delay)` (`lib/cardIntent.ts`) | Prefetch after resting on a card (hover or focus) |
+| `useTitlePlayback(onPick, beforePlay?)` (`lib/useTitlePlayback.ts`), `needsPick` (`lib/titlePlayback.ts`) | Play now or ask for a source: the one rule (H14) |
+| `useSetting(id)` (`lib/settings/useSetting.ts`) | Read and save one setting from the schema |
+
+**Title parts (`components/title/`)**
+
+| Component | Props | Use it for |
+|---|---|---|
+| `Card` | `shape` poster/landscape, `art` + `fallback`, children on the art, `actions`, `title`, `detail`, `keepCaption`, `trailing`, `hint` | Every title card on desktop. With `actions` it's a focusable `role="link"` |
+| `CardArt`, `useCardArt(src)`, `ArtTitle`, `ProgressBar`, `CardSkeleton` | | Art that falls back when missing or broken and retries a new `src` (`useCardArt` for frames drawn elsewhere: `TvCard`, `Still`); logo-or-name on landscape art; the progress stripe; a card's skeleton |
+| `Shelf` | `title`, `shape`, `action`, `items`, `skeletons`, `card(item)` | A titled row of cards with skeletons until `items` arrive |
+| `PosterGrid` | `pager`, `stale`, `skeletons`, cards as children | Infinite poster grids |
+| `TitleHeading` | `name`, `logo`, `look` hero/detail/tv-stage/tv-detail/tv-panel | The logo or the name as a heading |
+| `TitleActions` | `request`, `picker`, `label`, `resume`, `playTitle`, `onWarm`, `onTrailer`, `item`, `playlist`, `download`, children | The title page action row |
+| `LibraryButton` | `item` | The + / ✓ library toggle |
+| `useSourcePicker(onOpen?)` + `SourcePicker` | `picker` | Play-or-choose with the sources sheet, once per page |
+| `SeasonPicker` | `value`, `options` {id, label}, `onChange` | Season tabs (up to 6) or a large dropdown |
+| `EpisodeCard`, `EpisodeShelf` | see the files | Desktop episodes; state from `episodeState` (`lib/episodeState.ts`) |
+| `usePlaylistChecklist(item)` + `PlaylistChecklist` | `look` menu/popover | Add to playlists (TV draws its rows from the hook) |
+| `TitleDetails`, `DetailsSection`, `DetailsColumns`, `FactList`, `DetailsLinks` | | The Details tab and its parts |
+
+**Settings (`components/settings/`, `lib/settings/`)**
+
+| Component | Use it for |
+|---|---|
+| `SettingRow` (`id`, `caption?`, `disabled?`, `onChanged?`) | A row for one stored setting: the schema entry (`lib/settings/schema.ts`) decides switch, dropdown or slider, its wording, range and fallback. TV draws the same entries (`tv/TvSettings.tsx`) |
+| `Card`, `RowText`, `ToggleRow`, `PickRow`, `NumberRow`, `ExpandRow`, `LinkRow`, `useExpanded` (`rows.tsx`) | Hand-written rows that don't fit the schema |
+| `ActionRow`, `FormRow` (`rows.tsx`) | A row with one button; a row with one field and its submit (dirty check, `pending` text, `error`) |
+
+**Still in `components/` (shared, not moved):** `Sheet` (bottom/side sheet on `useLayer`), `Dropdown` (Base UI
+Select), `Segmented`, `SliderField`, `Spinner`, `BusyLabel`, `ConfirmDeleteButton`, `Row` (the rail `Shelf`
+draws), `StillPlaceholder`/`Still`.
+
+**TV and player.** TV keeps its own layouts and spatial focus (§4 "TV") and uses the primitives through
+`variant="tv"` (`EmptyState`, `Toast`) or the `.tv` scope, and the same hooks (`useBack`, `useCardIntent`,
+`useCardArt`, `useTitlePlayback`, `usePlaylistChecklist`, `episodeState`, the settings schema). The player keeps
+`Scrubber`, `OptionsOverlay`, `SkipButton` and the start-up screen; its glyph buttons are `IconButton`s.
+
+**Planned in §4 and not built** (each would change what's on screen, or wasn't needed): `Button` `size` and
+`variant="link"`, `CopyButton`, `ToastHost` and toast placement, `ErrorText`, `ChoiceGrid`, `Segmented` as a
+radio group with looks, a `Slider` primitive in `ui/`, one `Dialog`, one popover surface, a `Facts` component
+(the two helpers in `lib/format.ts` instead), the account screens' `.auth-*` fields and buttons on the
+primitives, and the player and party notes as `Toast`s (docs/unverified.md asks the owner).
 
 ---
 
@@ -592,7 +669,7 @@ code draws, not what's on screen.
    are not `Toast`s: other surface (`--surface-float`, no glass edge), other place (top centre, bottom left
    following the controls) and motion; one look for all of them is the owner's call (docs/unverified.md).
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
-   record of what was merged.
+   record of what was merged. *Done:* §0.
 
 **Checking the look.** This machine has no browser (NOTES), so screenshots can't be compared here. Each step
 is checked by reading the computed CSS: a rule moved to a token must resolve to the same value. Steps that
