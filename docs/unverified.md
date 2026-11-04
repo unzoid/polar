@@ -204,3 +204,11 @@ How to check, with a TMDB key set in Settings:
   accent, quiet border with a soft ring on focus; were 52 px field with a white focus ring and a 48 px square
   button), and the profile editor's name field takes the same border and focus (keeps its large type). Check
   sign in (both steps, the code step's paste, a wrong code), profile set-up, Manage Profiles, edit, delete.
+- Error boundaries (rewrite R1, critique C4): a page, the player and the whole app each show "Something went
+  wrong here." with a way out (Reload; Back in the player) instead of a blank window. No test can make a render
+  fail here (no DOM in `bun test`). To check: open Movies
+  with Genre = Horror and Catalog = Popular after searching "horror" (the old crash, now fixed by
+  `lib/queryKeys.ts`, so the page must simply work), and for the note itself temporarily add
+  `throw new Error("x")` to the top of `screens/Calendar.tsx`'s component, open Calendar: the note shows in
+  the page with the nav still working; on TV the note takes the TV look and its Reload must be reachable with
+  the controller.

@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "motion/react";
 
 import { App } from "./App";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { queryClient } from "./lib/queries";
 import { isTauri } from "./lib/api";
 import { AccountProvider } from "./lib/account/AccountProvider";
@@ -61,11 +62,13 @@ if (!isTauri) {
     <StrictMode>
       {/* reducedMotion="user": springs become instant cross-fades when the OS asks for less motion. */}
       <MotionConfig reducedMotion="user">
-        <QueryClientProvider client={queryClient}>
-          <AccountProvider>
-            <App />
-          </AccountProvider>
-        </QueryClientProvider>
+        <ErrorBoundary where="app">
+          <QueryClientProvider client={queryClient}>
+            <AccountProvider>
+              <App />
+            </AccountProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
       </MotionConfig>
     </StrictMode>,
   );
