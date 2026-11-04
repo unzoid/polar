@@ -166,6 +166,7 @@ pub fn run() {
             sync::sync_apply,
             player::mpv_available,
             player::mpv_load,
+            streamcheck::stream_probe,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,

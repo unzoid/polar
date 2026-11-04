@@ -46,6 +46,9 @@ const OBSERVED: &[&str] = &[
     "seeking",
     "eof-reached",
     "demuxer-cache-time",
+    // For the loading screen's step log.
+    "cache-buffering-state",
+    "file-format",
     "track-list",
     "chapter-list",
     "aid",
@@ -55,7 +58,7 @@ const OBSERVED: &[&str] = &[
     "speed",
 ];
 /// Properties that change every frame; the UI interpolates between updates.
-const THROTTLED: &[(&str, u64)] = &[("time-pos", 250), ("demuxer-cache-time", 1000)];
+const THROTTLED: &[(&str, u64)] = &[("time-pos", 250), ("demuxer-cache-time", 1000), ("cache-buffering-state", 250)];
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 /// How long an idle mpv is kept around after playback stops. Re-using it saves
 /// ~150 ms of startup; past this it's not worth the GPU/RAM it holds.
@@ -674,7 +677,7 @@ const ALLOWED_PROPERTIES: &[&str] = &[
 
 /// Media and subtitles only ever come from the network (addons, or a server
 /// on this machine); never local files or mpv's special protocols.
-fn is_web_url(url: &str) -> bool {
+pub(crate) fn is_web_url(url: &str) -> bool {
     let lower = url.trim_start().to_ascii_lowercase();
     lower.starts_with("https://") || lower.starts_with("http://")
 }
@@ -702,7 +705,8 @@ fn check_property(name: &str) -> Result<(), String> {
     }
 }
 
-/// Load `url` (optionally starting at `start` seconds) and play.
+/// Load `url` (optionally starting at `start` seconds) and play. With `probe_id`,
+/// the link check reports its steps as `player://probe` events.
 #[tauri::command]
 pub async fn mpv_load(
     app: AppHandle,
@@ -710,6 +714,7 @@ pub async fn mpv_load(
     state: State<'_, AppState>,
     url: String,
     start: Option<f64>,
+    probe_id: Option<u32>,
 ) -> Result<(), String> {
     // Web streams, or a finished download - never any other path on disk.
     let downloaded = app.state::<Arc<crate::downloads::Downloads>>().owns(&url);
@@ -717,7 +722,7 @@ pub async fn mpv_load(
         return Err("only http(s) streams and downloads can be played".into());
     }
     // A link that's not ready yet, or a placeholder clip in place of the video.
-    let url = if downloaded { url } else { crate::streamcheck::prepare(&url).await? };
+    let url = if downloaded { url } else { crate::streamcheck::prepare(&app, &url, probe_id).await? };
     state.mpv.touch();
     state.mpv.ensure(&app, &window).await?;
     let mut options = String::new();

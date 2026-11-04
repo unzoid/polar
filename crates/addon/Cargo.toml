@@ -1,6 +1,6 @@
 [package]
 name = "polar-addon"
-description = "Stremio-compatible addon protocol: types, HTTP client and stream ranking"
+description = "Stremio-compatible addon protocol: types, HTTP client, stream ranking and link checks"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,3 +12,9 @@ reqwest.workspace = true
 thiserror.workspace = true
 urlencoding.workspace = true
 regex = "1"
+# Only the timer (retry waits). Not the workspace's tokio: see the tests in probe.rs.
+tokio = { version = "1", features = ["time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "net", "io-util"] }
+
