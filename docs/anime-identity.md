@@ -1,0 +1,114 @@
+# One show, one item: unifying anime identities
+
+Status: plan (T-004). Implementation follows in the same order as the steps below.
+Code references are to commit bcd0a85.
+
+## The problem
+
+Polar knows a show by a string id. For anything a metadata addon knows that is an IMDb id
+(`tt0000103`); for anime with no usable IMDb page it is a Kitsu id (`kitsu:7442`). Episodes
+are `tt…:S:E` or `kitsu:N:E`. The anime pages start from an AniList entry and pick the id each
+time the page is opened (`usePlayback` in `src/screens/AnimeDetail.tsx`, `TvAnimeDetail` in
+`src/tv/TvAnime.tsx`), through ani.zip and, since bcd0a85, `imdbForAnime`
+(`src/lib/anime/search.ts`), which can override ani.zip's link with a Cinemeta title search.
+
+Nothing remembers that choice. So the same show splits into several items when:
+
+1. ani.zip later gains an IMDb id for an entry the user first watched as `kitsu:N`. Library,
+   history and continue watching group by `meta_id` (`continue_watching`, `watch_history` in
+   `src-tauri/src/commands.rs`), so the old `kitsu:N` rows and the new `tt…` rows are two titles.
+2. A franchise has some cours mapped to an IMDb show and some only to Kitsu.
+3. `imdbForAnime`'s title search answers differently on another day or device (Cinemeta
+   results change), giving a different id for the same entry.
+4. Search shows AniList cards and Cinemeta cards side by side; `withoutAnime`
+   (`search.ts`) hides Cinemeta results by title and year rather than knowing they are the same.
+5. Anime context (Kitsu alt ids for addons, MAL id for AniSkip, filler flags, stills) is kept in
+   in-memory maps (`altIds.ts`, `aniskip.ts`, `filler.ts`, `stills.ts`) filled only by the desktop
+   anime page, so resuming from Continue Watching after a restart loses it.
+
+A related, non-anime split: with a TMDB key, episode ids use TMDB's season numbering
+(`crates/index/src/tmdb.rs`), without one Cinemeta's. That is handled separately (step 6).
+
+Constraint: no central database of Polar's own (the Supabase project has 500 MB in all). The
+mapping has to come from public mapping sources (ani.zip, with Fribb/anime-lists as fallback,
+see `docs/data-sources.md` §4) and from each user's own choices, stored with their own data.
+
+## The model
+
+**Canonical id.** Every title has exactly one canonical id, and every store keys titles by it:
+
+- an IMDb id `tt…` when Polar plays the show from an IMDb page;
+- otherwise `kitsu:N`.
+
+Other ids are **aliases**: `kitsu:N` (once an IMDb page is known), `anilist:N`, `mal:N`. An alias
+points at a canonical id. Two rules keep this from merging different shows:
+
+1. **An IMDb id is never an alias.** Two `tt` ids are never joined, whatever any source says.
+   Paleblade and Paleblade: Hundred-Night Ash War stay two titles, even though ani.zip links HNAW's
+   AniList entry to Paleblade's IMDb id and Polar plays it from HNAW's.
+2. **An alias has one target; the latest decision wins.** `anilist:41467 → tt0000111` replaces an
+   earlier `anilist:41467 → tt0000103`. Aliases form chains of at most two steps
+   (`anilist → kitsu → tt`); resolving follows them, with a step limit so a bad record cannot
+   loop.
+
+**Episodes are not re-keyed.** A progress row keeps the video id it was played under
+(`kitsu:N:E` stays playable: stream addons such as addon accept Kitsu ids). Only its
+`meta_id` is the canonical title, so grouping, history, continue watching and "watched" flags
+see one title. The anime page already lines every AniList episode up with both ids (the
+`alignByAirDate`/`matchVideo` work in `AnimeDetail.tsx`); it looks progress up under both.
+
+**Where an alias comes from**, in order of trust:
+
+1. The user's own data: the id Polar actually played or added from (written when it happens).
+2. ani.zip's `mappings` (live, cached on disk for 7 days).
+3. Fribb/anime-lists `anime-list-mini.json`, fetched from GitHub at runtime and cached for a
+   week, only when ani.zip fails (pending I-001).
+
+**Anime links.** For each canonical anime title Polar stores one small record, the *link*:
+`{ anilist, mal?, kitsu? }`, plus `imdb` when canonical is a `tt`. It is the persisted form of
+what the in-memory maps hold today, and the alias set is derived from it (`anilist:N`, `mal:N`,
+`kitsu:N` all point at the canonical id). One record per anime title the user has touched: a
+handful of integers.
+
+## Where it lives
+
+- **Rust store** (`src-tauri/src/store.rs`): `Space.links: HashMap<canonical id, AnimeLink>`,
+  synced like the library. Aliases are computed from the links on load (not stored twice).
+- **Rust commands**: `library_toggle`, `progress_save`, `progress_save_many` canonicalise the
+  incoming `meta_id`/`id` through the aliases before writing. A new command `link_anime(link)`
+  records a link and **re-keys** existing rows: library items and progress `meta_id`s under any
+  of the link's ids move to the canonical id (library: one item, earliest `added_at`, the old
+  key tombstoned so the removal syncs). Re-keying is deterministic, so every device that
+  receives the same link reaches the same state.
+- **Front end**: `src/lib/identity.ts` holds the id grammar (parse/format `tt`, `kitsu:`,
+  `anilist:`, `mal:`, episode ids) and `canonicalId()`; the anime pages call `linkAnime` once they
+  know the id they play from, instead of the in-memory `remember*` maps, and read the link when
+  playing from anywhere (Continue Watching, TV, after a restart).
+- **Search**: AniList cards resolve through cached links/ani.zip to a canonical id; results with
+  the same canonical id merge into one card (the anime card, which opens the anime page), instead
+  of the title/year heuristic.
+- **Sync**: links are one more synced kind (compact encoding in `docs/supabase-storage.md`):
+  `(profile, anilist id) → canonical id, mal, kitsu, updated_at`. Roughly 20-30 bytes per anime the
+  user has touched.
+
+## Steps
+
+1. `src/lib/identity.ts`: id grammar, alias resolution, canonical choice; unit tests.
+2. Rust: `AnimeLink`, `Space.links`, alias resolution, canonicalising writes, re-keying on
+   `link_anime`; unit tests for re-keying (library merge, progress `meta_id`, tombstones, chains,
+   the never-join-two-`tt` rule).
+3. Anime pages and TV: call `linkAnime` with the chosen id; replace `altIds`/`aniskip`/`filler`
+   maps with lookups through the link (persisted), so playback from anywhere has them.
+4. Search: merge AniList and Cinemeta/TMDB results by canonical id.
+5. Sync: push/pull links; apply re-keying on pull. Supabase table in the storage redesign (T-010).
+6. Episode numbering: store progress for `tt` shows under IMDb (Cinemeta) numbering always; when
+   the metadata source is TMDB, map TMDB `S:E` to IMDb `S:E` by air date before saving (the same
+   matching the anime pages use). Stream addons expect IMDb numbering too.
+
+## What stays unsolved
+
+- Two `tt` shows that really are one show on IMDb's side (duplicates on IMDb) stay two.
+- If the user plays an entry as `tt-A` on one device and, before syncing, as `tt-B` on another,
+  the latest link wins; rows already written under `tt-A` stay there (never-join rule).
+- Without ani.zip and Fribb (offline), new anime cannot be linked; already linked ones work,
+  since links are stored.
