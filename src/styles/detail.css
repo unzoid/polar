@@ -665,53 +665,6 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-/* Links out: neutral glass pills; only the site's logo carries its colour, softened. */
-.details-link {
-  --site: rgb(255 255 255);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4375rem;
-  height: 2rem;
-  padding: 0 0.625rem 0 0.6875rem;
-  border: 1px solid var(--fill-3);
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--site) 5%, rgb(255 255 255 / 0.05));
-  backdrop-filter: blur(12px);
-  color: var(--text);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-fast) var(--ease-std),
-    transform var(--dur-press) var(--ease-out);
-}
-.details-link svg {
-  flex: none;
-  color: color-mix(in srgb, var(--site) 70%, white);
-}
-.details-link .details-link-out {
-  color: var(--text-3);
-}
-.details-link[data-site="imdb"] {
-  --site: var(--brand-imdb);
-}
-.details-link[data-site="rt"] {
-  --site: var(--brand-rt);
-}
-.details-link[data-site="letterboxd"] {
-  --site: var(--brand-letterboxd);
-}
-.details-link[data-site="trakt"] {
-  --site: #c53be0;
-}
-.details-link[data-site="tmdb"] {
-  --site: #01b4e4;
-}
-@media (hover: hover) and (pointer: fine) {
-  .details-link:hover {
-    background: color-mix(in srgb, var(--site) 9%, rgb(255 255 255 / 0.09));
-  }
-}
 @media (max-width: 900px) {
   .details-columns {
     grid-template-columns: minmax(0, 1fr);

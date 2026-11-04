@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { SubtitleStyle } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvMedia } from "./mpvMedia";
 import { Dropdown } from "../Dropdown";
+import { Chip } from "../ui/Chip";
 
 // The platform's own UI face: what the player shows before you pick one.
 const DEFAULT_FONT = isMac ? "Helvetica Neue" : "Segoe UI Semibold";
@@ -337,9 +338,9 @@ function Chips<T extends string | number>({ value, options, onChange }: { value:
   return (
     <div className="source-chips" role="radiogroup">
       {options.map((o) => (
-        <button key={o.value} role="radio" aria-checked={o.value === value} aria-pressed={o.value === value} className="source-chip" onClick={() => onChange(o.value)}>
+        <Chip key={o.value} variant="choice" role="radio" aria-checked={o.value === value} pressed={o.value === value} onClick={() => onChange(o.value)}>
           {o.label}
-        </button>
+        </Chip>
       ))}
     </div>
   );

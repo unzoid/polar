@@ -225,7 +225,7 @@ All in `src/components/ui/` unless noted. Each is one `.tsx` with its CSS in `sr
 | `CopyButton` | U23 | `text`, `label`, `copiedLabel` |
 | `ConfirmDeleteButton` | U24 | existing, moved |
 | `TextField`, `SearchField` | U14 | `SearchField`: `value`, `onChange`, `onEscape?`, `kbd?`, `shape: "pill" \| "box"`, `expandable?` (navbar) |
-| `Chip`, `Badge` | U15 | `Chip`: `pressed?`, `onRemove?`, `href?`, `variant: "filter" \| "tag" \| "link"`; `Badge`: `tone` |
+| `Chip`, `ToggleChip`, `Badge` | U15 | `Chip`: `pressed?`, `variant: "filter" \| "tag" \| "choice" \| "link" \| "badge"`; `ToggleChip` (on/off with the check); `Badge`: `variant: "rank" \| "tag"` (static) |
 | `Segmented` | U16 | existing, made a radio group; `look: "pill" \| "chips" \| "dots"` |
 | `Switch` | U17 | `checked`, `onChange`, `label` |
 | `Slider` | U18 | Base UI; `withInput?` covers `SliderField` |
@@ -362,6 +362,13 @@ code draws, not what's on screen.
    stay `.btn*` for now: the settings pages and the overlay restyle `.btn` by scope until step 5. Not yet:
    `size`, `variant="link"`, the account screens' `.auth-btn` (different height and font: needs the `lg`
    size), the other icon-button classes (`.options-head-btn`, `.t3s-icon-btn`, player glyph buttons, §2.5).
+   `components/ui/Chip.tsx` (`Chip`, `ToggleChip`, `Badge`, `chipClass()`): every `.genre-chip`, `.srcf-tag`,
+   `.source-chip`, `.details-link`, `.anime-ranking` and `.anime-tag` in the TSX goes through them, with the
+   same class lists. Their rules moved to `styles/ui/chip.css` (imported after `button.css`); no rule in the
+   files they jumped over matches those elements, and the built CSS holds the same rules as before, only
+   reordered. Screens keep their size tweaks (`.search-suggest`, `.srcf-popover`, `.sub-settings`, `.tv`).
+   A removable filter is a pressed `tag` chip with a close glyph; a separate `onRemove` wasn't needed. Not
+   yet: the TV focus rules that repeat the light-pill recipe, `.anime-tag` spoiler colours as tokens.
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
