@@ -428,7 +428,14 @@ code draws, not what's on screen.
    the topmost layer closes and the event stops; only then do the `window` listeners (Esc → Back, the player)
    see it. `Sheet` and the trailer use it instead of their capture-phase listeners, which used to close the
    sheet before anything inside it could react. `DesktopApp` now ignores an Escape that was already handled.
-   Tests in `tests/dismiss.test.ts`. Not yet: `Layer` (scrim, focus trap, focus restore), and the other
+   Tests in `tests/dismiss.test.ts`. `lib/layer.ts` `useLayer(root, open, onClose, { modal })` is the `Layer`
+   part: `useDismiss`, focus onto the layer when it opens (`tabIndex={-1}`, `data-layer`, no ring:
+   `styles/ui/layer.css`), Tab kept inside the topmost layer (wraps at the edges; focus in a menu portalled
+   outside is left alone), focus back to the opener on close if focus is still in the layer or dropped.
+   `Sheet` (modal ones) and the trailer use it; the edge rule is `trapTarget()`, tested in
+   `tests/layer.test.ts`. A hook, not a wrapper component: each keeps its own scrim and motion (the sheet's
+   scrim fades separately, the trailer's backdrop is the layer itself), so a shared scrim element would only
+   change their look. Base UI's `Dialog` (party join, settings) already traps and restores. Not yet: the other
    listeners: `OptionsOverlay` and the player (step 6), `ShortcutSettings`' key capture (its own job),
    `TvKeyboard` and `TvApp` (step 6), the settings dialog (Base UI's own Escape).
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,

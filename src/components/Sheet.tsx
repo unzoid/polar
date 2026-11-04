@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useMotionValue, type PanInfo } from "motion/react";
 import { useRef, type ReactNode } from "react";
-import { useDismiss } from "../lib/dismiss";
+import { useLayer } from "../lib/layer";
 import { ease, project, springs } from "../lib/motion";
 
 /**
@@ -11,6 +11,7 @@ import { ease, project, springs } from "../lib/motion";
  * - Drag-to-dismiss uses momentum projection: a short flick closes it even if
  *   the finger barely moved, because we decide on where the throw *lands*.
  * - Dragging the wrong way (left) rubber-bands instead of hitting a wall.
+ * - A modal sheet takes focus when it opens, keeps Tab inside and gives focus back when it closes.
  */
 export function Sheet({
   open,
@@ -31,7 +32,7 @@ export function Sheet({
   const x = useMotionValue(0);
   const panel = useRef<HTMLDivElement>(null);
 
-  useDismiss(open, onClose);
+  useLayer(panel, open, onClose, { modal });
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     const width = panel.current?.offsetWidth ?? 400;
@@ -58,6 +59,8 @@ export function Sheet({
             className="sheet"
             role="dialog"
             aria-modal={modal}
+            tabIndex={-1}
+            data-layer=""
             style={{ x }}
             initial={{ x: "100%" }}
             animate={{ x: 0, transition: springs.sheet }}

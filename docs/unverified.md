@@ -113,3 +113,10 @@ How to check:
   (season tabs, next-episode line, Play label resumes where you left off, filler switch, list layout "Show
   all", episode search on a 40+ episode show), a film, and the Details section next to a show's Details tab
   (Story, Tags, Watch Officially, Elsewhere, the facts column beside them).
+- Focus in sheets and the trailer (T-019, `lib/layer.ts`): a sources or Filters sheet and the trailer now take
+  focus when they open, keep Tab inside, and give focus back when they close. Check with the keyboard: open
+  Sources from a show's Play button with Enter, press Tab several times (focus stays in the sheet and wraps),
+  Shift+Tab from the first control goes to the last, Escape closes it and focus is on the Play button again;
+  open the source Filters popover inside the sheet and Tab there (the popover should behave as before); the
+  same with the trailer (Tab stays on its buttons; inside the YouTube player Tab is YouTube's own). No focus
+  ring should appear on the sheet or trailer box itself.
