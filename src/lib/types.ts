@@ -2,6 +2,9 @@
 
 export type ContentType = "movie" | "series";
 
+/** The app's font (Settings → Appearance). See lib/fonts.ts. */
+export type UiFont = "inter" | "system" | "opendyslexic";
+
 export interface MetaPreview {
   id: string;
   type: ContentType;
@@ -219,8 +222,8 @@ export interface Settings {
   ratingColors?: boolean;
   /** A season's episodes as a horizontal shelf or a vertical list. */
   episodeLayout: EpisodeLayout;
-  /** "inter" (bundled) or "system" (Segoe UI Variable on Windows). */
-  uiFont: "inter" | "system";
+  /** "inter" (bundled), "system" (Segoe UI Variable on Windows) or "opendyslexic" (bundled, for dyslexia). */
+  uiFont: UiFont;
   subtitleStyle: SubtitleStyle;
   metadataSource?: string;
 

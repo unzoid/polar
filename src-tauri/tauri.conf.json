@@ -63,6 +63,11 @@
     ],
     "macOS": {
       "minimumSystemVersion": "11.0"
+    },
+    "resources": {
+      "fonts/OpenDyslexic-Regular.otf": "fonts/OpenDyslexic-Regular.otf",
+      "fonts/OpenDyslexic-Bold.otf": "fonts/OpenDyslexic-Bold.otf",
+      "fonts/OFL.txt": "licenses/OpenDyslexic/OFL.txt"
     }
   }
 }

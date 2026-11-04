@@ -41,6 +41,7 @@ import type { Settings as SettingsT } from "../lib/types";
 import { ShortcutSettings } from "../components/ShortcutSettings";
 import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../lib/anime/shelves";
 import { resetPrefs, setPrefs, usePrefs } from "../lib/prefs";
+import { uiFontOf } from "../lib/fonts";
 import { clearRecentSearches } from "../lib/recentSearches";
 import { playSound, SOUND_PACKS } from "../tv/sounds";
 import { setTvMode } from "../tv/tvMode";
@@ -906,11 +907,12 @@ function AppearancePage() {
         <PickRow title="Font">
           <Dropdown
             label="Font"
-            value={data.uiFont === "system" ? "system" : "inter"}
+            value={uiFontOf(data.uiFont)}
             onChange={(v) => set({ uiFont: v })}
             options={[
               { value: "inter", label: "Inter" },
               { value: "system", label: "System" },
+              { value: "opendyslexic", label: "OpenDyslexic" },
             ]}
           />
         </PickRow>

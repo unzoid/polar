@@ -57,7 +57,7 @@ const ROWS: SettingEntry[] = [
   { title: "Even out volume", page: "subtitles", keywords: "night mode loudness normalize compression leveling" },
   { title: "Subtitle Style", page: "subtitles", keywords: "captions appearance" },
   { title: "Delay", page: "subtitles", keywords: "subtitle sync offset timing" },
-  { title: "Font", page: "subtitles", keywords: "subtitle typeface family" },
+  { title: "Font", page: "subtitles", keywords: "subtitle typeface family opendyslexic dyslexia dyslexic accessibility" },
   { title: "Size", page: "subtitles", keywords: "subtitle text font" },
   { title: "Position", page: "subtitles", keywords: "subtitle raise height" },
   { title: "Color", page: "subtitles", keywords: "subtitle colour text" },
@@ -70,7 +70,7 @@ const ROWS: SettingEntry[] = [
   { title: "Background", page: "appearance", keywords: "theme black oled dark" },
   { title: "Interface size", page: "appearance", keywords: "zoom scale bigger smaller text" },
   { title: "Card size", page: "appearance", keywords: "posters thumbnails bigger smaller" },
-  { title: "Font", page: "appearance", keywords: "text typeface inter" },
+  { title: "Font", page: "appearance", keywords: "text typeface inter system opendyslexic dyslexia dyslexic accessibility readability" },
   { title: "Reduce motion", page: "appearance", keywords: "animations accessibility" },
 
   // Browsing
