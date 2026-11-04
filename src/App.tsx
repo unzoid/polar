@@ -33,6 +33,7 @@ import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
 import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import { SignOutDialog } from "./components/SignOutDialog";
 import { StoreProblemToast } from "./components/StoreProblemToast";
 
 function Screen({ route }: { route: Route }) {
@@ -81,8 +82,17 @@ function SettingsRoute({ page }: { page?: string }) {
   return null;
 }
 
-/** Sign-in and profile picking come before the app itself. */
+/** Sign-in and profile picking come before the app itself; sign-out may stop to ask over any of them. */
 export function App() {
+  return (
+    <>
+      <Gate />
+      <SignOutDialog />
+    </>
+  );
+}
+
+function Gate() {
   const { status, profile, profilesView } = useAccount();
   const { data: settings, isFetched } = useSettings();
   switch (status) {

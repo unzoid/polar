@@ -783,3 +783,11 @@
 .profile-menu-head:hover .profile-menu-email {
   filter: none;
 }
+
+/* Sign out with unsynced changes (components/SignOutDialog.tsx, in the party dialog's look). */
+.sign-out-dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}

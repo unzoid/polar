@@ -158,6 +158,10 @@
 .btn.btn-block:disabled {
   opacity: 0.55;
 }
+/* A red label for the step that loses something (sign out with unsynced changes). */
+.btn.btn-block.btn-danger {
+  color: var(--danger);
+}
 .btn.btn-block[aria-busy="true"] {
   opacity: 1;
   cursor: progress;

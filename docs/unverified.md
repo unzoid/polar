@@ -221,3 +221,15 @@ How to check, with a TMDB key set in Settings:
   start Polar: the toast shows, adding a title fails, and after quitting and restoring the permission the
   file still holds the old library. Then put `{` into a copy of the file: a `polar.corrupt-….json` appears
   and the app starts empty.
+- Sign-out with unsynced changes (rewrite R1, critique C2): sign-out now pushes every profile of the account
+  (not only the active one) for up to 8 s, then counts what is still unpushed; if anything is, nothing is
+  dropped and a dialog ("Some changes haven't synced") offers Try Again, Sign Out Anyway and Cancel. Each sync
+  round of the active profile also pushes the other profiles' leftovers (a profile left while offline). The
+  pushing and counting are `lib/account/spacePush.ts` (tested); the dialog and the wiring are not. Playlists
+  were never dropped at sign-out (they stay in localStorage) and are not counted; links a server without the
+  `anime_links` table can't take are not counted either. To check, signed in with two profiles: in profile A
+  add a title to the library, then turn the network off and switch to profile B, play something for a minute,
+  then Sign Out (profile menu): the dialog shows a count; Cancel keeps you signed in; turn the network on,
+  Try Again signs out; sign back in on another device: both changes are there. Repeat offline and choose Sign
+  Out Anyway: you are signed out. The dialog also opens from the "Who's watching?" screen's Sign Out; on TV
+  check that the controller can reach its three buttons.
