@@ -21,6 +21,7 @@ import {
   playlistsPulledAt,
   setPlaylistSpace,
 } from "../playlists";
+import { keys } from "../queryKeys";
 
 const PERIOD_MS = 3 * 60_000;
 const AFTER_CHANGE_MS = 5_000;
@@ -120,11 +121,11 @@ function later(ms: number) {
 }
 
 export function refreshLocalViews() {
-  queryClient.invalidateQueries({ queryKey: ["library"] });
-  queryClient.invalidateQueries({ queryKey: ["continue"] });
-  queryClient.invalidateQueries({ queryKey: ["history"] });
-  queryClient.invalidateQueries({ queryKey: ["progress"] });
-  queryClient.invalidateQueries({ queryKey: ["animeLinks"] });
+  queryClient.invalidateQueries({ queryKey: keys.library });
+  queryClient.invalidateQueries({ queryKey: keys.continue });
+  queryClient.invalidateQueries({ queryKey: keys.history });
+  queryClient.invalidateQueries({ queryKey: keys.progressAll });
+  queryClient.invalidateQueries({ queryKey: keys.animeLinks });
 }
 
 export const sync = {

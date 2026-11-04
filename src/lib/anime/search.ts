@@ -4,6 +4,7 @@ import { cachedLookup } from "../queries";
 import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard } from "./anilist";
 import { airedEpisodes, airsWith, fetchAniZip, type AniZip, type AniZipEpisode } from "./anizip";
 import { norm } from "./merge";
+import { keys } from "../queryKeys";
 
 /** AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search. */
 export function useAnimeResults(query: string) {
@@ -72,7 +73,7 @@ function byRelevance(items: AnimeCard[], query: string): AnimeCard[] {
 export function useAnimeImdb(a: AnimeCard, zip: AniZip | null | undefined) {
   const qc = useQueryClient();
   return useQuery({
-    queryKey: ["anime", "imdb", a.id],
+    queryKey: keys.anime.imdb(a.id),
     enabled: zip !== undefined,
     staleTime: 6 * 60 * 60_000,
     queryFn: () => imdbForAnime(a, zip ?? null, cachedLookup(qc)),

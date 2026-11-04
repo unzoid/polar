@@ -26,7 +26,7 @@ export function MarketplacePage() {
     mutationFn: api.installAddon,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.addons });
-      qc.invalidateQueries({ queryKey: ["streams"] });
+      qc.invalidateQueries({ queryKey: keys.streamsAll });
     },
   });
 

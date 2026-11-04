@@ -9,7 +9,7 @@ import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AdvancedPage() {
   const expand = useExpanded();
-  const { data: hasMpv } = useQuery({ queryKey: ["mpv"], queryFn: api.mpvAvailable, staleTime: Infinity });
+  const { data: hasMpv } = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
   return (
     <>
       <Card
@@ -35,7 +35,7 @@ function ResetRow(props: Expandable) {
     onSuccess: (saved) => {
       qc.setQueryData(keys.settings, saved);
       resetPrefs();
-      for (const k of ["streams", "continue", "history"]) qc.invalidateQueries({ queryKey: [k] });
+      for (const k of [keys.streamsAll, keys.continue, keys.history]) qc.invalidateQueries({ queryKey: k });
       props.onToggle();
     },
   });

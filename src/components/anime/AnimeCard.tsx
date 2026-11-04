@@ -9,6 +9,7 @@ import { api } from "../../lib/api";
 import { useCardIntent } from "../../lib/cardIntent";
 import { ArtTitle, Card } from "../title/Card";
 import { Star, Warning } from "../icons";
+import { keys } from "../../lib/queryKeys";
 
 /**
  * Settings → Browsing → Mature content, "blur": the art behind dark frosted
@@ -56,7 +57,7 @@ export function useAnimeHandlers() {
 export function useOpenAnime(item: Media) {
   const qc = useQueryClient();
   const intent = useCardIntent(
-    () => void qc.prefetchQuery({ queryKey: ["anime", "media", item.id], queryFn: () => fetchAnime(item.id), staleTime: 30 * 60_000 }),
+    () => void qc.prefetchQuery({ queryKey: keys.anime.media(item.id), queryFn: () => fetchAnime(item.id), staleTime: 30 * 60_000 }),
     INTENT_DELAY,
   );
   return { ...useAnimeHandlers()(item), ...intent };

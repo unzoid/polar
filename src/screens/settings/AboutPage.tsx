@@ -8,11 +8,12 @@ import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl,
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, LinkRow, PickRow, RowText, useExpanded } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
+import { keys } from "../../lib/queryKeys";
 
 export function AboutPage() {
   const s = useUpdate();
   const expand = useExpanded();
-  const { data: version } = useQuery({ queryKey: ["app-version"], queryFn: appVersion, staleTime: Infinity });
+  const { data: version } = useQuery({ queryKey: keys.appVersion, queryFn: appVersion, staleTime: Infinity });
 
   const status = (() => {
     switch (s.phase) {
@@ -123,12 +124,12 @@ function CreditsCard() {
 /** What the app keeps in its cache folder, and a way to empty it. */
 function CacheCard() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["anime-cache"], queryFn: api.animeCache });
+  const { data } = useQuery({ queryKey: keys.animeCache, queryFn: api.animeCache });
   const clear = useMutation({
     mutationFn: api.animeCacheClear,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["anime-cache"] });
-      void qc.removeQueries({ queryKey: ["anime", "episodeFlags"] });
+      void qc.invalidateQueries({ queryKey: keys.animeCache });
+      void qc.removeQueries({ queryKey: keys.anime.episodeFlagsAll });
     },
   });
   const size = !data ? "…" : !data.bytes ? "empty" : data.bytes >= 1e6 ? `${(data.bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(data.bytes / 1000))} KB`;

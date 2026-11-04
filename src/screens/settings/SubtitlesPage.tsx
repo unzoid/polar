@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { useSettings, useUpdateSettings } from "../../lib/queries";
 import { Card } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
+import { keys } from "../../lib/queryKeys";
 
 export function SubtitlesPage() {
   const { data } = useSettings();
@@ -39,7 +40,7 @@ export function SubtitlesPage() {
 
 /** mpv's audio options. They suit this device's speakers, so they stay on it. */
 function SoundCard() {
-  const { data: hasMpv } = useQuery({ queryKey: ["mpv"], queryFn: api.mpvAvailable, staleTime: Infinity });
+  const { data: hasMpv } = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
   return (
     <Card
       title="Sound"

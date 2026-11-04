@@ -6,7 +6,10 @@ import { fetchAniZip } from "./anime/anizip";
 import { groupBoost, preferredGroups } from "./anime/groups";
 import { isKitsuId } from "./anime/kitsu";
 import { usePrefs } from "./prefs";
+import { keys } from "./queryKeys";
 import type { ContentType, MetaPreview, Progress, Settings, StreamsResult } from "./types";
+
+export { keys };
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,20 +21,6 @@ export const queryClient = new QueryClient({
     },
   },
 });
-
-export const keys = {
-  catalog: (type: ContentType, id: string, genre = "") => ["catalog", type, id, genre] as const,
-  meta: (type: ContentType, id: string) => ["meta", type, id] as const,
-  streams: (type: ContentType, videoId: string) => ["streams", type, videoId] as const,
-  progress: (metaId: string) => ["progress", metaId] as const,
-  continue: ["continue"] as const,
-  history: ["history"] as const,
-  library: ["library"] as const,
-  addons: ["addons"] as const,
-  settings: ["settings"] as const,
-  search: (q: string) => ["search", q] as const,
-  recommend: (type: ContentType, id: string) => ["recommend", type, id] as const,
-};
 
 /** `enabled` lets off-screen shelves wait until they're about to be seen. */
 export const useCatalog = (type: ContentType, id: string, genre?: string, enabled = true) =>
@@ -88,7 +77,7 @@ export function useStreams(type: ContentType, videoId: string | undefined) {
 function useIsAnime(videoId: string | undefined) {
   const imdb = videoId?.startsWith("tt") ? videoId.split(":")[0] : undefined;
   const { data: anime } = useQuery({
-    queryKey: ["anizip", "imdb", imdb],
+    queryKey: keys.isAnime(imdb),
     queryFn: async () => !!(await fetchAniZip({ imdb_id: imdb! })),
     enabled: !!imdb,
     staleTime: 24 * 60 * 60_000,
@@ -102,7 +91,7 @@ export function useRatings(type: ContentType, id: string) {
   const { data: settings } = useSettings();
   const keyed = !!(settings?.mdblistKey?.trim() || settings?.omdbKey?.trim());
   return useQuery({
-    queryKey: ["ratings", type, id, settings?.mdblistKey ?? "", settings?.omdbKey ?? ""],
+    queryKey: keys.ratings(type, id, settings?.mdblistKey ?? "", settings?.omdbKey ?? ""),
     queryFn: () => api.ratings(type, id),
     enabled: keyed && id.startsWith("tt"),
     staleTime: 6 * 60 * 60_000,

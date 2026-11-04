@@ -28,7 +28,7 @@ function RatingsRow(props: Expandable) {
   const [omdb, setOmdb] = useState("");
   useEffect(() => setMdb(data?.mdblistKey ?? ""), [data?.mdblistKey]);
   useEffect(() => setOmdb(data?.omdbKey ?? ""), [data?.omdbKey]);
-  const save = useSaveSettings(() => qc.invalidateQueries({ queryKey: ["ratings"] }));
+  const save = useSaveSettings(() => qc.invalidateQueries({ queryKey: keys.ratingsAll }));
   if (!data) return null;
   const on = !!(data.mdblistKey || data.omdbKey);
   const dirty = mdb.trim() !== (data.mdblistKey ?? "") || omdb.trim() !== (data.omdbKey ?? "");
@@ -99,7 +99,7 @@ function ArtworkRow(props: Expandable) {
   useEffect(() => setKey(data?.tmdbKey ?? ""), [data?.tmdbKey]);
   // A new data source means every cached catalog is stale.
   const save = useSaveSettings(() => {
-    for (const k of ["catalog", "discover", "meta", "featured"]) qc.invalidateQueries({ queryKey: [k] });
+    for (const k of [keys.catalogAll, keys.discoverAll, keys.metaAll, keys.featured]) qc.invalidateQueries({ queryKey: k });
   });
   if (!data) return null;
   const on = !!data.tmdbKey;
@@ -138,7 +138,7 @@ function PreviewsRow(props: Expandable) {
   const [key, setKey] = useState("");
   useEffect(() => setKey(data?.seekrKey ?? ""), [data?.seekrKey]);
   const verify = useMutation({ mutationFn: (k: string) => api.seekrValidate(k) });
-  const save = useSaveSettings(() => qc.invalidateQueries({ queryKey: ["seekr"] }));
+  const save = useSaveSettings(() => qc.invalidateQueries({ queryKey: keys.seekrAll }));
   if (!data) return null;
 
   const hasKey = !!data.seekrKey;

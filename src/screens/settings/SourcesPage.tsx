@@ -6,6 +6,7 @@ import { useSettings, useUpdateSettings } from "../../lib/queries";
 import type { Settings as SettingsT } from "../../lib/types";
 import { Card, FormRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
+import { keys } from "../../lib/queryKeys";
 
 export function SourcesPage() {
   const qc = useQueryClient();
@@ -16,7 +17,7 @@ export function SourcesPage() {
   if (!data) return null;
   // Filters run in Rust when sources are fetched, so cached lists are stale.
   const set = (patch: Partial<SettingsT>) =>
-    update.mutate(patch, { onSuccess: () => qc.invalidateQueries({ queryKey: ["streams"] }) });
+    update.mutate(patch, { onSuccess: () => qc.invalidateQueries({ queryKey: keys.streamsAll }) });
   const autoTags = data.sourceAutoTags ?? [];
   const screen = screenResolution();
   const screenLabel = screen >= 2160 ? "4K" : `${screen}p`;

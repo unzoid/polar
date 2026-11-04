@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { appVersion } from "./updater";
+import { keys } from "./queryKeys";
 
 /**
  * The Marketplace catalogue: add-ons the app lists itself, read from the
@@ -146,7 +147,7 @@ async function fetchMarketplace(): Promise<MarketAddon[]> {
 /** The live list, refreshed every few hours; the bundled copy until it arrives (or if it can't). */
 export function useMarketplace() {
   const q = useQuery({
-    queryKey: ["marketplace"],
+    queryKey: keys.marketplace,
     queryFn: fetchMarketplace,
     staleTime: 3 * 60 * 60_000,
     gcTime: 24 * 60 * 60_000,

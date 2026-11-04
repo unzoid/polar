@@ -1,5 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrefs } from "../prefs";
+import { keys } from "../queryKeys";
 
 /**
  * AniList (graphql.anilist.co): the anime catalogue, seasons, the airing
@@ -173,7 +174,7 @@ export interface AnimeHome {
 
 /** Every shelf on the Anime page, in one request. */
 export function useAnimeHome() {
-  return useQuery({ queryKey: ["anime", "home"], staleTime: 30 * 60_000, queryFn: fetchAnimeHome });
+  return useQuery({ queryKey: keys.anime.home, staleTime: 30 * 60_000, queryFn: fetchAnimeHome });
 }
 
 export async function fetchAnimeHome(): Promise<AnimeHome> {
@@ -197,7 +198,7 @@ export async function fetchAnimeHome(): Promise<AnimeHome> {
 /** One shelf per genre, fetched when it scrolls near. */
 export function useAnimeGenre(genre: string, enabled: boolean) {
   return useQuery({
-    queryKey: ["anime", "genre", genre],
+    queryKey: keys.anime.genre(genre),
     staleTime: 60 * 60_000,
     enabled,
     queryFn: async () =>
@@ -236,13 +237,13 @@ export interface AnimeSeason {
 export function useAnimeSeasons(anime: Anime | undefined) {
   const client = useQueryClient();
   return useQuery({
-    queryKey: ["anime", "seasons", anime?.id],
+    queryKey: keys.anime.seasons(anime?.id),
     enabled: !!anime,
     staleTime: 6 * 60 * 60_000,
     queryFn: async (): Promise<AnimeSeason[]> => {
       const link = (id: number) =>
         client.fetchQuery({
-          queryKey: ["anime", "link", id],
+          queryKey: keys.anime.link(id),
           staleTime: 24 * 60 * 60_000,
           queryFn: async () =>
             (
@@ -287,7 +288,7 @@ export function useAnimeSeasons(anime: Anime | undefined) {
  */
 export function useAnime(id: number, { keepPrevious = false } = {}) {
   return useQuery({
-    queryKey: ["anime", "media", id],
+    queryKey: keys.anime.media(id),
     staleTime: 30 * 60_000,
     queryFn: () => fetchAnime(id),
     placeholderData: keepPrevious ? keepPreviousData : undefined,
@@ -349,7 +350,7 @@ export interface AiringSlot {
 export function useAiringSchedule(from: number, to: number, enabled = true) {
   const { animeScheduleAll } = usePrefs();
   return useQuery({
-    queryKey: ["anime", "schedule", from, to],
+    queryKey: keys.anime.schedule(from, to),
     staleTime: 10 * 60_000,
     enabled,
     // Never adult titles; the long tail of shorts nobody's tracking only if Settings → Anime asks.
@@ -410,7 +411,7 @@ export interface BrowseFilters {
 export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
   return useInfiniteQuery({
     enabled,
-    queryKey: ["anime", "browse", f],
+    queryKey: keys.anime.browse(f),
     staleTime: 15 * 60_000,
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {

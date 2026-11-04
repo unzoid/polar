@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { keys } from "../queryKeys";
 
 /**
  * Which episodes are filler and which are recaps, what AniList doesn't track.
@@ -49,7 +50,7 @@ async function fetchFlags(malId: number, titles: string[]): Promise<Map<number, 
 export function useEpisodeFlags(malId: number | null | undefined, titles: (string | null | undefined)[] = [], enabled = true) {
   const names = titles.filter((t): t is string => !!t);
   return useQuery({
-    queryKey: ["anime", "episodeFlags", malId],
+    queryKey: keys.anime.episodeFlags(malId),
     queryFn: () => fetchFlags(malId!, names),
     enabled: !!malId && enabled,
     // The app's disk cache decides freshness; this only spares repeat calls within a visit.

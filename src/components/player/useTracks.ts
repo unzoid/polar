@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import type { ContentType, SubtitleOption } from "../../lib/types";
 import { ISO3, langMatches, languageName } from "../../lib/languages";
 import { isMpv, type MediaLike, type MpvTrack } from "./mpvMedia";
+import { keys } from "../../lib/queryKeys";
 
 export interface TrackOption {
   id: string;
@@ -71,7 +72,7 @@ export function useTracks(
   onPrefRef.current = onPrefChange;
 
   const external = useQuery({
-    queryKey: ["subtitles", type, videoId],
+    queryKey: keys.subtitles(type, videoId),
     queryFn: () => api.subtitles(type, videoId),
     staleTime: 30 * 60_000,
   });

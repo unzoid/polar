@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { sync } from "../account/sync";
 import { api, isTauri } from "../api";
 import { aliasTable, type AnimeLink } from "../identity";
+import { keys } from "../queryKeys";
 
 /**
  * The anime links of the active space (docs/anime-identity.md): which id
@@ -17,9 +18,9 @@ export async function linkAnime(qc: QueryClient, link: Omit<AnimeLink, "updatedA
   if (!isTauri) return;
   const changed = await api.linkAnime(link).catch(() => false);
   // A stored link can change without moving anything; it's a local read, so just ask again.
-  void qc.invalidateQueries({ queryKey: ["animeLinks"] });
+  void qc.invalidateQueries({ queryKey: keys.animeLinks });
   if (!changed) return;
-  for (const k of ["library", "progress", "continue", "history"]) void qc.invalidateQueries({ queryKey: [k] });
+  for (const k of [keys.library, keys.progressAll, keys.continue, keys.history]) void qc.invalidateQueries({ queryKey: k });
   sync.schedule();
 }
 
@@ -28,6 +29,6 @@ export const animeLinks = (): Promise<AnimeLink[]> => (isTauri ? api.animeLinks(
 
 /** The stored links as an alias table ({@link aliasTable}), for merging the same show under its ids. */
 export function useAnimeAliases(): ReadonlyMap<string, string> {
-  const { data } = useQuery({ queryKey: ["animeLinks"], queryFn: animeLinks, staleTime: Infinity });
+  const { data } = useQuery({ queryKey: keys.animeLinks, queryFn: animeLinks, staleTime: Infinity });
   return useMemo(() => aliasTable(data ?? []), [data]);
 }
