@@ -21,8 +21,8 @@ import type {
   LocalChanges,
   SyncLibraryItem,
 } from "./types";
-import { settingsChanged } from "./settingsChanges";
-import type { AnimeLink } from "./identity";
+import { settingsChanged } from "./settings/changes";
+import type { AnimeLink } from "./library/identity";
 
 export const isTauri = "__TAURI_INTERNALS__" in window;
 

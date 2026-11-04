@@ -5,10 +5,10 @@ import { PosterGrid } from "../components/title/PosterGrid";
 import { Segmented } from "../components/Segmented";
 import { Dropdown } from "../components/Dropdown";
 import { api } from "../lib/api";
-import { BROWSE_GENRES } from "../lib/genres";
+import { BROWSE_GENRES } from "../lib/catalog";
 import type { ContentType } from "../lib/types";
 import { EmptyState } from "../components/ui/EmptyState";
-import { keys } from "../lib/queryKeys";
+import { keys } from "../lib/net";
 
 const CATALOGS = [
   { id: "trending", label: "Trending" },

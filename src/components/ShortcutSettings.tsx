@@ -12,7 +12,7 @@ import {
   unbind,
   useBindings,
   type Action,
-} from "../lib/keybinds";
+} from "../lib/settings";
 import { Close, Plus, Reset } from "./icons";
 import { SearchField } from "./ui/SearchField";
 import { Button } from "./ui/Button";

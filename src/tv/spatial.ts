@@ -21,7 +21,7 @@
  *                       `data-nav-row` to the top, "center" centres it.
  *  - `data-nav-own`     Handles its own arrow keys (sliders and the like).
  */
-import { prefersReducedMotion } from "../lib/reducedMotion";
+import { prefersReducedMotion } from "../lib/ui";
 
 export type Dir = "up" | "down" | "left" | "right";
 

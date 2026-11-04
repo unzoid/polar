@@ -1,4 +1,4 @@
-import type { UiFont } from "./types";
+import type { UiFont } from "../types";
 
 /** The app font a saved setting means. Anything else (the removed "netflix" test font, say) is Inter. */
 export const uiFontOf = (saved: string | undefined): UiFont => (saved === "system" || saved === "opendyslexic" ? saved : "inter");

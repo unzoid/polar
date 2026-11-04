@@ -1,4 +1,4 @@
-import { usePrefs } from "../prefs";
+import { usePrefs } from "../settings/prefs";
 import type { AnimeCard, AnimeTitle, FuzzyDate, MediaFormat, MediaSeason, MediaStatus, RelationType } from "./anilist";
 
 /** The title in the language from Settings → Anime, falling back sensibly. */

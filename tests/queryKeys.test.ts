@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { keys } from "../src/lib/queryKeys";
+import { keys } from "../src/lib/net/queryKeys";
 
 type Key = readonly unknown[];
 type Factory = Key | ((...args: never[]) => Key);

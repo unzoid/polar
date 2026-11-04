@@ -9,9 +9,9 @@ import { PosterCard } from "../components/PosterCard";
 import { Card } from "../components/title/Card";
 import { Row } from "../components/Row";
 import { StillPlaceholder } from "../components/StillPlaceholder";
-import { downloadFraction, localStream, useAllLeaving, useDownloads, useLeaving, type Download as DownloadRecord } from "../lib/downloads";
+import { downloadFraction, localStream, useAllLeaving, useDownloads, useLeaving, type Download as DownloadRecord } from "../lib/library";
 import { TitleLogo } from "../components/TitleLogo";
-import { episodeCode } from "../lib/format";
+import { episodeCode, formatBytes } from "../lib/format";
 import {
   createPlaylist,
   deletePlaylist,
@@ -19,11 +19,10 @@ import {
   renamePlaylist,
   usePlaylists,
   type PlaylistItem,
-} from "../lib/playlists";
-import { useLibrary, useWatchHistory } from "../lib/queries";
+} from "../lib/library";
+import { useLibrary, useWatchHistory } from "../lib/net";
 import { useRouter } from "../lib/router";
-import { progressFraction, progressItem } from "../lib/shelves";
-import { formatBytes } from "../lib/sources";
+import { progressFraction, progressItem } from "../lib/catalog";
 import type { ContentType } from "../lib/types";
 import { buttonClass } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";

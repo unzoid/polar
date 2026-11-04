@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import type { Video } from "../types";
-import { keys } from "../queryKeys";
-import { queryClient } from "../queryClient";
+import { keys } from "../net/queryKeys";
+import { queryClient } from "../net/queryClient";
 import { aniZipLimiter, limitedFetch } from "../net/limiter";
 import { readAniZip } from "./responses";
 

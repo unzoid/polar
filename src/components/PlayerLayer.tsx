@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter, type Route } from "../lib/router";
-import { forgetPlayerSourceChoices } from "../lib/sources";
+import { forgetPlayerSourceChoices } from "../lib/playback";
 import { PLAYER_EXIT_MS, Player } from "../screens/Player";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 

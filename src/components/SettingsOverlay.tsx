@@ -4,12 +4,9 @@ import { Avatar } from "./Avatar";
 import { Close, Reset, SignOut } from "./icons";
 import { iconButtonClass } from "./ui/Button";
 import { SearchField } from "./ui/SearchField";
-import { useAccount } from "../lib/account/AccountProvider";
-import { prefsCustomized, resetPrefs, usePrefs } from "../lib/prefs";
-import { closeSettings, useSettingsOverlay } from "../lib/settingsOverlay";
-import { searchSettings, type SettingEntry } from "../lib/settingsIndex";
+import { useAccount } from "../lib/account";
+import { closeSettings, type PageId, prefsCustomized, resetPrefs, searchSettings, type SettingEntry, usePrefs, useSettingsOverlay } from "../lib/settings";
 import { SettingsPageBody } from "../screens/settings/SettingsPageBody";
-import type { PageId } from "../lib/settings/pages";
 import { PAGES } from "./settings/pages";
 
 /** Sidebar groups, T3 Code style: an unlabelled first group, then headed ones. */

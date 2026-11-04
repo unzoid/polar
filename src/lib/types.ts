@@ -1,11 +1,11 @@
 // Mirrors the Rust types in crates/addon, crates/library and src-tauri/src. Their JSON field names are
 // checked against contract/*.json, which the Rust tests write (src/lib/contract.ts, tests/contract.test.ts).
 
-import type { AnimeLink } from "./identity";
+import type { AnimeLink } from "./library/identity";
 
 export type ContentType = "movie" | "series";
 
-/** The app's font (Settings → Appearance). See lib/fonts.ts. */
+/** The app's font (Settings → Appearance). See lib/settings/fonts.ts. */
 export type UiFont = "inter" | "system" | "opendyslexic";
 
 export interface MetaPreview {

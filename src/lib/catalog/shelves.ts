@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useReducer } from "react";
-import { api } from "./api";
-import { keys, useCatalog, useContinueWatching, useLibrary } from "./queries";
-import type { ContentType, MetaPreview, Progress } from "./types";
-import { watchedFraction } from "./watched";
+import { api } from "../api";
+import { keys, useCatalog, useContinueWatching, useLibrary } from "../net/queries";
+import type { ContentType, MetaPreview, Progress } from "../types";
+import { watchedFraction } from "../library/watched";
 
 /**
  * What the home screens show, shared by the desktop and TV layouts: the

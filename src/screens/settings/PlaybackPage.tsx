@@ -1,4 +1,4 @@
-import { useSettings, useUpdateSettings } from "../../lib/queries";
+import { useSettings, useUpdateSettings } from "../../lib/net";
 import { Card, ToggleRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 

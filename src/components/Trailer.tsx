@@ -1,7 +1,7 @@
 import { useRef, useSyncExternalStore } from "react";
 import { api } from "../lib/api";
-import { useLayer } from "../lib/layer";
-import { useFileTrailer, type TrailerRequest as Open } from "../lib/trailers";
+import { useLayer } from "../lib/ui";
+import { useFileTrailer, type TrailerRequest as Open } from "../lib/playback";
 import { Close, Trailer as TrailerIcon } from "./icons";
 import { Button, IconButton } from "./ui/Button";
 

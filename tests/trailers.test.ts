@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { trailerFor } from "../src/lib/trailers";
+import { trailerFor } from "../src/lib/playback/trailers";
 
 test("TMDB's trailer plays before IMDb's file", () => {
   expect(trailerFor("Sandglass", "tt0000106", { trailerYtId: "abc", trailerSource: "tmdb" })).toEqual({

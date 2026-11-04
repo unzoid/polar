@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Reset } from "../../components/icons";
 import { api } from "../../lib/api";
-import { keys } from "../../lib/queries";
-import { resetPrefs } from "../../lib/prefs";
+import { keys } from "../../lib/net";
+import { resetPrefs } from "../../lib/settings";
 import { Button } from "../../components/ui/Button";
 import { errorMessage } from "../../lib/errors";
 import { Card, ExpandRow, useExpanded, type Expandable } from "../../components/settings/rows";

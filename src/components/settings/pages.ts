@@ -1,4 +1,4 @@
-import { PAGE_IDS, PAGE_LABELS, type PageId } from "../../lib/settings/pages";
+import { PAGE_IDS, PAGE_LABELS, type PageId } from "../../lib/settings";
 import {
   Captions,
   Controls,

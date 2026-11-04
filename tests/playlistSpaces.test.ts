@@ -9,9 +9,9 @@ const store = new Map<string, string>();
   removeItem: (k: string) => void store.delete(k),
 };
 
-let pl: typeof import("../src/lib/playlists");
+let pl: typeof import("../src/lib/library/playlists");
 beforeAll(async () => {
-  pl = await import("../src/lib/playlists");
+  pl = await import("../src/lib/library/playlists");
 });
 
 const title = (id: string) => ({ id, type: "movie", name: id }) as MetaPreview;

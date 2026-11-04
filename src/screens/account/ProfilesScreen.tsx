@@ -4,8 +4,7 @@ import { Avatar } from "../../components/Avatar";
 import { Button } from "../../components/ui/Button";
 import { TextField } from "../../components/ui/TextField";
 import { BusyRing } from "../../components/BusyLabel";
-import { AVATAR_GROUPS, AVATARS, nextAvatar, type AvatarId, type Profile } from "../../lib/account";
-import { useAccount } from "../../lib/account/AccountProvider";
+import { AVATAR_GROUPS, type AvatarId, AVATARS, nextAvatar, type Profile, useAccount } from "../../lib/account";
 import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
 

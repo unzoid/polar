@@ -1,6 +1,6 @@
-import type { PageId } from "./settings/pages";
+import type { PageId } from "./pages";
 import { ACTIONS } from "./keybinds";
-import { SETTINGS } from "./settings/schema";
+import { SETTINGS } from "./schema";
 
 /**
  * Every individual setting, for the settings search: the schema's entries, then each shortcut.

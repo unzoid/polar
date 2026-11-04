@@ -1,7 +1,9 @@
 import { useSyncExternalStore } from "react";
-import type { SoundPack } from "../tv/sounds";
-import { likeTemplate, storedJson } from "./parse";
-import { settingsChanged } from "./settingsChanges";
+import { likeTemplate, storedJson } from "../parse";
+import { settingsChanged } from "./changes";
+
+/** TV mode's interface sound packs (tv/sounds.ts renders them). */
+export type SoundPack = "ambient" | "soft" | "wood" | "glass" | "pluck" | "classic";
 
 /**
  * Preferences that only the interface reads (TV sounds, controller alerts),

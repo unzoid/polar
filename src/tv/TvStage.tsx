@@ -5,8 +5,8 @@ import { ImdbBadge } from "../components/ImdbBadge";
 import { TitleHeading } from "../components/title/TitleHeading";
 import { kindFacts } from "../lib/format";
 import { api } from "../lib/api";
-import { isAnimePreview } from "../lib/anime/preview";
-import { keys } from "../lib/queries";
+import { isAnimePreview } from "../lib/anime";
+import { keys } from "../lib/net";
 import type { MetaPreview } from "../lib/types";
 
 /**

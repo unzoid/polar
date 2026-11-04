@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { Anime } from "../../lib/anime/anilist";
-import { setPrefs, usePrefs } from "../../lib/prefs";
+import type { Anime } from "../../lib/anime";
+import { setPrefs, usePrefs } from "../../lib/settings";
 import { ChevronDown } from "../icons";
 import { Img } from "../Img";
 import { Segmented } from "../Segmented";

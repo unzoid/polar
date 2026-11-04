@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { dismissDepth, dismissTop, handleDismissKey, onDismissed, pushDismiss } from "../src/lib/dismiss";
+import { dismissDepth, dismissTop, handleDismissKey, onDismissed, pushDismiss } from "../src/lib/ui/dismiss";
 
 const key = (k: string, init: { defaultPrevented?: boolean; isComposing?: boolean } = {}) => {
   const e = { key: k, defaultPrevented: !!init.defaultPrevented, isComposing: !!init.isComposing, stopped: false };

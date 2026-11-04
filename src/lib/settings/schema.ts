@@ -1,6 +1,6 @@
-import { PREFERRED_LANGUAGES, languageName } from "../languages";
-import { isMac } from "../platform";
-import type { Prefs } from "../prefs";
+import { PREFERRED_LANGUAGES, languageName } from "../playback/languages";
+import { isMac } from "../ui/platform";
+import type { Prefs } from "./prefs";
 import type { Settings } from "../types";
 import type { PageId } from "./pages";
 

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
-import { keys } from "../lib/queryKeys";
+import { keys } from "../lib/net";
 import { Close } from "./icons";
 import { IconButton } from "./ui/Button";
 import { Toast } from "./ui/Toast";

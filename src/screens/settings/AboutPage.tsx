@@ -2,13 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Reset, Download, Info, Trash } from "../../components/icons";
 import { api } from "../../lib/api";
 import tmdbLogo from "../../assets/tmdb-short.svg";
-import { CREDITS, TMDB_NOTICE } from "../../lib/credits";
+import { CREDITS, TMDB_NOTICE } from "../../lib/settings";
 import { ReleaseNotes } from "../../components/Updates";
 import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl, useUpdate } from "../../lib/updater";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, LinkRow, PickRow, RowText, useExpanded } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
-import { keys } from "../../lib/queryKeys";
+import { keys } from "../../lib/net";
 
 export function AboutPage() {
   const s = useUpdate();

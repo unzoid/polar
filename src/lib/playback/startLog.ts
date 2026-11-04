@@ -9,7 +9,7 @@
  * carry tokens and the add-on's config in their path), addresses on the
  * user's own network and home folders are hidden.
  */
-import type { Stream } from "./types";
+import type { Stream } from "../types";
 
 /** Where a step happens, for "Failed at …". */
 export type StartStage = "sources" | "link" | "server" | "player";

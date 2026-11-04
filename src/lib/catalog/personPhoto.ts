@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { keys } from "./queryKeys";
-import { isRecord, listOf, str } from "./parse";
+import { keys } from "../net/queryKeys";
+import { isRecord, listOf, str } from "../parse";
 
 /**
  * A face for a cast member the metadata source gave no photo for (no TMDB key,

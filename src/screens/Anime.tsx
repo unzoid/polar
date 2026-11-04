@@ -25,14 +25,22 @@ import {
   type MediaFormat,
   type MediaSeason,
   type MediaStatus,
-} from "../lib/anime/anilist";
-import { aniZipQuery } from "../lib/anime/anizip";
-import { oneFranchiseEach } from "../lib/anime/search";
-import { useNearViewport } from "../lib/viewport";
-import { countdown, FORMAT_LABEL, SEASON_LABEL, STATUS_LABEL, untilAiring, useAnimeTitle } from "../lib/anime/format";
-import { animePreview } from "../lib/anime/preview";
-import { useShelfVisible, type AnimeShelfId } from "../lib/anime/shelves";
-import { usePrefs } from "../lib/prefs";
+} from "../lib/anime";
+import {
+  animePreview,
+  type AnimeShelfId,
+  aniZipQuery,
+  countdown,
+  FORMAT_LABEL,
+  oneFranchiseEach,
+  SEASON_LABEL,
+  STATUS_LABEL,
+  untilAiring,
+  useAnimeTitle,
+  useShelfVisible,
+} from "../lib/anime";
+import { useNearViewport } from "../lib/ui";
+import { usePrefs } from "../lib/settings";
 import { useRouter } from "../lib/router";
 import type { MetaPreview } from "../lib/types";
 import { HeroCarousel } from "./Home";

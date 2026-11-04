@@ -4,7 +4,7 @@
  * before sign-out, which drops every profile's copy from this device. Kept apart from sync.ts so
  * it can be tested without the app's `window`.
  */
-import type { AnimeLink } from "../identity";
+import type { AnimeLink } from "../library/identity";
 import type { LocalChanges } from "../types";
 import type { SyncChanges } from "./backend";
 

@@ -1,15 +1,20 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-import type { Anime, AnimeCard } from "../../lib/anime/anilist";
-import { useAniZip } from "../../lib/anime/anizip";
-import { animeEpisodes, progressByVideo, upNext } from "../../lib/anime/episodes";
-import { linkAnime } from "../../lib/anime/links";
-import { playContext } from "../../lib/anime/playContext";
-import { useAnimeImdb } from "../../lib/anime/search";
-import { rememberStill } from "../../lib/anime/stills";
-import { usePrefs } from "../../lib/prefs";
-import { useMeta, useProgress } from "../../lib/queries";
-import { watchedFraction } from "../../lib/watched";
+import {
+  type Anime,
+  type AnimeCard,
+  animeEpisodes,
+  linkAnime,
+  playContext,
+  progressByVideo,
+  rememberStill,
+  upNext,
+  useAnimeImdb,
+  useAniZip,
+} from "../../lib/anime";
+import { usePrefs } from "../../lib/settings";
+import { useMeta, useProgress } from "../../lib/net";
+import { watchedFraction } from "../../lib/library";
 
 /**
  * Everything the anime page needs to play: the episodes, matched to the

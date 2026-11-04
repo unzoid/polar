@@ -1,8 +1,8 @@
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { api } from "./api";
-import { keys, useContinueWatching, useLibrary, useWatchHistory } from "./queries";
-import type { Meta, Video } from "./types";
+import { api } from "../api";
+import { keys, useContinueWatching, useLibrary, useWatchHistory } from "../net/queries";
+import type { Meta, Video } from "../types";
 
 /**
  * The Calendar (Settings → Browsing, opt-in), like Stremio's: episodes of

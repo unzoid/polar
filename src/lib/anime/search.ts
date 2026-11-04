@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import { cachedLookup } from "../queries";
+import { cachedLookup } from "../net/queries";
 import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard } from "./anilist";
 import { airedEpisodes, airsWith, cachedAniZip, type AniZip, type AniZipEpisode } from "./anizip";
 import { norm } from "./merge";
 import { readCards, readPage } from "./responses";
-import { keys } from "../queryKeys";
+import { keys } from "../net/queryKeys";
 
 /** AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search. */
 export function useAnimeResults(query: string) {

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Speed } from "../components/icons";
-import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../lib/recentSearches";
+import { addRecentSearch, byDay, clearRecentSearches, dayLabel, useCalendar, useRecentSearches } from "../lib/catalog";
 import { playSound } from "./sounds";
-import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/queries";
+import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/net";
 import {
   GENRES,
   progressFraction,
@@ -15,23 +15,19 @@ import {
   useTrending,
   type Shape,
   type Shelf,
-} from "../lib/shelves";
+} from "../lib/catalog";
 import type { ContentType, MetaPreview } from "../lib/types";
 import { useBack, usePageActive } from "./shell";
 import { focusWhenReady } from "./spatial";
 import { usePlaylistItem } from "../components/Playlists";
-import { usePlaylists, type PlaylistItem } from "../lib/playlists";
-import { localStream, useDownloads } from "../lib/downloads";
+import { localStream, type PlaylistItem, useDownloads, usePlaylists } from "../lib/library";
 import { episodeCode } from "../lib/format";
 import { useRouter } from "../lib/router";
 import { TvBrowse, TvCard, TvContinueRail, TvItemsRail, TvRail, TvShelfRail, type RailRow } from "./TvRails";
 import { TvKeyboard } from "./TvKeyboard";
 import { TvAnimeRail } from "./TvAnime";
-import { useAnimeResults } from "../lib/anime/search";
-import { withoutAnime } from "../lib/anime/merge";
-import { useAnimeAliases } from "../lib/anime/links";
-import { usePrefs } from "../lib/prefs";
-import { byDay, dayLabel, useCalendar } from "../lib/calendar";
+import { useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
+import { usePrefs } from "../lib/settings";
 import { EmptyState } from "../components/ui/EmptyState";
 
 const NO_TITLES: MetaPreview[] = [];

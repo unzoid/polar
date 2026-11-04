@@ -1,0 +1,20 @@
+// Anime: AniList and ani.zip lookups, Kitsu ids, AniSkip times, filler flags, seasons and the anime screens' data. See docs/anime-identity.md.
+// Its public surface: code outside src/lib imports this folder, code inside src/lib imports the file.
+
+export * from "./anilist";
+export * from "./aniskip";
+export * from "./anizip";
+export * from "./episodeFlags";
+export * from "./episodes";
+export * from "./format";
+export * from "./groups";
+export * from "./kitsu";
+export * from "./links";
+export * from "./merge";
+export * from "./playContext";
+export * from "./preview";
+export * from "./responses";
+export * from "./search";
+export * from "./seasonLabels";
+export * from "./shelves";
+export * from "./stills";

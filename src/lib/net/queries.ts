@@ -1,14 +1,14 @@
 import { type QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
-import { api } from "./api";
-import { sync } from "./account/sync";
-import { aniZipLookup } from "./anime/anizip";
-import { groupBoost, preferredGroups } from "./anime/groups";
-import { isKitsuId } from "./anime/kitsu";
-import { usePrefs } from "./prefs";
+import { api } from "../api";
+import { sync } from "../account/sync";
+import { aniZipLookup } from "../anime/anizip";
+import { groupBoost, preferredGroups } from "../anime/groups";
+import { isKitsuId } from "../anime/kitsu";
+import { usePrefs } from "../settings/prefs";
 import { keys } from "./queryKeys";
 import { queryClient } from "./queryClient";
-import type { ContentType, MetaPreview, Progress, Settings, StreamsResult } from "./types";
+import type { ContentType, MetaPreview, Progress, Settings, StreamsResult } from "../types";
 
 export { keys };
 export { queryClient };

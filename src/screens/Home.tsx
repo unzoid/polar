@@ -17,11 +17,10 @@ import {
   useContinueWatching,
   useRecommend,
   useSettings,
-} from "../lib/queries";
-import { prefersReducedMotion } from "../lib/reducedMotion";
-import { useNearViewport } from "../lib/viewport";
+} from "../lib/net";
+import { prefersReducedMotion, useNearViewport } from "../lib/ui";
 import { useRouter } from "../lib/router";
-import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/shelves";
+import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/catalog";
 import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Button, IconButton } from "../components/ui/Button";
@@ -30,7 +29,7 @@ import { Skeleton } from "../components/ui/Skeleton";
 
 /**
  * The page, top to bottom: featured carousel, what you're watching, then the
- * day's shelves (lib/shelves.ts). A title already shown higher up (the
+ * day's shelves (lib/catalog/shelves.ts). A title already shown higher up (the
  * carousel included) is left out of the shelves below it. Shelves below the
  * fold only fetch when scrolled near.
  */

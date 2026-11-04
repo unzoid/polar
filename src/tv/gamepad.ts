@@ -1,8 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useSyncExternalStore } from "react";
-import { keyEventFor, type Action } from "../lib/keybinds";
-import { getPrefs, usePrefs } from "../lib/prefs";
+import { type Action, getPrefs, keyEventFor, usePrefs } from "../lib/settings";
 import { getPadBindings, type PadButton } from "./padBindings";
 import { isTvMode, setTvMode } from "./tvMode";
 

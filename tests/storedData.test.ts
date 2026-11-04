@@ -15,13 +15,13 @@ const store = new Map<string, string>();
   removeItem: (k: string) => void store.delete(k),
 };
 
-let playlists: typeof import("../src/lib/playlists");
-let prefs: typeof import("../src/lib/prefs");
-let keybinds: typeof import("../src/lib/keybinds");
+let playlists: typeof import("../src/lib/library/playlists");
+let prefs: typeof import("../src/lib/settings/prefs");
+let keybinds: typeof import("../src/lib/settings/keybinds");
 beforeAll(async () => {
-  playlists = await import("../src/lib/playlists");
-  prefs = await import("../src/lib/prefs");
-  keybinds = await import("../src/lib/keybinds");
+  playlists = await import("../src/lib/library/playlists");
+  prefs = await import("../src/lib/settings/prefs");
+  keybinds = await import("../src/lib/settings/keybinds");
 });
 
 describe("parse helpers", () => {

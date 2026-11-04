@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { PageId } from "./settings/pages";
+import type { PageId } from "./pages";
 
 /** The settings overlay: open from anywhere, on a given page. */
 type State = { open: boolean; page: PageId | null };

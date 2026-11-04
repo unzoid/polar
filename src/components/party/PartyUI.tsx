@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { ease } from "../../lib/motion";
+import { ease } from "../../lib/ui";
 import {
   CODE_LENGTH,
   joinParty,
@@ -8,7 +8,7 @@ import {
   normalizeCode,
   type Member,
   type PartyState,
-} from "../../lib/party/party";
+} from "../../lib/party";
 import { Avatar } from "../Avatar";
 import { BusyLabel } from "../BusyLabel";
 import { Spinner } from "../Spinner";

@@ -2,8 +2,8 @@ import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { sync } from "../account/sync";
 import { api, isTauri } from "../api";
-import { aliasTable, type AnimeLink } from "../identity";
-import { keys } from "../queryKeys";
+import { aliasTable, type AnimeLink } from "../library/identity";
+import { keys } from "../net/queryKeys";
 
 /**
  * The anime links of the active space (docs/anime-identity.md): which id

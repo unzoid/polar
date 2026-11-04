@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleSettings, subtitleCueVars } from "../../components/player/SubtitleSettings";
 import { api } from "../../lib/api";
-import { useSettings, useUpdateSettings } from "../../lib/queries";
+import { keys, useSettings, useUpdateSettings } from "../../lib/net";
 import { Card } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
-import { keys } from "../../lib/queryKeys";
 
 export function SubtitlesPage() {
   const { data } = useSettings();

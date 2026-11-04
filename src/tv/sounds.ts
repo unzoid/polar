@@ -1,4 +1,4 @@
-import { getPrefs } from "../lib/prefs";
+import { getPrefs, type SoundPack } from "../lib/settings";
 import { isTvMode } from "./tvMode";
 
 /**
@@ -14,7 +14,6 @@ import { isTvMode } from "./tvMode";
  * exception: soft swelling tones in a small room, plus a startup chime.
  */
 export type Sound = "move" | "select" | "back" | "edge" | "startup";
-export type SoundPack = "ambient" | "soft" | "wood" | "glass" | "pluck" | "classic";
 
 let ctx: AudioContext | null = null;
 let out: GainNode | null = null;

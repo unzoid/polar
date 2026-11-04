@@ -1,12 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ToggleChip } from "../../components/ui/Chip";
 import { useEffect, useState } from "react";
-import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../../lib/sources";
-import { useSettings, useUpdateSettings } from "../../lib/queries";
+import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../../lib/playback";
+import { keys, useSettings, useUpdateSettings } from "../../lib/net";
 import type { Settings as SettingsT } from "../../lib/types";
 import { Card, FormRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
-import { keys } from "../../lib/queryKeys";
 
 export function SourcesPage() {
   const qc = useQueryClient();

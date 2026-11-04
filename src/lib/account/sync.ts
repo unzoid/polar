@@ -9,10 +9,10 @@
  * again shortly after a failure.
  */
 import { api } from "../api";
-import type { AnimeLink } from "../identity";
-import { queryClient } from "../queries";
-import { onSettingsChange } from "../settingsChanges";
-import { backend } from "./index";
+import type { AnimeLink } from "../library/identity";
+import { queryClient } from "../net/queries";
+import { onSettingsChange } from "../settings/changes";
+import { backend } from ".";
 import { applying as applyingSettings, syncSettings } from "./settingsSync";
 import {
   applyRemotePlaylists,
@@ -22,8 +22,8 @@ import {
   playlistsPulledAt,
   setPlaylistSpace,
   unpushedPlaylists,
-} from "../playlists";
-import { keys } from "../queryKeys";
+} from "../library/playlists";
+import { keys } from "../net/queryKeys";
 import { pushEach, pushSpace, unpushedCount, type PushDeps } from "./spacePush";
 
 const PERIOD_MS = 3 * 60_000;

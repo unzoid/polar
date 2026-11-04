@@ -1,4 +1,4 @@
-import { scoreTone } from "../lib/score";
+import { scoreTone } from "../lib/ui";
 import { Star } from "./icons";
 
 /** The IMDb mark with the score beside it, the score tinted by band (green ≥ 7, amber ≥ 5, red below). */

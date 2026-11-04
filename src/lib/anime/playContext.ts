@@ -1,4 +1,4 @@
-import { parseVideoId, titleOfVideo } from "../identity";
+import { parseVideoId, titleOfVideo } from "../library/identity";
 import { count, isRecord, listOf, storedJson } from "../parse";
 
 /**

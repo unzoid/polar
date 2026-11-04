@@ -1,15 +1,22 @@
 import { useQueries } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import type { Anime, AnimeSeason } from "../../lib/anime/anilist";
-import { alignByAirDate, aniZipQuery, matchVideo, regularEpisodes, type AniZipEpisode } from "../../lib/anime/anizip";
-import { useEpisodeFlags } from "../../lib/anime/episodeFlags";
-import { useAnimeTitle } from "../../lib/anime/format";
-import { playContext } from "../../lib/anime/playContext";
-import { distinctLabels } from "../../lib/anime/seasonLabels";
-import { rememberStill } from "../../lib/anime/stills";
-import { setPrefs, usePrefs } from "../../lib/prefs";
-import { useSettings } from "../../lib/queries";
-import type { PlayRequest } from "../../lib/titlePlayback";
+import {
+  alignByAirDate,
+  type Anime,
+  type AnimeSeason,
+  type AniZipEpisode,
+  aniZipQuery,
+  distinctLabels,
+  matchVideo,
+  playContext,
+  regularEpisodes,
+  rememberStill,
+  useAnimeTitle,
+  useEpisodeFlags,
+} from "../../lib/anime";
+import { setPrefs, usePrefs } from "../../lib/settings";
+import { useSettings } from "../../lib/net";
+import type { PlayRequest } from "../../lib/playback";
 import type { EpisodeLayout, Video } from "../../lib/types";
 import { Dropdown } from "../Dropdown";
 import { LayoutList, LayoutRow } from "../icons";

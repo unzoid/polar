@@ -1,4 +1,4 @@
-import type { ContentType } from "./types";
+import type { ContentType } from "../types";
 
 /**
  * Every React Query key in the app, in one place. Two queries that cache different shapes must

@@ -1,9 +1,8 @@
-import { useCardIntent } from "../../lib/cardIntent";
-import { episodeState } from "../../lib/episodeState";
+import { useCardIntent } from "../../lib/ui";
+import { episodeState, watchedFraction } from "../../lib/library";
 import { formatDate, formatRemaining, shortRuntime } from "../../lib/format";
-import { prefetchStreams } from "../../lib/queries";
+import { prefetchStreams } from "../../lib/net";
 import type { EpisodeLayout, MetaPreview, Progress, Video } from "../../lib/types";
-import { watchedFraction } from "../../lib/watched";
 import { DownloadButton } from "../DownloadButton";
 import { Check, Play, Sources } from "../icons";
 import { StillPlaceholder } from "../StillPlaceholder";

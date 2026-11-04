@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useAccount } from "../../lib/account/AccountProvider";
-import { leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty } from "../../lib/party/party";
+import { useAccount } from "../../lib/account";
+import { leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty } from "../../lib/party";
 import { useRouter } from "../../lib/router";
 import { Dialog } from "@base-ui/react/dialog";
 import { Close, WatchParty } from "../icons";

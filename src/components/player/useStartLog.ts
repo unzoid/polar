@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useRef, useState } from "react";
-import { describeProbe, redact, type ProbeEvent, type StartStage, type StartStep, type StepTone } from "../../lib/startLog";
+import { describeProbe, redact, type ProbeEvent, type StartStage, type StartStep, type StepTone } from "../../lib/playback";
 
 /** Lines kept; a start that needs more than this is long past being readable. */
 const MAX_STEPS = 200;
@@ -8,7 +8,7 @@ const MAX_STEPS = 200;
 export type LogStep = (text: string, tone?: StepTone, stage?: StartStage, key?: string) => void;
 
 /**
- * The loading screen's step log (see lib/startLog). `add` stamps each line
+ * The loading screen's step log (see lib/playback/startLog). `add` stamps each line
  * with the time since the player opened and redacts it; a line with the same
  * `key` as the one before replaces it (buffering 10% → 40% is one line).
  */

@@ -4,7 +4,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { isRecord, str, storedJson } from "./parse";
 import { errorMessage } from "./errors";
-import { getPrefs } from "./prefs";
+import { getPrefs } from "./settings/prefs";
 
 /**
  * App updates, from the signed `latest.json` on the newest GitHub release.

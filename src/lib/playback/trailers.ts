@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import type { Meta } from "./types";
-import { keys } from "./queryKeys";
+import type { Meta } from "../types";
+import { keys } from "../net/queryKeys";
 
 /** A trailer as a file the app plays itself (IMDb's CDN, up to 1080p). */
 export interface FileTrailer {

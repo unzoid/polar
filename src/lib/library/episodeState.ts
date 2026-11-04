@@ -1,5 +1,5 @@
-import { isReleased } from "./format";
-import type { Progress, Video } from "./types";
+import { isReleased } from "../format";
+import type { Progress, Video } from "../types";
 
 export type EpisodeState = {
   released: boolean;

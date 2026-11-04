@@ -3,9 +3,9 @@
 // write what Rust sends into contract/*.json, and tests/contract.test.ts checks the two agree, so a field renamed
 // on one side fails a check instead of arriving as `undefined` (critique M5).
 
-import type { Download } from "./downloads";
+import type { Download } from "./library/downloads";
 import type { CommandError } from "./errors";
-import type { AnimeLink } from "./identity";
+import type { AnimeLink } from "./library/identity";
 import type {
   CacheInfo,
   ExternalRatings,

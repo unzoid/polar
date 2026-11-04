@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
-import { usePrefs } from "../../lib/prefs";
+import { usePrefs } from "../../lib/settings";
 import { warnFailed } from "../../lib/errors";
 import type { MpvMedia } from "./mpvMedia";
 

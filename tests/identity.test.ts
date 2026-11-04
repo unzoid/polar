@@ -9,7 +9,7 @@ import {
   sameTitle,
   titleOfVideo,
   type AnimeLink,
-} from "../src/lib/identity";
+} from "../src/lib/library/identity";
 
 describe("id grammar", () => {
   test("title ids", () => {

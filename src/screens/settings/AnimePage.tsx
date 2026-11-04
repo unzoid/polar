@@ -1,8 +1,7 @@
 import { ToggleChip } from "../../components/ui/Chip";
 import { useEffect, useState } from "react";
-import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../../lib/anime/shelves";
-import { preferredGroups } from "../../lib/anime/groups";
-import { setPrefs, usePrefs } from "../../lib/prefs";
+import { ANIME_SHELVES, preferredGroups, setShelfVisible, useShelfVisible } from "../../lib/anime";
+import { setPrefs, usePrefs } from "../../lib/settings";
 import { Card, FormRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 

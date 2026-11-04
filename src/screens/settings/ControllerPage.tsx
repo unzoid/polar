@@ -1,7 +1,7 @@
 import { Reset } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { Dropdown } from "../../components/Dropdown";
-import { usePrefs } from "../../lib/prefs";
+import { usePrefs } from "../../lib/settings";
 import { useControllerDetected, useGamepadConnected, useLastPadPress } from "../../tv/gamepad";
 import {
   NAV_ACTIONS,

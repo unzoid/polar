@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { trapTarget } from "../src/lib/layer";
+import { trapTarget } from "../src/lib/ui/layer";
 
 test("Tab wraps only at the edges", () => {
   expect(trapTarget(3, 2, false, true)).toBe(0);

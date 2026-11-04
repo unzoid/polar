@@ -1,8 +1,8 @@
-import { upNext } from "./episodes";
-import { episodeCode, formatTime } from "./format";
-import { useProgress } from "./queries";
-import type { Meta, MetaPreview } from "./types";
-import { watchedFraction } from "./watched";
+import { upNext } from "../library/episodes";
+import { episodeCode, formatTime } from "../format";
+import { useProgress } from "../net/queries";
+import type { Meta, MetaPreview } from "../types";
+import { watchedFraction } from "../library/watched";
 
 /**
  * What a title's primary button plays, and what it says: the movie (resuming

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { useSettings } from "../lib/queries";
-import { prefersReducedMotion } from "../lib/reducedMotion";
-import { useFileTrailer } from "../lib/trailers";
+import { useSettings } from "../lib/net";
+import { prefersReducedMotion } from "../lib/ui";
+import { useFileTrailer } from "../lib/playback";
 
 /** How long a title's page shows its art before the trailer takes over. */
 const DELAY_MS = 4000;

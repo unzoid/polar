@@ -1,5 +1,4 @@
-import type { Anime, AnimeCard as Card, RelationType } from "../../lib/anime/anilist";
-import { FORMAT_LABEL, RELATION_LABEL } from "../../lib/anime/format";
+import { type Anime, type AnimeCard as Card, FORMAT_LABEL, RELATION_LABEL, type RelationType } from "../../lib/anime";
 import { Row } from "../Row";
 import { AnimeCard } from "./AnimeCard";
 import type { Franchise } from "./AnimeEpisodes";

@@ -3,7 +3,7 @@
  * this interface (via `./index.ts`); swapping Supabase for a self-hosted
  * server, PocketBase, etc. means writing one new file like `./supabase.ts`.
  */
-import type { AnimeLink } from "../identity";
+import type { AnimeLink } from "../library/identity";
 import type { Progress, SyncLibraryItem } from "../types";
 import { count, isRecord, str } from "../parse";
 import { normalizeAvatar, type AvatarId } from "./avatars";

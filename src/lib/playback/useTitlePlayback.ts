@@ -1,7 +1,7 @@
-import { useSettings } from "./queries";
-import { useRouter } from "./router";
+import { useSettings } from "../net/queries";
+import { useRouter } from "../router";
 import { needsPick, type PlayRequest } from "./titlePlayback";
-import type { RankedStream } from "./types";
+import type { RankedStream } from "../types";
 
 /**
  * `play(req, stream?)` for every title page, desktop and TV: it opens the player, or hands the request to

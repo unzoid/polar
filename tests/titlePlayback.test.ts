@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { needsPick, type PlayRequest } from "../src/lib/titlePlayback";
+import { needsPick, type PlayRequest } from "../src/lib/playback/titlePlayback";
 import type { RankedStream } from "../src/lib/types";
 
 const req: PlayRequest = { type: "series", metaId: "tt0000104", videoId: "tt0000104:1:1" };

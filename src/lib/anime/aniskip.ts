@@ -1,5 +1,5 @@
 import type { SkipSegments, Span } from "../types";
-import { parseVideoId } from "../identity";
+import { parseVideoId } from "../library/identity";
 import { cachedAniZip, regularEpisodes } from "./anizip";
 import { animeLinks } from "./links";
 import { playContext } from "./playContext";

@@ -13,13 +13,13 @@
  * are kept aside while a profile has the store, and put back at sign-out.
  */
 import { api } from "../api";
-import { queryClient } from "../queries";
-import { applyBindingOverrides, bindingOverrides, readBindings } from "../keybinds";
+import { queryClient } from "../net/queries";
+import { applyBindingOverrides, bindingOverrides, readBindings } from "../settings/keybinds";
 import { isRecord, likeTemplate, storedJson, strings } from "../parse";
-import { getPrefs, readPrefs, setPrefs, SYNCED_PREFS, type Prefs } from "../prefs";
+import { getPrefs, readPrefs, setPrefs, SYNCED_PREFS, type Prefs } from "../settings/prefs";
 import type { Settings } from "../types";
 import { AccountError, type AccountBackend } from "./backend";
-import { keys } from "../queryKeys";
+import { keys } from "../net/queryKeys";
 
 /** Settings keys that describe this machine, not the person. */
 const DEVICE_ONLY = new Set<string>(["metadataSource"]);

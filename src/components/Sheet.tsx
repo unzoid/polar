@@ -1,7 +1,6 @@
 import { AnimatePresence, motion, useMotionValue, type PanInfo } from "motion/react";
 import { useRef, type ReactNode } from "react";
-import { useLayer } from "../lib/layer";
-import { ease, project, springs } from "../lib/motion";
+import { ease, project, springs, useLayer } from "../lib/ui";
 
 /**
  * A side sheet that enters from the right and leaves the same way.

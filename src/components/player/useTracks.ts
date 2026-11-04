@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import type { ContentType, SubtitleOption } from "../../lib/types";
-import { ISO3, langMatches, languageName } from "../../lib/languages";
+import { ISO3, langMatches, languageName } from "../../lib/playback";
 import { isMpv, type MediaLike, type MpvTrack } from "./mpvMedia";
-import { keys } from "../../lib/queryKeys";
+import { keys } from "../../lib/net";
 import { warnFailed } from "../../lib/errors";
 
 export interface TrackOption {

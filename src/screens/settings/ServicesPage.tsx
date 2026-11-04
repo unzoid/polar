@@ -4,7 +4,7 @@ import { TextField } from "../../components/ui/TextField";
 import { Grid, Picture, Star } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { keys, useSettings } from "../../lib/queries";
+import { keys, useSettings } from "../../lib/net";
 import type { Settings as SettingsT } from "../../lib/types";
 import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../components/settings/rows";

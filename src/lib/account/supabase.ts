@@ -3,13 +3,13 @@
  * supabase-js; schema lives in supabase/migrations.
  */
 import { createClient, type AuthError, type PostgrestError, type User } from "@supabase/supabase-js";
-import type { AnimeLink } from "../identity";
+import type { AnimeLink } from "../library/identity";
 import type { Progress, SyncLibraryItem } from "../types";
 import { contentType, count, isRecord, listOf, num, str } from "../parse";
 import { AccountError, type AccountBackend, type AccountUser, type Profile, type RemotePlaylist } from "./backend";
 import { parsePresence } from "../party/messages";
 import { normalizeAvatar } from "./avatars";
-import { fromHex, toHex } from "../playlistCodec";
+import { fromHex, toHex } from "../library/playlistCodec";
 
 const PAGE = 1000;
 /** Re-read a little before the cursor: rows committed out of order still arrive. */

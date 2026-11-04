@@ -4,10 +4,10 @@ import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { ProgressBar, useCardArt } from "../components/title/Card";
 import { episodeCode, formatRemaining } from "../lib/format";
-import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/queries";
+import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/net";
 import { useRouter } from "../lib/router";
-import { useCardIntent } from "../lib/cardIntent";
-import type { Shape, Shelf } from "../lib/shelves";
+import { useCardIntent } from "../lib/ui";
+import type { Shape, Shelf } from "../lib/catalog";
 import type { MetaPreview, Progress } from "../lib/types";
 import { StageProvider, TvStage, useStage, useStageSeed } from "./TvStage";
 import { isMenuKey, openCardMenu } from "./TvCardMenu";
@@ -151,7 +151,7 @@ export function TvItemsRail({ title, items, shape }: { title: string; items?: Me
 /** With fewer fresh titles than this, a shelf shows its full list, repeats and all. */
 const MIN_FRESH = 6;
 
-/** A day's shelf (lib/shelves.ts), fetched once it's close to the focused row. */
+/** A day's shelf (lib/catalog/shelves.ts), fetched once it's close to the focused row. */
 export function TvShelfRail({ shelf, enabled, exclude }: { shelf: Shelf; enabled: boolean; exclude: Set<string> }) {
   const isCatalog = shelf.kind === "catalog";
   const catalog = useCatalog(shelf.type, isCatalog ? shelf.id : "", isCatalog ? shelf.genre : undefined, enabled && isCatalog);
