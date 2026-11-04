@@ -2,7 +2,7 @@ import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFoldSnap } from "../lib/useFoldSnap";
 import { AnimeCard } from "../components/anime/AnimeCard";
-import { Check, ChevronDown, LayoutList, LayoutRow, Play, Plus, Reset, Sources, Star, Trailer } from "../components/icons";
+import { ChevronDown, LayoutList, LayoutRow, Play, Reset, Sources, Star, Trailer } from "../components/icons";
 import { EpisodeShelf } from "../components/EpisodeShelf";
 import { Dropdown } from "../components/Dropdown";
 import { Img } from "../components/Img";
@@ -11,7 +11,6 @@ import { Row } from "../components/Row";
 import { Segmented } from "../components/Segmented";
 import { SeasonPicker } from "../components/title/SeasonPicker";
 import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
-import { SwapIcon } from "../components/SwapIcon";
 import { openTrailer } from "../components/Trailer";
 import { api } from "../lib/api";
 import { useAnime, useAnimeSeasons, type Anime, type AnimeCard as Card, type AnimeSeason, type RelationType } from "../lib/anime/anilist";
@@ -36,11 +35,12 @@ import { playContext } from "../lib/anime/playContext";
 import { useAnimeImdb } from "../lib/anime/search";
 import { formatTime } from "../lib/format";
 import { setPrefs, usePrefs } from "../lib/prefs";
-import { useLibrary, useMeta, useProgress, useSettings, useToggleLibrary } from "../lib/queries";
+import { useMeta, useProgress, useSettings } from "../lib/queries";
 import type { EpisodeLayout, Progress, Video } from "../lib/types";
 import type { PlayRequest } from "../lib/titlePlayback";
 import { watchedFraction } from "../lib/watched";
 import { Button, IconButton } from "../components/ui/Button";
+import { LibraryButton } from "../components/title/LibraryButton";
 import { Badge, Chip } from "../components/ui/Chip";
 import { SearchField } from "../components/ui/SearchField";
 import { Switch } from "../components/ui/Switch";
@@ -247,13 +247,10 @@ function usePlayback(anime: Card | Anime) {
 
 function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: string; name: string }) {
   const pb = usePlayback(anime ?? item);
-  const { data: library } = useLibrary();
-  const toggle = useToggleLibrary();
   const picker = useSourcePicker();
   const prefs = usePrefs();
 
   const target = pb.isMovie ? pb.metaId : pb.next.ep?.video?.id;
-  const inLibrary = !!pb.metaId && library?.some((l) => l.id === pb.metaId);
   const request = target && pb.metaId && {
     type: pb.isMovie ? ("movie" as const) : ("series" as const),
     metaId: pb.metaId,
@@ -322,17 +319,7 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
               Trailer
             </Button>
           )}
-          {pb.meta && (
-            <IconButton
-              variant="glass"
-              onClick={() => toggle.mutate(pb.meta!)}
-              label={inLibrary ? "Remove from Library" : "Add to Library"}
-              title={inLibrary ? "Remove from Library" : "Add to Library"}
-              aria-pressed={inLibrary}
-            >
-              <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
-            </IconButton>
-          )}
+          {pb.meta && <LibraryButton item={pb.meta} />}
           <IconButton variant="glass" disabled={!target} onClick={() => request && picker.choose(request)} label="Choose source" title="Choose source">
             <Sources size={19} />
           </IconButton>
