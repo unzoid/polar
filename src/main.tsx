@@ -20,6 +20,7 @@ import "./styles/ui/search-field.css";
 import "./styles/ui/text-field.css";
 import "./styles/ui/empty-state.css";
 import "./styles/ui/skeleton.css";
+import "./styles/ui/toast.css";
 import "./styles/shell.css";
 import "./styles/cards.css";
 import "./styles/detail.css";
