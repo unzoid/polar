@@ -25,7 +25,7 @@ relative to `src/`; each primitive's CSS is `styles/ui/<name>.css`, the title pa
 | Component | Props | Use it for |
 |---|---|---|
 | `Button` | `variant` primary/glass/plain/danger/accent/outline, `size` md/sm/block, `busy`, `className` for layout, native button props | Any text button. One `primary` (or `accent` on the account screens) per screen. `busy` swaps the label for a spinner after a short delay. `block` is the account screens' full-width button (soft fill, or `accent`); `sm` the profile screens' row of actions |
-| `IconButton` | `label` (required, the accessible name), `variant` plain/glass, or `player`/`transport` over the video | A button holding one glyph |
+| `IconButton`, `iconButtonClass(variant, extra)` | `label` (required, the accessible name), `variant` plain/glass, or a surface's own look: `player`/`transport` over the video, `panel` (player options heading, `aria-pressed`), `settings` and `party` (dialog closes) | A button holding one glyph; `iconButtonClass` for a Base UI `Dialog.Close` |
 | `buttonClass(variant, icon, extra)` | | The button look on an element that isn't ours (a Base UI trigger) |
 | `Chip`, `ToggleChip`, `Badge` | `Chip`: `variant` filter/tag/choice/link/badge, `pressed`; `ToggleChip`: `on`, `label`, `onToggle`; `Badge`: `variant` rank/tag | Filters and genre links (`Chip`), on/off filters with a check (`ToggleChip`), static labels (`Badge`) |
 | `Switch` | `checked`, `onChange(boolean)`, native input props | An on/off setting; name it with the `<label>` around it |
