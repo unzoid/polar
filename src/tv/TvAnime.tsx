@@ -11,7 +11,8 @@ import {
   type AnimeCard,
 } from "../lib/anime/anilist";
 import { aniZipQuery, fetchAniZip, useAniZip } from "../lib/anime/anizip";
-import { findImdbId } from "../lib/anime/search";
+import { imdbForAnime } from "../lib/anime/search";
+import { cachedLookup } from "../lib/queries";
 import { countdown, isMature, SEASON_LABEL, untilAiring, useAnimeScore } from "../lib/anime/format";
 import { animePreview } from "../lib/anime/preview";
 import { useShelfVisible } from "../lib/anime/shelves";
@@ -162,7 +163,8 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
 
   const open = async () => {
     const z = await qc.fetchQuery(aniZipQuery(card.id)).catch(() => null);
-    const imdb = z?.mappings.imdb_id;
+    // ani.zip's IMDb show, or the one that has this entry's episodes when that one stops short.
+    const imdb = await imdbForAnime(card, z, cachedLookup(qc)).catch(() => z?.mappings.imdb_id);
     if (!imdb) {
       playSound("edge");
       setMissing(true);
@@ -190,15 +192,16 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
 /** An anime link in TV mode (arriving from desktop mode, say): on to the show's title page. */
 export function TvAnimeDetail({ id }: { id: number }) {
   const { replace } = useRouter();
+  const qc = useQueryClient();
   const [missing, setMissing] = useState(false);
   useEffect(() => {
     let live = true;
     void (async () => {
       const z = await fetchAniZip({ anilist_id: id }).catch(() => null);
-      // As on desktop: IMDb, else Kitsu, else the same title on Cinemeta (new seasons ani.zip can't link yet).
-      let target = z?.mappings.imdb_id ?? (z?.mappings.kitsu_id ? `kitsu:${z.mappings.kitsu_id}` : null);
+      // As on desktop: the IMDb show with this entry's episodes, else Kitsu.
+      const imdb = await fetchAnime(id).then((a) => imdbForAnime(a, z, cachedLookup(qc)), () => z?.mappings.imdb_id);
+      const target = imdb ?? (z?.mappings.kitsu_id ? `kitsu:${z.mappings.kitsu_id}` : null);
       const movie = z?.mappings.type?.toLowerCase() === "movie";
-      if (!target) target = await fetchAnime(id).then(findImdbId, () => null);
       if (!live) return;
       if (target) replace({ name: "detail", type: movie ? "movie" : "series", id: target });
       else setMissing(true);
@@ -206,7 +209,7 @@ export function TvAnimeDetail({ id }: { id: number }) {
     return () => {
       live = false;
     };
-  }, [id, replace]);
+  }, [id, replace, qc]);
   if (!missing) return null;
   return (
     <div className="tv-note">

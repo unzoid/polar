@@ -98,7 +98,17 @@ export function regularEpisodes(z: AniZip | null | undefined): AniZipEpisode[] {
 }
 
 const DAY = 86_400_000;
-const time = (iso?: string) => (iso ? new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso).getTime() : NaN);
+/**
+ * A date as a time. A bare date, or one at midnight UTC (how Cinemeta writes
+ * them, for whichever day it lists), means the whole day: count from its
+ * middle. Otherwise an episode Cinemeta dates 10 October and ani.zip at
+ * 14:00 UTC on the 11th (late evening in Japan) are 38 hours apart.
+ */
+const time = (iso?: string) => {
+  if (!iso) return NaN;
+  const day = iso.length === 10 || /T00:00(?::00(?:\.0+)?)?Z$/.test(iso);
+  return new Date(day ? `${iso.slice(0, 10)}T12:00:00Z` : iso).getTime();
+};
 
 /**
  * Which of the app's videos (one IMDb show, its own season numbering) is
@@ -130,6 +140,53 @@ export function matchVideo(ep: AniZipEpisode, videos: Video[]): Video | undefine
     return ordered[ep.absoluteEpisodeNumber - 1];
   }
   return undefined;
+}
+
+/** The regular episodes that have aired, going by their air date (undated ones don't count). */
+export function airedEpisodes(z: AniZip | null | undefined, now = Date.now()): AniZipEpisode[] {
+  return regularEpisodes(z).filter((e) => time(e.airDateUtc ?? e.airDate ?? e.airdate) <= now);
+}
+
+/**
+ * The one of `videos` that aired with this episode, by date alone. Positions
+ * and season numbers are left out on purpose: any long enough show has an
+ * episode at a given position, so only the air date says it's the same one.
+ */
+export function videoAiredWith(ep: AniZipEpisode, videos: Video[]): Video | undefined {
+  return matchVideo({ episode: ep.episode, airDateUtc: ep.airDateUtc, airDate: ep.airDate, airdate: ep.airdate }, videos);
+}
+
+export const airsWith = (ep: AniZipEpisode, videos: Video[]) => !!videoAiredWith(ep, videos);
+
+/**
+ * Matches an entry's episodes to another show's videos: the show IMDb lists a
+ * part under, where ani.zip's season numbers don't apply. By air date first;
+ * an episode Cinemeta has no usable date for (or a wrong one: Thousand-Year
+ * Blood War's S2E10 is dated with S2E1) is placed by its position next to
+ * the nearest episodes that did match. A date match is trusted only when at
+ * least one other episode lines up the same way, so a stray date can't move
+ * an episode onto another one's video.
+ */
+export function alignByAirDate(eps: AniZipEpisode[], videos: Video[]): (ep: AniZipEpisode) => Video | undefined {
+  const ordered = videos.filter((v) => v.season > 0).sort((a, b) => a.season - b.season || a.episode - b.episode);
+  const index = new Map(ordered.map((v, i) => [v.id, i]));
+  // How far into the show an episode sits relative to its own number.
+  const offsetOf = (ep: AniZipEpisode) => {
+    const v = videoAiredWith(ep, ordered);
+    return v ? index.get(v.id)! - Number(ep.episode) : undefined;
+  };
+  const dated = eps.map((e) => ({ n: Number(e.episode), off: offsetOf(e) })).filter((d): d is { n: number; off: number } => d.off !== undefined);
+  const seen = new Map<number, number>();
+  for (const d of dated) seen.set(d.off, (seen.get(d.off) ?? 0) + 1);
+  const agreed = (off: number | undefined) => off !== undefined && (seen.get(off) ?? 0) >= 2;
+  const anchors = dated.filter((d) => agreed(d.off)).sort((a, b) => a.n - b.n);
+  return (ep) => {
+    const n = Number(ep.episode);
+    const off = offsetOf(ep);
+    if (!anchors.length || agreed(off)) return off === undefined ? undefined : ordered[n + off];
+    const nearest = anchors.reduce((best, a) => (Math.abs(a.n - n) < Math.abs(best.n - n) ? a : best));
+    return ordered[n + nearest.off];
+  };
 }
 
 /** An episode's title in the language from Settings → Anime, falling back to whatever it has. */

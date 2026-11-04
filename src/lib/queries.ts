@@ -42,6 +42,13 @@ export const useRecommend = (type: ContentType, id: string, enabled = true) =>
 export const useMeta = (type: ContentType, id: string, enabled = true) =>
   useQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000, enabled });
 
+/** api's search and meta, with meta through the query cache: what a lookup fetched, useMeta then reuses. */
+export const cachedLookup = (qc: QueryClient) => ({
+  search: api.search,
+  meta: (type: ContentType, id: string) =>
+    qc.fetchQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000 }),
+});
+
 export function useStreams(type: ContentType, videoId: string | undefined) {
   const anime = useIsAnime(videoId);
   const { animeNo4k } = usePrefs();
