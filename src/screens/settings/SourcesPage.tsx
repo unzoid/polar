@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../../lib/sources";
 import { useSettings, useUpdateSettings } from "../../lib/queries";
 import type { Settings as SettingsT } from "../../lib/types";
-import { Card, FormRow, NumberRow } from "../../components/settings/rows";
+import { Card, FormRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 export function SourcesPage() {
@@ -28,27 +28,8 @@ export function SourcesPage() {
         footer="Hidden sources never play automatically and don't show in the source list. A source that doesn't say its quality or size is always kept."
       >
         <SettingRow id="maxResolution" />
-        <NumberRow
-          title="Largest movie file"
-          caption="Big files take longer to start and can stall on a slower connection"
-          value={data.maxMovieSizeGb ?? 0}
-          min={0}
-          max={100}
-          step={0.5}
-          unit="GB"
-          zero="Any size"
-          onChange={(n) => set({ maxMovieSizeGb: n })}
-        />
-        <NumberRow
-          title="Largest episode file"
-          value={data.maxEpisodeSizeGb ?? 0}
-          min={0}
-          max={30}
-          step={0.5}
-          unit="GB"
-          zero="Any size"
-          onChange={(n) => set({ maxEpisodeSizeGb: n })}
-        />
+        <SettingRow id="maxMovieSizeGb" />
+        <SettingRow id="maxEpisodeSizeGb" />
         <SettingRow id="hideCam" />
       </Card>
 

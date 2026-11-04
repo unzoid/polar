@@ -1,7 +1,7 @@
 import { Reset } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { Dropdown } from "../../components/Dropdown";
-import { setPrefs, usePrefs } from "../../lib/prefs";
+import { usePrefs } from "../../lib/prefs";
 import { useControllerDetected, useGamepadConnected, useLastPadPress } from "../../tv/gamepad";
 import {
   NAV_ACTIONS,
@@ -16,7 +16,7 @@ import {
   type PadButton,
 } from "../../tv/padBindings";
 import { PadGlyph } from "../../tv/TvChrome";
-import { ActionRow, Card, PickRow, RowText, ToggleRow } from "../../components/settings/rows";
+import { ActionRow, Card, RowText } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 /** Where each button sits, the same on every maker's controller (the glyph says what it's called). */
@@ -109,55 +109,16 @@ export function ControllerPage() {
           />
         </div>
         <SettingRow id="controllerAlerts" />
-        <ToggleRow
-          title="Suggest TV mode"
-          caption="Offer TV mode when a controller connects in desktop mode"
-          checked={prefs.suggestTvMode}
-          onChange={(v) => setPrefs({ suggestTvMode: v })}
-        />
-        <PickRow title="Button labels" caption="The letters or shapes shown for each button">
-          <Dropdown
-            label="Button labels"
-            value={prefs.padLabels}
-            onChange={(v) => setPrefs({ padLabels: v })}
-            options={[
-              { value: "auto", label: "Match the controller" },
-              { value: "xbox", label: "Xbox" },
-              { value: "playstation", label: "PlayStation" },
-              { value: "nintendo", label: "Nintendo" },
-            ]}
-          />
-        </PickRow>
+        <SettingRow id="suggestTvMode" />
+        <SettingRow id="padLabels" />
         <SettingRow id="padHints" />
       </Card>
 
       <Card title="D-pad & Stick">
-        <PickRow title="Repeat speed" caption="How fast a held direction keeps moving">
-          <Dropdown
-            label="Repeat speed"
-            value={prefs.padRepeat}
-            onChange={(v) => setPrefs({ padRepeat: v })}
-            options={[
-              { value: "slow", label: "Slow" },
-              { value: "normal", label: "Normal" },
-              { value: "fast", label: "Fast" },
-            ]}
-          />
-        </PickRow>
+        <SettingRow id="padRepeat" />
         <SettingRow id="padStick" />
         {prefs.padStick && (
-          <PickRow title="Stick sensitivity" caption="How far to tilt it before it moves">
-            <Dropdown
-              label="Stick sensitivity"
-              value={prefs.padStickSensitivity}
-              onChange={(v) => setPrefs({ padStickSensitivity: v })}
-              options={[
-                { value: "low", label: "Low (tilt further)" },
-                { value: "normal", label: "Normal" },
-                { value: "high", label: "High (a light touch)" },
-              ]}
-            />
-          </PickRow>
+          <SettingRow id="padStickSensitivity" />
         )}
         <SettingRow id="padPlayerVolume" />
       </Card>

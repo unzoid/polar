@@ -1,7 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
-import type { Prefs } from "../src/lib/prefs";
-import { SETTINGS, languageChoices, readSetting, settingDef, tvNumberSteps, type Control } from "../src/lib/settings/schema";
+import { getPrefs, type Prefs } from "../src/lib/prefs";
+import {
+  SETTINGS,
+  choicesOf,
+  languageChoices,
+  readSetting,
+  settingDef,
+  shownNumber,
+  tvNumberSteps,
+  type Control,
+  type Value,
+} from "../src/lib/settings/schema";
 import type { Settings } from "../src/lib/types";
 
 const number = (c: Partial<Extract<Control, { kind: "number" }>>) => ({ kind: "number" as const, min: 0, max: 10, ...c });
@@ -34,6 +44,20 @@ describe("settings schema", () => {
       [`"${d.title}"`, `>${d.title}<`, `data-setting="${d.id}"`].some((s) => source.includes(s));
     const missing = SETTINGS.filter((d) => !d.bind && !shown(d)).map((d) => d.title);
     expect(missing).toEqual([]);
+  });
+
+  // A fallback (or a prefs default) the control can't show would draw an empty dropdown or a stuck slider.
+  test("every bound setting's fallback is a value its control offers", () => {
+    const defaults = getPrefs();
+    const bad = SETTINGS.filter((d) => d.bind && d.control).filter((d) => {
+      const v = d.bind!.store === "prefs" ? (defaults[d.bind!.key] as Value) : d.bind!.fallback;
+      const c = d.control!;
+      if (c.kind === "toggle") return typeof v !== "boolean";
+      if (c.kind === "choice") return !choicesOf(c, v).some((x) => x.value === v);
+      const shown = shownNumber(c, Number(v));
+      return typeof v !== "number" || shown < c.min || shown > c.max;
+    });
+    expect(bad.map((d) => d.id)).toEqual([]);
   });
 
   test("settingDef throws on an unknown id", () => {

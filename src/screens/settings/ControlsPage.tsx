@@ -1,9 +1,8 @@
-import { Dropdown } from "../../components/Dropdown";
 import { ShortcutSettings } from "../../components/ShortcutSettings";
-import { setPrefs, usePrefs } from "../../lib/prefs";
-import { playSound, SOUND_PACKS } from "../../tv/sounds";
+import { usePrefs } from "../../lib/prefs";
+import { playSound } from "../../tv/sounds";
 import { setTvMode } from "../../tv/tvMode";
-import { ActionRow, Card, PickRow, ToggleRow } from "../../components/settings/rows";
+import { ActionRow, Card } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 export function ControlsPage() {
@@ -18,25 +17,10 @@ export function ControlsPage() {
           label="Open TV Mode"
           onClick={() => setTvMode(true)}
         />
-        <ToggleRow
-          title="TV mode button in the top bar"
-          caption="Off hides it; TV mode stays one click away here"
-          checked={prefs.showTvButton}
-          onChange={(v) => setPrefs({ showTvButton: v })}
-        />
+        <SettingRow id="showTvButton" />
         <SettingRow id="uiSounds" onChanged={(v) => v && playSound("select", { force: true })} />
         {prefs.uiSounds && (
-          <PickRow title="Sound pack">
-            <Dropdown
-              label="Sound pack"
-              value={prefs.uiSoundPack}
-              onChange={(v) => {
-                setPrefs({ uiSoundPack: v });
-                playSound("select", { force: true });
-              }}
-              options={SOUND_PACKS}
-            />
-          </PickRow>
+          <SettingRow id="uiSoundPack" onChanged={() => playSound("select", { force: true })} />
         )}
         {prefs.uiSounds && (
           <SettingRow id="uiSoundVolume" onChanged={() => playSound("select", { force: true })} />

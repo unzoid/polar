@@ -1,4 +1,5 @@
 import { PREFERRED_LANGUAGES, languageName } from "../languages";
+import { isMac } from "../platform";
 import type { Prefs } from "../prefs";
 import type { Settings } from "../types";
 import type { PageId } from "./pages";
@@ -69,6 +70,29 @@ export function languageChoices(current: Value, none: string): Choice[] {
   return [{ value: "", label: none }, ...codes.map((c) => ({ value: c, label: languageName(c) ?? c }))];
 }
 
+/** TMDB's metadata languages, as locales. */
+// prettier-ignore
+const METADATA_LANGUAGES = [
+  "en-US", "en-GB", "es-ES", "es-MX", "fr-FR", "de-DE", "it-IT", "pt-PT", "pt-BR", "nl-NL", "sv-SE", "da-DK", "nb-NO",
+  "fi-FI", "pl-PL", "cs-CZ", "hu-HU", "ro-RO", "el-GR", "tr-TR", "ru-RU", "uk-UA", "ar-SA", "he-IL", "hi-IN", "th-TH",
+  "vi-VN", "id-ID", "ja-JP", "ko-KR", "zh-CN", "zh-TW",
+];
+const localeNames = new Intl.DisplayNames(undefined, { type: "language" });
+const localeLabel = (code: string) => {
+  try {
+    return localeNames.of(code) ?? code;
+  } catch {
+    return code;
+  }
+};
+
+/** The metadata languages (plus the current one if it isn't in the list), named in the UI's language. */
+export function metadataLanguageChoices(current: Value): Choice[] {
+  const code = String(current ?? "");
+  const codes = code && !METADATA_LANGUAGES.includes(code) ? [code, ...METADATA_LANGUAGES] : METADATA_LANGUAGES;
+  return codes.map((c) => ({ value: c, label: localeLabel(c) }));
+}
+
 export const RESOLUTION_CHOICES: Choice<number>[] = [
   { value: 0, label: "Any" },
   { value: 2160, label: "4K" },
@@ -137,7 +161,18 @@ export const SETTINGS: SettingDef[] = [
     },
     tv: "Ask “Still Watching?”",
   },
-  { id: "nextUpTiming", page: "playback", title: "Show Up Next", keywords: "next episode card credits end post-play" },
+  {
+    id: "nextUpTiming",
+    page: "playback",
+    title: "Show Up Next",
+    caption: "When the next-episode card appears near the end of an episode",
+    keywords: "next episode card credits end post-play",
+    bind: s("nextUpTiming", "credits"),
+    control: choice([
+      { value: "credits", label: "When the credits start" },
+      { value: "end", label: "At the very end" },
+    ]),
+  },
   {
     id: "autoSkip",
     page: "playback",
@@ -153,7 +188,10 @@ export const SETTINGS: SettingDef[] = [
     id: "preferFileChapters",
     page: "playback",
     title: "Use the file's own chapters for intros",
+    caption: "If the video has chapters named Intro, Recap or Credits, use those. Otherwise the online intro database fills in.",
     keywords: "intro recap credits skip chapters introdb",
+    bind: p("preferFileChapters"),
+    control: toggle,
   },
   {
     id: "resumePlayback",
@@ -165,12 +203,49 @@ export const SETTINGS: SettingDef[] = [
     control: toggle,
     tv: "Resume Where You Left Off",
   },
-  { id: "resumeRewind", page: "playback", title: "Back up when resuming", keywords: "rewind resume seconds" },
-  { id: "watchedThreshold", page: "playback", title: "Count as watched at", keywords: "watched threshold percent played finished mark" },
-  { id: "startFullscreen", page: "playback", title: "Start in fullscreen", keywords: "full screen" },
-  { id: "pauseOnMinimize", page: "playback", title: "Pause when minimized", keywords: "minimise background" },
+  {
+    id: "resumeRewind",
+    page: "playback",
+    title: "Back up when resuming",
+    caption: "Start a little before where you stopped, to pick up the thread",
+    keywords: "rewind resume seconds",
+    bind: s("resumeRewind", 0),
+    control: { kind: "number", min: 0, max: 60, unit: "sec", zero: "Don't" },
+  },
+  {
+    id: "watchedThreshold",
+    page: "playback",
+    title: "Count as watched at",
+    caption: "How far into a video it moves out of Continue Watching and gets a tick",
+    keywords: "watched threshold percent played finished mark",
+    bind: s("watchedThreshold", 92),
+    control: { kind: "number", min: 50, max: 100, unit: "%" },
+    invalidates: [["continue"], ["history"]],
+  },
+  { id: "startFullscreen", page: "playback", title: "Start in fullscreen", keywords: "full screen", bind: s("startFullscreen", false), control: toggle },
+  {
+    id: "pauseOnMinimize",
+    page: "playback",
+    title: "Pause when minimized",
+    caption: "On this device",
+    keywords: "minimise background",
+    bind: p("pauseOnMinimize"),
+    control: toggle,
+  },
   { id: "rememberSpeed", page: "playback", title: "Remember playback speed", keywords: "rate faster slower" },
-  { id: "timeDisplay", page: "playback", title: "Clock", keywords: "time remaining elapsed ends at end time" },
+  {
+    id: "timeDisplay",
+    page: "playback",
+    title: "Clock",
+    caption: "What the time next to the timeline shows. Clicking it there switches too.",
+    keywords: "time remaining elapsed ends at end time",
+    bind: s("timeDisplay", "remaining"),
+    control: choice([
+      { value: "remaining", label: "Time left" },
+      { value: "elapsed", label: "Elapsed / total" },
+      { value: "endsAt", label: "Ends at" },
+    ]),
+  },
   {
     id: "seekStep",
     page: "playback",
@@ -181,9 +256,38 @@ export const SETTINGS: SettingDef[] = [
     control: { kind: "number", min: 1, max: 120, unit: "sec", tvStep: 5 },
     tv: "Seek Step",
   },
-  { id: "controlsHideSecs", page: "playback", title: "Hide controls after", keywords: "overlay timeout auto hide" },
-  { id: "clickAction", page: "playback", title: "Clicking the video", keywords: "click pause tap" },
-  { id: "wheelAction", page: "playback", title: "Scrolling over the video", keywords: "mouse wheel scroll volume seek" },
+  {
+    id: "controlsHideSecs",
+    page: "playback",
+    title: "Hide controls after",
+    caption: "Without moving the mouse",
+    keywords: "overlay timeout auto hide",
+    bind: s("controlsHideSecs", 2),
+    control: { kind: "number", min: 1, max: 15, unit: "sec" },
+  },
+  {
+    id: "clickAction",
+    page: "playback",
+    title: "Clicking the video",
+    keywords: "click pause tap",
+    bind: s("clickAction", "toggle"),
+    control: choice([
+      { value: "toggle", label: "Plays or pauses" },
+      { value: "controls", label: "Shows the controls" },
+    ]),
+  },
+  {
+    id: "wheelAction",
+    page: "playback",
+    title: "Scrolling over the video",
+    keywords: "mouse wheel scroll volume seek",
+    bind: s("wheelAction", "volume"),
+    control: choice([
+      { value: "volume", label: "Changes volume" },
+      { value: "seek", label: "Skips back and forward" },
+      { value: "none", label: "Does nothing" },
+    ]),
+  },
 
   // Sources
   {
@@ -197,8 +301,25 @@ export const SETTINGS: SettingDef[] = [
     invalidates: SOURCES_STALE,
     tv: "Highest Quality",
   },
-  { id: "maxMovieSizeGb", page: "sources", title: "Largest movie file", keywords: "size gb limit filter" },
-  { id: "maxEpisodeSizeGb", page: "sources", title: "Largest episode file", keywords: "size gb limit filter" },
+  {
+    id: "maxMovieSizeGb",
+    page: "sources",
+    title: "Largest movie file",
+    caption: "Big files take longer to start and can stall on a slower connection",
+    keywords: "size gb limit filter",
+    bind: s("maxMovieSizeGb", 0),
+    control: { kind: "number", min: 0, max: 100, step: 0.5, unit: "GB", zero: "Any size" },
+    invalidates: SOURCES_STALE,
+  },
+  {
+    id: "maxEpisodeSizeGb",
+    page: "sources",
+    title: "Largest episode file",
+    keywords: "size gb limit filter",
+    bind: s("maxEpisodeSizeGb", 0),
+    control: { kind: "number", min: 0, max: 30, step: 0.5, unit: "GB", zero: "Any size" },
+    invalidates: SOURCES_STALE,
+  },
   {
     id: "hideCam",
     page: "sources",
@@ -272,9 +393,36 @@ export const SETTINGS: SettingDef[] = [
     control: choice((current) => languageChoices(current, "Off")),
     tv: "Subtitles",
   },
-  { id: "subtitleMode", page: "subtitles", title: "Show subtitles", keywords: "foreign audio forced only when" },
-  { id: "dialogueBoost", page: "subtitles", title: "Boost dialogue", keywords: "voices clear center centre channel surround quiet speech" },
-  { id: "volumeLeveling", page: "subtitles", title: "Even out volume", keywords: "night mode loudness normalize compression leveling" },
+  {
+    id: "subtitleMode",
+    page: "subtitles",
+    title: "Show subtitles",
+    caption: "Only for foreign audio: turn them on when the audio isn't already in your subtitle language",
+    keywords: "foreign audio forced only when",
+    bind: s("subtitleMode", "always"),
+    control: choice([
+      { value: "always", label: "Always" },
+      { value: "foreign", label: "Only for foreign audio" },
+    ]),
+  },
+  {
+    id: "dialogueBoost",
+    page: "subtitles",
+    title: "Boost dialogue",
+    caption: "Makes voices clearer on surround (5.1 and 7.1) audio by turning the centre channel up and the rest down",
+    keywords: "voices clear center centre channel surround quiet speech",
+    bind: p("dialogueBoost"),
+    control: toggle,
+  },
+  {
+    id: "volumeLeveling",
+    page: "subtitles",
+    title: "Even out volume",
+    caption: "Night mode: quieter explosions, louder whispers",
+    keywords: "night mode loudness normalize compression leveling",
+    bind: p("volumeLeveling"),
+    control: toggle,
+  },
   { id: "subtitleStyle", page: "subtitles", title: "Subtitle Style", keywords: "captions appearance" },
   { id: "subtitleDelay", page: "subtitles", title: "Delay", keywords: "subtitle sync offset timing" },
   { id: "subtitleFont", page: "subtitles", title: "Font", keywords: "subtitle typeface family opendyslexic dyslexia dyslexic accessibility" },
@@ -287,15 +435,70 @@ export const SETTINGS: SettingDef[] = [
 
   // Appearance
   { id: "accentColor", page: "appearance", title: "Accent colour", keywords: "color theme highlight" },
-  { id: "theme", page: "appearance", title: "Background", keywords: "theme black oled dark" },
+  {
+    id: "theme",
+    page: "appearance",
+    title: "Background",
+    keywords: "theme black oled dark",
+    bind: s("theme", "dark"),
+    control: choice([
+      { value: "dark", label: "Dark" },
+      { value: "black", label: "Black (OLED)" },
+    ]),
+  },
   { id: "uiScale", page: "appearance", title: "Interface size", keywords: "zoom scale bigger smaller text" },
-  { id: "cardSize", page: "appearance", title: "Card size", keywords: "posters thumbnails bigger smaller" },
-  { id: "uiFont", page: "appearance", title: "Font", keywords: "text typeface inter system opendyslexic dyslexia dyslexic accessibility readability" },
-  { id: "reduceMotion", page: "appearance", title: "Reduce motion", keywords: "animations accessibility" },
+  {
+    id: "cardSize",
+    page: "appearance",
+    title: "Card size",
+    caption: "Posters and thumbnails in rows and grids",
+    keywords: "posters thumbnails bigger smaller",
+    bind: s("cardSize", "medium"),
+    control: choice([
+      { value: "small", label: "Small" },
+      { value: "medium", label: "Medium" },
+      { value: "large", label: "Large" },
+    ]),
+  },
+  {
+    id: "uiFont",
+    page: "appearance",
+    title: "Font",
+    keywords: "text typeface inter system opendyslexic dyslexia dyslexic accessibility readability",
+    bind: s("uiFont", "inter"),
+    control: choice([
+      { value: "inter", label: "Inter" },
+      { value: "system", label: "System" },
+      { value: "opendyslexic", label: "OpenDyslexic" },
+    ]),
+  },
+  {
+    id: "reduceMotion",
+    page: "appearance",
+    title: "Reduce motion",
+    caption: "Fades instead of slides and zooms, and no rotating carousel",
+    keywords: "animations accessibility",
+    bind: s("reduceMotion", "system"),
+    control: choice([
+      { value: "system", label: isMac ? "Match macOS" : "Match Windows" },
+      { value: "on", label: "On" },
+      { value: "off", label: "Off" },
+    ]),
+  },
 
   // Browsing
   { id: "startPage", page: "browsing", title: "Open the app on", keywords: "start page startup home library" },
-  { id: "language", page: "browsing", title: "Titles and descriptions", keywords: "metadata language tmdb" },
+  {
+    id: "language",
+    page: "browsing",
+    title: "Titles and descriptions",
+    caption: "The language of names, synopses and artwork",
+    keywords: "metadata language tmdb",
+    bind: s("language", "en-US"),
+    control: choice((current) => metadataLanguageChoices(current)),
+    // A new language rebuilds the catalog source; cached pages are in the old one.
+    invalidates: [["catalog"], ["discover"], ["meta"], ["featured"], ["recommend"]],
+  },
   {
     id: "trailerAutoplay",
     page: "browsing",
@@ -326,7 +529,15 @@ export const SETTINGS: SettingDef[] = [
     control: toggle,
     tv: "Calendar",
   },
-  { id: "heroAutoplay", page: "browsing", title: "Rotate the featured titles", keywords: "carousel hero autoplay" },
+  {
+    id: "heroAutoplay",
+    page: "browsing",
+    title: "Rotate the featured titles",
+    caption: "Move to the next featured title every few seconds",
+    keywords: "carousel hero autoplay",
+    bind: s("heroAutoplay", true),
+    control: toggle,
+  },
   {
     id: "showContinueWatching",
     page: "browsing",
@@ -336,8 +547,23 @@ export const SETTINGS: SettingDef[] = [
     control: toggle,
     tv: "Continue Watching",
   },
-  { id: "hideEpisodeThumbs", page: "browsing", title: "Blur unwatched episode pictures", keywords: "spoilers thumbnails stills" },
-  { id: "hideEpisodeDescriptions", page: "browsing", title: "Hide unwatched episode descriptions", keywords: "spoilers synopsis summary" },
+  {
+    id: "hideEpisodeThumbs",
+    page: "browsing",
+    title: "Blur unwatched episode pictures",
+    caption: "A still can give away who's in the episode, or what happens",
+    keywords: "spoilers thumbnails stills",
+    bind: s("hideEpisodeThumbs", false),
+    control: toggle,
+  },
+  {
+    id: "hideEpisodeDescriptions",
+    page: "browsing",
+    title: "Hide unwatched episode descriptions",
+    keywords: "spoilers synopsis summary",
+    bind: s("hideEpisodeDescriptions", false),
+    control: toggle,
+  },
   {
     id: "matureContent",
     page: "browsing",
@@ -352,9 +578,24 @@ export const SETTINGS: SettingDef[] = [
     ]),
     tv: "Mature Anime",
   },
-  { id: "searchSuggestions", page: "browsing", title: "Suggest genres", keywords: "search suggestions genres dropdown" },
-  { id: "saveRecentSearches", page: "browsing", title: "Remember recent searches", keywords: "history privacy" },
-  { id: "showCardTitles", page: "browsing", title: "Show titles", keywords: "cards names" },
+  {
+    id: "searchSuggestions",
+    page: "browsing",
+    title: "Suggest genres",
+    caption: "A few genres under the search field before you type",
+    keywords: "search suggestions genres dropdown",
+    bind: p("searchSuggestions"),
+    control: toggle,
+  },
+  {
+    id: "saveRecentSearches",
+    page: "browsing",
+    title: "Remember recent searches",
+    keywords: "history privacy",
+    bind: p("saveRecentSearches"),
+    control: toggle,
+  },
+  { id: "showCardTitles", page: "browsing", title: "Show titles", keywords: "cards names", bind: s("showCardTitles", true), control: toggle },
   { id: "showCardDetails", page: "browsing", title: "Show details", keywords: "cards year" },
   {
     id: "showCardRatings",
@@ -378,8 +619,27 @@ export const SETTINGS: SettingDef[] = [
     ]),
     tv: "Rating Position",
   },
-  { id: "ratingColors", page: "browsing", title: "Colour-code IMDb ratings", keywords: "color colour rating score badge imdb yellow green red" },
-  { id: "episodeLayout", page: "browsing", title: "Default layout", keywords: "episodes list grid" },
+  {
+    id: "ratingColors",
+    page: "browsing",
+    title: "Colour-code IMDb ratings",
+    caption: "Green from 7, amber from 5, red below. Off: every score in IMDb yellow",
+    keywords: "color colour rating score badge imdb yellow green red",
+    bind: s("ratingColors", false),
+    control: toggle,
+  },
+  {
+    id: "episodeLayout",
+    page: "browsing",
+    title: "Default layout",
+    controlLabel: "Episode layout",
+    keywords: "episodes list grid",
+    bind: s("episodeLayout", "row"),
+    control: choice([
+      { value: "row", label: "Row" },
+      { value: "list", label: "List" },
+    ]),
+  },
 
   // Anime
   {
@@ -406,7 +666,18 @@ export const SETTINGS: SettingDef[] = [
     ]),
     tv: "Titles",
   },
-  { id: "animeVoices", page: "anime", title: "Voice actors", keywords: "anime dub sub seiyuu japanese english characters" },
+  {
+    id: "animeVoices",
+    page: "anime",
+    title: "Voice actors",
+    caption: "Whose voices to list beside the characters",
+    keywords: "anime dub sub seiyuu japanese english characters",
+    bind: p("animeVoices"),
+    control: choice([
+      { value: "japanese", label: "Japanese" },
+      { value: "english", label: "English" },
+    ]),
+  },
   {
     id: "animeShelves",
     page: "anime",
@@ -445,21 +716,69 @@ export const SETTINGS: SettingDef[] = [
     control: toggle,
     tv: "Airing Countdowns",
   },
-  { id: "animeScheduleAll", page: "anime", title: "List every show", keywords: "anime schedule shorts regional all" },
-  { id: "animeSkipFiller", page: "anime", title: "Skip filler episodes", keywords: "anime filler canon skip hide" },
-  { id: "animeHideRecaps", page: "anime", title: "Hide recap episodes", keywords: "anime recap skip" },
-  { id: "animeNo4k", page: "anime", title: "Hide 4K sources", keywords: "anime 4k 2160p upscale ai sources quality" },
+  {
+    id: "animeScheduleAll",
+    page: "anime",
+    title: "List every show",
+    caption: "Include the shorts and regional shows most people aren't following",
+    keywords: "anime schedule shorts regional all",
+    bind: p("animeScheduleAll"),
+    control: toggle,
+  },
+  {
+    id: "animeSkipFiller",
+    page: "anime",
+    title: "Skip filler episodes",
+    caption: "Next Episode and autoplay pass over episodes marked as filler. They stay in the list, marked Filler",
+    keywords: "anime filler canon skip hide",
+    bind: p("animeSkipFiller"),
+    control: toggle,
+  },
+  {
+    id: "animeHideRecaps",
+    page: "anime",
+    title: "Hide recap episodes",
+    caption: "Leave episodes MyAnimeList marks as recaps out of the list",
+    keywords: "anime recap skip",
+    bind: p("animeHideRecaps"),
+    control: toggle,
+  },
+  {
+    id: "animeNo4k",
+    page: "anime",
+    title: "Hide 4K sources",
+    caption: "Anime is almost never made in 4K: nearly all of those releases are AI upscales of the 1080p master",
+    keywords: "anime 4k 2160p upscale ai sources quality",
+    bind: p("animeNo4k"),
+    control: toggle,
+  },
   {
     id: "animePreferredGroups",
     page: "anime",
     title: "Preferred Release Groups",
     keywords: "anime release group preferred favourite favorite sources top priority",
   },
-  { id: "animeSpoilerTags", page: "anime", title: "Show spoiler tags", keywords: "anime tags spoilers anilist" },
+  {
+    id: "animeSpoilerTags",
+    page: "anime",
+    title: "Show spoiler tags",
+    caption: "Tags that give away the story, on an anime's Details",
+    keywords: "anime tags spoilers anilist",
+    bind: p("animeSpoilerTags"),
+    control: toggle,
+  },
 
   // Controls & TV
   { id: "tvMode", page: "controls", title: "TV mode", keywords: "couch fullscreen remote" },
-  { id: "showTvButton", page: "controls", title: "TV mode button in the top bar", keywords: "tv navbar hide show button icon" },
+  {
+    id: "showTvButton",
+    page: "controls",
+    title: "TV mode button in the top bar",
+    caption: "Off hides it; TV mode stays one click away here",
+    keywords: "tv navbar hide show button icon",
+    bind: p("showTvButton"),
+    control: toggle,
+  },
   {
     id: "uiSounds",
     page: "controls",
@@ -470,7 +789,21 @@ export const SETTINGS: SettingDef[] = [
     control: toggle,
     tv: "Interface Sounds",
   },
-  { id: "uiSoundPack", page: "controls", title: "Sound pack", keywords: "interface sounds" },
+  {
+    id: "uiSoundPack",
+    page: "controls",
+    title: "Sound pack",
+    keywords: "interface sounds",
+    bind: p("uiSoundPack"),
+    control: choice([
+      { value: "ambient", label: "Ambient" },
+      { value: "soft", label: "Soft tap" },
+      { value: "wood", label: "Wood" },
+      { value: "glass", label: "Glass" },
+      { value: "pluck", label: "Pluck" },
+      { value: "classic", label: "Classic" },
+    ]),
+  },
   {
     id: "uiSoundVolume",
     page: "controls",
@@ -493,8 +826,29 @@ export const SETTINGS: SettingDef[] = [
     control: toggle,
     tv: "Controller Notices",
   },
-  { id: "suggestTvMode", page: "controller", title: "Suggest TV mode", keywords: "controller gamepad" },
-  { id: "padLabels", page: "controller", title: "Button labels", keywords: "controller gamepad xbox playstation nintendo glyphs icons" },
+  {
+    id: "suggestTvMode",
+    page: "controller",
+    title: "Suggest TV mode",
+    caption: "Offer TV mode when a controller connects in desktop mode",
+    keywords: "controller gamepad",
+    bind: p("suggestTvMode"),
+    control: toggle,
+  },
+  {
+    id: "padLabels",
+    page: "controller",
+    title: "Button labels",
+    caption: "The letters or shapes shown for each button",
+    keywords: "controller gamepad xbox playstation nintendo glyphs icons",
+    bind: p("padLabels"),
+    control: choice([
+      { value: "auto", label: "Match the controller" },
+      { value: "xbox", label: "Xbox" },
+      { value: "playstation", label: "PlayStation" },
+      { value: "nintendo", label: "Nintendo" },
+    ]),
+  },
   {
     id: "padHints",
     page: "controller",
@@ -515,8 +869,32 @@ export const SETTINGS: SettingDef[] = [
     control: toggle,
     tv: "Move With the Left Stick",
   },
-  { id: "padStickSensitivity", page: "controller", title: "Stick sensitivity", keywords: "controller gamepad analog deadzone" },
-  { id: "padRepeat", page: "controller", title: "Repeat speed", keywords: "controller gamepad dpad d-pad hold scroll fast" },
+  {
+    id: "padStickSensitivity",
+    page: "controller",
+    title: "Stick sensitivity",
+    caption: "How far to tilt it before it moves",
+    keywords: "controller gamepad analog deadzone",
+    bind: p("padStickSensitivity"),
+    control: choice([
+      { value: "low", label: "Low (tilt further)" },
+      { value: "normal", label: "Normal" },
+      { value: "high", label: "High (a light touch)" },
+    ]),
+  },
+  {
+    id: "padRepeat",
+    page: "controller",
+    title: "Repeat speed",
+    caption: "How fast a held direction keeps moving",
+    keywords: "controller gamepad dpad d-pad hold scroll fast",
+    bind: p("padRepeat"),
+    control: choice([
+      { value: "slow", label: "Slow" },
+      { value: "normal", label: "Normal" },
+      { value: "fast", label: "Fast" },
+    ]),
+  },
   { id: "padNav", page: "controller", title: "Buttons while browsing", keywords: "controller gamepad buttons remap bindings dpad d-pad" },
   { id: "padPlayer", page: "controller", title: "Buttons in the player", keywords: "controller gamepad buttons remap bindings" },
   {
@@ -549,8 +927,24 @@ export const SETTINGS: SettingDef[] = [
   { id: "seekrKey", page: "services", title: "Timeline previews", keywords: "seekr thumbnails scrubbing" },
 
   // Advanced
-  { id: "hwdec", page: "advanced", title: "Hardware decoding", keywords: "gpu hwdec green glitches black" },
-  { id: "deband", page: "advanced", title: "Smooth colour banding", keywords: "deband gradients color" },
+  {
+    id: "hwdec",
+    page: "advanced",
+    title: "Hardware decoding",
+    caption: "Lets the graphics card decode video. Turn off only if you see green frames, glitches or a black picture.",
+    keywords: "gpu hwdec green glitches black",
+    bind: p("hwdec"),
+    control: toggle,
+  },
+  {
+    id: "deband",
+    page: "advanced",
+    title: "Smooth colour banding",
+    caption: "Removes visible steps in dark scenes and skies, at a small cost in GPU power",
+    keywords: "deband gradients color",
+    bind: p("deband"),
+    control: toggle,
+  },
   {
     id: "autocrop",
     page: "advanced",
@@ -562,13 +956,33 @@ export const SETTINGS: SettingDef[] = [
     control: toggle,
     tv: "Crop Black Bars",
   },
-  { id: "buffer", page: "advanced", title: "Buffer", keywords: "cache read ahead memory stutter" },
+  {
+    id: "buffer",
+    page: "advanced",
+    title: "Buffer",
+    caption: "How far ahead to load. Larger rides out a patchy connection but uses more memory.",
+    keywords: "cache read ahead memory stutter",
+    bind: p("buffer"),
+    control: choice([
+      { value: "small", label: "Small (30 s)" },
+      { value: "normal", label: "Normal (90 s)" },
+      { value: "large", label: "Large (5 min)" },
+    ]),
+  },
   { id: "resetSettings", page: "advanced", title: "Reset all settings", keywords: "defaults restore" },
 
   // About & Updates
   { id: "version", page: "about", title: "Version", keywords: "about build number" },
   { id: "softwareUpdate", page: "about", title: "Software update", keywords: "check for updates upgrade new version install" },
-  { id: "autoDownloadUpdates", page: "about", title: "Download updates automatically", keywords: "auto update background" },
+  {
+    id: "autoDownloadUpdates",
+    page: "about",
+    title: "Download updates automatically",
+    caption: "New versions download in the background. Nothing installs until you restart.",
+    keywords: "auto update background",
+    bind: p("autoDownloadUpdates"),
+    control: toggle,
+  },
   { id: "releaseNotes", page: "about", title: "Release notes", keywords: "changelog what's new" },
   { id: "credits", page: "about", title: "Data sources", keywords: "credits attribution tmdb anilist thetvdb licence" },
   { id: "animeCache", page: "about", title: "Anime data", keywords: "cache clear filler recap anime-lists ids storage disk" },

@@ -1,10 +1,8 @@
-import { Dropdown } from "../../components/Dropdown";
 import { useSettings, useUpdateSettings } from "../../lib/queries";
 import type { Settings as SettingsT } from "../../lib/types";
 import { setPrefs, usePrefs } from "../../lib/prefs";
-import { uiFontOf } from "../../lib/fonts";
-import { isMac } from "../../lib/platform";
 import { Card, NumberRow, PickRow } from "../../components/settings/rows";
+import { SettingRow } from "../../components/settings/SettingRow";
 
 const ACCENTS = [
   { value: "#0A84FF", label: "Blue" },
@@ -47,17 +45,7 @@ export function AppearancePage() {
             ))}
           </div>
         </PickRow>
-        <PickRow title="Background">
-          <Dropdown
-            label="Background"
-            value={data.theme === "black" ? "black" : "dark"}
-            onChange={(v) => set({ theme: v })}
-            options={[
-              { value: "dark", label: "Dark" },
-              { value: "black", label: "Black (OLED)" },
-            ]}
-          />
-        </PickRow>
+        <SettingRow id="theme" />
       </Card>
 
       <Card title="Size">
@@ -71,45 +59,12 @@ export function AppearancePage() {
           unit="%"
           onChange={(n) => setPrefs({ uiScale: n / 100 })}
         />
-        <PickRow title="Card size" caption="Posters and thumbnails in rows and grids">
-          <Dropdown
-            label="Card size"
-            value={data.cardSize ?? "medium"}
-            onChange={(v) => set({ cardSize: v })}
-            options={[
-              { value: "small", label: "Small" },
-              { value: "medium", label: "Medium" },
-              { value: "large", label: "Large" },
-            ]}
-          />
-        </PickRow>
+        <SettingRow id="cardSize" />
       </Card>
 
       <Card title="Text and Motion">
-        <PickRow title="Font">
-          <Dropdown
-            label="Font"
-            value={uiFontOf(data.uiFont)}
-            onChange={(v) => set({ uiFont: v })}
-            options={[
-              { value: "inter", label: "Inter" },
-              { value: "system", label: "System" },
-              { value: "opendyslexic", label: "OpenDyslexic" },
-            ]}
-          />
-        </PickRow>
-        <PickRow title="Reduce motion" caption="Fades instead of slides and zooms, and no rotating carousel">
-          <Dropdown
-            label="Reduce motion"
-            value={data.reduceMotion ?? "system"}
-            onChange={(v) => set({ reduceMotion: v })}
-            options={[
-              { value: "system", label: isMac ? "Match macOS" : "Match Windows" },
-              { value: "on", label: "On" },
-              { value: "off", label: "Off" },
-            ]}
-          />
-        </PickRow>
+        <SettingRow id="uiFont" />
+        <SettingRow id="reduceMotion" />
       </Card>
     </>
   );

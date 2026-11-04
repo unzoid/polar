@@ -16,15 +16,6 @@ import { isTvMode } from "./tvMode";
 export type Sound = "move" | "select" | "back" | "edge" | "startup";
 export type SoundPack = "ambient" | "soft" | "wood" | "glass" | "pluck" | "classic";
 
-export const SOUND_PACKS: { value: SoundPack; label: string }[] = [
-  { value: "ambient", label: "Ambient" },
-  { value: "soft", label: "Soft tap" },
-  { value: "wood", label: "Wood" },
-  { value: "glass", label: "Glass" },
-  { value: "pluck", label: "Pluck" },
-  { value: "classic", label: "Classic" },
-];
-
 let ctx: AudioContext | null = null;
 let out: GainNode | null = null;
 
