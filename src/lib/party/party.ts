@@ -18,34 +18,11 @@
 import { useSyncExternalStore } from "react";
 import { backend, type PartyLink, type PartyPresence } from "../account";
 import { formatTime } from "../format";
+import { parseMessage, roundTrip, takesOver, type PartyMedia, type StreamHint, type Timeline } from "./messages";
 import { partyChime } from "./sounds";
-import type { ContentType, Stream } from "../types";
+import type { Stream } from "../types";
 
-export interface StreamHint {
-  release?: string;
-}
-
-export interface PartyMedia {
-  type: ContentType;
-  metaId: string;
-  videoId: string;
-  /** "S1:E5 · Title", for "Sam put on …". */
-  label?: string;
-  hint?: StreamHint;
-}
-
-interface Timeline {
-  v: number;
-  by: string;
-  media: PartyMedia;
-  /** Someone pressed pause. */
-  paused: boolean;
-  /** The host is holding for someone loading or buffering. */
-  held: boolean;
-  position: number;
-  /** The sender's one-way latency estimate, seconds. */
-  lag: number;
-}
+export type { PartyMedia, StreamHint } from "./messages";
 
 export interface Playback extends Timeline {
   /** performance.now() at which `position` was current here. */
@@ -308,22 +285,26 @@ function sendTimeline() {
   link?.send({ t: "state", from: self.id, tl: { ...tl, position: expectedPosition(p), lag: myLag() } });
 }
 
-function receive(msg: Record<string, unknown>) {
+function receive(raw: Record<string, unknown>) {
   if (!state || !self) return;
-  const from = msg.from as string;
+  const msg = parseMessage(raw);
+  if (!msg) return;
+  const from = msg.from;
   switch (msg.t) {
-    case "ping":
-      if (from === self.id) rtts = [...rtts.slice(-4), performance.now() - (msg.sent as number)];
+    case "ping": {
+      const rtt = from === self.id ? roundTrip(msg.sent, performance.now()) : undefined;
+      if (rtt !== undefined) rtts = [...rtts.slice(-4), rtt];
       return;
+    }
     case "hello":
       // Whoever has the timeline answers; ties resolve themselves (same version).
       if (from !== self.id) sendTimeline();
       return;
     case "state": {
       if (from === self.id) return; // applied when it was made
-      const tl = msg.tl as Timeline;
+      const tl = msg.tl;
       const cur = state.playback;
-      if (cur && (tl.v < cur.v || (tl.v === cur.v && tl.by < cur.by))) return;
+      if (!takesOver(cur, tl, presenceSeen ? state.members : null, state.hostId)) return;
       const next: Playback = { ...tl, at: performance.now() - (tl.lag + myLag()) * 1000 };
       if (cur && (tl.v !== cur.v || tl.by !== cur.by)) describe(cur, next);
       update({ playback: next });

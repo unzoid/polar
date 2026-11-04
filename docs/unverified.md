@@ -243,3 +243,9 @@ How to check, with a TMDB key set in Settings:
   then a long franchise (more than ten entries): the seasons row still fills (more slowly past 10 hops: about one
   hop every 3 s while AniList is at 30 a minute); scroll every genre shelf; no "AniList answered 429" error
   appears. In the dev tools' Network tab, opening the same anime twice asks ani.zip once.
+- Watch-party message checks (rewrite R3, critique M11; `lib/party/messages.ts`, tested): every broadcast and
+  presence entry is parsed before use; malformed ones are dropped silently. A timeline more than 50 versions
+  ahead is taken only from the host, so a member who was offline catches up from the host's heartbeat (within
+  10 s). Not run against a real room. To check, with two signed-in devices: start a party on one, join by code on
+  the other within 8 s; pause, resume, seek and change episode from both sides; turn one device's network off for
+  a minute, change things on the other, turn it back on: within about 10 s both show the same state again.

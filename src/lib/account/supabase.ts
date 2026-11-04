@@ -5,7 +5,8 @@
 import { createClient, type AuthError, type PostgrestError, type User } from "@supabase/supabase-js";
 import type { AnimeLink } from "../identity";
 import type { ContentType, Progress, SyncLibraryItem } from "../types";
-import { AccountError, type AccountBackend, type AccountUser, type PartyPresence, type Profile } from "./backend";
+import { AccountError, type AccountBackend, type AccountUser, type Profile } from "./backend";
+import { parsePresence } from "../party/messages";
 import { normalizeAvatar } from "./avatars";
 import { fromHex, toHex } from "../playlistCodec";
 
@@ -43,8 +44,8 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
         });
         ch.on("broadcast", { event: "m" }, ({ payload }) => onMessage(payload as Record<string, unknown>));
         ch.on("presence", { event: "sync" }, () => {
-          const state = ch.presenceState<PartyPresence>();
-          onPresence(Object.values(state).map((metas) => metas[metas.length - 1]));
+          // Checked here: each entry must carry the key it was tracked under (critique M11).
+          onPresence(parsePresence(ch.presenceState()));
         });
         const fail = (err?: Error) => {
           const message = err?.message ?? "";
