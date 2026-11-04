@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { SoundPack } from "../tv/sounds";
+import { likeTemplate, storedJson } from "./parse";
 import { settingsChanged } from "./settingsChanges";
 
 /**
@@ -134,16 +135,15 @@ const DEFAULTS: Prefs = {
 
 const STORAGE = "polar.prefs";
 
-let prefs: Prefs = (() => {
-  try {
-    return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(STORAGE) ?? "{}") as Partial<Prefs>) };
-  } catch {
-    return { ...DEFAULTS };
-  }
-})();
+let prefs: Prefs = { ...DEFAULTS, ...readPrefs(storedJson(localStorage, STORAGE)) };
 const listeners = new Set<() => void>();
 
 export const getPrefs = () => prefs;
+
+/** Stored or synced prefs: the known ones, each of the kind its default is (critique M9). */
+export function readPrefs(v: unknown): Partial<Prefs> {
+  return likeTemplate(DEFAULTS, v);
+}
 
 /** The ones that follow the profile rather than the machine (account/settingsSync.ts). */
 export const SYNCED_PREFS = [

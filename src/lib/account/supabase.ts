@@ -4,8 +4,9 @@
  */
 import { createClient, type AuthError, type PostgrestError, type User } from "@supabase/supabase-js";
 import type { AnimeLink } from "../identity";
-import type { ContentType, Progress, SyncLibraryItem } from "../types";
-import { AccountError, type AccountBackend, type AccountUser, type Profile } from "./backend";
+import type { Progress, SyncLibraryItem } from "../types";
+import { contentType, count, isRecord, listOf, num, str } from "../parse";
+import { AccountError, type AccountBackend, type AccountUser, type Profile, type RemotePlaylist } from "./backend";
 import { parsePresence } from "../party/messages";
 import { normalizeAvatar } from "./avatars";
 import { fromHex, toHex } from "../playlistCodec";
@@ -142,19 +143,16 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
       async pull(profileId, cursor) {
         const since = cursor ? new Date(Date.parse(cursor) - PULL_OVERLAP_MS).toISOString() : null;
         const [lib, prog, links] = await Promise.all([
-          pullAll<LibraryRow>("library_items", profileId, since),
-          pullAll<ProgressRow>("watch_progress", profileId, since, PROGRESS_COLUMNS),
-          unlessMissing(pullAll<LinkRow>("anime_links", profileId, since, LINK_COLUMNS)),
+          pullAll("library_items", profileId, since),
+          pullAll("watch_progress", profileId, since, PROGRESS_COLUMNS),
+          unlessMissing(pullAll("anime_links", profileId, since, LINK_COLUMNS)),
         ]);
-        const newest = [...lib, ...prog, ...(links ?? [])].reduce<string | null>(
-          (max, r) => (!max || r.synced_at > max ? r.synced_at : max),
-          cursor,
-        );
+        // Rows that don't fit are left out (critique M9), but still move the cursor past them.
         return {
-          library: lib.map(fromLibraryRow),
-          progress: prog.map(fromProgressRow),
-          links: links && links.map(fromLinkRow),
-          cursor: newest,
+          library: listOf(lib, fromLibraryRow),
+          progress: listOf(prog, fromProgressRow),
+          links: links && listOf(links, fromLinkRow),
+          cursor: newestSynced([...lib, ...prog, ...(links ?? [])], cursor),
         };
       },
       async push(profileId, { library, progress, links }) {
@@ -183,7 +181,7 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
           .eq("profile_id", profileId)
           .maybeSingle();
         if (error) throw dbError(error);
-        return data ? { data: data.data as Record<string, unknown>, updatedAt: Number(data.updated_at) } : null;
+        return data && isRecord(data.data) ? { data: data.data, updatedAt: count(data.updated_at) ?? 0 } : null;
       },
       async put(profileId, { data, updatedAt }) {
         const { error } = await db
@@ -196,18 +194,8 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
     playlists: {
       async pull(profileId, cursor) {
         const since = cursor ? new Date(Date.parse(cursor) - PULL_OVERLAP_MS).toISOString() : null;
-        const rows = await pullAll<PlaylistRow>("playlists", profileId, since);
-        const newest = rows.reduce<string | null>((max, r) => (!max || r.synced_at > max ? r.synced_at : max), cursor);
-        return {
-          playlists: rows.map((r) => ({
-            id: r.id,
-            name: r.name,
-            items: fromHex(r.items),
-            deleted: r.deleted,
-            updatedAt: Number(r.updated_at),
-          })),
-          cursor: newest,
-        };
+        const rows = await pullAll("playlists", profileId, since);
+        return { playlists: listOf(rows, fromPlaylistRow), cursor: newestSynced(rows, cursor) };
       },
       async push(profileId, playlists) {
         const rows = playlists.map((p) => ({
@@ -236,14 +224,14 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
     }
   }
 
-  async function pullAll<T>(table: string, profileId: string, since: string | null, columns = "*"): Promise<T[]> {
-    const out: T[] = [];
+  async function pullAll(table: string, profileId: string, since: string | null, columns = "*"): Promise<unknown[]> {
+    const out: unknown[] = [];
     for (let from = 0; ; from += PAGE) {
       let q = db.from(table).select(columns).eq("profile_id", profileId);
       if (since) q = q.gt("synced_at", since);
       const { data, error } = await q.order("synced_at").range(from, from + PAGE - 1);
       if (error) throw dbError(error);
-      out.push(...(data as T[]));
+      out.push(...(data as unknown[]));
       if (data.length < PAGE) return out;
     }
   }
@@ -251,51 +239,19 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
 
 // --- Row mapping -------------------------------------------------------------
 
-interface LibraryRow {
-  profile_id: string;
-  meta_id: string;
-  type: string;
-  name: string;
-  poster: string | null;
-  added_at: number;
-  deleted: boolean;
-  updated_at: number;
-  synced_at: string;
+/** The newest `synced_at` among pulled rows, or `cursor` when none is newer. */
+function newestSynced(rows: unknown[], cursor: string | null): string | null {
+  let max = cursor;
+  for (const r of rows) {
+    const at = isRecord(r) ? str(r.synced_at) : undefined;
+    if (at && (!max || at > max)) max = at;
+  }
+  return max;
 }
 
-interface PlaylistRow {
-  id: string;
-  name: string;
-  items: string;
-  deleted: boolean;
-  updated_at: number;
-  synced_at: string;
-}
-
-export interface LinkRow {
-  anilist: number;
-  canonical: string;
-  mal: number | null;
-  kitsu: number | null;
-  updated_at: number;
-  synced_at: string;
-}
-
-interface ProgressRow {
-  profile_id: string;
-  video_id: string;
-  meta_id: string;
-  type: string;
-  name: string;
-  background: string | null;
-  poster: string | null;
-  season: number | null;
-  episode: number | null;
-  episode_title: string | null;
-  position: number;
-  duration: number;
-  updated_at: number;
-  synced_at: string;
+/** `null` in a nullable column, the value when it fits, `undefined` (row left out) when it doesn't. */
+function nullable<T>(v: unknown, read: (v: unknown) => T | undefined): T | null | undefined {
+  return v === null ? null : read(v);
 }
 
 const toProfile = (r: { id: string; name: string; avatar: string; position: number }): Profile => ({
@@ -316,15 +272,15 @@ const toLibraryRow = (profileId: string, i: SyncLibraryItem) => ({
   updated_at: i.updatedAt,
 });
 
-const fromLibraryRow = (r: LibraryRow): SyncLibraryItem => ({
-  id: r.meta_id,
-  type: r.type as ContentType,
-  name: r.name,
-  poster: r.poster,
-  addedAt: Number(r.added_at),
-  deleted: r.deleted,
-  updatedAt: Number(r.updated_at),
-});
+/** A `library_items` row; tombstones may have an empty type. */
+export function fromLibraryRow(r: unknown): SyncLibraryItem | undefined {
+  if (!isRecord(r)) return;
+  const type = r.type === "" ? "" : contentType(r.type);
+  const [id, name, poster] = [str(r.meta_id), str(r.name), nullable(r.poster, str)];
+  const [addedAt, updatedAt] = [count(r.added_at), count(r.updated_at)];
+  if (!id || type === undefined || name === undefined || poster === undefined || addedAt === undefined || updatedAt === undefined) return;
+  return { id, type, name, poster, addedAt, deleted: r.deleted === true, updatedAt };
+}
 
 const toProgressRow = (profileId: string, p: Progress) => ({
   profile_id: profileId,
@@ -344,20 +300,31 @@ const toProgressRow = (profileId: string, p: Progress) => ({
   updated_at: p.updatedAt,
 });
 
-const fromProgressRow = (r: ProgressRow): Progress => ({
-  videoId: r.video_id,
-  metaId: r.meta_id,
-  type: r.type as ContentType,
-  name: r.name,
-  background: r.background ?? undefined,
-  poster: r.poster ?? undefined,
-  season: r.season ?? undefined,
-  episode: r.episode ?? undefined,
-  episodeTitle: r.episode_title ?? undefined,
-  position: r.position,
-  duration: r.duration,
-  updatedAt: Number(r.updated_at),
-});
+/** A `watch_progress` row (PROGRESS_COLUMNS). Season and episode are what Rust reads as u32. */
+export function fromProgressRow(r: unknown): Progress | undefined {
+  if (!isRecord(r)) return;
+  const [videoId, metaId, type, name] = [str(r.video_id), str(r.meta_id), contentType(r.type), str(r.name)];
+  const [position, duration, updatedAt] = [num(r.position), num(r.duration), count(r.updated_at)];
+  const [season, episode] = [nullable(r.season, count), nullable(r.episode, count)];
+  if (!videoId || !metaId || !type || name === undefined || position === undefined || duration === undefined || updatedAt === undefined) return;
+  if (season === undefined || episode === undefined || (season ?? 0) > U32_MAX || (episode ?? 0) > U32_MAX) return;
+  return {
+    videoId,
+    metaId,
+    type,
+    name,
+    background: str(r.background),
+    poster: str(r.poster),
+    season: season ?? undefined,
+    episode: episode ?? undefined,
+    episodeTitle: str(r.episode_title),
+    position,
+    duration,
+    updatedAt,
+  };
+}
+
+const U32_MAX = 0xffff_ffff;
 
 export const toLinkRow = (profileId: string, l: AnimeLink) => ({
   profile_id: profileId,
@@ -368,13 +335,21 @@ export const toLinkRow = (profileId: string, l: AnimeLink) => ({
   updated_at: l.updatedAt,
 });
 
-export const fromLinkRow = (r: LinkRow): AnimeLink => ({
-  canonical: r.canonical,
-  anilist: r.anilist,
-  ...(r.mal != null && { mal: r.mal }),
-  ...(r.kitsu != null && { kitsu: r.kitsu }),
-  updatedAt: Number(r.updated_at),
-});
+/** An `anime_links` row (LINK_COLUMNS). */
+export function fromLinkRow(r: unknown): AnimeLink | undefined {
+  if (!isRecord(r)) return;
+  const [canonical, anilist, mal, kitsu, updatedAt] = [str(r.canonical), count(r.anilist), count(r.mal), count(r.kitsu), count(r.updated_at)];
+  if (!canonical || anilist === undefined || updatedAt === undefined) return;
+  return { canonical, anilist, ...(mal !== undefined && { mal }), ...(kitsu !== undefined && { kitsu }), updatedAt };
+}
+
+/** A `playlists` row; `items` is the packed list as Postgres hex (`\x…`). */
+export function fromPlaylistRow(r: unknown): RemotePlaylist | undefined {
+  if (!isRecord(r)) return;
+  const [id, name, items, updatedAt] = [str(r.id), str(r.name), str(r.items), count(r.updated_at)];
+  if (!id || name === undefined || items === undefined || !/^(\\x)?([0-9a-f]{2})*$/i.test(items) || updatedAt === undefined) return;
+  return { id, name, items: fromHex(items), deleted: r.deleted === true, updatedAt };
+}
 
 function* chunks<T>(items: T[], size: number) {
   for (let i = 0; i < items.length; i += size) yield items.slice(i, i + size);

@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
+import { listOf, storedJson } from "../parse";
+import { readProfile } from "./backend";
 import { backend, type AccountUser, type Profile, type ProfileInput } from "./index";
 import { forgetPlaylists, importLocalPlaylists } from "../playlists";
 import { clearRecentSearches } from "../recentSearches";
@@ -66,13 +68,7 @@ const GUEST_KEY = "polar.guest";
 const LAST_PROFILE_KEY = "polar.lastProfile";
 const profilesKey = (userId: string) => `polar.profiles.${userId}`;
 
-function cachedProfiles(userId: string): Profile[] {
-  try {
-    return JSON.parse(localStorage.getItem(profilesKey(userId)) ?? "[]");
-  } catch {
-    return [];
-  }
-}
+const cachedProfiles = (userId: string): Profile[] => listOf(storedJson(localStorage, profilesKey(userId)), readProfile);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AccountStatus>(backend ? "loading" : "guest");

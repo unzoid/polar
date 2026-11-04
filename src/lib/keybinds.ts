@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { settingsChanged } from "./settingsChanges";
+import { isRecord, strings, storedJson } from "./parse";
 import { isMac, MOD } from "./platform";
 
 /**
@@ -78,13 +79,16 @@ export const MAX_BINDINGS = 2;
 
 const STORAGE = "polar.keybinds";
 
-function load(): Record<Action, string[]> {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE) ?? "{}") as Partial<Record<Action, string[]>>;
-    return { ...DEFAULT_BINDINGS, ...saved };
-  } catch {
-    return { ...DEFAULT_BINDINGS };
-  }
+const load = (): Record<Action, string[]> => ({ ...DEFAULT_BINDINGS, ...readBindings(storedJson(localStorage, STORAGE)) });
+
+/** Stored or synced overrides: known actions only, each a list of combos (critique M9). */
+export function readBindings(v: unknown): Partial<Record<Action, string[]>> {
+  if (!isRecord(v)) return {};
+  return Object.fromEntries(
+    Object.entries(v)
+      .filter(([a, c]) => a in DEFAULT_BINDINGS && Array.isArray(c))
+      .map(([a, c]) => [a, strings(c).slice(0, MAX_BINDINGS)]),
+  );
 }
 
 let bindings = load();
@@ -104,9 +108,8 @@ function commit(next: Record<Action, string[]>, { quiet = false } = {}) {
 }
 
 /** Replace every binding with the defaults plus `overrides` (a synced profile's). */
-export function applyBindingOverrides(overrides: Partial<Record<Action, string[]>>) {
-  const known = Object.entries(overrides).filter(([a, c]) => a in DEFAULT_BINDINGS && Array.isArray(c));
-  commit({ ...DEFAULT_BINDINGS, ...Object.fromEntries(known) }, { quiet: true });
+export function applyBindingOverrides(overrides: unknown) {
+  commit({ ...DEFAULT_BINDINGS, ...readBindings(overrides) }, { quiet: true });
 }
 
 export function useBindings() {
