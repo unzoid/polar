@@ -2,7 +2,7 @@
 .sheet-scrim {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: var(--z-sheet);
   background: rgb(0 0 0 / 0.45);
 }
 .sheet {
@@ -10,7 +10,7 @@
   top: 8px;
   right: 8px;
   bottom: 8px;
-  z-index: 41;
+  z-index: calc(var(--z-sheet) + 1);
   width: min(440px, calc(100vw - 16px));
   display: flex;
   flex-direction: column;
@@ -74,14 +74,14 @@
   text-align: left;
   transition:
     transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std);
 }
 .stream-row[data-featured="true"] {
   background: rgb(255 255 255 / 0.07);
 }
 @media (hover: hover) and (pointer: fine) {
   .stream-row:hover {
-    background: rgb(255 255 255 / 0.1);
+    background: var(--fill-3);
   }
 }
 .stream-lead {
@@ -111,7 +111,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -132,7 +132,7 @@
 }
 .stream-size {
   flex: none;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 550;
   color: var(--text-2);
 }
@@ -143,7 +143,7 @@
   height: 20px;
   padding: 0 0.5rem;
   border-radius: var(--r-pill);
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 650;
   letter-spacing: 0.02em;
   background: rgb(255 255 255 / 0.12);
@@ -226,10 +226,10 @@
   background: rgb(255 255 255 / 0.08);
   box-shadow: inset 0 0 0 1px var(--hairline-strong);
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 600;
   transition:
-    background-color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .srcf-filters[data-popup-open] {
@@ -237,7 +237,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .srcf-filters:hover {
-    background: rgb(255 255 255 / 0.14);
+    background: var(--fill-4);
   }
 }
 /* On the button's corner, like an app badge: the button stays one width
@@ -254,11 +254,11 @@
   min-width: 1.125rem;
   height: 1.125rem;
   padding: 0 0.3rem;
-  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35);
+  box-shadow: 0 0 0 2px var(--scrim-1);
   border-radius: var(--r-pill);
   background: var(--pill-light);
   color: var(--text-on-light);
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
 }
 /* What's narrowing the list, quiet and white - not the accent: these are
@@ -284,7 +284,7 @@
 }
 .srcf-active .srcf-clear {
   margin-left: 0.25rem;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-2);
 }
 /* The popover: the rest of the choices as labelled chip rows, on the same
@@ -299,11 +299,11 @@
   padding: 1rem 1.125rem 1.125rem;
   border-radius: 1.25rem;
   background: rgb(38 38 38 / 0.86);
-  -webkit-backdrop-filter: blur(40px) saturate(160%);
-  backdrop-filter: blur(40px) saturate(160%);
+  -webkit-backdrop-filter: var(--blur-popover);
+  backdrop-filter: var(--blur-popover);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.08),
-    0 1.5rem 3.5rem -1rem rgb(0 0 0 / 0.7);
+    0 1.5rem 3.5rem -1rem var(--scrim-3);
   font-family: var(--font);
   color: var(--text);
   outline: none;
@@ -328,7 +328,7 @@
 }
 .srcf-popover .srcf-chiprow-label {
   width: auto;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
 }
 /* The label, and a search on the right when the row is long. Elsewhere (TV)
    the header box steps aside and the label sits in the row as before. */
@@ -350,7 +350,7 @@
   height: 1.75rem;
   padding: 0 0.625rem;
   border-radius: var(--r-pill);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   box-shadow: inset 0 0 0 1px var(--hairline);
   color: var(--text-3);
   cursor: text;
@@ -365,7 +365,7 @@
   border: 0;
   outline: none;
   background: none;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text);
 }
 .srcf-chiprow-search input::-webkit-search-cancel-button {
@@ -379,7 +379,7 @@
 }
 .srcf-chiprow-more {
   align-self: flex-start;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-2);
 }
@@ -390,7 +390,7 @@
 }
 .srcf-chiprow-empty {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .srcf-popover .source-chip {
@@ -400,7 +400,7 @@
   margin: 0;
   padding-top: 0.75rem;
   border-top: 1px solid var(--hairline);
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -420,7 +420,7 @@
   width: 100%;
   height: 4px;
   border-radius: var(--r-pill);
-  background: rgb(255 255 255 / 0.14);
+  background: var(--fill-4);
 }
 .srcf-slider-fill {
   border-radius: inherit;
@@ -429,9 +429,9 @@
 .srcf-slider-thumb {
   width: 16px;
   height: 16px;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: #fff;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+  box-shadow: 0 1px 4px var(--scrim-2);
   cursor: grab;
   outline: none;
 }
@@ -454,28 +454,28 @@
   height: 28px;
   padding: 0 0.625rem;
   border-radius: var(--r-pill);
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 650;
   white-space: nowrap;
   color: var(--text-2);
   background: rgb(255 255 255 / 0.08);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--fill-2);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 /* On: the accent, shaded like a switch that's on. */
 .srcf-tag[aria-pressed="true"] {
   background: linear-gradient(180deg, var(--accent-hi) 0%, var(--accent) 100%);
   color: var(--accent-fg, #fff);
   box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 50%, rgb(0 0 0 / 0.5)),
+    inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 50%, var(--scrim-2)),
     inset 0 1px 1px rgb(255 255 255 / 0.35),
     inset 0 -1px 2px color-mix(in srgb, var(--accent) 30%, rgb(0 0 0 / 0.2));
 }
 @media (hover: hover) and (pointer: fine) {
   .srcf-tag:not([aria-pressed="true"]):hover {
-    background: rgb(255 255 255 / 0.14);
+    background: var(--fill-4);
     color: var(--text);
   }
 }
@@ -494,7 +494,7 @@
 }
 .srcf-tag.toggle-chip[aria-pressed="true"] {
   background: rgb(255 255 255 / 0.08);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--fill-2);
 }
 .srcf-tag.toggle-chip:active {
   transform: scale(0.96);
@@ -507,7 +507,7 @@
   border-radius: inherit;
   background: linear-gradient(180deg, var(--accent-hi) 0%, var(--accent) 100%);
   box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 50%, rgb(0 0 0 / 0.5)),
+    inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 50%, var(--scrim-2)),
     inset 0 1px 1px rgb(255 255 255 / 0.35),
     inset 0 -1px 2px color-mix(in srgb, var(--accent) 30%, rgb(0 0 0 / 0.2));
   opacity: 0;
@@ -519,7 +519,7 @@
 .toggle-chip[aria-pressed="true"]::before {
   opacity: 1;
   transform: none;
-  transition-duration: 220ms;
+  transition-duration: var(--dur-base);
 }
 .toggle-chip-check {
   display: grid;
@@ -528,7 +528,7 @@
 }
 .toggle-chip[aria-pressed="true"] .toggle-chip-check {
   grid-template-columns: 1fr;
-  transition-duration: 220ms;
+  transition-duration: var(--dur-base);
 }
 .toggle-chip-check > span {
   display: flex;
@@ -550,7 +550,7 @@
   opacity: 1;
   transform: none;
   filter: none;
-  transition-duration: 220ms;
+  transition-duration: var(--dur-base);
   transition-delay: 40ms;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -565,7 +565,7 @@
   }
 }
 .srcf-count {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 600;
   opacity: 0.6;
 }

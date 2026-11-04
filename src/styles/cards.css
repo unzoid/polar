@@ -29,7 +29,7 @@
   isolation: isolate;
   cursor: pointer;
   box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.06),
+    0 0 0 1px var(--fill-2),
     0 30px 60px -30px rgb(0 0 0 / 0.8);
 }
 .hero-placeholder {
@@ -64,7 +64,7 @@
     overflow: hidden;
     cursor: pointer;
     opacity: 0.4;
-    transition: opacity var(--dur-fast) ease;
+    transition: opacity var(--dur-fast) var(--ease-std);
   }
   @media (hover: hover) and (pointer: fine) {
     .hero-peek:hover {
@@ -104,7 +104,7 @@
   height: 100%;
   filter: blur(40px) saturate(1.5) brightness(0.75);
   transform: scale(1.15); /* hide the blur's soft edges */
-  transition: opacity 600ms ease;
+  transition: opacity 600ms var(--ease-std);
 }
 .hero-ambient canvas[data-current="false"] {
   opacity: 0;
@@ -122,7 +122,7 @@
   height: 100%;
   object-fit: cover;
   object-position: center 22%;
-  transition: opacity 600ms ease;
+  transition: opacity 600ms var(--ease-std);
 }
 .hero-backdrop[data-current="false"] {
   opacity: 0;
@@ -160,7 +160,7 @@
   object-fit: contain;
   object-position: left bottom;
   margin-bottom: 0.5rem;
-  filter: drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 2px 18px var(--scrim-1));
 }
 .hero-title {
   margin: 0 0 0.25rem;
@@ -266,7 +266,7 @@
   max-height: 190px;
 }
 .home .hero-kind {
-  font-size: 1rem;
+  font-size: var(--fs-lg);
 }
 .home .hero-description {
   font-size: 1.125rem;
@@ -274,7 +274,7 @@
 .home .hero-actions .btn {
   height: 54px;
   padding: 0 1.9rem;
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
 }
 .home .hero-actions .btn svg {
   width: 22px;
@@ -301,10 +301,10 @@
   gap: 1.75rem;
 }
 .home .card-caption .t-callout {
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
 }
 .home .card-caption .t-caption {
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 
 /* ==========================================================================
@@ -389,9 +389,9 @@
   opacity: var(--edge-shown);
   /* Bright art behind the edge (a sky, a white cover) would swallow a bare
      white chevron. */
-  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.7));
+  filter: drop-shadow(0 1px 3px var(--scrim-3));
   transition:
-    opacity var(--dur-fast) ease,
+    opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .row-paddle:active svg {
@@ -427,7 +427,7 @@
   position: absolute;
   inset: 0;
   opacity: var(--edge-shown, 1);
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
   --fade: radial-gradient(var(--edge-at, ellipse 125% 100% at 50% 100%), #000 var(--solid), transparent var(--end));
   -webkit-mask-image: var(--fade);
   mask-image: var(--fade);
@@ -494,9 +494,9 @@
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  box-shadow: 0 18px 36px -8px rgb(0 0 0 / 0.7);
+  box-shadow: 0 18px 36px -8px var(--scrim-3);
   opacity: 0;
-  transition: opacity var(--dur-base) ease;
+  transition: opacity var(--dur-base) var(--ease-std);
 }
 /* Hairline ring above the art so dark images keep their edge. */
 .card-frame::after {
@@ -541,7 +541,7 @@
   max-height: 34%;
   object-fit: contain;
   object-position: left bottom;
-  filter: drop-shadow(0 1px 8px rgb(0 0 0 / 0.5));
+  filter: drop-shadow(0 1px 8px var(--scrim-2));
 }
 .card-art-title {
   position: absolute;
@@ -566,7 +566,7 @@
   background: var(--glass-control);
   backdrop-filter: var(--blur-control);
   opacity: 0;
-  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std), transform var(--dur-fast) var(--ease-std);
   border: 0;
   padding: 0;
   color: inherit;
@@ -601,7 +601,7 @@
   align-items: center; /* don't stretch the badge to the row's height */
   min-height: 1.4rem;
   padding: 0 2px;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
 }
 /* Settings → Browsing → Rating position: only the badge in the chosen spot shows. */
 .app[data-rating-position="poster"] .card-rating[data-placement="below"],
@@ -616,7 +616,7 @@
   z-index: 1;
   min-height: 0;
   padding: 0;
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   pointer-events: none;
 }
 
@@ -632,14 +632,14 @@
 .card-score svg {
   width: 1.1em;
   height: 1.1em;
-  color: var(--score-tone, #f5c518);
+  color: var(--score-tone, var(--brand-imdb));
 }
 /* Over artwork: on a small dark pill so it reads over anything. */
 /* A solid chip, no backdrop blur: there's one on every poster, and a grid
    of them would each re-blur the art under them on every scrolled frame. */
 .card-score-art {
   padding: 0.36em 0.5em;
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   background: rgb(0 0 0 / 0.72);
   color: #fff;
   pointer-events: none;
@@ -752,7 +752,7 @@
 }
 .card-resume-left {
   position: relative;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   line-height: 1;
   color: rgb(255 255 255 / 0.85);
@@ -833,7 +833,7 @@
   width: 100%;
   height: 24px;
   padding: 0 10px 0 13px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   font-size: 13px;
   font-weight: 400;
   line-height: 16px;
@@ -886,7 +886,7 @@
 .ctx-menu-sep {
   height: 1px;
   margin: 5px 11px;
-  background: rgb(255 255 255 / 0.14);
+  background: var(--fill-4);
 }
 .ctx-menu-sep:first-child,
 .ctx-menu-sep + .ctx-menu-sep {
@@ -897,13 +897,13 @@
 .trailer-layer {
   position: fixed;
   inset: 0;
-  z-index: 900;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   padding: calc(var(--nav-h) * 0.6) var(--gutter) var(--gutter);
   background: rgb(0 0 0 / 0.78);
   backdrop-filter: blur(14px);
-  animation: trailer-in 220ms var(--ease-out);
+  animation: trailer-in var(--dur-base) var(--ease-out);
 }
 @keyframes trailer-in {
   from {

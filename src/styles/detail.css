@@ -100,7 +100,7 @@
   box-shadow: none;
   transition:
     transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std);
 }
 .btn.detail-trailer-btn svg {
   filter: drop-shadow(0 1px 5px rgb(0 0 0 / 0.45));
@@ -110,7 +110,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .btn.detail-trailer-btn:hover {
-    background: rgb(255 255 255 / 0.14);
+    background: var(--fill-4);
   }
 }
 .detail-hero-main,
@@ -162,7 +162,7 @@
   object-fit: contain;
   object-position: left bottom;
   margin-bottom: 0.75rem;
-  filter: drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 2px 18px var(--scrim-1));
 }
 .detail-title {
   margin: 0 0 0.25rem;
@@ -198,7 +198,7 @@
   display: inline-flex;
   flex: none;
   border-radius: var(--r-pill);
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
 }
 @media (hover: hover) and (pointer: fine) {
   .rating-link:hover {
@@ -221,7 +221,7 @@
   stroke: var(--good);
   /* Draw in once on open; it reads the score as it fills. Kept inside the
      UI budget since a detail page opens many times a day. */
-  animation: ring-fill 300ms var(--ease-out) 60ms both;
+  animation: ring-fill var(--dur-slow) var(--ease-out) 60ms both;
 }
 .rating-ring[data-tone="mid"] .rating-ring-arc {
   stroke: #f2c94c;
@@ -231,7 +231,7 @@
 }
 /* Settings → Browsing → Colour-code IMDb ratings, off: IMDb yellow whatever the score. */
 .app[data-rating-colors="false"] .rating-ring .rating-ring-arc {
-  stroke: #f5c518;
+  stroke: var(--brand-imdb);
 }
 @keyframes ring-fill {
   from {
@@ -240,7 +240,7 @@
 }
 .rating-ring-value {
   position: relative;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text);
@@ -361,7 +361,7 @@
   align-items: center;
   gap: 0.3125rem;
   font-weight: 600;
-  text-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
+  text-shadow: 0 1px 6px var(--scrim-2);
 }
 .episode-card .progress-track {
   left: auto;
@@ -434,7 +434,7 @@
   height: 36px;
   opacity: 0;
   transition:
-    opacity var(--dur-fast) ease,
+    opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .episode-card:focus-within .episode-sources {
@@ -455,7 +455,7 @@
   height: 36px;
   opacity: 0;
   transition:
-    opacity var(--dur-fast) ease,
+    opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .episode-card:focus-within .episode-download,
@@ -504,10 +504,10 @@
   gap: 1.25rem;
   padding: 0.75rem 4rem 0.75rem 0.25rem;
   border-radius: var(--r-lg);
-  transition: background-color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) var(--ease-std);
 }
 .episode-card[data-layout="list"][data-up-next="true"] .episode-card-main {
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
 }
 .episode-card[data-layout="list"] .card-frame {
   grid-area: still;
@@ -525,12 +525,12 @@
   color: var(--text-2);
 }
 .episode-card[data-layout="list"] .episode-card-title {
-  font-size: 1rem;
+  font-size: var(--fs-lg);
 }
 .episode-card[data-layout="list"] .episode-runtime {
   left: 8px;
   bottom: 6px;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
 }
 .episode-card[data-layout="list"] .progress-track {
   bottom: 11px;
@@ -576,7 +576,7 @@
   inset: 0;
   container-type: size;
   opacity: 0;
-  transition: opacity 1s ease;
+  transition: opacity 1s var(--ease-std);
 }
 .backdrop-trailer[data-visible="true"] {
   opacity: 1;
@@ -590,7 +590,7 @@
   pointer-events: none;
 }
 .detail-mute {
-  animation: fade-in var(--dur-base) ease;
+  animation: fade-in var(--dur-base) var(--ease-std);
 }
 
 /* Under the episodes, on the same page (no tabs between them). */
@@ -613,7 +613,7 @@
 }
 .details-label {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-3);
 }
@@ -637,7 +637,7 @@
 .details-story {
   margin: 0.5rem 0 0;
   max-width: 62ch;
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
   line-height: 1.6;
   color: var(--text-2);
 }
@@ -673,16 +673,16 @@
   gap: 0.4375rem;
   height: 2rem;
   padding: 0 0.625rem 0 0.6875rem;
-  border: 1px solid rgb(255 255 255 / 0.1);
+  border: 1px solid var(--fill-3);
   border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--site) 5%, rgb(255 255 255 / 0.05));
   backdrop-filter: blur(12px);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   white-space: nowrap;
   transition:
-    background-color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .details-link svg {
@@ -693,13 +693,13 @@
   color: var(--text-3);
 }
 .details-link[data-site="imdb"] {
-  --site: #f5c518;
+  --site: var(--brand-imdb);
 }
 .details-link[data-site="rt"] {
-  --site: #fa320a;
+  --site: var(--brand-rt);
 }
 .details-link[data-site="letterboxd"] {
-  --site: #00e054;
+  --site: var(--brand-letterboxd);
 }
 .details-link[data-site="trakt"] {
   --site: #c53be0;
@@ -744,7 +744,7 @@
   height: 96px;
   margin-bottom: 0.5rem;
   overflow: hidden;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: rgb(255 255 255 / 0.08);
   color: var(--text-2);
   font-weight: 650;
@@ -756,7 +756,7 @@
   object-position: center 20%;
 }
 .person-name {
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 600;
   line-height: 1.3;
 }
@@ -765,7 +765,7 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.3;
   color: var(--text-3);
 }
@@ -782,11 +782,11 @@
   min-width: 128px;
   padding: 0.875rem 1.125rem;
   border-radius: var(--r-md);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .score-card-label {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 650;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -798,11 +798,11 @@
   letter-spacing: -0.02em;
 }
 .score-card-note {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .score-card[data-tone="fresh"] .score-card-value {
-  color: #fa320a;
+  color: var(--brand-rt);
 }
 .score-card[data-tone="rotten"] .score-card-value {
   color: #0ac855;
@@ -817,7 +817,7 @@
   color: #ff4d4d;
 }
 .score-card[data-kind="lb"] .score-card-value {
-  color: #00e054;
+  color: var(--brand-letterboxd);
 }
 
 /* …and as small chips beside the rating in the hero. */
