@@ -174,6 +174,11 @@ a TMDB one ~25 instead of ~65.
 The app reads the new tables and, when they are missing (`PGRST205`/`42P01`, as `anime_links` does
 today), falls back to the old ones, so the app and the migration can be released in either order.
 
+The same migration carries the sync fixes of `docs/rewrite-plan.md` R2, so the server changes once:
+`updated_at` clamped to `now() + 5 min` (critique H2), the playlist limit counting live playlists on
+real inserts only (H4), pulls ordered by `(synced_at, key)` (M8), and the legacy `stream` column gone
+with `watch_progress` (C3).
+
 ## 6. Owner's choices (asked in the inbox)
 
 - Which display fields an account keeps (D above; C = none; or today's, per episode).
