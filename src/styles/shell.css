@@ -48,7 +48,7 @@
 .navbar {
   position: absolute;
   inset: 0 0 auto 0;
-  z-index: 20;
+  z-index: var(--z-nav);
   height: var(--nav-h);
   display: flex;
   align-items: center;
@@ -84,11 +84,11 @@
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity var(--dur-base) ease;
+  transition: opacity var(--dur-base) var(--ease-std);
 }
 .navbar-fade::before {
   content: "";
-  background: rgb(0 0 0 / 0.5);
+  background: var(--scrim-2);
 }
 /* The shape is a wide ellipse hanging from the top edge, not a straight
    band: the blur is deepest in the middle and its lower edge curves up
@@ -173,13 +173,13 @@
   white-space: nowrap;
   touch-action: manipulation;
   border-radius: var(--r-pill);
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 500;
   letter-spacing: -0.003em;
   color: rgb(255 255 255 / 0.82);
   transition:
-    color var(--dur-fast) ease,
-    background-color var(--dur-fast) ease;
+    color var(--dur-fast) var(--ease-std),
+    background-color var(--dur-fast) var(--ease-std);
 }
 .navbar-link[aria-current="page"] {
   color: var(--text);
@@ -204,7 +204,7 @@
   color: var(--text);
   transition:
     transform var(--dur-press) var(--ease-out),
-    opacity var(--dur-fast) ease;
+    opacity var(--dur-fast) var(--ease-std);
 }
 /* Hidden, Back folds away to the left so the wordmark sits at the edge; when
    there's somewhere to go back to it slides in and the wordmark makes room.
@@ -213,8 +213,8 @@
   margin-right: 0.25rem;
   transition:
     transform var(--dur-press) var(--ease-out),
-    opacity var(--dur-fast) ease,
-    margin-left 220ms var(--ease-out);
+    opacity var(--dur-fast) var(--ease-std),
+    margin-left var(--dur-base) var(--ease-out);
 }
 .navbar-back[data-shown="false"] {
   margin-left: calc(-40px - 0.5rem);
@@ -223,13 +223,13 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .navbar-back {
-    transition: opacity var(--dur-fast) ease;
+    transition: opacity var(--dur-fast) var(--ease-std);
   }
 }
 @media (hover: hover) and (pointer: fine) {
   .navbar-link:not([aria-current="page"]):hover {
     color: var(--text);
-    background: rgb(255 255 255 / 0.1);
+    background: var(--fill-3);
   }
   .navbar-icon:hover,
   .navbar-search-icon:hover {
@@ -258,9 +258,9 @@
   box-shadow: inset 0 0 0 1px transparent;
   clip-path: inset(0 0 0 calc(100% - 40px) round 20px);
   transition:
-    clip-path 220ms var(--ease-out),
-    background-color 160ms ease,
-    box-shadow 160ms ease;
+    clip-path var(--dur-base) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-std),
+    box-shadow var(--dur-fast) var(--ease-std);
 }
 .navbar-search[data-open="true"] {
   margin-left: 0;
@@ -280,8 +280,8 @@
   color: var(--text);
   transform: translateX(calc(var(--search-w) - 40px));
   transition:
-    transform 220ms var(--ease-out),
-    opacity var(--dur-fast) ease;
+    transform var(--dur-base) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-std);
 }
 .navbar-search[data-open="true"] .navbar-search-icon {
   transform: none;
@@ -293,12 +293,12 @@
   border: 0;
   outline: 0;
   background: none;
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
   font-weight: 500;
   color: var(--text);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
 }
 .navbar-search[data-open="true"] input {
   opacity: 1;
@@ -369,7 +369,7 @@
   .navbar-link {
     height: 36px;
     padding: 0 0.75rem;
-    font-size: 0.9375rem;
+    font-size: var(--fs-base);
   }
   .navbar-actions {
     gap: 0.25rem;
@@ -425,11 +425,11 @@
   height: 32px;
   color: var(--text-2);
   transition:
-    background-color 80ms ease,
-    color 80ms ease;
+    background-color 80ms var(--ease-std),
+    color 80ms var(--ease-std);
 }
 .window-controls button:hover {
-  background: rgb(255 255 255 / 0.1);
+  background: var(--fill-3);
   color: var(--text);
 }
 .window-controls .close:hover {
@@ -478,7 +478,7 @@
   white-space: nowrap;
   display: grid;
   place-items: center;
-  transition: color var(--dur-fast) ease;
+  transition: color var(--dur-fast) var(--ease-std);
 }
 .segmented-active {
   position: absolute;
@@ -540,7 +540,7 @@
 /* Under the empty search field: genres to start from (NavBar SearchSuggestions). */
 .search-suggest {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   width: min(440px, calc(100vw - 2rem));
   padding: 1rem;
   display: grid;
@@ -551,7 +551,7 @@
   box-shadow:
     inset 0 0 0 1px var(--hairline-strong),
     0 20px 50px -20px rgb(0 0 0 / 0.8);
-  animation: search-suggest-in 160ms var(--ease-out);
+  animation: search-suggest-in var(--dur-fast) var(--ease-out);
 }
 @keyframes search-suggest-in {
   from {
@@ -560,7 +560,7 @@
   }
 }
 .search-suggest-title {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-3);
   text-transform: uppercase;
@@ -577,10 +577,10 @@
   justify-content: space-between;
 }
 .search-suggest-clear {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
-  transition: color 150ms ease;
+  transition: color 150ms var(--ease-std);
 }
 .search-recent {
   display: grid;
@@ -594,12 +594,12 @@
   padding: 0 0.5rem;
   border-radius: var(--r-sm);
   color: var(--text-2);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 500;
   text-align: left;
   transition:
-    background-color 150ms ease,
-    color 150ms ease;
+    background-color 150ms var(--ease-std),
+    color 150ms var(--ease-std);
 }
 .search-recent-item > span {
   min-width: 0;
@@ -613,7 +613,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .search-recent-item:hover {
-    background: rgb(255 255 255 / 0.06);
+    background: var(--fill-2);
     color: var(--text);
   }
   .search-suggest-clear:hover {
@@ -647,7 +647,7 @@
   font-weight: 600;
 }
 .discover-grid {
-  transition: opacity 150ms ease;
+  transition: opacity 150ms var(--ease-std);
 }
 .discover-grid[data-stale="true"] {
   opacity: 0.5;
@@ -662,15 +662,15 @@ html[data-os="mac"] {
 /* The window is transparent (mpv draws under the page), which costs it the
    native rounded corners and edge: draw them. */
 html[data-os="mac"] body {
-  border-radius: 12px;
+  border-radius: var(--r-md);
   overflow: hidden;
 }
 html[data-os="mac"] body::after {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 2147483647;
-  border-radius: 12px;
+  z-index: var(--z-system);
+  border-radius: var(--r-md);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   pointer-events: none;
 }

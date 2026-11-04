@@ -127,13 +127,13 @@
   height: 2.35rem;
   padding: 0 1.15rem;
   border-radius: var(--r-pill);
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
   letter-spacing: -0.005em;
   color: var(--text-2);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
     transform 200ms var(--ease-out);
 }
 .tv-nav-tab[data-icon] {
@@ -193,7 +193,7 @@
   height: 100%;
   filter: blur(60px) saturate(1.5) brightness(0.65);
   transform: scale(1.2);
-  transition: opacity 800ms ease;
+  transition: opacity 800ms var(--ease-std);
 }
 .tv-ambient canvas[data-current="false"] {
   opacity: 0;
@@ -210,7 +210,7 @@
   object-fit: cover;
   object-position: center 20%;
   opacity: 0;
-  transition: opacity 600ms ease;
+  transition: opacity 600ms var(--ease-std);
 }
 .tv-backdrop img[data-ready="true"] {
   opacity: 1;
@@ -260,7 +260,7 @@
 }
 .tv-stage-kicker {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 650;
 }
 .tv-facts {
@@ -292,7 +292,7 @@
 .imdb-badge-logo {
   padding: 0.28em 0.45em;
   border-radius: 0.3em; /* rounded all round now nothing sits behind the score */
-  background: #f5c518;
+  background: var(--brand-imdb);
   color: #000;
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -304,13 +304,13 @@
   color: var(--imdb-tone);
 }
 .imdb-badge[data-tone="good"] { --imdb-tone: #5dd879; }
-.imdb-badge[data-tone="mid"] { --imdb-tone: #f5c518; }
-.imdb-badge[data-tone="low"] { --imdb-tone: #ff6b5e; }
+.imdb-badge[data-tone="mid"] { --imdb-tone: var(--brand-imdb); }
+.imdb-badge[data-tone="low"] { --imdb-tone: var(--danger); }
 /* Settings → Browsing → Colour-code IMDb ratings, off: IMDb yellow whatever the score. */
-.app[data-rating-colors="false"] .imdb-badge { --imdb-tone: #f5c518; }
+.app[data-rating-colors="false"] .imdb-badge { --imdb-tone: var(--brand-imdb); }
 .tv-stage-description {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   line-height: 1.45;
   color: var(--text-2);
   display: -webkit-box;
@@ -337,7 +337,7 @@
 }
 .tv-rail {
   padding-top: 0.5rem;
-  transition: opacity 260ms ease;
+  transition: opacity 260ms var(--ease-std);
 }
 /* Rows you're not on step back. */
 .tv-rails:focus-within .tv-rail:not(:focus-within),
@@ -351,7 +351,7 @@
   font-weight: 650;
   letter-spacing: -0.01em;
   color: var(--text-2);
-  transition: color 200ms ease;
+  transition: color 200ms var(--ease-std);
 }
 .tv-rail:focus-within .tv-rail-title {
   color: var(--text);
@@ -432,7 +432,7 @@
   border-radius: calc(var(--tv-radius) + var(--tv-ring-gap));
   box-shadow: 0 0 0 var(--tv-ring) #fff;
   opacity: 0;
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
   pointer-events: none;
 }
 .tv-card:is(:focus, [data-menu-open]) {
@@ -449,7 +449,7 @@
 .tv-card-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgb(0 0 0 / 0.7), transparent 58%);
+  background: linear-gradient(to top, var(--scrim-3), transparent 58%);
 }
 .tv-card-logo {
   position: absolute;
@@ -471,7 +471,7 @@
   left: 0.6rem;
   max-width: calc(100% - 1.2rem);
   padding: 0.2rem 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: rgb(0 0 0 / 0.6);
   backdrop-filter: blur(8px);
   font-size: 0.85rem;
@@ -498,7 +498,7 @@
   place-items: center;
   padding: 1rem;
   text-align: center;
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 650;
   color: var(--text-2);
 }
@@ -538,7 +538,7 @@
 }
 .tv-search-field {
   cursor: text;
-  transition: border-color var(--dur-fast) ease;
+  transition: border-color var(--dur-fast) var(--ease-std);
 }
 /* Typing on a real keyboard (or clicking here) puts focus in the field: Enter searches. */
 .tv-search-field:focus {
@@ -571,7 +571,7 @@
 }
 .tv-recent-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 650;
   color: var(--text-2);
 }
@@ -580,8 +580,8 @@
   border-radius: 0.55rem;
   color: var(--text-2);
   transition:
-    background-color 120ms ease,
-    color 120ms ease;
+    background-color 120ms var(--ease-std),
+    color 120ms var(--ease-std);
 }
 .tv-recent-clear {
   padding: 0.3rem 0.7rem;
@@ -645,11 +645,11 @@
   font-size: 1.15rem;
   font-weight: 650;
   color: var(--text-2);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   transition:
-    background-color 120ms ease,
-    color 120ms ease,
-    transform 160ms var(--ease-out);
+    background-color 120ms var(--ease-std),
+    color 120ms var(--ease-std),
+    transform var(--dur-fast) var(--ease-out);
 }
 .tv-key-wide {
   font-size: 0.95rem;
@@ -692,10 +692,10 @@
   display: grid;
   place-items: center start;
   padding: 0 1.1rem;
-  background: rgb(255 255 255 / 0.06);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
+  background: var(--fill-2);
+  box-shadow: inset 0 0 0 1px var(--fill-1);
   transition:
-    background-color 160ms ease,
+    background-color var(--dur-fast) var(--ease-std),
     box-shadow 240ms var(--ease-out);
 }
 .tv-genre-name {
@@ -703,7 +703,7 @@
   font-weight: 600;
   letter-spacing: -0.005em;
   color: var(--text-2);
-  transition: color 160ms ease;
+  transition: color var(--dur-fast) var(--ease-std);
 }
 .tv-genre:focus .tv-card-frame {
   background: var(--pill-light);
@@ -798,9 +798,9 @@
   color: var(--text-2);
   transform-origin: left center;
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
-    transform 220ms var(--ease-out);
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
+    transform var(--dur-base) var(--ease-out);
 }
 .tv-pill svg {
   flex: none;
@@ -881,8 +881,8 @@
   text-align: left;
   color: var(--text);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 .tv .tv-settings-row:focus {
   outline: none;
@@ -912,7 +912,7 @@
 }
 .tv-settings-value svg {
   opacity: 0;
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
 }
 .tv-settings-row:focus .tv-settings-value svg {
   opacity: 0.7;
@@ -993,8 +993,8 @@
   color: var(--text-2);
   text-align: left;
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 .tv-season[aria-current] {
   background: rgb(255 255 255 / 0.12);
@@ -1033,11 +1033,11 @@
   padding: 0.7rem;
   border-radius: 1rem;
   text-align: left;
-  transition: background-color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) var(--ease-std);
 }
 .tv-episode-main:focus {
   outline: none;
-  background: rgb(255 255 255 / 0.1);
+  background: var(--fill-3);
   box-shadow: inset 0 0 0 var(--tv-ring) #fff;
 }
 .tv-episode-main:disabled {
@@ -1071,7 +1071,7 @@
   place-items: center;
   width: 1.5rem;
   height: 1.5rem;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: rgb(0 0 0 / 0.6);
 }
 .tv-episode-watched svg {
@@ -1085,7 +1085,7 @@
   min-width: 0;
 }
 .tv-episode-kicker {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1115,11 +1115,11 @@
   place-items: center;
   width: 3rem;
   height: 3rem;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   color: var(--text-2);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   transition:
-    background-color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
     transform 200ms var(--ease-out);
 }
 .tv-episode-sources svg {
@@ -1142,7 +1142,7 @@
 }
 .tv-sources-sub {
   margin: 0 0 1rem;
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   color: var(--text-2);
 }
 .tv-sources .tv-sources-list {
@@ -1189,8 +1189,8 @@
   color: var(--text-2);
   text-align: left;
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 .tv-playlist-row:focus {
   outline: none;
@@ -1203,12 +1203,12 @@
   place-items: center;
   width: 1.85rem;
   height: 1.85rem;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   box-shadow: inset 0 0 0 2px currentColor;
   opacity: 0.55;
   transition:
-    background-color var(--dur-fast) ease,
-    opacity var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    opacity var(--dur-fast) var(--ease-std);
 }
 .tv-playlist-row[aria-checked="true"] {
   color: var(--text);
@@ -1254,12 +1254,12 @@
   place-items: center;
   width: 3.25rem;
   height: 3.25rem;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   color: var(--text-3);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
-    transform 160ms var(--ease-out);
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
+    transform var(--dur-fast) var(--ease-out);
 }
 .tv-playlist-rename:focus {
   outline: none;
@@ -1374,7 +1374,7 @@
   height: auto;
 }
 .tv .options-item[aria-checked="true"] {
-  background: rgb(255 255 255 / 0.1);
+  background: var(--fill-3);
   color: var(--text);
   box-shadow: none;
 }
@@ -1427,7 +1427,7 @@
   height: 0.95rem;
 }
 .tv .options-item[aria-checked="true"]:not(:focus) .options-badge {
-  background: rgb(255 255 255 / 0.14);
+  background: var(--fill-4);
 }
 .tv .options-item[aria-checked="true"]:not(:focus) .options-badge[data-tone="good"] {
   background: rgb(94 211 154 / 0.2);
@@ -1497,7 +1497,7 @@
 }
 .tv .sub-stepper-value {
   min-width: 4.5rem;
-  font-size: 1rem;
+  font-size: var(--fs-lg);
 }
 .tv .sub-settings .source-chips {
   flex-wrap: wrap;
@@ -1564,9 +1564,9 @@
 .tv-menu-layer {
   position: absolute;
   inset: 0;
-  z-index: 40;
-  background: rgb(0 0 0 / 0.5);
-  animation: fade-in 220ms ease;
+  z-index: var(--z-sheet);
+  background: var(--scrim-2);
+  animation: fade-in var(--dur-base) var(--ease-std);
 }
 .tv-menu {
   position: absolute;
@@ -1623,8 +1623,8 @@
   color: var(--text-2);
   text-align: left;
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 .tv-menu-item svg {
   flex: none;
@@ -1646,7 +1646,7 @@
   border-radius: 0.35rem;
   box-shadow: inset 0 0 0 1px currentColor;
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 650;
   opacity: 0.6;
 }
@@ -1663,7 +1663,7 @@
   place-items: center;
   width: 2.4rem;
   height: 2.4rem;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   color: var(--text-3);
 }
 .tv-menu-close svg {
@@ -1675,11 +1675,11 @@
 .tv-card-menu-layer {
   position: absolute;
   inset: 0;
-  z-index: 40;
+  z-index: var(--z-sheet);
 }
 .tv-card-menu-layer[data-dim] {
-  background: rgb(0 0 0 / 0.35);
-  animation: fade-in 200ms ease;
+  background: var(--scrim-1);
+  animation: fade-in 200ms var(--ease-std);
 }
 .tv-card-menu {
   position: absolute;
@@ -1688,13 +1688,13 @@
      stands out past its edges, like a tvOS menu. */
   padding: 0.5rem 0;
   border-radius: 1.25rem;
-  background: rgb(38 38 38 / 0.82);
-  backdrop-filter: blur(40px) saturate(160%);
+  background: var(--surface-popover);
+  backdrop-filter: var(--blur-popover);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.08),
-    0 1.5rem 3.5rem -1rem rgb(0 0 0 / 0.7);
+    0 1.5rem 3.5rem -1rem var(--scrim-3);
   transform-origin: top left;
-  animation: tv-card-menu-in 220ms var(--ease-out);
+  animation: tv-card-menu-in var(--dur-base) var(--ease-out);
 }
 .tv-card-menu[data-side="left"] {
   transform-origin: top right;
@@ -1749,8 +1749,8 @@
   color: var(--text-2);
   text-align: left;
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
     box-shadow 200ms var(--ease-out),
     transform 200ms var(--ease-out);
 }
@@ -1783,13 +1783,13 @@
   gap: 1.25rem;
   padding: 0.45rem 1rem;
   border-radius: var(--r-pill);
-  background: rgb(0 0 0 / 0.5);
+  background: var(--scrim-2);
   backdrop-filter: blur(16px);
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-2);
   pointer-events: none;
-  animation: fade-in 300ms ease;
+  animation: fade-in var(--dur-slow) var(--ease-std);
 }
 .tv-hint {
   display: flex;
@@ -1844,7 +1844,7 @@
 .tv-prompt .tv-prompt-go {
   height: 36px;
   padding: 0 1rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .tv-prompt .btn-icon {
   width: 36px;
@@ -1861,7 +1861,7 @@
   flex-direction: column;
   gap: 0.1rem;
   padding-block: 0.3rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   line-height: 1.3;
 }
 .tv-prompt-text strong {
@@ -1877,17 +1877,17 @@
 .tv-prompt-tv {
   top: 1.5rem;
   bottom: auto;
-  z-index: 60;
+  z-index: var(--z-popover);
   padding: 0.6rem 1.5rem 0.6rem 1.25rem;
 }
 .tv-prompt-tv .tv-prompt-text {
-  font-size: 1rem;
+  font-size: var(--fs-lg);
 }
 
 /* Mouse users get a way out: shown only while the pointer is in use. */
 .tv-exit {
   position: absolute;
-  z-index: 40;
+  z-index: var(--z-sheet);
   right: var(--tv-gutter);
   bottom: 1.25rem;
   display: inline-flex;
@@ -1905,8 +1905,8 @@
   opacity: 0;
   pointer-events: none;
   transition:
-    opacity var(--dur-base) ease,
-    background-color var(--dur-fast) ease;
+    opacity var(--dur-base) var(--ease-std),
+    background-color var(--dur-fast) var(--ease-std);
 }
 .tv-exit svg {
   width: 1.2rem;
@@ -1914,7 +1914,7 @@
 }
 .tv-exit kbd {
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .app.tv[data-cursor="shown"] .tv-exit {
@@ -1992,14 +1992,14 @@
 
 /* Join a Watch Party: above the pages and the menu, like the card menu. */
 .tv-join {
-  z-index: 40;
+  z-index: var(--z-sheet);
 }
 .tv-join-error {
   min-height: 1.4em;
   margin: 0.75rem 0 0;
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   color: var(--danger);
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
 }
 .tv-join-error[data-shown="false"] {
   opacity: 0;

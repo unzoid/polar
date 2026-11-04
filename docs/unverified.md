@@ -49,3 +49,7 @@ Not covered: HLS playlists are checked like files (the first 1 KB of the playlis
   grep only (no class built at runtime matched); look for any unstyled About/Library/sign-in element.
 - Title right-click menu and profile menu: the highlighted row now follows Settings → Appearance → Accent
   (was the OS accent via `AccentColor`); check the text stays readable on a yellow/teal accent.
+- Token pass (T-019 step 2): every replaced literal resolves to the same value (checked by substituting the
+  tokens back and diffing all CSS). Only with Windows "high contrast"/`prefers-contrast: more` on: two
+  borders that used the hairline colour as a literal (a sign-in form border in `account.css` and a row
+  border in the player's options panel) now strengthen with the other hairlines.

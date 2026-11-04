@@ -348,6 +348,10 @@ code draws, not what's on screen.
    `--dur-fast`/`base`/`slow`, `--r-sm`, `--r-pill`, `--danger`, `--good`, `--accent`). Close-but-not-equal
    values (for example `/0.05` → `--fill-1` at 0.04) are listed and changed only where the difference can't
    be seen; the rest stay literal with a comment. Z-indexes go to the scale.
+   *Done:* tokens in `tokens.css` (fills, scrims, popover/float surfaces, brands, `--ease-std`, `--fs-*`,
+   `--z-*`, `--r-round`); ~600 exact-equal literals moved, z-indexes of app layers on the scale (`--z-toast`
+   is 30, same as the player, until someone decides the order). Not yet: close-but-not-equal fills
+   (`/0.05` `/0.07` `/0.08` `/0.09` `/0.12`), shadows, `--dur-xslow`, TV radii, the `--t3-*` set.
 3. **Primitives:** `Button`, `IconButton`, `Chip`, `SearchField`/`TextField`, `Switch`, `EmptyState`,
    `Skeleton`, `Toast`, `Menu`/`Popover` surface, `Layer`/`useDismiss`. Move screens over one primitive at a
    time, account screens included.

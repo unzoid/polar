@@ -1,7 +1,7 @@
 .player {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: var(--z-player);
   background: #000;
   color: var(--text);
   overflow: hidden;
@@ -23,7 +23,7 @@
    video is re-filtered every frame. Translucent fills + scrims instead. */
 .player-top,
 .player-bottom {
-  transition: opacity var(--dur-base) ease;
+  transition: opacity var(--dur-base) var(--ease-std);
 }
 .player[data-chrome="false"] .player-top,
 .player[data-chrome="false"] .player-bottom {
@@ -69,7 +69,7 @@
   border-radius: var(--r-pill);
   transition:
     transform var(--dur-press) var(--ease-out),
-    opacity var(--dur-fast) ease;
+    opacity var(--dur-fast) var(--ease-std);
 }
 /* Centred heading: S2:E3 “Title”, show name underneath. */
 .player-heading {
@@ -97,7 +97,7 @@
   font-weight: 600;
 }
 .player-heading-show {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--text-2);
   font-weight: 500;
 }
@@ -119,7 +119,7 @@
   justify-content: center;
   gap: clamp(1.5rem, 4vw, 3.5rem);
   pointer-events: none; /* clicks between the glyphs reach the video */
-  transition: opacity var(--dur-base) ease;
+  transition: opacity var(--dur-base) var(--ease-std);
 }
 .player-transport {
   pointer-events: auto;
@@ -130,7 +130,7 @@
   border-radius: var(--r-pill);
   transition:
     transform var(--dur-press) var(--ease-out),
-    opacity var(--dur-fast) ease;
+    opacity var(--dur-fast) var(--ease-std);
 }
 .player-transport-main {
   width: 104px;
@@ -168,7 +168,7 @@
   flex: 1;
 }
 .player-remaining {
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
   min-width: 4.5ch;
   text-align: right;
@@ -194,13 +194,13 @@
   height: 44px;
   padding: 0 0.75rem;
   border-radius: var(--r-md);
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 500;
   letter-spacing: -0.005em;
   opacity: 0.88;
   transition:
     transform var(--dur-press) var(--ease-out),
-    opacity var(--dur-fast) ease;
+    opacity var(--dur-fast) var(--ease-std);
 }
 @media (hover: hover) and (pointer: fine) {
   .player-action:hover,
@@ -239,7 +239,7 @@
   -webkit-appearance: none;
   width: 12px;
   height: 12px;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: var(--text);
 }
 
@@ -257,7 +257,7 @@
 .options-overlay {
   position: absolute;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-overlay);
   display: grid;
   place-items: center;
   overflow: clip; /* unlike hidden, can't be scrolled by focus() or script */
@@ -281,7 +281,7 @@
 .options-shade {
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 0.5);
+  background: var(--scrim-2);
 }
 .options-shade::after {
   content: "";
@@ -359,8 +359,8 @@
   text-align: left;
   color: rgb(245 245 247 / 0.62);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 .options-item {
   flex-shrink: 0; /* rows keep their height; the column scrolls instead */
@@ -410,7 +410,7 @@
   flex: 1;
 }
 .options-detail {
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 500;
   letter-spacing: 0;
   opacity: 0.72;
@@ -422,11 +422,11 @@
   flex: none;
   padding: 0.1875rem 0.5rem;
   border-radius: var(--r-pill);
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  background: rgb(255 255 255 / 0.14);
+  background: var(--fill-4);
 }
 .options-badge[data-tone="good"] {
   background: rgb(94 211 154 / 0.2);
@@ -479,7 +479,7 @@
 /* A group inside a column ("Other sources", below the ones matching the filters). */
 .options-group {
   margin: 1rem 0 0.375rem 0.25rem;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -554,11 +554,11 @@
   top: 3px;
   width: 14px;
   height: 14px;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: var(--text);
   box-shadow: 0 1px 6px rgb(0 0 0 / 0.4);
   opacity: 0;
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
   pointer-events: none;
 }
 .scrubber-tip {
@@ -571,7 +571,7 @@
   gap: 0.375rem;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 120ms ease;
+  transition: opacity 120ms var(--ease-std);
 }
 .scrubber-time {
   padding: 0.25rem 0.5rem;
@@ -660,7 +660,7 @@
   z-index: 3;
   padding: 0.5rem 1rem;
   border-radius: var(--r-pill);
-  background: rgb(22 22 22 / 0.88);
+  background: var(--surface-float);
 }
 
 /* --- Up next card: enters from the right, leaves the same way. */
@@ -677,7 +677,7 @@
   /* The same frosted dark as the rest of the player's floating UI: no edge,
      just a soft shadow to lift it off the picture. */
   border-radius: 1.25rem;
-  background: rgb(16 16 16 / 0.78);
+  background: var(--surface-float-glass);
   backdrop-filter: var(--blur-glass);
   box-shadow: 0 1.5rem 3rem -1rem rgb(0 0 0 / 0.6);
 }
@@ -703,18 +703,18 @@
   padding: 0.25rem 0.25rem 0 0;
 }
 .next-up-kicker {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-3);
 }
 .next-up-skipping {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: rgb(250 204 21 / 0.9);
 }
 .next-up-title {
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
   font-weight: 650;
   line-height: 1.25;
   display: -webkit-box;
@@ -739,7 +739,7 @@
 .next-up-dismiss.btn-icon {
   flex: none;
   width: 2.375rem;
-  background: rgb(255 255 255 / 0.1);
+  background: var(--fill-3);
   box-shadow: none;
 }
 .next-up-play {
@@ -814,7 +814,7 @@
 .options-overlay[data-open="false"] .video-backdrop {
   filter: blur(0px);
   transform: scale(1);
-  transition-duration: 160ms;
+  transition-duration: var(--dur-fast);
   transition-timing-function: var(--ease-out);
 }
 .options-columns {
@@ -829,11 +829,11 @@
 .options-overlay[data-open="false"] {
   opacity: 0;
   pointer-events: none;
-  transition-duration: 160ms;
+  transition-duration: var(--dur-fast);
 }
 .options-overlay[data-open="false"] .options-columns {
   transform: translateY(4px);
-  transition-duration: 160ms;
+  transition-duration: var(--dur-fast);
 }
 /* Reduced motion: a plain cross-fade — no rise, no zoom. The blur still
    eases in (it isn't movement), it just doesn't scale. */
@@ -884,8 +884,8 @@ html[data-player="mpv"] .main {
 .player-layer {
   position: fixed;
   inset: 0;
-  z-index: 30;
-  transition: opacity 300ms ease;
+  z-index: var(--z-player);
+  transition: opacity var(--dur-slow) var(--ease-std);
   @starting-style {
     opacity: 0;
   }
@@ -899,7 +899,7 @@ html[data-player="mpv"] .main {
 html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   visibility: visible;
   background: var(--bg);
-  animation: fade-in 260ms ease;
+  animation: fade-in 260ms var(--ease-std);
 }
 .player-status {
   background: #000;
@@ -987,14 +987,14 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   height: 30px;
   padding: 0 0.75rem;
   border-radius: var(--r-pill);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   white-space: nowrap;
   color: var(--text-2);
   background: rgb(255 255 255 / 0.08);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .source-chip[aria-pressed="true"] {
@@ -1003,7 +1003,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 }
 @media (hover: hover) and (pointer: fine) {
   .source-chip:not([aria-pressed="true"]):hover {
-    background: rgb(255 255 255 / 0.14);
+    background: var(--fill-4);
     color: var(--text);
   }
 }
@@ -1144,12 +1144,12 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   height: 3rem;
   padding: 0 1.25rem 0 1.5rem;
   border-radius: var(--r-pill);
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 650;
   letter-spacing: -0.005em;
   color: var(--text);
   /* Same frosted dark as the Up Next card. */
-  background: rgb(16 16 16 / 0.78);
+  background: var(--surface-float-glass);
   backdrop-filter: var(--blur-glass);
   box-shadow: 0 1rem 2.5rem -0.75rem rgb(0 0 0 / 0.6);
   /* The lift moves in step with the chrome's fade (same duration), so the
@@ -1158,8 +1158,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
     opacity 200ms var(--ease-out),
     transform 200ms var(--ease-out),
     translate var(--dur-base) var(--ease-out),
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 .skip-button[data-chrome="true"] {
   translate: 0 -7.5rem; /* clear the timeline and action row */
@@ -1199,8 +1199,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 .player-transport {
   transition:
     transform var(--dur-press) var(--ease-out),
-    opacity var(--dur-fast) ease,
-    background-color var(--dur-fast) ease;
+    opacity var(--dur-fast) var(--ease-std),
+    background-color var(--dur-fast) var(--ease-std);
 }
 .player-icon:active,
 .player-transport:active {
@@ -1209,7 +1209,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 @media (hover: hover) and (pointer: fine) {
   .player-icon:hover,
   .player-transport:hover {
-    background: rgb(255 255 255 / 0.14);
+    background: var(--fill-4);
   }
 }
 
@@ -1220,7 +1220,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   display: grid;
   place-items: center;
   background: rgb(0 0 0 / 0.28);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--fill-2);
   color: rgb(255 255 255 / 0.4);
 }
 .options-item[aria-checked="true"] .still-placeholder {
@@ -1255,8 +1255,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   border-radius: var(--r-pill);
   color: var(--text-2);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 .options-head-btn[aria-pressed="true"] {
   background: var(--pill-light);
@@ -1281,7 +1281,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   gap: 0.5rem 1rem;
   min-height: 52px;
   padding: 0.375rem 0;
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  border-bottom: 1px solid var(--hairline);
 }
 /* The text gives way (its caption wraps) so the control keeps its place on the
    right whatever the caption says: no jumping as the delay's caption changes. */
@@ -1292,11 +1292,11 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   min-width: 0;
 }
 .sub-setting-label {
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 .sub-setting-caption {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .sub-stepper {
@@ -1313,7 +1313,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   background: rgb(255 255 255 / 0.08);
   color: var(--text);
   transition:
-    background-color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .sub-stepper button:active:not(:disabled) {
@@ -1325,7 +1325,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 .sub-stepper-value {
   min-width: 4.25rem;
   text-align: center;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 .sub-swatches {
@@ -1335,10 +1335,10 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 .sub-swatch {
   width: 24px;
   height: 24px;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: var(--swatch);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25);
-  transition: box-shadow var(--dur-fast) ease;
+  transition: box-shadow var(--dur-fast) var(--ease-std);
 }
 .sub-swatch[aria-checked="true"] {
   box-shadow:
@@ -1359,13 +1359,13 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   height: 32px;
   padding: 0 0.75rem;
   border-radius: var(--r-pill);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-2);
   background: rgb(255 255 255 / 0.08);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .sub-reset:active:not(:disabled) {
@@ -1377,7 +1377,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 @media (hover: hover) and (pointer: fine) {
   .sub-stepper button:not(:disabled):hover,
   .sub-reset:not(:disabled):hover {
-    background: rgb(255 255 255 / 0.14);
+    background: var(--fill-4);
     color: var(--text);
   }
 }
@@ -1416,7 +1416,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   justify-content: center;
   padding: 0 10vw;
   pointer-events: none;
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
 }
 @starting-style {
   .sub-preview {
@@ -1437,7 +1437,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   color: var(--sub-color);
   -webkit-text-stroke: calc(var(--sub-edge-w) * 2 / 720 * 100vh) var(--sub-edge);
   paint-order: stroke fill;
-  text-shadow: 0 calc(1 / 720 * 100vh) calc(1 / 720 * 100vh) rgb(0 0 0 / 0.5);
+  text-shadow: 0 calc(1 / 720 * 100vh) calc(1 / 720 * 100vh) var(--scrim-2);
   background: var(--sub-bg);
   padding: 0 0.2em;
   box-decoration-break: clone;

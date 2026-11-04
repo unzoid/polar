@@ -66,6 +66,51 @@
   --r-lg: 18px;
   --r-panel: 22px;
   --r-pill: 999px;
+  --r-round: 50%;
+
+  /* White fills on dark surfaces (rows, chips, inputs), lightest to strongest. */
+  --fill-1: rgb(255 255 255 / 0.04);
+  --fill-2: rgb(255 255 255 / 0.06);
+  --fill-3: rgb(255 255 255 / 0.1);
+  --fill-4: rgb(255 255 255 / 0.14);
+  /* Black scrims over artwork and behind overlays. */
+  --scrim-1: rgb(0 0 0 / 0.35);
+  --scrim-2: rgb(0 0 0 / 0.5);
+  --scrim-3: rgb(0 0 0 / 0.7);
+
+  /* Menus and popovers; toasts and floating player buttons. */
+  --surface-popover: rgb(38 38 38 / 0.82);
+  --blur-popover: blur(40px) saturate(160%);
+  --surface-float: rgb(22 22 22 / 0.88);
+  --surface-float-glass: rgb(16 16 16 / 0.78);
+
+  /* Rating sites, in their own colours. */
+  --brand-imdb: #f5c518;
+  --brand-rt: #fa320a;
+  --brand-letterboxd: #00e054;
+
+  /* The plain CSS curve, named so it can be tuned in one place. */
+  --ease-std: ease;
+
+  /* Type scale for UI text (display sizes are the .t-* classes). */
+  --fs-micro: 0.6875rem;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-md: 0.875rem;
+  --fs-base: 0.9375rem;
+  --fs-lg: 1rem;
+  --fs-xl: 1.0625rem;
+
+  /* Stacking order of app layers (local stacking inside a component stays 1-5). */
+  --z-nav: 20;
+  --z-player: 30;
+  --z-toast: 30; /* same layer as the player today; ui-components §5.2 plans 35 */
+  --z-sheet: 40;
+  --z-overlay: 50;
+  --z-popover: 60;
+  --z-modal: 900;
+  --z-dropdown: 1000;
+  --z-system: 2147483647;
 
   /* Top navbar height; pages pad their content below it. */
   --nav-h: 76px;
