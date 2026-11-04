@@ -23,6 +23,7 @@ import type { Shape } from "../lib/shelves";
 import { playSound } from "./sounds";
 import { TvBrowse, TvCard, TvRail, TvSkeletonRail, type RailRow } from "./TvRails";
 import { useStage } from "./TvStage";
+import { EmptyState } from "../components/ui/EmptyState";
 
 /** Resting on a card this long fetches its widescreen art and logo; a held D-pad passes every card. */
 const ART_AFTER_MS = 300;
@@ -45,7 +46,7 @@ export function TvAnime() {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Anime</h1>
-        <p className="tv-empty">AniList didn't answer. Give it a minute and come back.</p>
+        <EmptyState variant="tv">AniList didn't answer. Give it a minute and come back.</EmptyState>
       </div>
     );
   }
@@ -97,7 +98,7 @@ export function TvAnime() {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Anime</h1>
-        <p className="tv-empty">Every shelf is turned off in Settings.</p>
+        <EmptyState variant="tv">Every shelf is turned off in Settings.</EmptyState>
       </div>
     );
   }
@@ -232,7 +233,7 @@ export function TvAnimeDetail({ id }: { id: number }) {
   return (
     <div className="tv-note">
       <h1 className="tv-heading">Anime</h1>
-      <p className="tv-empty">{NO_SOURCE}. Press Back to return.</p>
+      <EmptyState variant="tv">{NO_SOURCE}. Press Back to return.</EmptyState>
     </div>
   );
 }

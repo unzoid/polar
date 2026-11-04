@@ -571,6 +571,11 @@ code draws, not what's on screen.
    `dismissTop()` and plays the back sound from `onDismissed` (while not playing). `TvKeyboard`'s listener
    takes only typing keys, so it stays. TV's `useFocusTrap` (focus in when ready, back on close; no Tab trap,
    the arrows are the TV's navigation) stays its own.
+   `EmptyState variant="tv"` draws TV's `p.tv-empty` (same element and class): the seven TV notes (Library,
+   Search, Calendar, title page, Anime's three). `useCardArt(src)` in `components/title/Card.tsx` is
+   `CardArt`'s "art until it fails, a new `src` tries again" as a hook; `TvCard` uses it for its own frame, so
+   a TV card whose art failed now tries again when better art arrives (a playlist entry filling in), as the
+   desktop cards do (§6 item 6). `TvAnimeCard` is a `TvCard` already.
    Kept apart on purpose: the player's top note (`.player-notice`), the party's hold pill and activity notes
    are not `Toast`s: other surface (`--surface-float`, no glass edge), other place (top centre, bottom left
    following the controls) and motion; one look for all of them is the owner's call (docs/unverified.md).

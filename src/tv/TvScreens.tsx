@@ -32,6 +32,7 @@ import { withoutAnime } from "../lib/anime/merge";
 import { useAnimeAliases } from "../lib/anime/links";
 import { usePrefs } from "../lib/prefs";
 import { byDay, dayLabel, useCalendar } from "../lib/calendar";
+import { EmptyState } from "../components/ui/EmptyState";
 
 const NO_TITLES: MetaPreview[] = [];
 
@@ -108,7 +109,7 @@ export function TvLibrary() {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Library</h1>
-        <p className="tv-empty">Titles you save, watch or put in a playlist appear here.</p>
+        <EmptyState variant="tv">Titles you save, watch or put in a playlist appear here.</EmptyState>
       </div>
     );
   }
@@ -294,7 +295,7 @@ export function TvSearch() {
             )}
           </>
         )}
-        {empty && <p className="tv-empty">Nothing found for “{query}”.</p>}
+        {empty && <EmptyState variant="tv">Nothing found for “{query}”.</EmptyState>}
       </div>
     </div>
   );
@@ -346,11 +347,11 @@ export function TvCalendar() {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Calendar</h1>
-        <p className="tv-empty">
+        <EmptyState variant="tv">
           {showCount === 0
             ? "Add shows to your library, or start watching one, and their new episodes show up here."
             : "Nothing aired in the last week, and nothing's scheduled yet for your shows."}
-        </p>
+        </EmptyState>
       </div>
     );
   }

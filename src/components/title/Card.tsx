@@ -87,13 +87,22 @@ export function Card({
   );
 }
 
-/** The art, or `fallback` while there's none or it failed to load; a new `src` gets a fresh try. */
-export function CardArt({ src, fallback }: { src?: string; fallback?: ReactNode }) {
+/**
+ * The art to draw: `src` until it fails to load (then undefined, so the caller draws its fallback); a new
+ * `src` gets a fresh try. `onError` goes on the image. For cards that draw their own frame (TV's).
+ */
+export function useCardArt(src?: string) {
   const [failed, setFailed] = useState<string>();
   const shown = src && failed !== src ? src : undefined;
+  return { shown, onError: () => setFailed(shown) };
+}
+
+/** The art, or `fallback` while there's none or it failed to load; a new `src` gets a fresh try. */
+export function CardArt({ src, fallback }: { src?: string; fallback?: ReactNode }) {
+  const { shown, onError } = useCardArt(src);
   return (
     <>
-      {shown && <Img src={shown} alt="" className="card-img" onError={() => setFailed(shown)} />}
+      {shown && <Img src={shown} alt="" className="card-img" onError={onError} />}
       {!shown && fallback}
     </>
   );

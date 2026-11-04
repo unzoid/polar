@@ -172,3 +172,7 @@ How to check:
 - Notes in the player (T-019 step 6): the top note ("That source didn't load. Trying the next best one."), the party's "Waiting for…" pill and its
   activity notes still draw their own pills (flat dark surface), unlike the app's toasts (glass with an edge).
   Say whether they should look like the toasts; nothing changed.
+- TV cards (T-019 step 6, `useCardArt`): a TV card whose picture failed showed the title instead for good; now a
+  new picture for the same card (a playlist entry that was still loading, better art) is tried again. Check a
+  TV playlist rail right after start-up: cards fill in with art, none stays on the plain title unless the
+  picture really is missing.
