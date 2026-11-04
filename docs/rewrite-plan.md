@@ -128,6 +128,10 @@ Done in the same migration, so the server is changed once:
   this one writes over it. `downloads.json` goes through `write_atomic` too. Left: settings validation and
   whole-struct `settings_set` (M4), keychain (not asked yet).
 - **H9** Downloads: read timeout, resume validated with `Content-Range`, partial file kept apart.
+  Done: 30 s idle timeout on the answer and on every chunk; a chunk that arrives after Pause is dropped;
+  one transfer per file (a resume waits for the paused one to let go); a 206 must start where the file
+  ends (`polar_addon::probe::content_range`, tested) or at 0; the file is `<name>.part` until complete,
+  older partial files are picked up; a pause that lands as it finishes is completed on resume (416).
 - **H10 / H11** TMDB: page-stable pagination, a concurrency limit, 429 back-off, partial results not
   cached. **L14** one shared `reqwest::Client`.
 - **M1** Keys redacted from errors (the probe's redaction reused). **M13** body size caps.

@@ -2,9 +2,11 @@
 //!
 //! A download is the source's HTTP file copied to `<app data>/downloads`.
 //! The list lives beside it in `downloads.json`. Pausing stops the transfer
-//! and keeps the partial file; resuming asks for the rest with a Range
-//! request (or starts over if the server can't do ranges). A transfer cut off
-//! by quitting the app comes back paused.
+//! and keeps the partial file (`<file>.part` until it is complete); resuming
+//! asks for the rest with a Range request, checked against `Content-Range`
+//! (or starts over if the server can't do ranges). Only one transfer writes a
+//! file at a time: a resume waits for the paused one to let go. A transfer cut
+//! off by quitting the app comes back paused.
 //!
 //! The UI polls `downloads_list` while anything is moving, so there's no
 //! event plumbing: progress is just the record's `received` count.
@@ -102,6 +104,22 @@ struct Inner {
     items: Vec<Download>,
     /// Running transfers, by id; setting the flag stops one.
     running: HashMap<String, Arc<AtomicBool>>,
+    /// Held by the transfer writing each file, for as long as it runs.
+    writers: HashMap<String, Arc<tokio::sync::Mutex<()>>>,
+}
+
+/// A source that sends nothing for this long has stalled.
+const IDLE: Duration = Duration::from_secs(30);
+
+/// Where an unfinished download is written; renamed to `file` once complete.
+fn part(file: &str) -> PathBuf {
+    PathBuf::from(format!("{file}.part"))
+}
+
+/// Deletes a download's file, finished or not.
+fn remove_files(file: &str) {
+    let _ = std::fs::remove_file(file);
+    let _ = std::fs::remove_file(part(file));
 }
 
 pub struct Downloads {
@@ -148,7 +166,7 @@ impl Downloads {
         items.retain(|d| d.state != DownloadState::Done || Path::new(&d.file).exists());
         Self {
             dir,
-            inner: Mutex::new(Inner { items, running: HashMap::new() }),
+            inner: Mutex::new(Inner { items, ..Inner::default() }),
             http: reqwest::Client::builder()
                 .user_agent(concat!("polar/", env!("CARGO_PKG_VERSION")))
                 .connect_timeout(Duration::from_secs(15))
@@ -225,20 +243,27 @@ impl Downloads {
             self.save(&inner.items);
             file
         };
+        let writer = self.inner.lock().unwrap().writers.entry(file.clone()).or_default().clone();
         let me = self.clone();
         tauri::async_runtime::spawn(async move {
-            let outcome = me.transfer(&file, &flag).await;
+            // A paused transfer may still be inside a chunk; it lets go at the
+            // next one (or after IDLE), and only then does this one append.
+            let _writing = writer.lock().await;
+            let outcome = if flag.load(Ordering::Relaxed) { Ok(false) } else { me.transfer(&file, &flag).await };
             let mut inner = me.inner.lock().unwrap();
-            // Only the transfer still registered may clear itself (a restart may have replaced it).
-            if inner.running.get(&id).is_some_and(|f| Arc::ptr_eq(f, &flag)) {
+            // Only the transfer still registered may clear itself or set the
+            // state: a paused or restarted one has no say any more.
+            let current = inner.running.get(&id).is_some_and(|f| Arc::ptr_eq(f, &flag));
+            if current {
                 inner.running.remove(&id);
             }
             // Removed or replaced while running: the file was still open then, so delete it now.
             if !inner.items.iter().any(|d| d.file == file) {
-                let _ = std::fs::remove_file(&file);
+                inner.writers.remove(&file);
+                remove_files(&file);
                 return;
             }
-            if let Some(d) = inner.items.iter_mut().find(|d| d.file == file) {
+            if let Some(d) = inner.items.iter_mut().find(|d| d.file == file).filter(|_| current) {
                 match outcome {
                     Ok(true) => {
                         d.state = DownloadState::Done;
@@ -261,7 +286,12 @@ impl Downloads {
         let Some(d) = self.inner.lock().unwrap().items.iter().find(|d| d.file == file).cloned() else {
             return Ok(false);
         };
-        let path = PathBuf::from(file);
+        let path = part(file);
+        // Finished just as it was paused, or paused by an older build that
+        // wrote straight into `file`: carry on from there.
+        if !path.exists() && Path::new(file).exists() {
+            tokio::fs::rename(file, &path).await.map_err(|e| format!("Couldn't write the file: {e}"))?;
+        }
         // Each start writes a new file, so whatever is on disk is this download's own.
         let have = tokio::fs::metadata(&path).await.map(|m| m.len()).unwrap_or(0);
 
@@ -271,8 +301,15 @@ impl Downloads {
         for (k, v) in &d.headers {
             req = req.header(k.as_str(), v.as_str());
         }
-        let mut res = req.send().await.map_err(|e| format!("Couldn't reach the source: {e}"))?;
+        let mut res = match tokio::time::timeout(IDLE, req.send()).await {
+            Ok(sent) => sent.map_err(|e| format!("Couldn't reach the source: {e}"))?,
+            Err(_) => return Err("The source didn't answer.".into()),
+        };
         let status = res.status();
+        // Everything was already here (it finished as it was paused).
+        if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && have > 0 && d.total == Some(have) {
+            return finish(&path, file).await;
+        }
         if !status.is_success() {
             if status.as_u16() == 403 || status.as_u16() == 410 {
                 return Err("The source link expired. Choose another source.".into());
@@ -286,10 +323,19 @@ impl Downloads {
                 format!("The source answered {status}: {said}")
             });
         }
-        // 206: the rest of the file. 200: the whole file again (no range support).
-        let resumed = have > 0 && status == reqwest::StatusCode::PARTIAL_CONTENT;
-        let start = if resumed { have } else { 0 };
-        let total = res.content_length().map(|n| n + start);
+        // 206: the part asked for, which must start where the file ends.
+        // 200: the whole file again (no range support).
+        let range = res.headers().get(reqwest::header::CONTENT_RANGE).and_then(|v| v.to_str().ok());
+        let range = range.and_then(polar_addon::probe::content_range);
+        let start = match (status, range) {
+            (reqwest::StatusCode::PARTIAL_CONTENT, Some((start, _))) if start == have || start == 0 => start,
+            (reqwest::StatusCode::PARTIAL_CONTENT, _) => {
+                return Err("The source sent the wrong part of the file. Start the download again.".into())
+            }
+            _ => 0,
+        };
+        let resumed = start > 0;
+        let total = range.and_then(|(_, total)| total).or_else(|| res.content_length().map(|n| n + start));
         self.update_file(
             file,
             |d| {
@@ -315,7 +361,16 @@ impl Downloads {
                 let _ = out.flush().await;
                 return Ok(false);
             }
-            match res.chunk().await {
+            let Ok(chunk) = tokio::time::timeout(IDLE, res.chunk()).await else {
+                let _ = out.flush().await;
+                return Err("The source stopped sending.".into());
+            };
+            match chunk {
+                // Paused while this chunk was on its way: it belongs to no one now.
+                Ok(Some(_)) if stop.load(Ordering::Relaxed) => {
+                    let _ = out.flush().await;
+                    return Ok(false);
+                }
                 Ok(Some(bytes)) => {
                     out.write_all(&bytes).await.map_err(|e| format!("Couldn't write the file: {e}"))?;
                     received += bytes.len() as u64;
@@ -336,8 +391,15 @@ impl Downloads {
         if total.is_some_and(|t| received < t) {
             return Err("The download ended early.".into());
         }
-        Ok(true)
+        drop(out);
+        finish(&path, file).await
     }
+}
+
+/// The whole file is in `part`: give it its final name.
+async fn finish(part: &Path, file: &str) -> std::result::Result<bool, String> {
+    tokio::fs::rename(part, file).await.map_err(|e| format!("Couldn't write the file: {e}"))?;
+    Ok(true)
 }
 
 /// A file extension for what the source serves; mpv sniffs the real format anyway.
@@ -407,8 +469,9 @@ pub async fn download_start(downloads: Shared<'_>, req: DownloadRequest) -> Resu
     {
         let mut inner = downloads.inner.lock().unwrap();
         // The old file goes now if nothing holds it; a running transfer deletes it when it stops.
-        if let Some(old) = inner.items.iter().find(|x| x.id == d.id) {
-            let _ = std::fs::remove_file(&old.file);
+        if let Some(old) = inner.items.iter().find(|x| x.id == d.id).map(|x| x.file.clone()) {
+            remove_files(&old);
+            inner.writers.remove(&old);
         }
         inner.items.retain(|x| x.id != d.id);
         inner.items.push(d.clone());
@@ -454,8 +517,9 @@ pub fn download_reveal(downloads: Shared<'_>, id: String) -> Result<()> {
 pub fn download_remove(downloads: Shared<'_>, id: String) {
     downloads.stop(&id);
     let mut inner = downloads.inner.lock().unwrap();
-    if let Some(d) = inner.items.iter().find(|d| d.id == id) {
-        let _ = std::fs::remove_file(&d.file);
+    if let Some(file) = inner.items.iter().find(|d| d.id == id).map(|d| d.file.clone()) {
+        remove_files(&file);
+        inner.writers.remove(&file);
     }
     inner.items.retain(|d| d.id != id);
     downloads.save(&inner.items);

@@ -242,7 +242,7 @@ fn is_placeholder(res: &reqwest::Response) -> bool {
 fn total_size(res: &reqwest::Response) -> Option<u64> {
     if res.status() == StatusCode::PARTIAL_CONTENT {
         let range = res.headers().get(header::CONTENT_RANGE)?.to_str().ok()?;
-        return range.rsplit('/').next()?.trim().parse().ok();
+        return content_range(range)?.1;
     }
     if !res.status().is_success() {
         return None;
@@ -250,10 +250,29 @@ fn total_size(res: &reqwest::Response) -> Option<u64> {
     res.content_length()
 }
 
+/// A `Content-Range` header (`bytes 100-199/1000`): the first byte sent, and
+/// the whole file's size when the server knows it (`/*` when it doesn't).
+pub fn content_range(value: &str) -> Option<(u64, Option<u64>)> {
+    let (span, total) = value.trim().strip_prefix("bytes")?.trim().split_once('/')?;
+    let (start, end) = span.split_once('-')?;
+    let start = start.trim().parse().ok()?;
+    end.trim().parse::<u64>().ok().filter(|end| *end >= start)?;
+    Some((start, total.trim().parse().ok()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn content_range_reads_start_and_total() {
+        assert_eq!(content_range("bytes 0-1023/136909"), Some((0, Some(136909))));
+        assert_eq!(content_range(" bytes 500-999/*"), Some((500, None)));
+        assert_eq!(content_range("bytes */136909"), None);
+        assert_eq!(content_range("bytes 9-3/10"), None);
+        assert_eq!(content_range("items 0-1/2"), None);
+    }
     use std::sync::Arc;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
