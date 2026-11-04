@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode }
 import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
-import { ProgressBar } from "../components/title/Card";
+import { ProgressBar, useCardArt } from "../components/title/Card";
 import { episodeCode, formatRemaining } from "../lib/format";
 import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/queries";
 import { useRouter } from "../lib/router";
@@ -57,10 +57,9 @@ export function TvCard({
     if (el.current) seedStage({ item, kicker }, el.current);
     // Again once a placeholder title (a playlist entry still loading) fills in, or better art arrives.
   }, [item.id, item.name, item.background]);
-  // Art that won't load falls back to the title, not an empty frame.
-  const [broken, setBroken] = useState(false);
+  // Art that won't load falls back to the title, not an empty frame; better art arriving gets a fresh try.
   const preferred = shape === "poster" ? (item.poster ?? item.background) : (item.background ?? item.poster);
-  const art = broken ? undefined : preferred;
+  const { shown: art, onError: onArtError } = useCardArt(preferred);
   const open = onOpen ?? (() => navigate({ name: "detail", type: item.type, id: item.id, preview: item }));
 
   return (
@@ -94,7 +93,7 @@ export function TvCard({
     >
       <span className="tv-card-frame">
         {art ? (
-          <Img src={art} alt="" className="tv-card-img" onError={() => setBroken(true)} />
+          <Img src={art} alt="" className="tv-card-img" onError={onArtError} />
         ) : (
           <span className="tv-card-fallback">{item.name}</span>
         )}

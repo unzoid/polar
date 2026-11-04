@@ -23,6 +23,7 @@ import { reveal } from "./spatial";
 import { TvKeyboard } from "./TvKeyboard";
 import { Facts, TvBackdrop, titleFacts } from "./TvStage";
 import { Skeleton } from "../components/ui/Skeleton";
+import { EmptyState } from "../components/ui/EmptyState";
 
 type Panel =
   | { kind: "episodes" }
@@ -61,7 +62,7 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
   if (!shown) {
     return isError ? (
       <div className="tv-note">
-        <p className="tv-empty">Couldn't load this title.</p>
+        <EmptyState variant="tv">Couldn't load this title.</EmptyState>
       </div>
     ) : (
       <div className="tv-detail" />
