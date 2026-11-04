@@ -45,8 +45,10 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
       if (saved?.stream) return setCandidates([{ stream: saved.stream }]);
     }
     if (streams.data) {
-      // Best match for this screen, narrowed by the source preferences in Settings when they leave something.
-      const ranked = autoPickOrder(streams.data.streams, settings);
+      // Best match for this screen, narrowed by the filters you set in the player
+      // for this show (next episode: the same kind of file), else by the source
+      // preferences in Settings, when they leave something.
+      const ranked = autoPickOrder(streams.data.streams, settings, metaId);
       // The room's file first, even past Settings' filters: same file, same timing.
       // Unless it isn't cached on this account while others are: someone else's
       // instant file can be a long download here, and the whole room waits on it.
@@ -60,7 +62,7 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
     } else if (streams.isError) {
       setCandidates([]);
     }
-  }, [candidates, picked, prefer, saved, streams.data, streams.isError, settings]);
+  }, [candidates, picked, prefer, saved, streams.data, streams.isError, settings, metaId]);
 
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<SourceState>({ status: "searching" });

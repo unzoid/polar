@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Route } from "../lib/router";
+import { forgetPlayerSourceChoices } from "../lib/sources";
 import { PLAYER_EXIT_MS, Player } from "../screens/Player";
 
 type PlayerRoute = Extract<Route, { name: "player" }>;
@@ -27,6 +28,11 @@ export function usePlayerLayer(current: Route) {
  * starts clean without the page flashing through.
  */
 export function PlayerLayer({ player, leaving }: { player: PlayerRoute | null; leaving: boolean }) {
+  // The filters you set in the player last as long as it stays open.
+  const open = !!player;
+  useEffect(() => {
+    if (!open) forgetPlayerSourceChoices();
+  }, [open]);
   if (!player) return null;
   return (
     <div className="player-layer" data-leaving={leaving} inert={leaving}>
