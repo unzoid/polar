@@ -7,7 +7,7 @@ import { api } from "../../lib/api";
 import { keys, useSettings } from "../../lib/queries";
 import type { Settings as SettingsT } from "../../lib/types";
 import { Button } from "../../components/ui/Button";
-import { Card, ExpandRow, useExpanded, type Expandable } from "../../components/settings/rows";
+import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../components/settings/rows";
 
 export function ServicesPage() {
   const expand = useExpanded();
@@ -103,7 +103,6 @@ function ArtworkRow(props: Expandable) {
   });
   if (!data) return null;
   const on = !!data.tmdbKey;
-  const dirty = key.trim() !== (data.tmdbKey ?? "");
 
   return (
     <ExpandRow
@@ -116,25 +115,18 @@ function ArtworkRow(props: Expandable) {
       <p className="settings-expand-text">
         Free key from themoviedb.org (Settings → API). Adds logos, better posters and episode details.
       </p>
-      <form
-        className="settings-expand-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save.mutate({ tmdbKey: key.trim() || null });
-        }}
-      >
-        <TextField
-          type="password"
-          placeholder="Paste your key"
-          value={key}
-          onChange={setKey}
-          spellCheck={false}
-          autoComplete="off"
-        />
-        <Button variant="primary" disabled={!dirty || save.isPending}>
-          {save.isPending ? "Saving…" : "Save"}
-        </Button>
-      </form>
+      <FormRow
+        look="expand"
+        type="password"
+        placeholder="Paste your key"
+        autoComplete="off"
+        value={key}
+        onChange={setKey}
+        saved={data.tmdbKey ?? ""}
+        pending={save.isPending}
+        pendingLabel="Saving…"
+        onSubmit={(k) => save.mutate({ tmdbKey: k || null })}
+      />
     </ExpandRow>
   );
 }

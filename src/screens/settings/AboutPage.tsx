@@ -7,7 +7,7 @@ import { setPrefs, usePrefs } from "../../lib/prefs";
 import { ReleaseNotes } from "../../components/Updates";
 import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl, useUpdate } from "../../lib/updater";
 import { Button } from "../../components/ui/Button";
-import { Card, ExpandRow, LinkRow, PickRow, RowText, ToggleRow, useExpanded } from "../../components/settings/rows";
+import { ActionRow, Card, ExpandRow, LinkRow, PickRow, RowText, ToggleRow, useExpanded } from "../../components/settings/rows";
 
 export function AboutPage() {
   const prefs = usePrefs();
@@ -138,12 +138,15 @@ function CacheCard() {
   const size = !data ? "…" : !data.bytes ? "empty" : data.bytes >= 1e6 ? `${(data.bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(data.bytes / 1000))} KB`;
   return (
     <Card title="Cache" footer={data ? <>Kept in {data.path}</> : undefined}>
-      <div className="settings-row">
-        <RowText title="Anime data" caption={`Filler and recap episodes, kept a day; the anime id list used when ani.zip is down, kept a week · ${size}`} />
-        <Button disabled={!data?.bytes || clear.isPending} onClick={() => clear.mutate()}>
-          <Trash size={15} /> Clear
-        </Button>
-      </div>
+      <ActionRow
+        title="Anime data"
+        caption={`Filler and recap episodes, kept a day; the anime id list used when ani.zip is down, kept a week · ${size}`}
+        label="Clear"
+        glyph={<Trash size={15} />}
+        disabled={!data?.bytes}
+        pending={clear.isPending}
+        onClick={() => clear.mutate()}
+      />
     </Card>
   );
 }
