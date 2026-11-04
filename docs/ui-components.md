@@ -483,7 +483,14 @@ code draws, not what's on screen.
    " · " line or the type + two genres by hand. The lines themselves stay in each layout: their order and
    extras differ (rating ring, score chips, format badges, the anime next-episode line), and TV draws its facts
    as separate spans. So no single `Facts` component; that part of U4 is the two helpers.
-   Not yet: `EpisodeCard`, the TV column of pills (step 6).
+   `components/title/EpisodeCard.tsx` and `EpisodeShelf.tsx` (moved from `components/`): the desktop episode
+   card, same elements; its still is `Card`'s `CardArt` with the still placeholder (the copy `ShelfStill` is
+   gone, and a new still URL now gets a fresh try). `episodeState(video, progress, threshold)` in
+   `lib/episodeState.ts` (released, fraction, watched, in progress) and `shortRuntime` in `lib/format.ts`,
+   tested in `tests/episodeState.test.ts`: the episode card, TV's episodes panel and the player's episode list
+   computed them by hand (`shortRuntime` twice). The card's rest-to-warm timer is `useCardIntent` (150 ms, as
+   before), so it now also warms on keyboard focus and stops on unmount.
+   Not yet: the TV column of pills and TV's episode row as `EpisodeCard variant="tv"` (step 6).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

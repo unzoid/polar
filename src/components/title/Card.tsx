@@ -88,7 +88,7 @@ export function Card({
 }
 
 /** The art, or `fallback` while there's none or it failed to load; a new `src` gets a fresh try. */
-function CardArt({ src, fallback }: { src?: string; fallback?: ReactNode }) {
+export function CardArt({ src, fallback }: { src?: string; fallback?: ReactNode }) {
   const [failed, setFailed] = useState<string>();
   const shown = src && failed !== src ? src : undefined;
   return (
