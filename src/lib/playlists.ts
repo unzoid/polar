@@ -65,6 +65,41 @@ export function setPlaylistSpace(space: string | null) {
   publish(load(id));
 }
 
+/**
+ * Drop a profile's playlists from this device (sign-out, deleted profile). Removing the active
+ * one goes back to the device's own.
+ */
+export function forgetPlaylists(space: string) {
+  if (space === LOCAL) return;
+  localStorage.removeItem(storageKey(space));
+  if (space === spaceId) {
+    spaceId = LOCAL;
+    publish(load(LOCAL));
+  }
+}
+
+/**
+ * First profile of a new account: the playlists made before signing up become its own (copied,
+ * like the library), all waiting to be pushed. Ids are kept, so running it twice adds nothing.
+ */
+export function importLocalPlaylists(into: string) {
+  if (into === LOCAL) return;
+  const target = into === spaceId ? state : load(into);
+  const next = withImported(target, load(LOCAL).playlists);
+  if (into === spaceId) publish(next);
+  else localStorage.setItem(storageKey(into), JSON.stringify(next));
+}
+
+function withImported(target: Space, local: Playlist[]): Space {
+  const have = new Set(target.playlists.map((p) => p.id));
+  const added = local.filter((p) => !p.deleted && !have.has(p.id));
+  return {
+    ...target,
+    playlists: [...target.playlists, ...added],
+    dirty: [...target.dirty, ...added.map((p) => p.id).filter((id) => !target.dirty.includes(id))],
+  };
+}
+
 let onChange: (() => void) | null = null;
 /** Sync registers here, so edits get pushed soon. */
 export const onPlaylistChange = (cb: () => void) => void (onChange = cb);
@@ -133,24 +168,38 @@ export const moveInPlaylist = (id: string, from: number, to: number) =>
 
 // --- Sync (account/sync.ts) ---------------------------------------------------
 
-/** What to push, and a receipt to hand back once it's stored. */
-export function playlistChanges(): { space: string; rows: RemotePlaylist[]; receipt: Map<string, number> } {
-  const rows = state.dirty.flatMap((id) => {
-    const p = state.playlists.find((x) => x.id === id);
+/** A profile's playlists, shown or kept in storage (another profile of the account). */
+const spaceState = (space: string) => (space === spaceId ? state : load(space));
+
+/**
+ * What to push for `space` (the shown one by default), and a receipt to hand back once it's
+ * stored. Other profiles' are pushed before sign-out, which forgets them.
+ */
+export function playlistChanges(space = spaceId): { space: string; rows: RemotePlaylist[]; receipt: Map<string, number> } {
+  const s = spaceState(space);
+  const rows = s.dirty.flatMap((id) => {
+    const p = s.playlists.find((x) => x.id === id);
     return p ? [{ id: p.id, name: p.name, items: encodeItems(p.items), deleted: !!p.deleted, updatedAt: p.updatedAt }] : [];
   });
-  return { space: spaceId, rows, receipt: new Map(rows.map((r) => [r.id, r.updatedAt])) };
+  return { space, rows, receipt: new Map(rows.map((r) => [r.id, r.updatedAt])) };
 }
 
 /** Clear what was pushed, unless it changed again meanwhile. */
 export function markPlaylistsPushed(space: string, receipt: Map<string, number>) {
-  if (space !== spaceId || !receipt.size) return;
-  const stillDirty = state.dirty.filter((id) => {
-    const p = state.playlists.find((x) => x.id === id);
+  if (!receipt.size) return;
+  // Forgotten meanwhile: don't bring it back.
+  if (space !== spaceId && localStorage.getItem(storageKey(space)) === null) return;
+  const s = spaceState(space);
+  const stillDirty = s.dirty.filter((id) => {
+    const p = s.playlists.find((x) => x.id === id);
     return !p || receipt.get(id) !== p.updatedAt;
   });
-  publish({ ...state, dirty: stillDirty });
+  if (space === spaceId) publish({ ...s, dirty: stillDirty });
+  else localStorage.setItem(storageKey(space), JSON.stringify({ ...s, dirty: stillDirty }));
 }
+
+/** Playlists of `space` changed here and not yet on the server. */
+export const unpushedPlaylists = (space: string) => spaceState(space).dirty.length;
 
 export const playlistsPulledAt = (space: string) => (space === spaceId ? state.pulledAt : null);
 

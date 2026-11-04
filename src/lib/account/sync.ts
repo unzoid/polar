@@ -21,6 +21,7 @@ import {
   playlistChanges,
   playlistsPulledAt,
   setPlaylistSpace,
+  unpushedPlaylists,
 } from "../playlists";
 import { keys } from "../queryKeys";
 import { pushEach, pushSpace, unpushedCount, type PushDeps } from "./spacePush";
@@ -63,6 +64,9 @@ function setLinksUnsent(space: string, unsent: boolean) {
   else linksUnsent.delete(space);
   localStorage.setItem(UNSENT_KEY, JSON.stringify([...linksUnsent]));
 }
+
+/** A profile's copy is gone from this device: its links no longer wait for anything. */
+export const forgetLinksUnsent = (space: string) => setLinksUnsent(space, false);
 
 async function run(): Promise<void> {
   if (!active || !backend) return;
@@ -123,6 +127,14 @@ async function pushOne(space: string, allLinks?: AnimeLink[]) {
   return result;
 }
 
+/** Push one profile's changed playlists (no pull), shown or not. */
+async function pushPlaylists(space: string) {
+  const lists = playlistChanges(space);
+  if (!lists.rows.length) return;
+  await backend!.playlists.push(space, lists.rows);
+  markPlaylistsPushed(space, lists.receipt);
+}
+
 /** Run once after `ms`. Repeated calls (e.g. progress saves while playing) coalesce. */
 function later(ms: number) {
   if (!active || pending !== undefined) return;
@@ -174,16 +186,19 @@ export const sync = {
   },
   /**
    * Before every profile's copy is dropped (sign-out): flush the active profile, push each other
-   * one, for at most `ms`, then count what still hasn't reached the server.
+   * one and every profile's playlists, for at most `ms`, then count what still hasn't reached
+   * the server.
    */
   async pushEverything(ids: string[], ms: number): Promise<number> {
     if (!backend) return 0;
     const all = (async () => {
       await sync.flush();
       await pushEach(ids.filter((s) => s !== active), (s) => pushOne(s));
+      await pushEach(ids, pushPlaylists);
     })();
     await Promise.race([all, new Promise((r) => setTimeout(r, ms))]);
-    return unpushedCount(ids, api.syncChanges);
+    const lists = ids.reduce((n, s) => n + unpushedPlaylists(s), 0);
+    return lists + (await unpushedCount(ids, api.syncChanges));
   },
   /** Flush, then stop, unless another profile started meanwhile. */
   async finish() {

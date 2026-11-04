@@ -225,9 +225,9 @@ How to check, with a TMDB key set in Settings:
   (not only the active one) for up to 8 s, then counts what is still unpushed; if anything is, nothing is
   dropped and a dialog ("Some changes haven't synced") offers Try Again, Sign Out Anyway and Cancel. Each sync
   round of the active profile also pushes the other profiles' leftovers (a profile left while offline). The
-  pushing and counting are `lib/account/spacePush.ts` (tested); the dialog and the wiring are not. Playlists
-  were never dropped at sign-out (they stay in localStorage) and are not counted; links a server without the
-  `anime_links` table can't take are not counted either. To check, signed in with two profiles: in profile A
+  pushing and counting are `lib/account/spacePush.ts` (tested); the dialog and the wiring are not. Since M12
+  (below) sign-out forgets playlists too, so every profile's changed playlists are pushed and counted as well
+  (`playlistChanges(space)`, tested); links a server without the `anime_links` table can't take are not counted. To check, signed in with two profiles: in profile A
   add a title to the library, then turn the network off and switch to profile B, play something for a minute,
   then Sign Out (profile menu): the dialog shows a count; Cancel keeps you signed in; turn the network on,
   Try Again signs out; sign back in on another device: both changes are there. Repeat offline and choose Sign
@@ -249,3 +249,15 @@ How to check, with a TMDB key set in Settings:
   10 s). Not run against a real room. To check, with two signed-in devices: start a party on one, join by code on
   the other within 8 s; pause, resume, seek and change episode from both sides; turn one device's network off for
   a minute, change things on the other, turn it back on: within about 10 s both show the same state again.
+- What a signed-out device keeps (rewrite R3, critique M12): sign-out and account deletion now also remove every
+  profile's playlists, its cached synced settings, the remembered last profile and the recent searches (my call:
+  they were global and showed the last person's searches to the next). Deleting a profile removes its playlists
+  too. A guest's playlists are copied into the first profile with the library (`importLocalPlaylists`, tested).
+  The device's own settings, addons, shortcuts and synced preferences are kept aside when a profile is first
+  entered and put back at sign-out (`keepDeviceSettings`/`restoreDeviceSettings`, `polar.settingsOwner`; wiring
+  untested). Signed in when updating to this version: no device copy exists yet, so the first sign-out leaves
+  the profile's settings in place, as before. To check: as a guest, make a playlist and set the subtitle size
+  and an addon; sign up: the profile has the playlist and those settings; change subtitle size and remove the
+  addon; sign out: the guest's subtitle size and addon are back, the playlist list is the guest's, the search
+  box shows no recent searches, and `localStorage` (devtools) has no `polar.playlists.<profile id>` or
+  `polar.settingsSync.<profile id>` keys.

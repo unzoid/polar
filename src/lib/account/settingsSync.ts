@@ -9,7 +9,8 @@
  *
  * Settings are global in the Rust store, so entering a profile first puts
  * back the copy this device last synced for it (`restore`), then `syncSettings`
- * catches up with the server.
+ * catches up with the server. The device's own settings (guest, signed out)
+ * are kept aside while a profile has the store, and put back at sign-out.
  */
 import { api } from "../api";
 import { queryClient } from "../queries";
@@ -103,6 +104,36 @@ export async function restoreSettings(space: string) {
   if (!saved) return;
   const missing = await apply(saved.doc);
   save(space, { ...saved, missing });
+}
+
+/**
+ * Whose settings the global store holds: a profile id, or DEVICE (guest, signed out). Unset after
+ * an update while signed in, when nobody knows; then there's no device copy to keep or put back.
+ */
+const OWNER_KEY = "polar.settingsOwner";
+const DEVICE = "local";
+
+/** Signed out or a guest: what's in the store now is the device's own. */
+export function markDeviceSettings() {
+  if (localStorage.getItem(OWNER_KEY) === null) localStorage.setItem(OWNER_KEY, DEVICE);
+}
+
+/**
+ * Entering a profile: when the store still holds the device's own settings, keep a copy to put
+ * back at sign-out (critique M12), then hand the store to the profile.
+ */
+export async function keepDeviceSettings(space: string) {
+  if (localStorage.getItem(OWNER_KEY) === DEVICE) {
+    const missing = load(DEVICE)?.missing ?? [];
+    save(DEVICE, { doc: await current(missing), at: 0, missing });
+  }
+  localStorage.setItem(OWNER_KEY, space);
+}
+
+/** Signed out: the device's settings back as they were before a profile was entered. */
+export async function restoreDeviceSettings() {
+  if (localStorage.getItem(OWNER_KEY) !== DEVICE) await restoreSettings(DEVICE);
+  localStorage.setItem(OWNER_KEY, DEVICE);
 }
 
 /** One round with the server. Safe to call often: it's a single small read. */

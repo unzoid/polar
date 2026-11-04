@@ -33,8 +33,10 @@ export function SignOutDialog() {
           </div>
           <Dialog.Title className="party-dialog-title">Some changes haven't synced</Dialog.Title>
           <Dialog.Description className="party-dialog-text">
-            {count === 1 ? "1 change to your library or watch history hasn't" : `${count ?? 0} changes to your library or watch history haven't`} reached your
-            account yet. Signing out now removes them from this device for good.
+            {count === 1
+              ? "1 change to your library, playlists or watch history hasn't"
+              : `${count ?? 0} changes to your library, playlists or watch history haven't`}{" "}
+            reached your account yet. Signing out now removes them from this device for good.
           </Dialog.Description>
           <div className="sign-out-dialog-actions">
             <Button variant="accent" size="block" busy={busy === "retry"} disabled={!!busy} onClick={() => void run("retry")}>
