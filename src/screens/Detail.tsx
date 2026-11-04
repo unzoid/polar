@@ -3,7 +3,7 @@ import { useFoldSnap } from "../lib/useFoldSnap";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
 import { cardMenu } from "../components/CardMenu";
-import { FormatBadges, ScoreChips, TitleDetails } from "../components/TitleDetails";
+import { FormatBadges, ScoreChips, TitleDetails } from "../components/title/TitleDetails";
 import { openTrailer, useTrailerOpen } from "../components/Trailer";
 import { episodeEntry } from "../lib/watched";
 import { EpisodeShelf } from "../components/title/EpisodeShelf";

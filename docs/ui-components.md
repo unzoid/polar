@@ -500,8 +500,16 @@ code draws, not what's on screen.
    (`playlistRows`, `inAnyPlaylist`, `freshPlaylistName`, tested in `tests/playlistChecklist.test.ts`) replaces
    the two `freshName` copies and the "is it in a playlist" check written three times. The popover's name form
    now resets when the popover unmounts after its closing fade, not as it starts to close.
-   Not yet: the TV column of pills and TV's episode row as `EpisodeCard variant="tv"` (step 6),
-   `TitleDetails` for the anime page (U27, with the `AnimeDetail` split, T-008).
+   `AnimeDetail` split (with T-008; U27, M28): `screens/AnimeDetail.tsx` keeps the page shell and the body's
+   order; its parts are `components/anime/` `AnimeHero`, `AnimeEpisodes` (with `SeasonTabs` and the `Franchise`
+   type), `AnimeCharacters`, `AnimeDetails`, `AnimeRelated`, and the hook `useAnimePlayback`. The playback
+   model without React is `lib/anime/episodes.ts` (`animeEpisodes`, `progressByVideo`, `upNext`, `upNextLabel`)
+   and the season tab names `lib/anime/seasonLabels.ts` (`distinctLabels`), tested in
+   `tests/animeEpisodes.test.ts`. `TitleDetails` moved to `components/title/` and gives its parts out:
+   `DetailsSection` (label over content; `as="div"` inside a column), `DetailsColumns` (left column + facts),
+   `FactList`, `DetailsLinks`. The anime details are built from them; the anime-only parts (rankings, tags,
+   streaming links) stay in `AnimeDetails`. Same elements and classes on both pages.
+   Not yet: the TV column of pills and TV's episode row as `EpisodeCard variant="tv"` (step 6).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

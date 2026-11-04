@@ -1,16 +1,17 @@
-import { api } from "../lib/api";
-import { formatDate, formatRuntime } from "../lib/format";
-import { usePersonPhoto } from "../lib/personPhoto";
+import { api } from "../../lib/api";
+import { formatDate, formatRuntime } from "../../lib/format";
+import { usePersonPhoto } from "../../lib/personPhoto";
 import { useQuery } from "@tanstack/react-query";
-import { useRatings, useStreams } from "../lib/queries";
-import { isFresh, metacriticTone } from "../lib/score";
-import type { ContentType, ExternalRatings, Meta } from "../lib/types";
-import { letterboxdUrl } from "./CardMenu";
-import { BrandIcon } from "./BrandIcon";
-import { ArrowUpRight } from "./icons";
-import { Img } from "./Img";
-import { imdbUrl } from "./RatingRing";
-import { Chip } from "./ui/Chip";
+import { useRatings, useStreams } from "../../lib/queries";
+import { isFresh, metacriticTone } from "../../lib/score";
+import type { ReactNode } from "react";
+import type { ContentType, ExternalRatings, Meta } from "../../lib/types";
+import { letterboxdUrl } from "../CardMenu";
+import { BrandIcon } from "../BrandIcon";
+import { ArrowUpRight } from "../icons";
+import { Img } from "../Img";
+import { imdbUrl } from "../RatingRing";
+import { Chip } from "../ui/Chip";
 
 /**
  * Everything about a title below the fold: what critics and audiences
@@ -49,62 +50,106 @@ export function TitleDetails({ meta, links: showLinks = true }: { meta: Meta; li
       <ScoreCards ratings={ratings} />
 
       {people.length > 0 && (
-        <section className="details-section">
-          <h3 className="details-label">Cast</h3>
+        <DetailsSection label="Cast">
           <ul className="people">
             {people.slice(0, 18).map((p) => (
               <Cast key={`${p.name}/${p.character ?? ""}`} person={p} />
             ))}
           </ul>
-        </section>
+        </DetailsSection>
       )}
 
-      <section className="details-section details-columns">
+      <DetailsColumns facts={info}>
         {(meta.description || awards) && (
           <div className="details-main">
             {meta.description && (
-              <div>
-                <h3 className="details-label">Story</h3>
+              <DetailsSection as="div" label="Story">
                 <p className="details-story">{meta.description}</p>
-              </div>
+              </DetailsSection>
             )}
             {/* Under the story rather than below the facts, which leaves a hole beside a short synopsis. */}
             {awards && (
-              <div>
-                <h3 className="details-label">Awards</h3>
+              <DetailsSection as="div" label="Awards">
                 <p className="details-awards">{awards}</p>
-              </div>
+              </DetailsSection>
             )}
           </div>
         )}
-        <dl className="details-facts">
-          {info
-            .filter(([, v]) => v)
-            .map(([k, v]) => (
-              <div key={k}>
-                <dt className="details-label">{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-        </dl>
-      </section>
+      </DetailsColumns>
 
       {/* Links open a browser: no use on a TV. */}
       {showLinks && links.length > 0 && (
-        <section className="details-section">
-          <h3 className="details-label">Elsewhere</h3>
-          <div className="details-links">
-            {links.map((l) => (
-              <Chip key={l.label} variant="link" data-site={l.site} onClick={() => void api.openExternal(l.url)}>
-                <BrandIcon site={l.site} size={15} />
-                {l.label}
-                <ArrowUpRight className="details-link-out" size={13} aria-hidden />
-              </Chip>
-            ))}
-          </div>
-        </section>
+        <DetailsLinks label="Elsewhere">
+          {links.map((l) => (
+            <Chip key={l.label} variant="link" data-site={l.site} onClick={() => void api.openExternal(l.url)}>
+              <BrandIcon site={l.site} size={15} />
+              {l.label}
+              <ArrowUpRight className="details-link-out" size={13} aria-hidden />
+            </Chip>
+          ))}
+        </DetailsLinks>
       )}
     </div>
+  );
+}
+
+/**
+ * The parts every details section is made of, shared with the anime page's
+ * (components/anime/AnimeDetails.tsx): a small label over its content, the
+ * story-and-facts columns, and a row of link chips.
+ */
+export function DetailsSection({
+  label,
+  as: Tag = "section",
+  className,
+  children,
+}: {
+  label: string;
+  /** "div" for a part inside a column, which isn't a section of its own (and takes no class). */
+  as?: "section" | "div";
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tag className={Tag === "section" ? ["details-section", className].filter(Boolean).join(" ") : className}>
+      <h3 className="details-label">{label}</h3>
+      {children}
+    </Tag>
+  );
+}
+
+/** Whatever goes down the left (the story, mostly), with the facts beside it. */
+export function DetailsColumns({ facts, children }: { facts: [string, string | undefined][]; children?: ReactNode }) {
+  return (
+    <section className="details-section details-columns">
+      {children}
+      <FactList facts={facts} />
+    </section>
+  );
+}
+
+/** Label over value, the ones without a value left out. */
+export function FactList({ facts }: { facts: [string, string | undefined][] }) {
+  return (
+    <dl className="details-facts">
+      {facts
+        .filter(([, v]) => v)
+        .map(([k, v]) => (
+          <div key={k}>
+            <dt className="details-label">{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+    </dl>
+  );
+}
+
+/** A labelled row of link chips. */
+export function DetailsLinks({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <DetailsSection label={label}>
+      <div className="details-links">{children}</div>
+    </DetailsSection>
   );
 }
 

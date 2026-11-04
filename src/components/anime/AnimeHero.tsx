@@ -1,0 +1,96 @@
+import type { Anime, AnimeCard } from "../../lib/anime/anilist";
+import { upNextLabel } from "../../lib/anime/episodes";
+import { cleanDescription, countdown, FORMAT_LABEL, SEASON_LABEL, STATUS_LABEL, untilAiring, useAnimeScore } from "../../lib/anime/format";
+import { joinFacts } from "../../lib/format";
+import { usePrefs } from "../../lib/prefs";
+import { Star } from "../icons";
+import { SourcePicker, useSourcePicker } from "../title/SourcePicker";
+import { TitleActions } from "../title/TitleActions";
+import { TitleHeading } from "../title/TitleHeading";
+import { openTrailer } from "../Trailer";
+import { useAnimePlayback } from "./useAnimePlayback";
+
+/**
+ * The top of an anime's page: its name (or logo), the facts line, the next
+ * episode's airing time, the first paragraph of its story and the action row,
+ * playing whatever is up next.
+ */
+export function AnimeHero({ item, anime, logo, name }: { item: AnimeCard; anime?: Anime; logo?: string; name: string }) {
+  const pb = useAnimePlayback(anime ?? item);
+  const picker = useSourcePicker();
+  const prefs = usePrefs();
+
+  const target = pb.isMovie ? pb.metaId : pb.next.ep?.video?.id;
+  const request = target &&
+    pb.metaId && {
+      type: pb.isMovie ? ("movie" as const) : ("series" as const),
+      metaId: pb.metaId,
+      videoId: target,
+      resumable: !!pb.next.resumeAt,
+      subtitle: pb.next.ep ? `Episode ${pb.next.ep.number}${pb.next.ep.title ? ` · ${pb.next.ep.title}` : ""}` : name,
+    };
+
+  const label = upNextLabel(pb.next, pb.isMovie);
+
+  const unavailable =
+    !pb.loading && !pb.metaId
+      ? "Not linked to any sources yet"
+      : !pb.metaLoading && pb.metaId && !target && !pb.isMovie
+        ? "No episodes to play yet"
+        : undefined;
+  const nativeTitle = prefs.animeTitles === "native" ? item.title.romaji : item.title.native;
+  const score = useAnimeScore()(item.averageScore);
+  const studio = anime?.studios.edges.find((e) => e.isMain && e.node.isAnimationStudio)?.node.name;
+  const next = item.nextAiringEpisode;
+  const paragraphs = cleanDescription(anime?.description);
+
+  return (
+    <section className="detail-hero anime-hero">
+      <div className="detail-hero-main">
+        <TitleHeading name={name} logo={logo} look="detail" />
+        {nativeTitle && nativeTitle !== name && <p className="anime-native t-callout">{nativeTitle}</p>}
+        <p className="detail-facts anime-meta-line t-callout tabular">
+          {score && (
+            <span className="anime-score" title="AniList score">
+              <Star size={13} /> {score}
+            </span>
+          )}
+          {joinFacts([
+            item.format && FORMAT_LABEL[item.format],
+            item.season && item.seasonYear ? `${SEASON_LABEL[item.season]} ${item.seasonYear}` : item.seasonYear,
+            item.format === "MOVIE" ? item.duration && `${item.duration} min` : item.episodes && `${item.episodes} episodes`,
+            item.status && STATUS_LABEL[item.status],
+            studio,
+          ])}
+        </p>
+        {next && (
+          <p className="anime-next t-callout tabular" title={new Date(next.airingAt * 1000).toLocaleString()}>
+            <span className="anime-next-ep">Episode {next.episode}</span>{" "}
+            {new Date(next.airingAt * 1000).toLocaleDateString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" })}
+            {" · in "}
+            {countdown(untilAiring(next.airingAt))}
+          </p>
+        )}
+        {item.genres?.length ? <p className="anime-genres t-caption">{item.genres.join("  ·  ")}</p> : null}
+        {paragraphs[0] && <p className="detail-description t-callout">{paragraphs[0]}</p>}
+
+        <TitleActions
+          request={request}
+          picker={picker}
+          label={label}
+          resume={!!pb.next.resumeAt}
+          playTitle={unavailable}
+          onTrailer={
+            anime?.trailer?.site === "youtube"
+              ? () => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id })
+              : undefined
+          }
+          item={pb.meta}
+        />
+        {unavailable && <p className="anime-unavailable t-caption">{unavailable}</p>}
+      </div>
+
+      <SourcePicker picker={picker} />
+    </section>
+  );
+}
