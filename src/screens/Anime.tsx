@@ -38,6 +38,7 @@ import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { SearchField } from "../components/ui/SearchField";
 import { EmptyState } from "../components/ui/EmptyState";
+import { Skeleton } from "../components/ui/Skeleton";
 
 type Shape = "poster" | "landscape";
 
@@ -330,7 +331,7 @@ function ScheduleView() {
       {isLoading && (
         <div className="anime-slots">
           {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="anime-slot skeleton" style={{ height: 88 }} />
+            <Skeleton key={i} className="anime-slot" height={88} />
           ))}
         </div>
       )}

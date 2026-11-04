@@ -392,6 +392,11 @@ code draws, not what's on screen.
    `shell.css` to `styles/ui/empty-state.css` (same rules). Not yet: the panel-specific empty notes with their
    own looks (`.stream-empty`, `.trailer-empty`, `.market-empty`, `.t3s-empty`, `.srcf-chiprow-empty`,
    `.options-empty`, `.tv-empty`), `ErrorText`.
+   `components/ui/Skeleton.tsx` (`shape` block/line, `as` div/span, `className` for the box, `width`, `height`):
+   every `.skeleton` in the TSX (cards, Calendar, Anime schedule, stream list, hero, both detail pages, TV rails
+   and the TV detail pill), same class lists, now all `aria-hidden`. `.skeleton`, `.skeleton-line` and the
+   reduced-motion rule moved from `base.css`/`cards.css` to `styles/ui/skeleton.css` (after `empty-state.css`);
+   the built CSS is the same rules. `CardSkeleton` stays in `PosterCard.tsx` until `Card` (step 4).
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
