@@ -576,6 +576,10 @@ code draws, not what's on screen.
    `CardArt`'s "art until it fails, a new `src` tries again" as a hook; `TvCard` uses it for its own frame, so
    a TV card whose art failed now tries again when better art arrives (a playlist entry filling in), as the
    desktop cards do (§6 item 6). `TvAnimeCard` is a `TvCard` already.
+   `IconButton variant="player" | "transport"` emits the player's own classes (`player-icon pressable`,
+   `player-transport pressable`) for the top bar's Back, Mute and Fullscreen, the options close and the three
+   centre transport glyphs, so they get `label` as their name like every other icon button; same elements and
+   classes. The labelled `player-action` buttons stay `ActionButton` in `Player.tsx` (text + glyph, one place).
    Kept apart on purpose: the player's top note (`.player-notice`), the party's hold pill and activity notes
    are not `Toast`s: other surface (`--surface-float`, no glass edge), other place (top centre, bottom left
    following the controls) and motion; one look for all of them is the owner's call (docs/unverified.md).
