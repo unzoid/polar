@@ -13,7 +13,7 @@ import { CardArt, ProgressBar } from "./Card";
 /**
  * One episode of a season (docs/ui-components.md U8): the still with its runtime or time left, watched mark,
  * progress and filler tag, then the kicker, title, synopsis and airdate; the sources and download buttons
- * float on it. `layout="list"` adds the number column. Used by `EpisodeShelf`; TV draws its own row (step 6).
+ * float on it. `layout="list"` adds the number column. Used by `EpisodeShelf`; TV draws its own row (TvDetail), from the same `episodeState`.
  */
 export function EpisodeCard({
   layout,
