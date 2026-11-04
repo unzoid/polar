@@ -1,7 +1,6 @@
 mod commands;
 mod controllers;
 mod downloads;
-mod fillers;
 mod imdb;
 mod introdb;
 mod player;
@@ -27,6 +26,8 @@ pub struct AppState {
     pub mpv: player::Mpv,
     pub introdb: introdb::IntroDb,
     pub ratings: ratings::RatingsClient,
+    /// Filler and recap episodes, cached in the app's cache folder.
+    pub fillers: polar_anime::Fillers,
 }
 
 impl AppState {
@@ -104,6 +105,7 @@ pub fn run() {
                 mpv: player::Mpv::default(),
                 introdb: introdb::IntroDb::default(),
                 ratings: ratings::RatingsClient::default(),
+                fillers: polar_anime::Fillers::new(app.path().app_cache_dir()?),
             });
             app.manage(controllers::Controllers::default());
             controllers::watch(app.handle().clone());
@@ -140,7 +142,9 @@ pub fn run() {
             commands::settings_set,
             commands::settings_reset,
             commands::open_external,
-            commands::anime_filler,
+            commands::anime_episode_flags,
+            commands::anime_cache,
+            commands::anime_cache_clear,
             commands::trailer,
             downloads::downloads_list,
             downloads::download_start,

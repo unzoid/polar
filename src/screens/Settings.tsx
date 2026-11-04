@@ -1431,7 +1431,32 @@ function AboutPage() {
         )}
         <LinkRow icon={Info} title="Release notes" caption="Every version and what changed" onClick={() => void api.openExternal(releaseUrl())} />
       </Card>
+      <CacheCard />
     </>
+  );
+}
+
+/** What the app keeps in its cache folder, and a way to empty it. */
+function CacheCard() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["anime-cache"], queryFn: api.animeCache });
+  const clear = useMutation({
+    mutationFn: api.animeCacheClear,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["anime-cache"] });
+      void qc.removeQueries({ queryKey: ["anime", "episodeFlags"] });
+    },
+  });
+  const size = !data ? "…" : data.bytes ? `${Math.max(1, Math.round(data.bytes / 1000))} KB` : "empty";
+  return (
+    <Card title="Cache" footer={data ? <>Kept in {data.path}</> : undefined}>
+      <div className="settings-row">
+        <RowText title="Anime episode data" caption={`Which episodes are filler or recaps, kept a day per show · ${size}`} />
+        <button className="btn" disabled={!data?.bytes || clear.isPending} onClick={() => clear.mutate()}>
+          <Trash size={15} /> Clear
+        </button>
+      </div>
+    </Card>
   );
 }
 

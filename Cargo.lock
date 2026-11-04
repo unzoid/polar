@@ -2960,6 +2960,7 @@ dependencies = [
  "futures",
  "gilrs",
  "polar-addon",
+ "polar-anime",
  "polar-index",
  "polar-library",
  "reqwest 0.12.28",
@@ -2985,6 +2986,16 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "urlencoding",
+]
+
+[[package]]
+name = "polar-anime"
+version = "0.17.0"
+dependencies = [
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

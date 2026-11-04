@@ -465,10 +465,35 @@ pub async fn trailer(imdb_id: String) -> Option<crate::trailers::Trailer> {
     crate::trailers::imdb_trailer(&imdb_id).await
 }
 
-/// Filler episode numbers from animefillerlist.com, trying each slug in turn.
+/// An anime's filler and recap episodes by MAL id (Jikan, then
+/// animefillerlist.com by `slugs`), cached on disk for a day.
 #[tauri::command]
-pub async fn anime_filler(slugs: Vec<String>) -> Vec<u32> {
-    crate::fillers::filler_episodes(&slugs).await
+pub async fn anime_episode_flags(
+    state: State<'_, AppState>,
+    mal_id: u32,
+    slugs: Vec<String>,
+) -> Result<polar_anime::EpisodeFlags> {
+    Ok(state.fillers.get(mal_id, &slugs).await)
+}
+
+#[derive(Serialize)]
+pub struct CacheInfo {
+    path: String,
+    bytes: u64,
+}
+
+/// Where the anime cache file is and how big it is, for Settings.
+#[tauri::command]
+pub async fn anime_cache(state: State<'_, AppState>) -> Result<CacheInfo> {
+    let f = &state.fillers;
+    Ok(CacheInfo { path: f.path().display().to_string(), bytes: f.size().await })
+}
+
+/// Deletes the anime cache file; shows refetch on their next visit.
+#[tauri::command]
+pub async fn anime_cache_clear(state: State<'_, AppState>) -> Result<()> {
+    state.fillers.clear().await;
+    Ok(())
 }
 
 /// Opens a web page (e.g. a title on IMDb) in the default browser. Only
