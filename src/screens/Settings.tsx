@@ -35,6 +35,7 @@ import { SliderField } from "../components/SliderField";
 import { AUTO_TAG_CHOICES, screenResolution, TAG_LABELS } from "../lib/sources";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleSettings, subtitleCueVars } from "../components/player/SubtitleSettings";
 import { api } from "../lib/api";
+import tmdbLogo from "../assets/tmdb-short.svg";
 import { CREDITS, TMDB_NOTICE } from "../lib/credits";
 import { PREFERRED_LANGUAGES, languageName } from "../lib/languages";
 import { keys, useAddons, useSettings, useUpdateSettings } from "../lib/queries";
@@ -1438,11 +1439,23 @@ function AboutPage() {
   );
 }
 
-/** Where the data comes from. TMDB's notice is required to be shown, so it isn't folded away. */
+/**
+ * Where the data comes from. TMDB's notice and logo are required to be shown,
+ * so they aren't folded away; its rules keep the logo smaller than Polar's own
+ * (the 38px navbar mark) and without any hint of endorsement.
+ */
 function CreditsCard() {
   const expand = useExpanded();
   return (
-    <Card title="Credits" footer={TMDB_NOTICE}>
+    <Card
+      title="Credits"
+      footer={
+        <>
+          <img className="settings-credits-tmdb" src={tmdbLogo} alt="TMDB" draggable={false} />
+          {TMDB_NOTICE}
+        </>
+      }
+    >
       <ExpandRow icon={Info} title="Data sources" caption="Where titles, episodes, ratings and subtitles come from" {...expand("credits")}>
         <ul className="settings-credits">
           {CREDITS.map((c) => (
