@@ -14,5 +14,5 @@
     "noEmit": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "catalyst-ui", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"]
 }
