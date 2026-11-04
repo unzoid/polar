@@ -176,3 +176,10 @@ How to check:
   new picture for the same card (a playlist entry that was still loading, better art) is tried again. Check a
   TV playlist rail right after start-up: cards fill in with art, none stays on the plain title unless the
   picture really is missing.
+- Account screens on `Button`/`TextField` (T-024): sign in (`size="block"`, `variant="accent"`, `TextField
+  look="block"`) and the profile screens' actions (`size="sm"`, `variant="outline"`/`"danger"`) keep their rules
+  (checked by reading the cascade). Changed on purpose, to make the account screens one look: the profile
+  set-up's name field and Continue button take the sign-in field and button (44 px, pill button with the
+  accent, quiet border with a soft ring on focus; were 52 px field with a white focus ring and a 48 px square
+  button), and the profile editor's name field takes the same border and focus (keeps its large type). Check
+  sign in (both steps, the code step's paste, a wrong code), profile set-up, Manage Profiles, edit, delete.

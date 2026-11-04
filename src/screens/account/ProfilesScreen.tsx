@@ -1,7 +1,9 @@
 import { ArrowLeft, Check, Edit, Plus } from "../../components/icons";
 import { useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
 import { Avatar } from "../../components/Avatar";
-import { BusyLabel, BusyRing } from "../../components/BusyLabel";
+import { Button } from "../../components/ui/Button";
+import { TextField } from "../../components/ui/TextField";
+import { BusyRing } from "../../components/BusyLabel";
 import { AVATAR_GROUPS, AVATARS, nextAvatar, type AvatarId, type Profile } from "../../lib/account";
 import { useAccount } from "../../lib/account/AccountProvider";
 import { AccountShell } from "./AccountShell";
@@ -113,14 +115,14 @@ export function ProfilesScreen({ initial = "pick" }: { initial?: "pick" | "manag
           )}
         </ul>
         {managing ? (
-          <button className="profiles-done pressable" onClick={() => setView({ name: "pick" })}>
+          <Button variant="primary" size="sm" onClick={() => setView({ name: "pick" })}>
             Done
-          </button>
+          </Button>
         ) : (
-          <button className="profiles-manage pressable" onClick={() => setView({ name: "manage" })}>
+          <Button variant="outline" size="sm" onClick={() => setView({ name: "manage" })}>
             <Edit size={16} strokeWidth={2.25} />
             Manage Profiles
-          </button>
+          </Button>
         )}
       </div>
     </AccountShell>
@@ -201,10 +203,11 @@ export function ProfileEditor({
           </span>
         </button>
         <div className="profile-editor-fields">
-          <input
+          <TextField
+            look="block"
             className="profile-editor-name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={setName}
             placeholder="Name"
             maxLength={40}
             autoFocus
@@ -222,32 +225,22 @@ export function ProfileEditor({
         </div>
       </div>
       <div className="profile-editor-actions">
-        <button type="submit" className="profiles-done pressable" disabled={busy}>
-          <BusyLabel busy={busy}>Save</BusyLabel>
-        </button>
-        <button type="button" className="profiles-manage pressable" onClick={done} disabled={busy}>
+        <Button variant="primary" size="sm" type="submit" disabled={busy} busy={busy}>
+          Save
+        </Button>
+        <Button variant="outline" size="sm" type="button" onClick={done} disabled={busy}>
           Cancel
-        </button>
+        </Button>
         {canDelete &&
           profile &&
           (confirmDelete ? (
-            <button
-              type="button"
-              className="profiles-manage profiles-danger pressable"
-              disabled={busy}
-              onClick={() => void run(() => account.deleteProfile(profile.id))}
-            >
+            <Button variant="danger" size="sm" type="button" disabled={busy} onClick={() => void run(() => account.deleteProfile(profile.id))}>
               Delete Profile and History
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
-              className="profiles-manage pressable"
-              disabled={busy}
-              onClick={() => setConfirmDelete(true)}
-            >
+            <Button variant="outline" size="sm" type="button" disabled={busy} onClick={() => setConfirmDelete(true)}>
               Delete Profile
-            </button>
+            </Button>
           ))}
       </div>
     </form>

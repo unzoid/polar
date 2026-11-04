@@ -20,3 +20,27 @@
 .text-field:focus {
   border-color: var(--accent);
 }
+
+/* block: the account screens' field (after Linear's): full width, 44px, a quiet border and a soft ring on focus. */
+.text-field.text-field-block {
+  flex: none;
+  width: 100%;
+  max-width: none;
+  height: 2.75rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--hairline);
+  background: rgb(255 255 255 / 0.02);
+  color: #f7f8f8;
+  text-align: left;
+  transition:
+    border-color 150ms var(--ease-std),
+    box-shadow 150ms var(--ease-std);
+}
+.text-field.text-field-block::placeholder {
+  color: #62666d;
+  opacity: 1;
+}
+.text-field.text-field-block:focus {
+  border-color: rgb(255 255 255 / 0.22);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.05);
+}

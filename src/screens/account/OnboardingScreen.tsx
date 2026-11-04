@@ -1,7 +1,8 @@
 import { useId, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
 import { Avatar } from "../../components/Avatar";
-import { BusyLabel } from "../../components/BusyLabel";
 import { Check } from "../../components/icons";
+import { Button } from "../../components/ui/Button";
+import { TextField } from "../../components/ui/TextField";
 import { AVATAR_GROUPS, AVATARS, type AvatarId } from "../../lib/account";
 import { useAccount } from "../../lib/account/AccountProvider";
 import { AccountShell } from "./AccountShell";
@@ -68,10 +69,11 @@ export function OnboardingScreen() {
 
         <div className="auth-field">
           <label htmlFor={nameId}>Name</label>
-          <input
+          <TextField
+            look="block"
             id={nameId}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={setName}
             placeholder="What should we call you?"
             maxLength={40}
             autoComplete="nickname"
@@ -113,9 +115,9 @@ export function OnboardingScreen() {
             {error}
           </p>
         )}
-        <button className="auth-primary pressable" type="submit" disabled={busy || !trimmed} aria-busy={busy}>
-          <BusyLabel busy={busy}>Continue</BusyLabel>
-        </button>
+        <Button variant="accent" size="block" className="onboard-submit" type="submit" disabled={busy || !trimmed} busy={busy}>
+          Continue
+        </Button>
       </form>
     </AccountShell>
   );

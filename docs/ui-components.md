@@ -24,13 +24,13 @@ relative to `src/`; each primitive's CSS is `styles/ui/<name>.css`, the title pa
 
 | Component | Props | Use it for |
 |---|---|---|
-| `Button` | `variant` primary/glass/plain/danger, `busy`, `className` for layout, native button props | Any text button. One `primary` per screen. `busy` swaps the label for a spinner after a short delay |
+| `Button` | `variant` primary/glass/plain/danger/accent/outline, `size` md/sm/block, `busy`, `className` for layout, native button props | Any text button. One `primary` (or `accent` on the account screens) per screen. `busy` swaps the label for a spinner after a short delay. `block` is the account screens' full-width button (soft fill, or `accent`); `sm` the profile screens' row of actions |
 | `IconButton` | `label` (required, the accessible name), `variant` plain/glass, or `player`/`transport` over the video | A button holding one glyph |
 | `buttonClass(variant, icon, extra)` | | The button look on an element that isn't ours (a Base UI trigger) |
 | `Chip`, `ToggleChip`, `Badge` | `Chip`: `variant` filter/tag/choice/link/badge, `pressed`; `ToggleChip`: `on`, `label`, `onToggle`; `Badge`: `variant` rank/tag | Filters and genre links (`Chip`), on/off filters with a check (`ToggleChip`), static labels (`Badge`) |
 | `Switch` | `checked`, `onChange(boolean)`, native input props | An on/off setting; name it with the `<label>` around it |
 | `SearchField` | `value`, `onChange(string)`, `label` (required), `look` box/pill/mini/plain, `kbd`, `ref` to the input | Every search box: clear button, Escape clears first |
-| `TextField` | `value`, `onChange(string)`, native input props | One-line text (keys, names) |
+| `TextField` | `value`, `onChange(string)`, `look` box/block, native input props | One-line text (keys, names). `block`: the account screens' full-width field |
 | `EmptyState` | message as children, `action` {label, onClick}, `variant="tv"`, `className` for spacing | What a screen or section shows instead of content: nothing there, or it failed |
 | `Skeleton` | `shape` block/line, `as` div/span, `width`, `height`, `className` for the box | Placeholders while loading (`aria-hidden`) |
 | `Toast` | `icon`, text as children (`<strong>` + `<span>` lines), `actions`, `variant="tv"` | A floating notice (controller, update). The caller decides when and how long |
@@ -83,11 +83,10 @@ draws), `StillPlaceholder`/`Still`.
 `useCardArt`, `useTitlePlayback`, `usePlaylistChecklist`, `episodeState`, the settings schema). The player keeps
 `Scrubber`, `OptionsOverlay`, `SkipButton` and the start-up screen; its glyph buttons are `IconButton`s.
 
-**Planned in §4 and not built** (each would change what's on screen, or wasn't needed): `Button` `size` and
+**Planned in §4 and not built** (each would change what's on screen, or wasn't needed): `Button`
 `variant="link"`, `CopyButton`, `ToastHost` and toast placement, `ErrorText`, `ChoiceGrid`, `Segmented` as a
 radio group with looks, a `Slider` primitive in `ui/`, one `Dialog`, one popover surface, a `Facts` component
-(the two helpers in `lib/format.ts` instead), the account screens' `.auth-*` fields and buttons on the
-primitives, and the player and party notes as `Toast`s (docs/unverified.md asks the owner).
+(the two helpers in `lib/format.ts` instead), and the player and party notes as `Toast`s (docs/unverified.md asks the owner).
 
 ---
 
