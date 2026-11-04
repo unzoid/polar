@@ -103,3 +103,8 @@ How to check:
   Check: Home's shelves and Continue Watching (resume button, Enter on a focused card opens the page),
   Anime's shelves with a manga in a franchise (badge, tooltip), Library → Downloads shelf, hidden captions
   in Settings → Browsing.
+- Add to playlist (T-019 step 4, `components/title/PlaylistChecklist.tsx`): the card menu's Playlists submenu,
+  the detail page's playlist popover and TV's playlist panel now share one list. Check in each: tick and
+  untick a playlist (counts change), New Playlist (desktop menu: made at once as "New Playlist", "New
+  Playlist 2", ...; popover: asks a name, Esc closes the form only; TV: on-screen keyboard). Changed on
+  purpose: when the popover closes with the name form open, the form stays during the closing fade.
