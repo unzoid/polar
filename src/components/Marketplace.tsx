@@ -7,6 +7,7 @@ import { openSettings } from "../lib/settingsOverlay";
 import { Captions, Check, Info, Play, type Icon } from "./icons";
 import { Button } from "./ui/Button";
 import { SearchField } from "./ui/SearchField";
+import { Card } from "./settings/rows";
 
 const CATEGORY_ICON: Record<MarketCategory, Icon> = {
   Subtitles: Captions,
@@ -42,61 +43,58 @@ export function MarketplacePage() {
       {groups.map(({ category, items }) => {
         const Cat = CATEGORY_ICON[category];
         return (
-          <section className="settings-group" key={category}>
-            <h2 className="settings-group-title">{category}</h2>
-            <div className="settings-card">
-              {items.map((a) => {
-                const installed = installedIds.has(a.manifestId);
-                const busy = install.isPending && install.variables === a.install;
-                return (
-                  <div className="settings-row market-row" key={a.manifestId}>
-                    <Cat className="settings-row-icon" size={20} strokeWidth={1.9} />
-                    <span className="settings-row-text">
-                      <span className="settings-row-title">
-                        {a.name}
-                        {a.author !== a.name && <span className="market-author"> by {a.author}</span>}
+          <Card title={category} key={category}>
+            {items.map((a) => {
+              const installed = installedIds.has(a.manifestId);
+              const busy = install.isPending && install.variables === a.install;
+              return (
+                <div className="settings-row market-row" key={a.manifestId}>
+                  <Cat className="settings-row-icon" size={20} strokeWidth={1.9} />
+                  <span className="settings-row-text">
+                    <span className="settings-row-title">
+                      {a.name}
+                      {a.author !== a.name && <span className="market-author"> by {a.author}</span>}
+                    </span>
+                    <span className="market-about">{a.about}</span>
+                    {a.setupRequired && !installed && (
+                      <span className="market-about">
+                        Set it up on its page, then paste the link it gives you into{" "}
+                        <button className="settings-link" onClick={() => openSettings("addons")}>
+                          Install from URL
+                        </button>
+                        .
                       </span>
-                      <span className="market-about">{a.about}</span>
-                      {a.setupRequired && !installed && (
-                        <span className="market-about">
-                          Set it up on its page, then paste the link it gives you into{" "}
-                          <button className="settings-link" onClick={() => openSettings("addons")}>
-                            Install from URL
-                          </button>
-                          .
-                        </span>
-                      )}
-                    </span>
-                    <span className="market-actions">
-                      {a.configure && (installed || !a.setupRequired) && (
-                        <Button onClick={() => void api.openExternal(a.configure!)}>
-                          Configure
-                        </Button>
-                      )}
-                      {installed ? (
-                        <span className="market-installed">
-                          <Check size={16} strokeWidth={2.25} /> Installed
-                        </span>
-                      ) : a.setupRequired ? (
-                        // Its setup page hands back a personal link; that goes in Install from URL.
-                        <Button
-                          variant="primary"
-                          title="Set it up on its own page, then paste the link it gives you under Add-ons → Install from URL"
-                          onClick={() => void api.openExternal(a.configure!)}
-                        >
-                          Set Up
-                        </Button>
-                      ) : (
-                        <Button variant="primary" disabled={busy} onClick={() => install.mutate(a.install)}>
-                          {busy ? "Installing…" : "Install"}
-                        </Button>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+                    )}
+                  </span>
+                  <span className="market-actions">
+                    {a.configure && (installed || !a.setupRequired) && (
+                      <Button onClick={() => void api.openExternal(a.configure!)}>
+                        Configure
+                      </Button>
+                    )}
+                    {installed ? (
+                      <span className="market-installed">
+                        <Check size={16} strokeWidth={2.25} /> Installed
+                      </span>
+                    ) : a.setupRequired ? (
+                      // Its setup page hands back a personal link; that goes in Install from URL.
+                      <Button
+                        variant="primary"
+                        title="Set it up on its own page, then paste the link it gives you under Add-ons → Install from URL"
+                        onClick={() => void api.openExternal(a.configure!)}
+                      >
+                        Set Up
+                      </Button>
+                    ) : (
+                      <Button variant="primary" disabled={busy} onClick={() => install.mutate(a.install)}>
+                        {busy ? "Installing…" : "Install"}
+                      </Button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </Card>
         );
       })}
 

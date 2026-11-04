@@ -7,7 +7,9 @@ import { useAccount } from "../lib/account/AccountProvider";
 import { prefsCustomized, resetPrefs, usePrefs } from "../lib/prefs";
 import { closeSettings, useSettingsOverlay } from "../lib/settingsOverlay";
 import { searchSettings, type SettingEntry } from "../lib/settingsIndex";
-import { PAGES, SettingsPageBody, type PageId } from "../screens/Settings";
+import { SettingsPageBody } from "../screens/Settings";
+import type { PageId } from "../lib/settings/pages";
+import { PAGES } from "./settings/pages";
 
 /** Sidebar groups, T3 Code style: an unlabelled first group, then headed ones. */
 const GROUPS: { heading?: string; pages: PageId[] }[] = [
