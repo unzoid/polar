@@ -1,5 +1,4 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
 import { fetchAnime, type AnimeCard as Card } from "../../lib/anime/anilist";
 import { cardFacts, countdown, FORMAT_LABEL, isMature, untilAiring, useAnimeScore, useAnimeTitle } from "../../lib/anime/format";
 import { usePrefs } from "../../lib/prefs";
@@ -7,6 +6,7 @@ import { useRouter } from "../../lib/router";
 import { aniZipQuery } from "../../lib/anime/anizip";
 import { menuPoint, openCardMenu } from "../CardMenu";
 import { api } from "../../lib/api";
+import { useCardIntent } from "../../lib/cardIntent";
 import { Img } from "../Img";
 import { Star, Warning } from "../icons";
 
@@ -23,6 +23,9 @@ function MatureCover() {
     </span>
   );
 }
+
+/** How long the pointer or focus rests on a card before its page is fetched. */
+const INTENT_DELAY = 150;
 
 /** Click and right-click for an anime: its page, and the shared title menu. */
 export function useAnimeHandlers() {
@@ -52,17 +55,11 @@ export function useAnimeHandlers() {
 /** Opens an anime's page, warming its data once the pointer rests on the card. */
 export function useOpenAnime(item: Card) {
   const qc = useQueryClient();
-  const timer = useRef<number>(undefined);
-  return {
-    ...useAnimeHandlers()(item),
-    onPointerEnter: () => {
-      timer.current = window.setTimeout(
-        () => qc.prefetchQuery({ queryKey: ["anime", "media", item.id], queryFn: () => fetchAnime(item.id), staleTime: 30 * 60_000 }),
-        150,
-      );
-    },
-    onPointerLeave: () => window.clearTimeout(timer.current),
-  };
+  const intent = useCardIntent(
+    () => void qc.prefetchQuery({ queryKey: ["anime", "media", item.id], queryFn: () => fetchAnime(item.id), staleTime: 30 * 60_000 }),
+    INTENT_DELAY,
+  );
+  return { ...useAnimeHandlers()(item), ...intent };
 }
 
 /**

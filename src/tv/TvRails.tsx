@@ -6,6 +6,7 @@ import { ProgressBar } from "../components/PosterCard";
 import { episodeCode, formatRemaining } from "../lib/format";
 import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/queries";
 import { useRouter } from "../lib/router";
+import { useCardIntent } from "../lib/cardIntent";
 import type { Shape, Shelf } from "../lib/shelves";
 import type { MetaPreview, Progress } from "../lib/types";
 import { StageProvider, TvStage, useStage, useStageSeed } from "./TvStage";
@@ -47,7 +48,10 @@ export function TvCard({
   const stage = useStage();
   const seedStage = useStageSeed();
   const el = useRef<HTMLButtonElement>(null);
-  const timer = useRef<number>(undefined);
+  const intent = useCardIntent(() => {
+    if (!localOnly) prefetchMeta(item.type, item.id);
+    preloadImage(item.background);
+  }, INTENT_MS);
   // Show on the stage until something is focused, if this is the page's first title.
   useEffect(() => {
     if (el.current) seedStage({ item, kicker }, el.current);
@@ -69,13 +73,10 @@ export function TvCard({
       onFocus={() => {
         stage({ item, kicker });
         onFocusChange?.(true);
-        timer.current = window.setTimeout(() => {
-          if (!localOnly) prefetchMeta(item.type, item.id);
-          preloadImage(item.background);
-        }, INTENT_MS);
+        intent.onFocus();
       }}
       onBlur={() => {
-        window.clearTimeout(timer.current);
+        intent.onBlur();
         onFocusChange?.(false);
       }}
       // Options: X / Square on a controller (sent as the Menu key), the Menu key, or a right-click.

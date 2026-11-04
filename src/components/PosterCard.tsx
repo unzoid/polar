@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { useCardIntent } from "../lib/cardIntent";
 import { prefetchMeta, preloadImage } from "../lib/queries";
 import { useRouter } from "../lib/router";
 import type { MetaPreview, Progress } from "../lib/types";
@@ -12,15 +13,10 @@ const INTENT_DELAY = 120;
 
 /** Prefetch detail + backdrop once the pointer rests on a title. */
 export function useIntent(item: Pick<MetaPreview, "type" | "id" | "background">) {
-  const timer = useRef<number>(undefined);
-  const start = () => {
-    timer.current = window.setTimeout(() => {
-      prefetchMeta(item.type, item.id);
-      preloadImage(item.background);
-    }, INTENT_DELAY);
-  };
-  const cancel = () => window.clearTimeout(timer.current);
-  return { onPointerEnter: start, onPointerLeave: cancel, onFocus: start, onBlur: cancel };
+  return useCardIntent(() => {
+    prefetchMeta(item.type, item.id);
+    preloadImage(item.background);
+  }, INTENT_DELAY);
 }
 
 function useOpen(item: MetaPreview) {

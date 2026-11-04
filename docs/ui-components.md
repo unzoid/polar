@@ -455,6 +455,10 @@ code draws, not what's on screen.
    `components/title/LibraryButton.tsx` (`item`): the + / ✓ glass icon button of the Home hero, title pages and
    anime pages, written 3× before; same element. The anime page now checks "in Library" by the loaded meta's
    id instead of the linked id (the same id; it's what the button saves).
+   `lib/cardIntent.ts` `useCardIntent(warm, delay)`: the rest-then-prefetch timer of the desktop cards
+   (`useIntent`, 120 ms), the anime cards (150 ms) and `TvCard` (450 ms, focus only), each keeping its delay.
+   Anime cards now also warm on keyboard focus, and a pending timer is cleared when the card unmounts.
+   Not yet: `Card` itself (art with the broken-art fallback, slots), `Shelf`, `TitleActions`.
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
