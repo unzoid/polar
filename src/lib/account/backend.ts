@@ -3,6 +3,7 @@
  * this interface (via `./index.ts`); swapping Supabase for a self-hosted
  * server, PocketBase, etc. means writing one new file like `./supabase.ts`.
  */
+import type { AnimeLink } from "../identity";
 import type { Progress, SyncLibraryItem } from "../types";
 import type { AvatarId } from "./avatars";
 
@@ -42,8 +43,16 @@ export class AccountError extends Error {
 export interface PulledChanges {
   library: SyncLibraryItem[];
   progress: Progress[];
+  /** `null`: the server can't store anime links yet (an older schema); library and progress still sync. */
+  links: AnimeLink[] | null;
   /** Opaque cursor; hand it back to the next `pull`. */
   cursor: string | null;
+}
+
+export interface SyncChanges {
+  library: SyncLibraryItem[];
+  progress: Progress[];
+  links: AnimeLink[];
 }
 
 export interface RemotePlaylist {
@@ -126,7 +135,8 @@ export interface AccountBackend {
 
   sync: {
     pull(profileId: string, cursor: string | null): Promise<PulledChanges>;
-    push(profileId: string, changes: { library: SyncLibraryItem[]; progress: Progress[] }): Promise<void>;
+    /** Resolves to whether the links were stored (`false`: the server has no place for them yet). */
+    push(profileId: string, changes: SyncChanges): Promise<{ links: boolean }>;
   };
 
   /** The profile's preferences as one small document, last write wins. */

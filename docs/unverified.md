@@ -60,6 +60,30 @@ How to check:
 4. Opening the same anime page twice must not change `updatedAt` of its link
    (`anime_links` in the devtools console: `__TAURI_INTERNALS__.invoke("anime_links")`).
 
+## Anime links through the account (T-005 step 5)
+
+Signed-in profiles now sync their anime links through the new `anime_links` table
+(`supabase/migrations/20261104000000_anime_links.sql`). The migration was run here
+on PGlite (Postgres 17 in WebAssembly) after the first migration, with `auth.users`
+and `auth.uid()` stubbed: older writes are ignored, newer ones win, alias ids and
+AniList id 0 are refused, another user sees and writes nothing, deleting the
+profile deletes its links. Not checked: a real Supabase project and two devices.
+
+How to check:
+
+1. Apply the migration to the project (`supabase db push`, or paste it into the SQL
+   editor). In Table Editor, `anime_links` shows RLS enabled and one policy.
+2. Device A, signed in: open an anime page. Within a few seconds a
+   row for its AniList id appears in `anime_links`.
+3. Device B, same profile, still holding that show's library entry or progress under
+   `kitsu:N` (play it there once from an addon that lists it by Kitsu id before step
+   2): after its next sync (focus the window), Library, History and Continue
+   Watching show it once, under the IMDb title, without opening the anime page there.
+4. A server without the migration: sync of library and progress must still work,
+   with `sync failed` absent from the console. After applying the migration, the
+   next sync sends every link the profile has (localStorage key
+   `polar.animeLinksUnsent.v1` holds the profile id until then).
+
 ## Earlier items
 
 - Settings → About → Cache and Credits cards (TMDB logo 12 px under the notice): look only.

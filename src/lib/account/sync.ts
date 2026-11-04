@@ -1,5 +1,5 @@
 /**
- * Moves the active profile's library, watch progress, playlists and settings
+ * Moves the active profile's library, watch progress, anime links, playlists and settings
  * between this device (Rust store / localStorage) and the account backend.
  * Local-first: the app never waits on this; it reads and writes the local
  * copy, and sync catches up in the background. There's nothing to press:
@@ -35,6 +35,30 @@ let failures = 0;
 
 const onWake = () => void run();
 
+/**
+ * Profiles whose anime links are waiting for a server that has the
+ * anime_links table (a schema older than this app): kept across restarts,
+ * since a link already pushed locally is never offered again.
+ */
+const UNSENT_KEY = "polar.animeLinksUnsent.v1";
+const linksUnsent = new Set<string>(readUnsent());
+
+function readUnsent(): string[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(UNSENT_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function setLinksUnsent(space: string, unsent: boolean) {
+  if (linksUnsent.has(space) === unsent) return;
+  if (unsent) linksUnsent.add(space);
+  else linksUnsent.delete(space);
+  localStorage.setItem(UNSENT_KEY, JSON.stringify([...linksUnsent]));
+}
+
 async function run(): Promise<void> {
   if (!active || !backend) return;
   if (running) {
@@ -46,14 +70,19 @@ async function run(): Promise<void> {
   running = (async () => {
     try {
       const local = await api.syncChanges(space);
-      if (local.library.length || local.progress.length) {
-        await backend.sync.push(space, local);
+      // Links the server couldn't take before go again in full once it can.
+      const links = linksUnsent.has(space) ? await api.animeLinks() : local.links;
+      let unsent = false;
+      if (local.library.length || local.progress.length || links.length) {
+        const stored = await backend.sync.push(space, { library: local.library, progress: local.progress, links });
+        unsent = links.length > 0 && !stored.links;
       }
+      setLinksUnsent(space, unsent);
       await api.syncMarkPushed(space, local.cursor);
 
       const remote = await backend.sync.pull(space, local.pulledAt);
       if (!isActive()) return; // switched profile mid-flight; its own run follows
-      const changed = await api.syncApply(space, remote.library, remote.progress, remote.cursor);
+      const changed = await api.syncApply(space, { library: remote.library, progress: remote.progress, links: remote.links }, remote.cursor);
       if (changed) refreshLocalViews();
 
       const lists = playlistChanges();
@@ -95,6 +124,7 @@ export function refreshLocalViews() {
   queryClient.invalidateQueries({ queryKey: ["continue"] });
   queryClient.invalidateQueries({ queryKey: ["history"] });
   queryClient.invalidateQueries({ queryKey: ["progress"] });
+  queryClient.invalidateQueries({ queryKey: ["animeLinks"] });
 }
 
 export const sync = {

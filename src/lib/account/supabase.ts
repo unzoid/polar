@@ -3,6 +3,7 @@
  * supabase-js; schema lives in supabase/migrations.
  */
 import { createClient, type AuthError, type PostgrestError, type User } from "@supabase/supabase-js";
+import type { AnimeLink } from "../identity";
 import type { ContentType, Progress, SyncLibraryItem } from "../types";
 import { AccountError, type AccountBackend, type AccountUser, type PartyPresence, type Profile } from "./backend";
 import { normalizeAvatar } from "./avatars";
@@ -14,6 +15,7 @@ const PULL_OVERLAP_MS = 10_000;
 /** Everything but the legacy `stream` column, which isn't synced any more. */
 const PROGRESS_COLUMNS =
   "profile_id, video_id, meta_id, type, name, background, poster, season, episode, episode_title, position, duration, updated_at, synced_at";
+const LINK_COLUMNS = "anilist, canonical, mal, kitsu, updated_at, synced_at";
 
 export function createSupabaseBackend(url: string, key: string): AccountBackend {
   const db = createClient(url, key, {
@@ -138,17 +140,23 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
     sync: {
       async pull(profileId, cursor) {
         const since = cursor ? new Date(Date.parse(cursor) - PULL_OVERLAP_MS).toISOString() : null;
-        const [lib, prog] = await Promise.all([
+        const [lib, prog, links] = await Promise.all([
           pullAll<LibraryRow>("library_items", profileId, since),
           pullAll<ProgressRow>("watch_progress", profileId, since, PROGRESS_COLUMNS),
+          unlessMissing(pullAll<LinkRow>("anime_links", profileId, since, LINK_COLUMNS)),
         ]);
-        const newest = [...lib, ...prog].reduce<string | null>(
+        const newest = [...lib, ...prog, ...(links ?? [])].reduce<string | null>(
           (max, r) => (!max || r.synced_at > max ? r.synced_at : max),
           cursor,
         );
-        return { library: lib.map(fromLibraryRow), progress: prog.map(fromProgressRow), cursor: newest };
+        return {
+          library: lib.map(fromLibraryRow),
+          progress: prog.map(fromProgressRow),
+          links: links && links.map(fromLinkRow),
+          cursor: newest,
+        };
       },
-      async push(profileId, { library, progress }) {
+      async push(profileId, { library, progress, links }) {
         for (const rows of chunks(library.map((i) => toLibraryRow(profileId, i)), 500)) {
           const { error } = await db.from("library_items").upsert(rows, { onConflict: "profile_id,meta_id" });
           if (error) throw dbError(error);
@@ -157,6 +165,12 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
           const { error } = await db.from("watch_progress").upsert(rows, { onConflict: "profile_id,video_id" });
           if (error) throw dbError(error);
         }
+        for (const rows of chunks(links.map((l) => toLinkRow(profileId, l)), 500)) {
+          const { error } = await db.from("anime_links").upsert(rows, { onConflict: "profile_id,anilist" });
+          if (error && isMissingTable(error)) return { links: false };
+          if (error) throw dbError(error);
+        }
+        return { links: true };
       },
     },
 
@@ -211,6 +225,16 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
     },
   };
 
+  /** `null` when the table isn't on the server yet (a schema older than this app). */
+  async function unlessMissing<T>(rows: Promise<T[]>): Promise<T[] | null> {
+    try {
+      return await rows;
+    } catch (e) {
+      if (e instanceof AccountError && e.code === "not_set_up") return null;
+      throw e;
+    }
+  }
+
   async function pullAll<T>(table: string, profileId: string, since: string | null, columns = "*"): Promise<T[]> {
     const out: T[] = [];
     for (let from = 0; ; from += PAGE) {
@@ -243,6 +267,15 @@ interface PlaylistRow {
   name: string;
   items: string;
   deleted: boolean;
+  updated_at: number;
+  synced_at: string;
+}
+
+export interface LinkRow {
+  anilist: number;
+  canonical: string;
+  mal: number | null;
+  kitsu: number | null;
   updated_at: number;
   synced_at: string;
 }
@@ -325,11 +358,31 @@ const fromProgressRow = (r: ProgressRow): Progress => ({
   updatedAt: Number(r.updated_at),
 });
 
+export const toLinkRow = (profileId: string, l: AnimeLink) => ({
+  profile_id: profileId,
+  anilist: l.anilist,
+  canonical: l.canonical,
+  mal: l.mal ?? null,
+  kitsu: l.kitsu ?? null,
+  updated_at: l.updatedAt,
+});
+
+export const fromLinkRow = (r: LinkRow): AnimeLink => ({
+  canonical: r.canonical,
+  anilist: r.anilist,
+  ...(r.mal != null && { mal: r.mal }),
+  ...(r.kitsu != null && { kitsu: r.kitsu }),
+  updatedAt: Number(r.updated_at),
+});
+
 function* chunks<T>(items: T[], size: number) {
   for (let i = 0; i < items.length; i += size) yield items.slice(i, i + size);
 }
 
 // --- Errors ------------------------------------------------------------------
+
+/** A table this version expects hasn't been migrated onto the server yet. */
+const isMissingTable = (e: PostgrestError) => e.code === "PGRST205" || e.code === "42P01";
 
 function authError(e: AuthError): AccountError {
   switch (e.code) {
@@ -356,8 +409,7 @@ function dbError(e: PostgrestError): AccountError {
   if (e.message?.includes("profile_limit")) {
     return new AccountError("profile_limit", "An account can have up to 5 profiles.");
   }
-  // A table this version expects hasn't been migrated onto the server yet.
-  if (e.code === "PGRST205" || e.code === "42P01") {
+  if (isMissingTable(e)) {
     return new AccountError("not_set_up", e.message);
   }
   if (e.message?.includes("Failed to fetch") || e.message?.includes("NetworkError")) {
