@@ -38,6 +38,28 @@ How to check (needs mpv installed, then again without it for the built-in player
 
 Not covered: HLS playlists are checked like files (the first 1 KB of the playlist).
 
+## Anime links and episode context (T-005 step 3)
+
+Opening an anime page (desktop or TV) now records which id the entry plays from
+(`link_anime`); library items and progress kept under its Kitsu id move onto its
+IMDb id. What the page lines up per episode (absolute number, MAL and Kitsu ids,
+filler) is kept in localStorage (`polar.animePlayContext.v1`) instead of memory.
+
+How to check:
+
+1. Open an anime with an IMDb page and several seasons, play episode 2 a minute, quit
+   Polar. Start it again and play episode 2 from Continue Watching without opening
+   the anime page: AniSkip's opening skip should appear, and the source list should
+   include anime add-ons that only know Kitsu ids.
+2. Turn on "skip filler" and, after a restart, let a show with filler episodes
+   autoplay from Continue Watching up to a filler run: it should be skipped.
+3. A show watched under `kitsu:N` before (an older Polar build, a Kitsu-only show
+   that later got an IMDb page): open its anime page; the library entry and the
+   watched marks should now show under the IMDb title, once, in Library, History and
+   Continue Watching.
+4. Opening the same anime page twice must not change `updatedAt` of its link
+   (`anime_links` in the devtools console: `__TAURI_INTERNALS__.invoke("anime_links")`).
+
 ## Earlier items
 
 - Settings → About → Cache and Credits cards (TMDB logo 12 px under the notice): look only.

@@ -87,9 +87,16 @@ handful of integers.
 - **Tauri commands** (`src-tauri/src/commands.rs`): `link_anime(link)` (sets `updatedAt`) and
   `anime_links()`; the library/progress commands call `crates/library`.
 - **Front end**: `src/lib/identity.ts` holds the id grammar (parse/format `tt`, `kitsu:`,
-  `anilist:`, `mal:`, episode ids) and `canonicalId()`; the anime pages call `linkAnime` once they
-  know the id they play from, instead of the in-memory `remember*` maps, and read the link when
-  playing from anywhere (Continue Watching, TV, after a restart).
+  `anilist:`, `mal:`, episode ids) and `canonicalId()`. The anime pages (desktop `AnimeDetail`, TV
+  `TvAnime`) call `linkAnime` (`src/lib/anime/links.ts`) once the IMDb lookup has answered; the
+  command ignores a link it already has, so no time changes and sync has nothing to send. What a
+  page lines up per episode (absolute number, MAL/Kitsu ids, filler) is kept in localStorage by
+  `src/lib/anime/playContext.ts` (per canonical title, 300 most recent), which replaced the
+  in-memory `altIds`/`aniskip`/`filler` maps, so AniSkip, Kitsu alt ids and skip-filler work from
+  Continue Watching and after a restart. AniSkip for a `kitsu:N:E` video with no context takes
+  the MAL id from the stored link. The anime page reads progress played under `kitsu:N:E` as the
+  matching IMDb episode. Not covered: TV mode lines up no episodes itself, so an IMDb episode
+  first played from TV, never from a desktop anime page, still falls back to ani.zip's mapping.
 - **Search**: AniList cards resolve through cached links/ani.zip to a canonical id; results with
   the same canonical id merge into one card (the anime card, which opens the anime page), instead
   of the title/year heuristic.
