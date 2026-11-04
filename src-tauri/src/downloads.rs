@@ -506,10 +506,10 @@ pub fn download_resume(downloads: Shared<'_>, id: String) {
 #[tauri::command]
 pub fn download_reveal(downloads: Shared<'_>, id: String) -> Result<()> {
     let file = downloads.get(&id).map(|d| d.file).ok_or_else(|| CmdError::NotFound("No such download.".into()))?;
-    if !Path::new(&file).exists() {
-        return Err(CmdError::NotFound("The file isn't there any more.".into()));
-    }
-    tauri_plugin_opener::reveal_item_in_dir(&file).map_err(|e| CmdError::Other(e.to_string()))
+    // Unfinished, it is still the `.part` file.
+    let shown = [PathBuf::from(&file), part(&file)].into_iter().find(|p| p.exists());
+    let shown = shown.ok_or_else(|| CmdError::NotFound("The file isn't there any more.".into()))?;
+    tauri_plugin_opener::reveal_item_in_dir(&shown).map_err(|e| CmdError::Other(e.to_string()))
 }
 
 /// Cancel and delete: the record and the file.
