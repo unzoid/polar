@@ -2,8 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useState } from "react";
 import { AnimeCard } from "../components/anime/AnimeCard";
 import { PosterCard } from "../components/PosterCard";
-import { CardSkeleton } from "../components/title/Card";
-import { Row } from "../components/Row";
+import { Shelf } from "../components/title/Shelf";
 import type { AnimeCard as Card } from "../lib/anime/anilist";
 import { useAnimeResults } from "../lib/anime/search";
 import { withoutAnime } from "../lib/anime/merge";
@@ -76,18 +75,10 @@ function GenreRow({ type, genre }: { type: ContentType; genre: string }) {
 
 function ResultRow({ title, items }: { title: string; items?: MetaPreview[] }) {
   if (items && !items.length) return null;
-  return (
-    <Row title={title}>
-      {items ? items.map((item) => <PosterCard key={item.id} item={item} />) : Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} />)}
-    </Row>
-  );
+  return <Shelf title={title} items={items} card={(item) => <PosterCard key={item.id} item={item} />} />;
 }
 
 function AnimeRow({ title, items, loading }: { title: string; items?: Card[]; loading: boolean }) {
   if (!loading && !items?.length) return null;
-  return (
-    <Row title={title}>
-      {items ? items.map((a) => <AnimeCard key={a.id} item={a} />) : Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} />)}
-    </Row>
-  );
+  return <Shelf title={title} items={items} card={(a) => <AnimeCard key={a.id} item={a} />} />;
 }

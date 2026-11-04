@@ -465,7 +465,11 @@ code draws, not what's on screen.
    the same elements and classes. With `actions` the card is a focusable `role="link"` (a button can't hold a
    button) that opens on Enter/Space; that was `ContinueCard`'s own code. `ArtTitle` (scrim + logo or name),
    `ProgressBar` and `CardSkeleton` live there too (`PosterSkeleton` is gone). `TvCard`/`TvAnimeCard` wait for
-   step 6. Not yet: `Shelf`, `TitleActions`, `EpisodeCard`.
+   step 6. `components/title/Shelf.tsx` `Shelf` (`title`, `shape`, `action`, `items`, `skeletons`, `card`): a
+   `Row` with skeletons of its shape until `items` is there; Home's catalog shelves, Anime's shelves and
+   Airing Today, and Search's result rows are on it (the four "items or 8 skeletons" copies). The lazy part
+   stays `useNearViewport` in the two callers that need it. `TvRail` keeps its own track (step 6).
+   Not yet: `TitleActions`, `TitleHeading`/`Facts`, `EpisodeCard`.
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
