@@ -7,6 +7,7 @@ import { useTitleActions } from "../lib/titleActions";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Check, ChevronRight, Close, Info, Minus, Play, PlaylistIcon, Plus, Reset, Trailer, Watched } from "./icons";
 import { imdbUrl } from "./RatingRing";
+import { trailerFor } from "../lib/trailers";
 import { openTrailer } from "./Trailer";
 
 /**
@@ -112,7 +113,7 @@ function OpenMenu({ target }: { target: Target }) {
               onClick={open ?? (() => navigate({ name: "detail", type: item.type, id: item.id, preview: item }))}
             />
             {(a.trailerYtId || item.id.startsWith("tt")) && (
-              <Item icon={<Trailer />} label="Play Trailer" onClick={() => openTrailer({ name: item.name, imdbId: item.id, ytId: a.trailerYtId })} />
+              <Item icon={<Trailer />} label="Play Trailer" onClick={() => openTrailer(trailerFor(item.name, item.id, a))} />
             )}
 
             <Menu.Separator className="ctx-menu-sep" />

@@ -645,9 +645,8 @@
   }
 }
 
-/* --- The trailer behind the art (BackdropTrailer.tsx): sized to cover the
-       window like the art does, a little oversized so YouTube's edges and
-       corner marks fall outside. Fades in only once it's really playing. */
+/* --- The trailer behind the art (BackdropTrailer.tsx): a video file covering
+       the window like the art does. Fades in only once it's really playing. */
 .backdrop-trailer {
   position: absolute;
   inset: 0;
@@ -657,16 +656,6 @@
 }
 .backdrop-trailer[data-visible="true"] {
   opacity: 1;
-}
-.backdrop-trailer iframe {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: max(100cqw, 177.78cqh);
-  height: max(100cqh, 56.25cqw);
-  border: 0;
-  transform: translate(-50%, -50%) scale(1.18);
-  pointer-events: none;
 }
 .backdrop-trailer video {
   position: absolute;

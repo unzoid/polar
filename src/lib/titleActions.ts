@@ -32,6 +32,7 @@ export function useTitleActions(item: MetaPreview, entry?: Progress) {
     meta,
     isSeries,
     trailerYtId: meta?.trailerYtId,
+    trailerSource: meta?.trailerSource,
     inLibrary,
     inPlaylist,
     toggleLibrary: () => toggleLibrary.mutate(item),

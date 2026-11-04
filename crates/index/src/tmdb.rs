@@ -268,6 +268,19 @@ fn year(date: &Value) -> Option<String> {
     date.as_str().and_then(|d| d.get(..4)).map(str::to_owned)
 }
 
+/// The YouTube key of a title's best video from TMDB's `videos`: an official
+/// trailer, then any trailer, then a teaser.
+fn pick_trailer(videos: &[Value]) -> Option<String> {
+    let youtube = |v: &&Value| v["site"] == "YouTube" && str_of(&v["key"]).is_some();
+    let rank = |v: &Value| match (v["type"].as_str(), v["official"].as_bool().unwrap_or(false)) {
+        (Some("Trailer"), true) => 0,
+        (Some("Trailer"), false) => 1,
+        (Some("Teaser"), _) => 2,
+        _ => 3,
+    };
+    videos.iter().filter(youtube).filter(|v| rank(v) < 3).min_by_key(|v| rank(v)).and_then(|v| str_of(&v["key"]))
+}
+
 fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Meta {
     let is_series = ty == "series";
     let release_info = if is_series {
@@ -310,9 +323,7 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
             .unwrap_or_default()
     };
 
-    let trailer_yt_id = d["videos"]["results"].as_array().and_then(|v| {
-        v.iter().find(|v| v["site"] == "YouTube" && v["type"] == "Trailer").and_then(|v| str_of(&v["key"]))
-    });
+    let trailer_yt_id = d["videos"]["results"].as_array().map(Vec::as_slice).and_then(pick_trailer);
 
     let people = d["credits"]["cast"]
         .as_array()
@@ -386,6 +397,7 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
         runtime,
         cast: names(&d["credits"]["cast"], 10),
         director,
+        trailer_source: trailer_yt_id.as_ref().map(|_| "tmdb".to_string()),
         trailer_yt_id,
         videos,
     }
@@ -430,4 +442,27 @@ impl Item {
 #[derive(Deserialize)]
 struct ExternalIds {
     imdb_id: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn picks_official_trailer_then_trailer_then_teaser() {
+        let v = |key: &str, ty: &str, official: bool| json!({ "site": "YouTube", "key": key, "type": ty, "official": official });
+        let vids = [
+            v("clip", "Clip", true),
+            v("teaser", "Teaser", true),
+            v("fan", "Trailer", false),
+            v("real", "Trailer", true),
+        ];
+        assert_eq!(pick_trailer(&vids).as_deref(), Some("real"));
+        assert_eq!(pick_trailer(&vids[..3]).as_deref(), Some("fan"));
+        assert_eq!(pick_trailer(&vids[..2]).as_deref(), Some("teaser"));
+        assert_eq!(pick_trailer(&vids[..1]), None);
+        let vimeo = json!({ "site": "Vimeo", "key": "x", "type": "Trailer", "official": true });
+        assert_eq!(pick_trailer(&[vimeo]), None);
+    }
 }

@@ -38,6 +38,8 @@ export interface Meta extends MetaPreview {
   cast?: string[];
   director?: string[];
   trailerYtId?: string;
+  /** "tmdb" when TMDB's videos chose `trailerYtId` (it then plays before IMDb's file). */
+  trailerSource?: "tmdb";
   videos: Video[];
   /** The cast with roles and photos, where the source has them. */
   people?: Person[];
