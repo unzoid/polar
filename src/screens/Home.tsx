@@ -20,6 +20,7 @@ import {
   useToggleLibrary,
 } from "../lib/queries";
 import { prefersReducedMotion } from "../lib/reducedMotion";
+import { useNearViewport } from "../lib/viewport";
 import { useRouter } from "../lib/router";
 import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf } from "../lib/shelves";
 import { cardMenu } from "../components/CardMenu";
@@ -282,19 +283,7 @@ function CatalogRow({ shelf, enabled, exclude }: { shelf: Shelf; enabled: boolea
 
 /** Holds a shelf back (as a skeleton) until it's near the viewport. */
 function LazyShelf({ shelf, eager, exclude }: { shelf: Shelf; eager: boolean; exclude: Set<string> }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [near, setNear] = useState(eager);
-  useEffect(() => {
-    const el = ref.current;
-    if (near || !el) return;
-    // The page scrolls inside its own container, so that's the observer's root.
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setNear(true), {
-      root: el.closest(".scroll"),
-      rootMargin: "0px 0px 700px 0px",
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [near]);
+  const [ref, near] = useNearViewport<HTMLDivElement>(eager);
   return (
     <div ref={ref}>
       <CatalogRow shelf={shelf} enabled={near} exclude={exclude} />

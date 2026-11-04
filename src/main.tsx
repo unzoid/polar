@@ -22,6 +22,7 @@ import "./styles/ui/empty-state.css";
 import "./styles/ui/skeleton.css";
 import "./styles/ui/toast.css";
 import "./styles/ui/menu.css";
+import "./styles/title/poster-grid.css";
 import "./styles/shell.css";
 import "./styles/cards.css";
 import "./styles/detail.css";

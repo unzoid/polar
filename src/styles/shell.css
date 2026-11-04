@@ -445,12 +445,6 @@
   gap: 1rem;
   padding: calc(var(--nav-h) + 1.75rem) var(--gutter) 1.5rem var(--content-start);
 }
-.poster-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--poster-w), 1fr));
-  gap: 2rem 1.25rem;
-  padding: 0 var(--gutter) 0 var(--content-start);
-}
 
 /* --- Segmented control. The selected state is a clipped "active" copy; the
        clip moves with a transition, except for keyboard changes (instant). */
@@ -642,12 +636,6 @@
   backdrop-filter: var(--blur-control);
   box-shadow: 0 0 0 1px var(--glass-edge);
   font-weight: 600;
-}
-.discover-grid {
-  transition: opacity 150ms var(--ease-std);
-}
-.discover-grid[data-stale="true"] {
-  opacity: 0.5;
 }
 
 /* --- macOS: the window keeps its traffic lights (tauri.macos.conf.json puts

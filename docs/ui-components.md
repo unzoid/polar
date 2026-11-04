@@ -310,6 +310,9 @@ These are small and come with T-019. Items 1-4 are fixed (`ed796a1`, `15e4412`).
    `Marketplace` uses `openSettings()` (M26).
 8. **`outline: none|0` 57×** across the CSS (TV 20, account 10); each needs a `:focus-visible` replacement
    (M31).
+9. **Infinite grids loaded late.** `Discover` and Anime → Browse watched their end marker with the window as
+   the root and a 1200 px margin, but the page scrolls inside `.scroll`, which clips the marker; the margin
+   never applied. Fixed in `useInfiniteSentinel` (root `.scroll`, like the lazy shelves).
 
 ## 7. Conventions
 
@@ -430,6 +433,12 @@ code draws, not what's on screen.
    `TvKeyboard` and `TvApp` (step 6), the settings dialog (Base UI's own Escape).
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
+   *Done:* `lib/viewport.ts` (`useNearViewport(eager, margin)`, `useInfiniteSentinel(pager, margin)`, both
+   rooted at the page's `.scroll`): Home's `LazyShelf` and Anime's `GenreShelf` on the first, the infinite
+   grids on the second (§6.9). `components/title/PosterGrid.tsx` (`pager` for skeletons and the next page,
+   `stale` to dim, children are the cards): Discover, Anime → Browse and the four Library grids. Its CSS moved
+   from `shell.css` to `styles/title/poster-grid.css` (after `ui/menu.css`; no rule in between matches the
+   grid); `.discover-grid` folded into `.poster-grid[data-stale]`. Built CSS: the same rules plus that merge.
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the

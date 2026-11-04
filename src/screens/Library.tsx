@@ -26,6 +26,7 @@ import { formatBytes } from "../lib/sources";
 import type { ContentType } from "../lib/types";
 import { buttonClass } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
+import { PosterGrid } from "../components/title/PosterGrid";
 
 type Collection = "saved" | "watched" | "playlists" | "downloads";
 type Open = { view: Collection } | { view: "playlist"; id: string; fresh: boolean } | null;
@@ -281,11 +282,11 @@ function Saved({ kind, sort }: { kind: Kind; sort: Sort }) {
   return (
     <>
       {items?.length === 0 && <EmptyState>Nothing here yet.</EmptyState>}
-      <div className="poster-grid">
+      <PosterGrid>
         {items?.map((item) => (
           <PosterCard key={item.id} item={item} />
         ))}
-      </div>
+      </PosterGrid>
     </>
   );
 }
@@ -297,11 +298,11 @@ function WatchedGrid({ kind, sort }: { kind: Kind; sort: Sort }) {
   return (
     <>
       {items?.length === 0 && <EmptyState>Nothing here yet.</EmptyState>}
-      <div className="poster-grid">
+      <PosterGrid>
         {items?.map((p) => (
           <PosterCard key={p.metaId} item={progressItem(p)} progress={progressFraction(p)} entry={p} />
         ))}
-      </div>
+      </PosterGrid>
     </>
   );
 }
@@ -425,7 +426,7 @@ function Playlists({ onOpen }: { onOpen: (id: string, isNew?: boolean) => void }
       {playlists.length === 0 && (
         <p className="library-hint t-body muted">Group titles into playlists from their page, or start one here.</p>
       )}
-      <div className="poster-grid">
+      <PosterGrid>
         {playlists.map((p) => (
           <PlaylistTile key={p.id} playlist={p} onOpen={() => onOpen(p.id)} />
         ))}
@@ -435,7 +436,7 @@ function Playlists({ onOpen }: { onOpen: (id: string, isNew?: boolean) => void }
             <span className="t-callout">New Playlist</span>
           </div>
         </button>
-      </div>
+      </PosterGrid>
     </>
   );
 }
@@ -485,11 +486,11 @@ function PlaylistView({ id, fresh, onClose }: { id: string; fresh: boolean; onCl
       {n === 0 ? (
         <EmptyState>Add titles with the playlist button on their page.</EmptyState>
       ) : (
-        <div className="poster-grid">
+        <PosterGrid>
           {playlist.items.map((item) => (
             <PlaylistEntry key={item.id} playlistId={id} item={item} />
           ))}
-        </div>
+        </PosterGrid>
       )}
     </div>
   );
