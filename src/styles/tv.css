@@ -509,18 +509,6 @@
   height: 0.22rem;
 }
 
-/* --- Library --------------------------------------------------------------------- */
-.tv-library {
-  padding: 7rem var(--tv-gutter) 4rem;
-}
-.tv-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, var(--tv-poster-w));
-  justify-content: space-between;
-  gap: 1.75rem 1rem;
-  padding: 0.5rem 0;
-}
-
 /* --- Search ------------------------------------------------------------------------ */
 .tv-search {
   position: absolute;
