@@ -550,8 +550,17 @@ code draws, not what's on screen.
    inside an `ExpandRow`) in `rows.tsx`: Sign In, Sign Out, Open TV Mode, the controller Reset and the anime
    cache Clear; the add-on install, preferred release groups, hidden words and TMDB key forms. Each page's own
    dirty check and busy text went into them; same elements and classes as before.
-   Not yet: the other ~60 rows drawn from the schema; the update row (four states), the two-key ratings form,
-   the Seekr key form (save and check) and the delete-account confirm stay hand-written.
+   Rows from the schema: every switch, dropdown and slider on the pages whose value is one stored setting is a
+   `SettingRow` now (Playback, Sources, Subtitles, Appearance, Browsing, Anime, Controls, Controller, Advanced,
+   About), its title, caption, choices, range and fallback moved into the schema unchanged; side effects stay on
+   the page as `onChanged` (clear recent searches, play the sound pack, download a waiting update) or as the
+   schema's `invalidates` (metadata language, watched threshold, file sizes). `SOUND_PACKS` moved from
+   `tv/sounds.ts` into the schema. A test checks that every fallback (and prefs default) is a value its control
+   offers. Hand-written on purpose, each with a comment or an obvious reason: "Skip recaps" (unset follows Skip
+   intros), "Remember playback speed" (also resets the speed), "Show details" (off and greyed while titles are
+   off), "Open the app on" (Anime only while the section is on), interface size (0 stored means 100%), the accent
+   swatches, Version, the update row (four states), the two-key ratings form, the Seekr key form (save and check)
+   and the delete-account confirm. The first four now carry `data-setting`, so search lands on the row itself.
 6. **TV and player** onto the primitives.
 7. **Document** the final set at the top of this file (component, props, when to use), and keep §3 as the
    record of what was merged.

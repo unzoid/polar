@@ -3,14 +3,13 @@ import { Reset, Download, Info, Trash } from "../../components/icons";
 import { api } from "../../lib/api";
 import tmdbLogo from "../../assets/tmdb-short.svg";
 import { CREDITS, TMDB_NOTICE } from "../../lib/credits";
-import { setPrefs, usePrefs } from "../../lib/prefs";
 import { ReleaseNotes } from "../../components/Updates";
 import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl, useUpdate } from "../../lib/updater";
 import { Button } from "../../components/ui/Button";
-import { ActionRow, Card, ExpandRow, LinkRow, PickRow, RowText, ToggleRow, useExpanded } from "../../components/settings/rows";
+import { ActionRow, Card, ExpandRow, LinkRow, PickRow, RowText, useExpanded } from "../../components/settings/rows";
+import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AboutPage() {
-  const prefs = usePrefs();
   const s = useUpdate();
   const expand = useExpanded();
   const { data: version } = useQuery({ queryKey: ["app-version"], queryFn: appVersion, staleTime: Infinity });
@@ -63,12 +62,9 @@ export function AboutPage() {
             )}
           </div>
         </div>
-        <ToggleRow
-          title="Download updates automatically"
-          caption="New versions download in the background. Nothing installs until you restart."
-          checked={prefs.autoDownloadUpdates}
-          onChange={(v) => {
-            setPrefs({ autoDownloadUpdates: v });
+        <SettingRow
+          id="autoDownloadUpdates"
+          onChanged={(v) => {
             if (v && s.phase === "available") void downloadUpdate();
           }}
         />
