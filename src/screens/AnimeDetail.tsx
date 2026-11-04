@@ -31,7 +31,7 @@ import {
   untilAiring,
   useAnimeTitle,
 } from "../lib/anime/format";
-import { useEpisodeFlags } from "../lib/anime/jikan";
+import { useEpisodeFlags } from "../lib/anime/episodeFlags";
 import { rememberFiller } from "../lib/anime/filler";
 import { rememberAltIds } from "../lib/anime/altIds";
 import { useAnimeImdb } from "../lib/anime/search";

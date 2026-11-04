@@ -34,6 +34,9 @@ function changed<T>(value: T): T {
 export const api = {
   /** Opens an https page in the default browser. */
   openExternal: (url: string) => invoke<void>("open_external", { url }),
+  /** The anime episode-flags cache file (fillers.json) and its size. */
+  animeCache: () => invoke<{ path: string; bytes: number }>("anime_cache"),
+  animeCacheClear: () => invoke<void>("anime_cache_clear"),
   catalog: (type: ContentType, id: string, skip = 0, genre?: string) =>
     invoke<MetaPreview[]>("catalog", { ty: type, id, skip, genre }),
   /** Titles like `id`, for "Because you watched …". */

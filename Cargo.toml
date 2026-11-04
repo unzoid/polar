@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/addon", "crates/index", "crates/library", "src-tauri"]
+members = ["crates/addon", "crates/anime", "crates/index", "crates/library", "src-tauri"]
 
 [workspace.package]
 version = "0.17.0"
@@ -9,6 +9,7 @@ license = "MIT"
 
 [workspace.dependencies]
 polar-addon = { path = "crates/addon" }
+polar-anime = { path = "crates/anime" }
 polar-index = { path = "crates/index" }
 polar-library = { path = "crates/library" }
 serde = { version = "1", features = ["derive"] }
