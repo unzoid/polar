@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { cachedLookup } from "../queries";
 import type { MetaPreview } from "../types";
 import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard } from "./anilist";
-import { fetchAniZip } from "./anizip";
+import { airedEpisodes, airsWith, fetchAniZip, type AniZip, type AniZipEpisode } from "./anizip";
 
 /** AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search. */
 export function useAnimeResults(query: string) {
@@ -68,33 +69,94 @@ function byRelevance(items: AnimeCard[], query: string): AnimeCard[] {
     .map((x) => x.a);
 }
 
-/**
- * The IMDb id for an anime ani.zip can't link anywhere (new seasons often
- * have neither an IMDb nor a Kitsu id there yet): Cinemeta's entry with the
- * same title in any of AniList's languages and a year that agrees. Without
- * it the anime page has nothing to play, while the same show is right there
- * as a series.
- */
-export function useImdbFallback(a: AnimeCard, enabled: boolean) {
+/** {@link imdbForAnime} for a page, once ani.zip has answered. */
+export function useAnimeImdb(a: AnimeCard, zip: AniZip | null | undefined) {
+  const qc = useQueryClient();
   return useQuery({
-    queryKey: ["anime", "imdb-fallback", a.id],
-    enabled,
-    staleTime: 24 * 60 * 60_000,
-    queryFn: () => findImdbId(a),
+    queryKey: ["anime", "imdb", a.id],
+    enabled: zip !== undefined,
+    staleTime: 6 * 60 * 60_000,
+    queryFn: () => imdbForAnime(a, zip ?? null, cachedLookup(qc)),
   });
 }
 
-export async function findImdbId(a: AnimeCard): Promise<string | null> {
+/** Where titles and episode lists come from: the app's addons, or a caller's cached copy of them. */
+export type Lookup = { search: typeof api.search; meta: typeof api.meta };
+
+/**
+ * The IMDb show to play an AniList entry from.
+ *
+ * ani.zip links an entry to its TVDB series' IMDb id. Usually that show has
+ * the entry's episodes, but IMDb sometimes lists a later part as a show of
+ * its own: TVDB has Paleblade: Hundred-Night Ash War as season 17 of Paleblade,
+ * IMDb (and so Cinemeta) as a separate show, and Paleblade's episodes stop in
+ * 2012. So when none of the entry's aired episodes are in the linked show,
+ * the show that does have them is looked up by title instead. With no link
+ * at all, the title search is the only way (new seasons often have neither
+ * an IMDb nor a Kitsu id on ani.zip yet).
+ *
+ * Null: nothing to play from IMDb. An entry ani.zip links only to Kitsu
+ * plays by its Kitsu id, so it isn't searched for.
+ */
+export async function imdbForAnime(a: AnimeCard, zip: AniZip | null, lookup: Lookup = api): Promise<string | null> {
+  const linked = zip?.mappings.imdb_id || undefined;
+  if (!linked && zip?.mappings.kitsu_id) return null;
+  const aired = a.format === "MOVIE" ? [] : airedEpisodes(zip);
+  if (linked) {
+    // Nothing aired to check by, or the linked show has it: keep ani.zip's link.
+    if (!aired.length) return linked;
+    const videos = (await lookup.meta("series", linked).catch(() => null))?.videos;
+    if (!videos || aired.some((e) => airsWith(e, videos))) return linked;
+  }
+  return (await findImdbId(a, aired, linked, lookup)) ?? linked ?? null;
+}
+
+/**
+ * Titles to look an entry up by on Cinemeta: its own, then without a part
+ * name ("… - The Parting", "… Part 2", "… 2nd Season"), since IMDb often
+ * keeps a season's parts as one show.
+ */
+export function lookupTitles(a: Pick<AnimeCard, "title">): string[] {
+  const own = [a.title.english, a.title.romaji].filter((t): t is string => !!t);
+  const base = own.map((t) =>
+    t
+      .replace(/\s+[-–—]\s+[^-–—]+$/, "")
+      .replace(/[\s:]+(?:(?:part|cour|season)\s*\d+|\d+(?:st|nd|rd|th)\s+season)$/i, "")
+      .trim(),
+  );
+  return [...new Set([...own, ...base])].filter((t) => norm(t).length > 1);
+}
+
+/**
+ * Cinemeta's show for an anime, by title (any of AniList's, then without a
+ * part name). A series whose episodes have aired must have most of them, by
+ * air date: that's what proves it's the right show, so a title without the
+ * part name or a year that's off (the third part of a show that began two
+ * years earlier) still counts. Otherwise the same title and a year that
+ * agrees. `exclude`: a show already known not to be it.
+ */
+export async function findImdbId(
+  a: AnimeCard,
+  aired: AniZipEpisode[] = [],
+  exclude?: string,
+  lookup: Lookup = api,
+): Promise<string | null> {
   const type = a.format === "MOVIE" ? "movies" : "series";
   const year = a.seasonYear ?? a.startDate?.year ?? undefined;
-  const titles = [...new Set([a.title.english, a.title.romaji].filter((t): t is string => !!t))];
-  for (const t of titles) {
-    const found = (await api.search(t))[type].find((m) => {
-      if (!m.id.startsWith("tt") || norm(m.name) !== norm(t)) return false;
-      const y = Number(m.releaseInfo?.match(/\d{4}/)?.[0]);
-      return !year || !y || Math.abs(y - year) <= 1;
-    });
-    if (found) return found.id;
+  const tried = new Set<string>(exclude ? [exclude] : []);
+  for (const t of lookupTitles(a)) {
+    const named = (await lookup.search(t))[type].filter((m) => m.id.startsWith("tt") && norm(m.name) === norm(t));
+    for (const m of named) {
+      if (tried.has(m.id)) continue;
+      tried.add(m.id);
+      if (type === "series" && aired.length) {
+        const videos = (await lookup.meta("series", m.id).catch(() => null))?.videos ?? [];
+        if (aired.filter((e) => airsWith(e, videos)).length * 2 >= aired.length) return m.id;
+      } else {
+        const y = Number(m.releaseInfo?.match(/\d{4}/)?.[0]);
+        if (!year || !y || Math.abs(y - year) <= 1) return m.id;
+      }
+    }
   }
   return null;
 }

@@ -15,7 +15,7 @@ import { SwapIcon } from "../components/SwapIcon";
 import { openTrailer } from "../components/Trailer";
 import { api } from "../lib/api";
 import { useAnime, useAnimeSeasons, type Anime, type AnimeCard as Card, type AnimeSeason, type RelationType } from "../lib/anime/anilist";
-import { animeArt, aniZipQuery, episodeTitle, matchVideo, regularEpisodes, useAniZip, type AniZipEpisode } from "../lib/anime/anizip";
+import { alignByAirDate, animeArt, aniZipQuery, episodeTitle, matchVideo, regularEpisodes, useAniZip, type AniZipEpisode } from "../lib/anime/anizip";
 import { rememberStill } from "../lib/anime/stills";
 import { rememberAnimeEpisode } from "../lib/anime/aniskip";
 import {
@@ -34,7 +34,7 @@ import {
 import { useEpisodeFlags } from "../lib/anime/jikan";
 import { rememberFiller } from "../lib/anime/filler";
 import { rememberAltIds } from "../lib/anime/altIds";
-import { useImdbFallback } from "../lib/anime/search";
+import { useAnimeImdb } from "../lib/anime/search";
 import { formatTime } from "../lib/format";
 import { setPrefs, usePrefs } from "../lib/prefs";
 import { useLibrary, useMeta, useProgress, useSettings, useToggleLibrary } from "../lib/queries";
@@ -115,10 +115,10 @@ function usePlayback(anime: Card | Anime) {
   const { data: zip } = useAniZip(anime.id);
   const isMovie = anime.format === "MOVIE";
   const kitsu = zip?.mappings.kitsu_id;
-  // ani.zip has it but can't link it (new seasons often): find it on Cinemeta by title.
-  const unlinked = zip !== undefined && !zip?.mappings.imdb_id && !kitsu;
-  const { data: foundImdb } = useImdbFallback(anime, unlinked);
-  const imdb = zip?.mappings.imdb_id ?? foundImdb ?? undefined;
+  // ani.zip's IMDb show, unless its episodes stop before this entry's (then the
+  // show that has them), or the same title on Cinemeta when ani.zip has no link.
+  const { data: foundImdb, isPending: linking } = useAnimeImdb(anime, zip);
+  const imdb = foundImdb ?? undefined;
   // The app's id for this show: its IMDb page, or (for the many with none) its Kitsu id, which the stream addons know.
   const metaId = imdb ?? (kitsu ? `kitsu:${kitsu}` : undefined);
   const { data: meta, isLoading: metaLoading } = useMeta(isMovie ? "movie" : "series", metaId ?? "", !!metaId);
@@ -131,8 +131,10 @@ function usePlayback(anime: Card | Anime) {
     const now = Date.now();
     const videos = meta?.videos ?? [];
     // A Kitsu show's videos are numbered like the anime's; an IMDb one's are matched by air date.
+    // ani.zip's numbers (TVDB's seasons) only apply to the show ani.zip links; another show is lined up by air date.
+    const byImdb = imdb === zip?.mappings.imdb_id ? (e: AniZipEpisode) => matchVideo(e, videos) : alignByAirDate(regularEpisodes(zip), videos);
     const videoFor = (e: AniZipEpisode) =>
-      !videos.length ? undefined : imdb ? matchVideo(e, videos) : videos.find((v) => v.episode === Number(e.episode));
+      !videos.length ? undefined : imdb ? byImdb(e) : videos.find((v) => v.episode === Number(e.episode));
     const fromZip = regularEpisodes(zip).map((e: AniZipEpisode): Ep => {
       const airDate = e.airDateUtc ?? e.airDate ?? e.airdate;
       const video = videoFor(e);
@@ -213,7 +215,9 @@ function usePlayback(anime: Card | Anime) {
     return { ep: playable[0], resumeAt: undefined, kind: "start" as const };
   }, [episodes, byVideo, isMovie, metaId]);
 
-  return { zip, metaId, meta, metaLoading, malId, episodes, byVideo, next, isMovie, done };
+  // Until ani.zip and the link are known, there's nothing to say about sources yet.
+  const loading = zip === undefined || linking;
+  return { zip, loading, metaId, meta, metaLoading, malId, episodes, byVideo, next, isMovie, done };
 }
 
 // --- Hero ---------------------------------------------------------------------
@@ -245,7 +249,7 @@ function Hero({ item, anime, logo, name }: { item: Card; anime?: Anime; logo?: s
     return ep.number === 1 ? "Play First Episode" : `Play Episode ${ep.number}`;
   })();
 
-  const unavailable = !!pb.zip && !pb.metaId ? "Not linked to any sources yet" : !pb.metaLoading && pb.metaId && !target && !pb.isMovie ? "No episodes to play yet" : undefined;
+  const unavailable = !pb.loading && !pb.metaId ? "Not linked to any sources yet" : !pb.metaLoading && pb.metaId && !target && !pb.isMovie ? "No episodes to play yet" : undefined;
   const nativeTitle = prefs.animeTitles === "native" ? item.title.romaji : item.title.native;
   const score = useAnimeScore()(item.averageScore);
   const studio = anime?.studios.edges.find((e) => e.isMain && e.node.isAnimationStudio)?.node.name;
@@ -447,7 +451,7 @@ function Episodes({
   };
 
   if (!list.length) {
-    const empty = <p className="empty t-body muted anime-no-episodes">{pb.zip === undefined ? "Loading episodes…" : "No episodes to play yet."}</p>;
+    const empty = <p className="empty t-body muted anime-no-episodes">{pb.loading || pb.metaLoading ? "Loading episodes…" : "No episodes to play yet."}</p>;
     // A season that hasn't started yet still sits among the others.
     return franchise ? (
       <section className="seasons">
@@ -609,7 +613,10 @@ function SeasonTabs({ franchise: { seasons, active, select } }: { franchise: Fra
 /**
  * Stills for every season's episodes, for the player's episode list
  * (lib/anime/stills.ts): the metadata addon's are missing past season one
- * for most anime. Only entries ani.zip links to this same IMDb show count.
+ * for most anime. Entries ani.zip links to this same IMDb show match as their
+ * episodes do; the others (a part IMDb lists as a show of its own, like
+ * Hundred-Night Ash War next to Paleblade) are lined up by air date, since by
+ * number Paleblade's first episode would take Hundred-Night Ash War's still.
  */
 function useFranchiseStills(ids: number[], metaId: string | undefined, videos: Video[] | undefined) {
   const imdb = metaId?.startsWith("tt") ? metaId : undefined;
@@ -618,9 +625,10 @@ function useFranchiseStills(ids: number[], metaId: string | undefined, videos: V
   useEffect(() => {
     if (!imdb || !videos?.length) return;
     for (const { data: zip } of zips) {
-      if (zip?.mappings.imdb_id !== imdb) continue;
+      if (!zip) continue;
+      const match = zip.mappings.imdb_id === imdb ? (e: AniZipEpisode) => matchVideo(e, videos) : alignByAirDate(regularEpisodes(zip), videos);
       for (const e of regularEpisodes(zip)) {
-        const v = e.image ? matchVideo(e, videos) : undefined;
+        const v = e.image ? match(e) : undefined;
         if (v) rememberStill(v.id, e.image!);
       }
     }
