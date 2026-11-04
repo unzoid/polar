@@ -128,7 +128,7 @@ export function useShownAbove(shelves: Shelf[], top: MetaPreview[]) {
 /** Featured titles: a mix of trending series and movies that have full art. */
 export function useFeatured() {
   return useQuery({
-    queryKey: ["featured"],
+    queryKey: keys.featured,
     queryFn: async () => {
       const [series, movies] = await Promise.all([api.catalog("series", "trending"), api.catalog("movie", "trending")]);
       const pick = (list: MetaPreview[]) => list.filter((m) => m.background && m.description).slice(0, 4);

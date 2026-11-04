@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import type { Video } from "../types";
+import { keys } from "../queryKeys";
 
 /**
  * ani.zip: the bridge between anime databases and everything else. For an
@@ -76,7 +77,7 @@ async function fallback(key: string, value: string, error: unknown): Promise<Ani
 }
 
 export const aniZipQuery = (anilistId: number) => ({
-  queryKey: ["anizip", anilistId],
+  queryKey: keys.aniZip(anilistId),
   queryFn: () => fetchAniZip({ anilist_id: anilistId }),
   staleTime: 6 * 60 * 60_000,
   gcTime: 24 * 60 * 60_000,

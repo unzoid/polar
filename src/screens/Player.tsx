@@ -110,7 +110,7 @@ export function Player({
   const { data: settings } = useSettings();
   // Engine: embedded mpv when installed (plays HEVC/MKV, AC3/DTS audio, every
   // subtitle format), else the WebView's own <video>.
-  const engineQuery = useQuery({ queryKey: ["mpv"], queryFn: api.mpvAvailable, staleTime: Infinity });
+  const engineQuery = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
   const engine: "mpv" | "html" | null = engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
   const mpv = useMemo(() => new MpvMedia(), []);
   // Watch party: signed-in profiles only. Joining the room's video, look for the file it's on.
@@ -201,7 +201,7 @@ export function Player({
   // the API aligns cues to the length of the release being played.
   const durationS = Math.round(time.duration || 0);
   const { data: seekTrack } = useQuery({
-    queryKey: ["seekr", videoId, durationS],
+    queryKey: keys.seekr(videoId, durationS),
     queryFn: () => api.seekPreviews(videoId, durationS * 1000),
     enabled: !!settings?.seekPreviews && !!settings?.seekrKey && durationS > 0,
     staleTime: Infinity,

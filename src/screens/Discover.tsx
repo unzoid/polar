@@ -8,6 +8,7 @@ import { api } from "../lib/api";
 import { BROWSE_GENRES } from "../lib/genres";
 import type { ContentType } from "../lib/types";
 import { EmptyState } from "../components/ui/EmptyState";
+import { keys } from "../lib/queryKeys";
 
 const CATALOGS = [
   { id: "trending", label: "Trending" },
@@ -25,7 +26,7 @@ export function Discover({ type }: { type: ContentType }) {
   const genre = picked && BROWSE_GENRES[type].includes(picked) ? picked : undefined;
 
   const query = useInfiniteQuery({
-    queryKey: ["discover", type, catalog, genre ?? ""],
+    queryKey: keys.discover(type, catalog, genre),
     queryFn: ({ pageParam }) => api.catalog(type, catalog, pageParam, genre),
     initialPageParam: 0,
     getNextPageParam: (last, pages) => (last.length ? pages.flat().length : undefined),

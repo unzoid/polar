@@ -16,7 +16,7 @@ export function AddonsPage() {
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: keys.addons });
-    qc.invalidateQueries({ queryKey: ["streams"] });
+    qc.invalidateQueries({ queryKey: keys.streamsAll });
   };
   const install = useMutation({
     mutationFn: api.installAddon,

@@ -17,6 +17,7 @@ import { applyBindingOverrides, bindingOverrides } from "../keybinds";
 import { getPrefs, setPrefs, SYNCED_PREFS, type Prefs } from "../prefs";
 import type { Settings } from "../types";
 import { AccountError, type AccountBackend } from "./backend";
+import { keys } from "../queryKeys";
 
 /** Settings keys that describe this machine, not the person. */
 const DEVICE_ONLY = new Set<string>(["metadataSource"]);
@@ -84,8 +85,8 @@ async function apply(doc: Doc): Promise<string[]> {
       if (have.has(url)) continue;
       await api.installAddon(url).catch(() => missing.push(url));
     }
-    queryClient.invalidateQueries({ queryKey: ["addons"] });
-    queryClient.invalidateQueries({ queryKey: ["streams"] });
+    queryClient.invalidateQueries({ queryKey: keys.addons });
+    queryClient.invalidateQueries({ queryKey: keys.streamsAll });
     return missing;
   } finally {
     applying = false;

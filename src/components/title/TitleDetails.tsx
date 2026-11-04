@@ -12,6 +12,7 @@ import { ArrowUpRight } from "../icons";
 import { Img } from "../Img";
 import { imdbUrl } from "../RatingRing";
 import { Chip } from "../ui/Chip";
+import { keys } from "../../lib/queryKeys";
 
 /**
  * Everything about a title below the fold: what critics and audiences
@@ -264,7 +265,7 @@ const Splat = () => (
 export function FormatBadges({ type, videoId }: { type: ContentType; videoId?: string }) {
   const { data: streams } = useStreams(type, videoId);
   const { data: subs } = useQuery({
-    queryKey: ["subtitles", type, videoId],
+    queryKey: keys.subtitles(type, videoId),
     queryFn: () => api.subtitles(type, videoId!),
     enabled: !!videoId,
     staleTime: 60 * 60_000,

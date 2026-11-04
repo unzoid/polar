@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { keys } from "./queryKeys";
 
 /**
  * A face for a cast member the metadata source gave no photo for (no TMDB key,
@@ -16,7 +17,7 @@ async function fetchPersonPhoto(name: string): Promise<string | null> {
 
 export function usePersonPhoto(name: string, enabled: boolean) {
   return useQuery({
-    queryKey: ["person-photo", name],
+    queryKey: keys.personPhoto(name),
     queryFn: () => fetchPersonPhoto(name),
     enabled,
     staleTime: 7 * 24 * 60 * 60_000,

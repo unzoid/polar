@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import type { Meta } from "./types";
+import { keys } from "./queryKeys";
 
 /** A trailer as a file the app plays itself (IMDb's CDN, up to 1080p). */
 export interface FileTrailer {
@@ -16,7 +17,7 @@ export interface FileTrailer {
  */
 export function useFileTrailer(imdbId: string | undefined, enabled = true) {
   return useQuery({
-    queryKey: ["trailer", imdbId],
+    queryKey: keys.trailer(imdbId),
     queryFn: () => invoke<FileTrailer | null>("trailer", { imdbId }).catch(() => null),
     enabled: enabled && !!imdbId?.startsWith("tt"),
     staleTime: 6 * 60 * 60_000,

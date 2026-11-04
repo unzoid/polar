@@ -6,6 +6,7 @@ import { aniSkipSegments } from "../../lib/anime/aniskip";
 import { withShortcut } from "../../lib/keybinds";
 import type { SkipSegments, Span } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvChapter } from "./mpvMedia";
+import { keys } from "../../lib/queryKeys";
 
 export interface ActiveSkip {
   kind: "intro" | "recap" | "credits";
@@ -44,7 +45,7 @@ export function useSkipSegments({
   onAutoSkipped: (label: string) => void;
 }) {
   const { data: online } = useQuery({
-    queryKey: ["skip-segments", videoId],
+    queryKey: keys.skipSegments(videoId),
     queryFn: async () => {
       const introDb = await api.skipSegments(videoId).catch(() => undefined);
       // Anime: AniSkip fills whatever IntroDB doesn't know (it rarely knows anime).

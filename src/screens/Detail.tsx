@@ -29,6 +29,7 @@ import { IconButton } from "../components/ui/Button";
 import { TitleActions } from "../components/title/TitleActions";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
+import { keys } from "../lib/queryKeys";
 
 /**
  * An anime reached by its IMDb id (Search, Library, Continue Watching) opens
@@ -40,7 +41,7 @@ function useAnimeRedirect(id: string, item: MetaPreview | undefined) {
   const animated = !!item?.genres?.some((g) => /^anim(e|ation)$/i.test(g));
   const year = Number(item?.releaseInfo?.match(/\d{4}/)?.[0]) || undefined;
   const { data: anilist } = useQuery({
-    queryKey: ["anime", "for-imdb", id],
+    queryKey: keys.anime.forImdb(id),
     queryFn: () => anilistForImdb(id, { type: item!.type, name: item!.name, year }),
     enabled: animeEnabled && animated && id.startsWith("tt"),
     staleTime: Infinity,

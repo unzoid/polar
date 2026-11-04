@@ -15,6 +15,7 @@ import { useSearchText } from "../lib/searchQuery";
 import { addRecentSearch } from "../lib/recentSearches";
 import type { ContentType, MetaPreview } from "../lib/types";
 import { EmptyState } from "../components/ui/EmptyState";
+import { keys } from "../lib/queryKeys";
 
 /**
  * Results for whatever is typed in the navbar's search field, one row per
@@ -66,7 +67,7 @@ export function Search() {
 
 function GenreRow({ type, genre }: { type: ContentType; genre: string }) {
   const { data } = useQuery({
-    queryKey: ["discover", type, "popular", genre],
+    queryKey: keys.genreRow(type, genre),
     queryFn: () => api.catalog(type, "popular", 0, genre),
     staleTime: 30 * 60_000,
   });
