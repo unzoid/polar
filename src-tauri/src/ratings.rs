@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::locks::Locked;
+
 /// Scores move slowly; a few hours keeps revisits free and the free tiers' daily limits safe.
 const TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
@@ -78,7 +80,7 @@ impl RatingsClient {
             return Ratings::default();
         }
         let key = format!("{imdb_id}/{}/{}", mdblist.is_some(), omdb.is_some());
-        if let Some((at, hit)) = self.cache.lock().unwrap().get(&key) {
+        if let Some((at, hit)) = self.cache.locked().get(&key) {
             if at.elapsed() < TTL {
                 return hit.clone();
             }
@@ -101,7 +103,7 @@ impl RatingsClient {
         if let Some(b) = b {
             out.fill_from(b);
         }
-        self.cache.lock().unwrap().insert(key, (Instant::now(), out.clone()));
+        self.cache.locked().insert(key, (Instant::now(), out.clone()));
         out
     }
 

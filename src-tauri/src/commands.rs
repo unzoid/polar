@@ -12,6 +12,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::downloads::Downloads;
+use crate::locks::{Locked, ReadWrite};
 use crate::store::{now, InstalledAddon, LibraryItem, Progress, Settings};
 use crate::AppState;
 
@@ -182,7 +183,7 @@ pub async fn streams(
     // An addon that answered for one of the ids isn't "failed" because it timed out on another.
     failed.retain(|n| !answered.contains(n));
     failed.dedup();
-    let filter = state.store.lock().unwrap().data.settings.stream_filter(&ty);
+    let filter = state.store.locked().data.settings.stream_filter(&ty);
     let (streams, hidden) = rank_streams_filtered(all, &filter);
     Ok(StreamsResult { streams, failed, hidden })
 }
@@ -230,7 +231,7 @@ pub fn resolve(stream: Stream) -> Playable {
 // --- Addons --------------------------------------------------------------
 
 fn installed(state: &State<'_, AppState>) -> Vec<InstalledAddon> {
-    state.store.lock().unwrap().data.addons.clone()
+    state.store.locked().data.addons.clone()
 }
 
 #[tauri::command]
@@ -269,7 +270,7 @@ pub fn addon_remove(state: State<'_, AppState>, id: String) -> Result<()> {
 
 #[tauri::command]
 pub fn library_list(state: State<'_, AppState>) -> Vec<LibraryItem> {
-    let store = state.store.lock().unwrap();
+    let store = state.store.locked();
     store.data.space().map(|s| s.library_list()).unwrap_or_default()
 }
 
@@ -287,7 +288,7 @@ pub fn library_toggle(state: State<'_, AppState>, item: MetaPreview) -> Result<b
 /// any of its ids.
 #[tauri::command]
 pub fn progress_for(state: State<'_, AppState>, meta_id: String) -> Vec<Progress> {
-    let store = state.store.lock().unwrap();
+    let store = state.store.locked();
     store.data.space().map(|s| s.progress_for(&meta_id)).unwrap_or_default()
 }
 
@@ -306,7 +307,7 @@ pub fn progress_save_many(state: State<'_, AppState>, progress: Vec<Progress>) -
 /// Latest unfinished video per title, newest first.
 #[tauri::command]
 pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
-    let store = state.store.lock().unwrap();
+    let store = state.store.locked();
     let watched = store.data.settings.watched_fraction();
     store.data.space().map(|s| s.continue_watching(watched)).unwrap_or_default()
 }
@@ -315,7 +316,7 @@ pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
 /// under way — newest first. The Library's "Watched" shelf.
 #[tauri::command]
 pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
-    let store = state.store.lock().unwrap();
+    let store = state.store.locked();
     let watched = store.data.settings.watched_fraction();
     store.data.space().map(|s| s.watch_history(watched)).unwrap_or_default()
 }
@@ -331,7 +332,7 @@ pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<boo
         return Err(CmdError::Unsupported(format!("not a title id Polar keys by: {}", link.canonical)));
     }
     let known = {
-        let store = state.store.lock().unwrap();
+        let store = state.store.locked();
         store.data.space().and_then(|s| s.links.get(&link.anilist)).is_some_and(|old| old.same_target(&link))
     };
     if known {
@@ -346,7 +347,7 @@ pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<boo
 /// The anime links of the active space.
 #[tauri::command]
 pub fn anime_links(state: State<'_, AppState>) -> Vec<AnimeLink> {
-    let store = state.store.lock().unwrap();
+    let store = state.store.locked();
     store.data.space().map(|s| s.links.values().cloned().collect()).unwrap_or_default()
 }
 
@@ -356,7 +357,7 @@ pub fn anime_links(state: State<'_, AppState>) -> Vec<AnimeLink> {
 /// then last only until the app quits, and the app says so (critique C1).
 #[tauri::command]
 pub fn store_problem(state: State<'_, AppState>, downloads: State<'_, Arc<Downloads>>) -> Option<String> {
-    let store = state.store.lock().unwrap().problem().map(str::to_owned);
+    let store = state.store.locked().problem().map(str::to_owned);
     store.or_else(|| downloads.problem().map(str::to_owned))
 }
 
@@ -370,18 +371,18 @@ pub struct SettingsView {
 
 #[tauri::command]
 pub fn settings_get(state: State<'_, AppState>) -> SettingsView {
-    let settings = state.store.lock().unwrap().data.settings.clone();
+    let settings = state.store.locked().data.settings.clone();
     SettingsView { settings, metadata_source: state.indexer().source() }
 }
 
 #[tauri::command]
 pub fn settings_set(state: State<'_, AppState>, settings: Settings) -> Result<SettingsView> {
     let rebuild = {
-        let store = state.store.lock().unwrap();
+        let store = state.store.locked();
         store.data.settings.tmdb_key != settings.tmdb_key || store.data.settings.language != settings.language
     };
     if rebuild {
-        *state.indexer.write().unwrap() = Arc::new(Indexer::new(crate::index_config(&settings)));
+        *state.indexer.writing() = Arc::new(Indexer::new(crate::index_config(&settings)));
     }
     let next = settings.clone();
     state.persist(|d| d.settings = next)?;
@@ -392,7 +393,7 @@ pub fn settings_set(state: State<'_, AppState>, settings: Settings) -> Result<Se
 /// keys and the metadata language.
 #[tauri::command]
 pub fn settings_reset(state: State<'_, AppState>) -> Result<SettingsView> {
-    let current = state.store.lock().unwrap().data.settings.clone();
+    let current = state.store.locked().data.settings.clone();
     let fresh = Settings {
         tmdb_key: current.tmdb_key,
         seekr_key: current.seekr_key,
@@ -454,7 +455,7 @@ pub async fn seek_previews(
     duration_ms: u64,
 ) -> Result<Option<crate::seekr::PreviewTrack>> {
     let key = {
-        let settings = &state.store.lock().unwrap().data.settings;
+        let settings = &state.store.locked().data.settings;
         settings.seekr_key.clone().filter(|k| settings.seek_previews && !k.trim().is_empty())
     };
     let Some(key) = key else { return Ok(None) };
@@ -482,7 +483,7 @@ pub async fn skip_segments(state: State<'_, AppState>, video_id: String) -> Resu
 #[tauri::command]
 pub async fn ratings(state: State<'_, AppState>, ty: String, id: String) -> Result<crate::ratings::Ratings> {
     let (mdblist, omdb) = {
-        let s = &state.store.lock().unwrap().data.settings;
+        let s = &state.store.locked().data.settings;
         let key = |k: &Option<String>| k.as_deref().map(str::trim).filter(|k| !k.is_empty()).map(str::to_owned);
         (key(&s.mdblist_key), key(&s.omdb_key))
     };

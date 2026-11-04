@@ -15,6 +15,8 @@ use gilrs::{EventType, Gilrs};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::locks::Locked;
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Controller {
@@ -48,7 +50,7 @@ pub fn watch(app: AppHandle) {
             };
             let state = app.state::<Controllers>();
             let initial: Vec<Controller> = gilrs.gamepads().map(|(id, _)| info(&gilrs, id)).collect();
-            *state.connected.lock().unwrap() = Some(initial);
+            *state.connected.locked() = Some(initial);
 
             loop {
                 // Blocking with a timeout keeps the thread asleep between events.
@@ -56,7 +58,7 @@ pub fn watch(app: AppHandle) {
                     match ev.event {
                         EventType::Connected => {
                             let c = info(&gilrs, ev.id);
-                            let mut list = state.connected.lock().unwrap();
+                            let mut list = state.connected.locked();
                             let list = list.get_or_insert_with(Vec::new);
                             list.retain(|x| x.id != c.id);
                             list.push(c.clone());
@@ -64,7 +66,7 @@ pub fn watch(app: AppHandle) {
                         }
                         EventType::Disconnected => {
                             let c = info(&gilrs, ev.id);
-                            if let Some(list) = state.connected.lock().unwrap().as_mut() {
+                            if let Some(list) = state.connected.locked().as_mut() {
                                 list.retain(|x| x.id != c.id);
                             }
                             let _ = app.emit("controller-disconnected", c);
@@ -80,5 +82,5 @@ pub fn watch(app: AppHandle) {
 /// Controllers connected right now; `None` if native detection isn't running.
 #[tauri::command]
 pub fn controllers_list(state: State<'_, Controllers>) -> Option<Vec<Controller>> {
-    state.connected.lock().unwrap().clone()
+    state.connected.locked().clone()
 }

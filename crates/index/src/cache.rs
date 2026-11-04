@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 /// Small TTL cache. Metadata changes slowly; the point is that revisiting a
@@ -17,13 +17,13 @@ impl<K: Eq + Hash + Clone, V: Clone> TtlCache<K, V> {
     }
 
     pub fn get(&self, key: &K) -> Option<V> {
-        let entries = self.entries.lock().unwrap();
+        let entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
         let (at, value) = entries.get(key)?;
         (at.elapsed() < self.ttl).then(|| value.clone())
     }
 
     pub fn insert(&self, key: K, value: V) {
-        let mut entries = self.entries.lock().unwrap();
+        let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
         if entries.len() >= self.capacity {
             // Drop expired entries first, then the oldest if still full.
             let ttl = self.ttl;

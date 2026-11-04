@@ -14,6 +14,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::locks::Locked;
+
 const API: &str = "https://api.seekr.tv";
 
 #[derive(Debug, Clone, Serialize)]
@@ -74,7 +76,7 @@ impl Seekr {
     /// `video_id` is a movie `tt…` or an episode `tt…:season:episode`.
     pub async fn track(&self, key: &str, video_id: &str, duration_ms: u64) -> Result<Option<PreviewTrack>, String> {
         let cache_key = format!("{video_id}@{}", duration_ms / 1000);
-        if let Some(hit) = self.cache.lock().unwrap().get(&cache_key) {
+        if let Some(hit) = self.cache.locked().get(&cache_key) {
             return Ok(hit.clone());
         }
 
@@ -120,7 +122,7 @@ impl Seekr {
             }
             _ => None, // 404 etc.: this title simply has no previews
         };
-        self.cache.lock().unwrap().insert(cache_key, track.clone());
+        self.cache.locked().insert(cache_key, track.clone());
         Ok(track)
     }
 

@@ -137,6 +137,8 @@ Done in the same migration, so the server is changed once:
 - **M1** Keys redacted from errors (the probe's redaction reused). **M13** body size caps.
   **M14** `tracing`-style logging to a rotating file (only `log` + an existing writer if it needs no new
   crate; otherwise asked). **M17** `Mutex` unwraps replaced by a poison-tolerant helper.
+  M17 done: `src-tauri/src/locks.rs` (`locked()`, `reading()`, `writing()`) everywhere outside tests, and the
+  index cache the same way; the `expect("http client")` constructors are left (a TLS init failure at launch).
 - **M2 / M20** Capabilities and CSP narrowed to what the commands use. **M19** proxy headers on playback.
 - **L18** `player.rs` split into `ipc.rs`, `autocrop.rs`, `snapshot.rs`, tests in their own module.
 

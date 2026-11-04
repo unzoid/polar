@@ -3,6 +3,7 @@ mod controllers;
 mod downloads;
 mod imdb;
 mod introdb;
+mod locks;
 mod player;
 mod ratings;
 mod seekr;
@@ -17,6 +18,8 @@ use polar_addon::AddonClient;
 use polar_index::{IndexConfig, Indexer};
 use polar_library::saver::{write_atomic, Saver};
 use tauri::Manager;
+
+use crate::locks::{Locked, ReadWrite};
 
 pub struct AppState {
     /// Swapped wholesale when the TMDB key changes.
@@ -38,7 +41,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn indexer(&self) -> Arc<Indexer> {
-        self.indexer.read().unwrap().clone()
+        self.indexer.reading().clone()
     }
 
     /// Changes the store and has it written within [`SAVE_DELAY`]. The change
@@ -46,7 +49,7 @@ impl AppState {
     /// (read-only session, or the last write failed).
     pub fn persist(&self, f: impl FnOnce(&mut store::Data)) -> commands::Result<()> {
         let problem = {
-            let mut store = self.store.lock().unwrap();
+            let mut store = self.store.locked();
             f(&mut store.data);
             store.problem().map(str::to_owned)
         };
@@ -71,7 +74,7 @@ fn store_saver(store: Arc<Mutex<store::Store>>) -> Saver {
     Saver::spawn(SAVE_DELAY, move || {
         let (path, bytes) = {
             // A panic elsewhere mid-change still leaves data worth keeping.
-            let store = store.lock().unwrap_or_else(|e| e.into_inner());
+            let store = store.locked();
             (store.path().to_owned(), store.encode()?)
         };
         write_atomic(&path, &bytes).map_err(|e| e.to_string())
@@ -108,7 +111,7 @@ const BUNDLED_ADDONS: &[&str] = &["https://opensubtitles-v3.strem.io/manifest.js
 async fn install_bundled_addons(app: tauri::AppHandle) {
     let state = app.state::<AppState>();
     let pending: Vec<&str> = {
-        let store = state.store.lock().unwrap();
+        let store = state.store.locked();
         BUNDLED_ADDONS.iter().copied().filter(|url| !store.data.bundled_addons.iter().any(|u| u == url)).collect()
     };
     for url in pending {
@@ -138,7 +141,7 @@ pub fn run() {
             downloads::manage(app.handle(), &dir);
             let store = Arc::new(Mutex::new(store::Store::load(path)));
             let cache = app.path().app_cache_dir()?;
-            let indexer = Indexer::new(index_config(&store.lock().unwrap().data.settings));
+            let indexer = Indexer::new(index_config(&store.locked().data.settings));
             app.manage(AppState {
                 indexer: RwLock::new(Arc::new(indexer)),
                 addons: AddonClient::new(),
