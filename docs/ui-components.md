@@ -381,8 +381,12 @@ code draws, not what's on screen.
    `.anime-episode-search`, `.srcf-chiprow-search`, `.shortcut-search`). The overlay uses `look="plain"` and
    draws its box in `.t3s-search`. Every field now has the clear button and Esc-clears-first (written once
    instead of 3×; listed in `docs/unverified.md`). Not yet: the NavBar field (opens out of an icon, Esc
-   clears then blurs, suggestions under it: `expandable` later), `TextField` for `.settings-input` and the
-   account inputs.
+   clears then blurs, suggestions under it: `expandable` later).
+   `components/ui/TextField.tsx` (`value`, `onChange(string)`, native input props): the nine `.settings-input`
+   fields (Settings forms and keys, the new-playlist name), class renamed `.text-field`, CSS moved from
+   `screens.css` to `styles/ui/text-field.css`; the built CSS is the same rules with the new name. Not yet: the
+   account inputs (`.auth-input`, `.auth-field input`, `.profile-editor-name`), `.playlist-name-input`,
+   `.party-join-input`.
 4. **Title parts:** `useTitlePlayback`, `TitleActions`, `LibraryButton`, `SourcePicker`, `SeasonPicker`,
    `Card`, `Shelf`, `PosterGrid` (with T-008: the `AnimeDetail` split and H14).
 5. **Settings schema** with `components/settings/`, TV rendering the same schema (with T-008: H15, M26, M27).

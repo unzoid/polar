@@ -503,14 +503,14 @@
   border-color: var(--t3-primary);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--t3-primary) 24%, transparent);
 }
-.t3s .settings-input {
+.t3s .text-field {
   height: 2rem;
   border-color: var(--t3-input);
   border-radius: 10px;
   background: transparent;
   font-size: 15px;
 }
-.t3s .settings-input:focus {
+.t3s .text-field:focus {
   border-color: var(--t3-primary);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--t3-primary) 24%, transparent);
 }
