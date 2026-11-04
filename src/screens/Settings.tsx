@@ -40,6 +40,7 @@ import { keys, useAddons, useSettings, useUpdateSettings } from "../lib/queries"
 import type { Settings as SettingsT } from "../lib/types";
 import { ShortcutSettings } from "../components/ShortcutSettings";
 import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../lib/anime/shelves";
+import { preferredGroups } from "../lib/anime/groups";
 import { resetPrefs, setPrefs, usePrefs } from "../lib/prefs";
 import { clearRecentSearches } from "../lib/recentSearches";
 import { playSound, SOUND_PACKS } from "../tv/sounds";
@@ -1136,6 +1137,10 @@ function BrowsingPage() {
 function AnimePage() {
   const prefs = usePrefs();
   const shelfVisible = useShelfVisible();
+  const [groups, setGroups] = useState(prefs.animePreferredGroups);
+  useEffect(() => setGroups(prefs.animePreferredGroups), [prefs.animePreferredGroups]);
+  // Saved tidy: one ", " between groups, so the box shows what's in effect.
+  const tidyGroups = preferredGroups(groups).join(", ");
   const section = (
     <Card footer={prefs.animeEnabled ? undefined : "Your watch history and saved titles stay as they are."}>
       <ToggleRow
@@ -1240,6 +1245,31 @@ function AnimePage() {
           checked={prefs.animeSpoilerTags}
           onChange={(v) => setPrefs({ animeSpoilerTags: v })}
         />
+      </Card>
+      <Card
+        title="Preferred Release Groups"
+        footer="Their sources go to the top of an anime's source list and are what autoplay picks first, in the order you list them. Separate with commas. Filters and other sorts still apply."
+      >
+        <form
+          className="settings-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPrefs({ animePreferredGroups: tidyGroups });
+            setGroups(tidyGroups);
+          }}
+        >
+          <input
+            className="settings-input"
+            placeholder="Group A, Group B"
+            value={groups}
+            onChange={(e) => setGroups(e.target.value)}
+            spellCheck={false}
+            aria-label="Preferred release groups"
+          />
+          <button className="btn btn-primary" disabled={tidyGroups === prefs.animePreferredGroups}>
+            Save
+          </button>
+        </form>
       </Card>
     </>
   );

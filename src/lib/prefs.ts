@@ -87,6 +87,8 @@ export interface Prefs {
   animeSpoilerTags: boolean;
   /** Leave 4K sources out for anime: nearly all are AI upscales of a 1080p master. */
   animeNo4k: boolean;
+  /** Release groups whose anime sources go to the top, comma-separated, most preferred first (lib/anime/groups.ts). */
+  animePreferredGroups: string;
 }
 
 const DEFAULTS: Prefs = {
@@ -127,6 +129,7 @@ const DEFAULTS: Prefs = {
   animeSkipFiller: false,
   animeSpoilerTags: false,
   animeNo4k: true,
+  animePreferredGroups: "",
 };
 
 const STORAGE = "polar.prefs";
@@ -160,6 +163,7 @@ export const SYNCED_PREFS = [
   "animeSkipFiller",
   "animeSpoilerTags",
   "animeNo4k",
+  "animePreferredGroups",
 ] as const satisfies readonly (keyof Prefs)[];
 
 export function setPrefs(patch: Partial<Prefs>, { quiet = false } = {}) {
