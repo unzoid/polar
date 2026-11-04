@@ -1,26 +1,17 @@
-import { QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { api } from "./api";
 import { sync } from "./account/sync";
-import { fetchAniZip } from "./anime/anizip";
+import { aniZipLookup } from "./anime/anizip";
 import { groupBoost, preferredGroups } from "./anime/groups";
 import { isKitsuId } from "./anime/kitsu";
 import { usePrefs } from "./prefs";
 import { keys } from "./queryKeys";
+import { queryClient } from "./queryClient";
 import type { ContentType, MetaPreview, Progress, Settings, StreamsResult } from "./types";
 
 export { keys };
-
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60_000,
-      gcTime: 30 * 60_000,
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
+export { queryClient };
 
 /** `enabled` lets off-screen shelves wait until they're about to be seen. */
 export const useCatalog = (type: ContentType, id: string, genre?: string, enabled = true) =>
@@ -77,11 +68,10 @@ export function useStreams(type: ContentType, videoId: string | undefined) {
 function useIsAnime(videoId: string | undefined) {
   const imdb = videoId?.startsWith("tt") ? videoId.split(":")[0] : undefined;
   const { data: anime } = useQuery({
-    queryKey: keys.isAnime(imdb),
-    queryFn: async () => !!(await fetchAniZip({ imdb_id: imdb! })),
+    ...aniZipLookup({ imdb_id: imdb ?? "" }),
+    select: (zip) => !!zip,
     enabled: !!imdb,
     staleTime: 24 * 60 * 60_000,
-    gcTime: 24 * 60 * 60_000,
   });
   return !!videoId && (isKitsuId(videoId) || !!anime);
 }

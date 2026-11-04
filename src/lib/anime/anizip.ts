@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import type { Video } from "../types";
 import { keys } from "../queryKeys";
+import { queryClient } from "../queryClient";
+import { aniZipLimiter, limitedFetch } from "../net/limiter";
 
 /**
  * ani.zip: the bridge between anime databases and everything else. For an
@@ -55,17 +57,21 @@ export interface AniZip {
  * be reached, the ids alone from Fribb/anime-lists (kept by the app,
  * crates/anime/src/anime_lists.rs), with no episodes or images.
  */
-export async function fetchAniZip(params: { anilist_id: number } | { imdb_id: string } | { kitsu_id: number }): Promise<AniZip | null> {
+type AniZipParams = { anilist_id: number } | { imdb_id: string } | { kitsu_id: number };
+
+async function fetchAniZip(params: AniZipParams, signal?: AbortSignal): Promise<AniZip | null> {
   const [k, v] = Object.entries(params)[0];
   let res: Response;
   try {
-    res = await fetch(`https://api.ani.zip/mappings?${k}=${encodeURIComponent(String(v))}`);
+    res = await limitedFetch(aniZipLimiter, `https://api.ani.zip/mappings?${k}=${encodeURIComponent(String(v))}`, { signal });
   } catch (e) {
+    if (signal?.aborted) throw e;
     return fallback(k, String(v), e);
   }
   if (res.status === 404) return null;
   if (!res.ok) return fallback(k, String(v), new Error(`ani.zip answered ${res.status}`));
-  const json = (await res.json()) as AniZip;
+  const json = (await res.json().catch(() => undefined)) as AniZip | null | undefined;
+  if (json === undefined) return fallback(k, String(v), new Error("ani.zip answered with something that isn't JSON"));
   return json?.mappings ? json : null;
 }
 
@@ -76,13 +82,20 @@ async function fallback(key: string, value: string, error: unknown): Promise<Ani
   return { mappings, episodes: {} };
 }
 
-export const aniZipQuery = (anilistId: number) => ({
-  queryKey: keys.aniZip(anilistId),
-  queryFn: () => fetchAniZip({ anilist_id: anilistId }),
+/** The query for one ani.zip record: every lookup goes through the cache, so a show is asked for once. */
+export const aniZipLookup = (params: AniZipParams) => ({
+  queryKey:
+    "anilist_id" in params ? keys.aniZip(params.anilist_id) : "imdb_id" in params ? keys.aniZipImdb(params.imdb_id) : keys.aniZipKitsu(params.kitsu_id),
+  queryFn: ({ signal }: { signal?: AbortSignal }) => fetchAniZip(params, signal),
   staleTime: 6 * 60 * 60_000,
   gcTime: 24 * 60 * 60_000,
   retry: 1,
 });
+
+export const aniZipQuery = (anilistId: number) => aniZipLookup({ anilist_id: anilistId });
+
+/** ani.zip's record (or null) through the query cache, outside a component. */
+export const cachedAniZip = (params: AniZipParams) => queryClient.fetchQuery(aniZipLookup(params));
 
 export function useAniZip(anilistId: number, enabled = true) {
   return useQuery({ ...aniZipQuery(anilistId), enabled });

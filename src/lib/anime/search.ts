@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { cachedLookup } from "../queries";
 import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard } from "./anilist";
-import { airedEpisodes, airsWith, fetchAniZip, type AniZip, type AniZipEpisode } from "./anizip";
+import { airedEpisodes, airsWith, cachedAniZip, type AniZip, type AniZipEpisode } from "./anizip";
 import { norm } from "./merge";
 import { keys } from "../queryKeys";
 
@@ -174,7 +174,7 @@ const MAIN_FORMATS = { series: ["TV", "TV_SHORT", "ONA"], movie: ["MOVIE"] } as 
  * a plain series or movie.
  */
 export async function anilistForImdb(imdbId: string, title: { type: string; name: string; year?: number }): Promise<number | null> {
-  const zip = await fetchAniZip({ imdb_id: imdbId });
+  const zip = await cachedAniZip({ imdb_id: imdbId });
   const id = zip?.mappings.anilist_id;
   if (!id) return null;
   const formats: readonly string[] = title.type === "movie" ? MAIN_FORMATS.movie : MAIN_FORMATS.series;
@@ -190,7 +190,7 @@ export async function anilistForImdb(imdbId: string, title: { type: string; name
     (a, b) => Number(a.startDate?.year !== title.year) - Number(b.startDate?.year !== title.year),
   );
   for (const c of candidates.slice(0, 3)) {
-    const z = await fetchAniZip({ anilist_id: c.id }).catch(() => null);
+    const z = await cachedAniZip({ anilist_id: c.id }).catch(() => null);
     if (z?.mappings.imdb_id === imdbId) return c.id;
   }
   return null;

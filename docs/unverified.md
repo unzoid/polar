@@ -233,3 +233,13 @@ How to check, with a TMDB key set in Settings:
   Try Again signs out; sign back in on another device: both changes are there. Repeat offline and choose Sign
   Out Anyway: you are signed out. The dialog also opens from the "Who's watching?" screen's Sign Out; on TV
   check that the controller can reach its three buttons.
+- AniList and ani.zip request budget (rewrite R3, critique M10; `lib/net/limiter.ts`, tested with a fake
+  clock): every AniList request now shares one budget (10 at once, then 20 a minute, raised to the limit
+  AniList reports in `X-RateLimit-Limit` less 10 if the webview may read that header), ani.zip another (20,
+  then 120 a minute). A 429 holds all requests to that host for its Retry-After (at most 60 s for AniList,
+  30 s for ani.zip, 60 s/5 s when absent) and is retried once. Every ani.zip lookup now goes through the query
+  cache (one request per show, shared by search, AniSkip, Kitsu titles, the stream filter and TV), and a query
+  nobody needs any more stops waiting. Neither host is reachable from the dev machine. To check: open Anime,
+  then a long franchise (more than ten entries): the seasons row still fills (more slowly past 10 hops: about one
+  hop every 3 s while AniList is at 30 a minute); scroll every genre shelf; no "AniList answered 429" error
+  appears. In the dev tools' Network tab, opening the same anime twice asks ani.zip once.
