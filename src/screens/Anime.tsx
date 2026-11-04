@@ -5,8 +5,7 @@ import { Dropdown } from "../components/Dropdown";
 import { Calendar, Close, Filters, Grid, Play } from "../components/icons";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
-import { CardSkeleton } from "../components/title/Card";
-import { Row } from "../components/Row";
+import { Shelf } from "../components/title/Shelf";
 import { PosterGrid } from "../components/title/PosterGrid";
 import { Sheet } from "../components/Sheet";
 import {
@@ -86,15 +85,19 @@ export function Anime() {
   const genres = visible("genres");
   // Today's airings sit below the first shelves: a schedule, not a headline.
   const todayAt = Math.min(2, on.length);
+  const airing = today.slots?.map((s) => s.media);
   const todayRow = showToday && (
-    <Row key="today" title="Airing Today" shape="landscape">
-      {today.slots
-        ? forShape(today.slots.map((s) => s.media), "landscape").map((m) => {
-            const s = today.slots!.find((x) => x.media.id === m.id)!;
-            return <AnimeLandscapeCard key={s.id} item={m} label={slotLabel(s)} />;
-          })
-        : Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} shape="landscape" />)}
-    </Row>
+    <Shelf
+      key="today"
+      title="Airing Today"
+      shape="landscape"
+      items={airing && forShape(airing, "landscape")}
+      skeletons={6}
+      card={(m) => {
+        const s = today.slots!.find((x) => x.media.id === m.id)!;
+        return <AnimeLandscapeCard key={s.id} item={m} label={slotLabel(s)} />;
+      }}
+    />
   );
 
   return (
@@ -117,10 +120,7 @@ export function Anime() {
       )}
       <AnimeNav />
       <div className="rows home-rows">
-        {on.map((s, i) => [
-          i === todayAt && todayRow,
-          <Shelf key={s.id} title={s.title} shape={s.shape} items={s.items} label={s.label} />,
-        ])}
+        {on.map((s, i) => [i === todayAt && todayRow, <AnimeShelf key={s.id} title={s.title} shape={s.shape} items={s.items} label={s.label} />])}
         {todayAt === on.length && todayRow}
         {genres && ANIME_GENRES.map((g, i) => <GenreShelf key={g} genre={g} shape={i % 3 === 0 ? "landscape" : "poster"} />)}
       </div>
@@ -219,7 +219,7 @@ function forShape(items: Card[], shape: Shape) {
   return banners.length >= 6 ? banners : items;
 }
 
-function Shelf({
+function AnimeShelf({
   title,
   shape,
   items,
@@ -234,11 +234,7 @@ function Shelf({
 }) {
   const C = shape === "landscape" ? AnimeLandscapeCard : AnimeCard;
   return (
-    <Row title={title} shape={shape} action={action}>
-      {items
-        ? forShape(items, shape).map((a) => <C key={a.id} item={a} label={label?.(a)} />)
-        : Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} shape={shape} />)}
-    </Row>
+    <Shelf title={title} shape={shape} action={action} items={items && forShape(items, shape)} card={(a) => <C key={a.id} item={a} label={label?.(a)} />} />
   );
 }
 
@@ -248,7 +244,7 @@ function GenreShelf({ genre, shape, action }: { genre: string; shape: Shape; act
   const { data } = useAnimeGenre(genre, near);
   return (
     <div ref={ref}>
-      <Shelf title={genre} shape={shape} items={data} action={action} />
+      <AnimeShelf title={genre} shape={shape} items={data} action={action} />
     </div>
   );
 }

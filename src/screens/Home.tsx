@@ -5,7 +5,8 @@ import { ChevronRight, Play } from "../components/icons";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
 import { LandscapeCard, PosterCard, useIntent } from "../components/PosterCard";
-import { ArtTitle, Card, CardSkeleton, ProgressBar } from "../components/title/Card";
+import { ArtTitle, Card, ProgressBar } from "../components/title/Card";
+import { Shelf } from "../components/title/Shelf";
 import { Row } from "../components/Row";
 import { api } from "../lib/api";
 import { episodeCode, formatRemaining } from "../lib/format";
@@ -20,7 +21,7 @@ import {
 import { prefersReducedMotion } from "../lib/reducedMotion";
 import { useNearViewport } from "../lib/viewport";
 import { useRouter } from "../lib/router";
-import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf } from "../lib/shelves";
+import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/shelves";
 import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Button, IconButton } from "../components/ui/Button";
@@ -245,7 +246,7 @@ function HeroContent({ item }: { item: MetaPreview }) {
 /** With fewer fresh titles than this, a shelf shows its full list, repeats and all. */
 const MIN_FRESH = 6;
 
-function CatalogRow({ shelf, enabled, exclude }: { shelf: Shelf; enabled: boolean; exclude: Set<string> }) {
+function CatalogRow({ shelf, enabled, exclude }: { shelf: HomeShelf; enabled: boolean; exclude: Set<string> }) {
   const { title, shape } = shelf;
   const isCatalog = shelf.kind === "catalog";
   const catalog = useCatalog(shelf.type, isCatalog ? shelf.id : "", isCatalog ? shelf.genre : undefined, enabled && isCatalog);
@@ -260,17 +261,11 @@ function CatalogRow({ shelf, enabled, exclude }: { shelf: Shelf; enabled: boolea
   // Nothing good to recommend: leave the row out rather than show a stub.
   if (shelf.kind === "because" && data && items.length < 4) return null;
   const TitleCard = shape === "landscape" ? LandscapeCard : PosterCard;
-  return (
-    <Row title={title} shape={shape}>
-      {isLoading || !enabled
-        ? Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} shape={shape} />)
-        : items.map((item) => <TitleCard key={item.id} item={item} />)}
-    </Row>
-  );
+  return <Shelf title={title} shape={shape} items={isLoading || !enabled ? undefined : items} card={(item) => <TitleCard key={item.id} item={item} />} />;
 }
 
 /** Holds a shelf back (as a skeleton) until it's near the viewport. */
-function LazyShelf({ shelf, eager, exclude }: { shelf: Shelf; eager: boolean; exclude: Set<string> }) {
+function LazyShelf({ shelf, eager, exclude }: { shelf: HomeShelf; eager: boolean; exclude: Set<string> }) {
   const [ref, near] = useNearViewport<HTMLDivElement>(eager);
   return (
     <div ref={ref}>
