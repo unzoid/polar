@@ -1,14 +1,14 @@
 import { useSyncExternalStore, type MouseEvent as ReactMouseEvent } from "react";
 import { api } from "../lib/api";
-import { addToPlaylist, createPlaylist, removeFromPlaylist, usePlaylists } from "../lib/playlists";
 import { useRouter } from "../lib/router";
 import { useTitleActions } from "../lib/titleActions";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Check, Close, Info, Minus, Play, PlaylistIcon, Plus, Reset, Trailer, Watched } from "./icons";
+import { PlaylistChecklist } from "./title/PlaylistChecklist";
 import { imdbUrl } from "./RatingRing";
 import { trailerFor } from "../lib/trailers";
 import { openTrailer } from "./Trailer";
-import { MenuCheckItem, MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuSub } from "./ui/Menu";
+import { MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuSub } from "./ui/Menu";
 
 /**
  * A title's options on right-click (or the Menu key) in desktop mode: the
@@ -80,7 +80,6 @@ function OpenMenu({ target }: { target: Target }) {
   const { item, entry, episode, open, x, y } = target;
   const { navigate } = useRouter();
   const a = useTitleActions(item, entry);
-  const playlists = usePlaylists();
   const close = () => set(null);
   // A zero-size point where the pointer was.
   const anchor = { getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) };
@@ -140,23 +139,7 @@ function OpenMenu({ target }: { target: Target }) {
           {a.inLibrary ? "Remove from Library" : "Add to Library"}
         </MenuItem>
         <MenuSub icon={a.inPlaylist ? <Check /> : <PlaylistIcon />} label={a.inPlaylist ? "Playlists" : "Add to Playlist"}>
-          {playlists.map((p) => {
-            const has = p.items.some((i) => i.id === item.id);
-            return (
-              <MenuCheckItem
-                key={p.id}
-                checked={has}
-                meta={p.items.length}
-                onCheckedChange={(on) => (on ? addToPlaylist(p.id, item) : removeFromPlaylist(p.id, item.id))}
-              >
-                {p.name}
-              </MenuCheckItem>
-            );
-          })}
-          {playlists.length > 0 && <MenuSeparator />}
-          <MenuItem icon={<Plus />} onClick={() => createPlaylist(freshName(playlists.map((p) => p.name)), item)}>
-            New Playlist
-          </MenuItem>
+          <PlaylistChecklist item={item} look="menu" />
         </MenuSub>
 
         {imdb && (
@@ -179,14 +162,6 @@ function OpenMenu({ target }: { target: Target }) {
 
 /** Letterboxd finds a film by its IMDb id. */
 export const letterboxdUrl = (imdbId: string) => `https://letterboxd.com/imdb/${imdbId}/`;
-
-/** "New Playlist", or "New Playlist 2" and so on if that's taken. */
-function freshName(taken: string[]) {
-  const names = new Set(taken);
-  let n = 1;
-  while (names.has(n === 1 ? "New Playlist" : `New Playlist ${n}`)) n++;
-  return n === 1 ? "New Playlist" : `New Playlist ${n}`;
-}
 
 /** An arrow out of a box: "opens in your browser". */
 function ExternalGlyph() {

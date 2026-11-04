@@ -1,4 +1,5 @@
 import { episodeCode } from "./format";
+import { inAnyPlaylist } from "./playlistChecklist";
 import { usePlaylists } from "./playlists";
 import { useLibrary, useMeta, useProgress, useToggleLibrary } from "./queries";
 import type { MetaPreview, Progress } from "./types";
@@ -15,7 +16,7 @@ export function useTitleActions(item: MetaPreview, entry?: Progress) {
   const { data: progress } = useProgress(item.id);
   const { data: library } = useLibrary();
   const toggleLibrary = useToggleLibrary();
-  const inPlaylist = usePlaylists().some((p) => p.items.some((i) => i.id === item.id));
+  const inPlaylist = inAnyPlaylist(usePlaylists(), item.id);
   const inLibrary = !!library?.some((l) => l.id === item.id);
   const isSeries = item.type === "series";
 

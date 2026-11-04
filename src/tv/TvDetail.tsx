@@ -3,7 +3,8 @@ import { Check, Edit, Episodes, Play, PlaylistIcon, Plus, Reset, Sources } from 
 import { useBackdropTrailer } from "../components/BackdropTrailer";
 import { TitleDetails } from "../components/TitleDetails";
 import { Info } from "../components/icons";
-import { addToPlaylist, createPlaylist, removeFromPlaylist, renamePlaylist, usePlaylists } from "../lib/playlists";
+import { renamePlaylist, usePlaylists } from "../lib/playlists";
+import { usePlaylistChecklist } from "../components/title/PlaylistChecklist";
 import { TitleHeading } from "../components/title/TitleHeading";
 import { ProgressBar } from "../components/title/Card";
 import { Still } from "../components/StillPlaceholder";
@@ -137,7 +138,7 @@ function Actions({
   const { data: library } = useLibrary();
   const toggle = useToggleLibrary();
   const inLibrary = library?.some((l) => l.id === item.id);
-  const inPlaylist = usePlaylists().some((p) => p.items.some((i) => i.id === item.id));
+  const inPlaylist = usePlaylistChecklist(item).inAny;
   const subtitle = item.type === "series" && next?.video ? episodeLine(next.video) : item.name;
   // Warm the sources for Play while the page is read.
   useStreams(item.type, videoId);
@@ -173,14 +174,6 @@ function Actions({
   );
 }
 
-/** "New Playlist", or "New Playlist 2" and so on if that's taken. */
-function freshName(taken: string[]) {
-  const names = new Set(taken);
-  let n = 1;
-  while (names.has(n === 1 ? "New Playlist" : `New Playlist ${n}`)) n++;
-  return n === 1 ? "New Playlist" : `New Playlist ${n}`;
-}
-
 /**
  * Tick the playlists a title belongs in. Right of each row is Rename; New
  * Playlist asks for a name on the on-screen keyboard and puts the title in.
@@ -196,7 +189,7 @@ export function PlaylistsPanel({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref);
-  const playlists = usePlaylists();
+  const { rows, toggle } = usePlaylistChecklist(item);
   return (
     <div className="tv-panel tv-sources tv-playlists" ref={ref} data-nav-scope role="dialog" aria-label="Add to playlist">
       <header className="tv-sources-head">
@@ -204,32 +197,29 @@ export function PlaylistsPanel({
         <p className="tv-sources-sub">{item.name}</p>
       </header>
       <div className="tv-scroll tv-sources-list tv-playlist-list" data-nav-scroll="center" data-nav-memory>
-        {playlists.map((p, i) => {
-          const has = p.items.some((x) => x.id === item.id);
-          return (
-            <div key={p.id} className="tv-playlist-line">
-              <button
-                className="tv-playlist-row"
-                role="menuitemcheckbox"
-                aria-checked={has}
-                data-nav-default={i === 0 || undefined}
-                onClick={() => (has ? removeFromPlaylist(p.id, item.id) : addToPlaylist(p.id, item))}
-              >
-                <span className="tv-playlist-check">{has && <Check size={22} />}</span>
-                <span className="tv-playlist-name">{p.name}</span>
-                <span className="tv-playlist-count tabular">
-                  {p.items.length} {p.items.length === 1 ? "title" : "titles"}
-                </span>
-              </button>
-              <button className="tv-playlist-rename" aria-label={`Rename ${p.name}`} onClick={() => onRename(p.id)}>
-                <Edit size={30} />
-              </button>
-            </div>
-          );
-        })}
+        {rows.map((row, i) => (
+          <div key={row.id} className="tv-playlist-line">
+            <button
+              className="tv-playlist-row"
+              role="menuitemcheckbox"
+              aria-checked={row.has}
+              data-nav-default={i === 0 || undefined}
+              onClick={() => toggle(row)}
+            >
+              <span className="tv-playlist-check">{row.has && <Check size={22} />}</span>
+              <span className="tv-playlist-name">{row.name}</span>
+              <span className="tv-playlist-count tabular">
+                {row.count} {row.count === 1 ? "title" : "titles"}
+              </span>
+            </button>
+            <button className="tv-playlist-rename" aria-label={`Rename ${row.name}`} onClick={() => onRename(row.id)}>
+              <Edit size={30} />
+            </button>
+          </div>
+        ))}
         <button
           className="tv-playlist-row tv-playlist-new"
-          data-nav-default={playlists.length === 0 || undefined}
+          data-nav-default={rows.length === 0 || undefined}
           onClick={onNew}
         >
           <span className="tv-playlist-check">
@@ -260,6 +250,7 @@ export function NamePanel({
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref);
   const playlists = usePlaylists();
+  const { create } = usePlaylistChecklist(item);
   const editing = playlistId ? playlists.find((p) => p.id === playlistId) : undefined;
   const [text, setText] = useState(editing?.name ?? "");
 
@@ -268,7 +259,7 @@ export function NamePanel({
     if (editing) {
       if (name && name !== editing.name) renamePlaylist(editing.id, name);
     } else {
-      createPlaylist(name || freshName(playlists.map((p) => p.name)), item);
+      create(name);
     }
     onDone();
   };
