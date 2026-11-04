@@ -46,6 +46,7 @@ import { Badge, Chip } from "../components/ui/Chip";
 import { SearchField } from "../components/ui/SearchField";
 import { Switch } from "../components/ui/Switch";
 import { EmptyState } from "../components/ui/EmptyState";
+import { Skeleton } from "../components/ui/Skeleton";
 
 /**
  * An anime's page, built from AniList with ani.zip filling in episode titles,
@@ -74,7 +75,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   useFoldSnap(scroller, !!shown);
 
   if (isError && !shown) return <EmptyState>Couldn't load this anime from AniList. Try again in a minute.</EmptyState>;
-  if (!shown) return <div className="detail-loading skeleton" />;
+  if (!shown) return <Skeleton className="detail-loading" />;
 
   const { background: art, logo } = animeArt(shown, zip);
   const franchise = seasons && { seasons, active: activeId, select: setActiveId };

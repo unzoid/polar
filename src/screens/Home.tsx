@@ -25,6 +25,7 @@ import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownA
 import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Button, IconButton } from "../components/ui/Button";
+import { Skeleton } from "../components/ui/Skeleton";
 
 /**
  * The page, top to bottom: featured carousel, what you're watching, then the
@@ -120,7 +121,7 @@ export function HeroCarousel({
   if (!items || !item) {
     return (
       <section className="hero">
-        <div className="hero-card hero-placeholder skeleton" />
+        <Skeleton className="hero-card hero-placeholder" />
       </section>
     );
   }

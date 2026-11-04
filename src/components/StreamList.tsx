@@ -5,6 +5,7 @@ import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/sources"
 import type { ContentType, RankedStream } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
 import { Button } from "./ui/Button";
+import { Skeleton } from "./ui/Skeleton";
 
 /**
  * Sources for one video, with the filters on top (add-on, resolution,
@@ -34,7 +35,7 @@ export function StreamList({
     return (
       <div className="stream-list">
         {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="stream-row skeleton" style={{ height: 64 }} />
+          <Skeleton key={i} className="stream-row" height={64} />
         ))}
       </div>
     );

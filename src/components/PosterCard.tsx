@@ -6,6 +6,7 @@ import { cardMenu } from "./CardMenu";
 import { CardRating } from "./ImdbBadge";
 import { Img } from "./Img";
 import { TitleLogo } from "./TitleLogo";
+import { Skeleton } from "./ui/Skeleton";
 
 const INTENT_DELAY = 120;
 
@@ -93,9 +94,9 @@ export function ProgressBar({ fraction }: { fraction: number }) {
 export function CardSkeleton({ shape = "poster" }: { shape?: "poster" | "landscape" }) {
   return (
     <div className={`card card-${shape}`} aria-hidden>
-      <div className="card-frame skeleton" />
+      <Skeleton className="card-frame" />
       <div className="card-caption">
-        <span className="skeleton skeleton-line" style={{ width: "70%" }} />
+        <Skeleton shape="line" width="70%" />
       </div>
     </div>
   );

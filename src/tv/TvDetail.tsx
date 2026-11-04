@@ -20,6 +20,7 @@ import { useBack, useFocusTrap, usePageActive } from "./shell";
 import { reveal } from "./spatial";
 import { TvKeyboard } from "./TvKeyboard";
 import { Facts, TvBackdrop, titleFacts } from "./TvStage";
+import { Skeleton } from "../components/ui/Skeleton";
 
 type Panel =
   | { kind: "episodes" }
@@ -86,7 +87,7 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
           <Actions item={shown} meta={meta} play={play} push={push} />
         ) : (
           <div className="tv-actions" aria-hidden>
-            <span className="tv-pill tv-pill-skeleton skeleton" />
+            <Skeleton as="span" className="tv-pill tv-pill-skeleton" />
           </div>
         )}
       </div>

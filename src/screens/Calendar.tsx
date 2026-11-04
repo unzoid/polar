@@ -5,6 +5,7 @@ import { byDay, dayLabel, useCalendar, type CalendarEntry } from "../lib/calenda
 import { useRouter } from "../lib/router";
 import { episodeEntry } from "../lib/watched";
 import { EmptyState } from "../components/ui/EmptyState";
+import { Skeleton } from "../components/ui/Skeleton";
 
 /**
  * Episodes of your shows by the day they air (Settings → Browsing → Show the
@@ -33,9 +34,9 @@ export function Calendar() {
         <div className="calendar">
           {Array.from({ length: 3 }, (_, i) => (
             <div key={i} className="calendar-day">
-              <span className="skeleton skeleton-line" style={{ width: 120 }} />
+              <Skeleton shape="line" width={120} />
               <div className="calendar-items">
-                <div className="calendar-item skeleton" style={{ height: 96 }} />
+                <Skeleton className="calendar-item" height={96} />
               </div>
             </div>
           ))}

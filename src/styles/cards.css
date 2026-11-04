@@ -687,12 +687,6 @@
   transition: none;
 }
 
-.skeleton-line {
-  display: block;
-  height: 0.8em;
-  border-radius: 4px;
-}
-
 /* --- Progress bars (scaleX, never width) */
 .progress-track {
   position: absolute;

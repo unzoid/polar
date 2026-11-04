@@ -10,6 +10,7 @@ import type { Shape, Shelf } from "../lib/shelves";
 import type { MetaPreview, Progress } from "../lib/types";
 import { StageProvider, TvStage, useStage, useStageSeed } from "./TvStage";
 import { isMenuKey, openCardMenu } from "./TvCardMenu";
+import { Skeleton } from "../components/ui/Skeleton";
 
 /** Resting on a card this long means interest: fetch its page ahead. Longer than desktop — a held D-pad passes every card. */
 const INTENT_MS = 450;
@@ -128,7 +129,7 @@ export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; sh
     <TvRail title={title}>
       {Array.from({ length: count }, (_, i) => (
         <span key={i} className="tv-card tv-card-skeleton" data-shape={shape} aria-hidden>
-          <span className="tv-card-frame skeleton" />
+          <Skeleton as="span" className="tv-card-frame" />
         </span>
       ))}
     </TvRail>
