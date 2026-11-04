@@ -1,4 +1,5 @@
 import { api } from "../lib/api";
+import { scoreTone } from "../lib/score";
 
 /** The title's IMDb page, for IMDb ids (`tt…`); undefined for anything else. */
 export const imdbUrl = (id: string) => (/^tt\d+$/.test(id) ? `https://www.imdb.com/title/${id}/` : undefined);
@@ -14,7 +15,7 @@ export function RatingRing({ value, size = 40, imdbId }: { value: string | numbe
   const stroke = 3.5;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const tone = score >= 7 ? "good" : score >= 5 ? "mid" : "low";
+  const tone = scoreTone(score);
   const href = imdbId ? imdbUrl(imdbId) : undefined;
 
   const ring = (
