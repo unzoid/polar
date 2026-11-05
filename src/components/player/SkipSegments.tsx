@@ -154,11 +154,15 @@ function skipFor(s: SkipSegments, kind: ActiveSkip["kind"]): ActiveSkip {
   return { kind, label: "Skip to Post-Credits Scene", span: { start: s.outro!.start, end: s.postCredits!.start } };
 }
 
+/** How long the skip button stays up on its own when a segment starts, controls hidden. */
+export const SKIP_ALONE_MS = 6000;
+
 /**
- * Netflix-pattern skip button: bottom-right, above the timeline, visible for
- * as long as the segment plays — independent of the auto-hiding controls, so
- * it can be hit without first waking the UI. Enters with a short fade/rise;
- * leaves the same way (state indication, occasional → standard motion).
+ * Netflix-pattern skip button: bottom-right, above the timeline. It shows when
+ * the segment starts, so it can be hit without first waking the UI, then after
+ * SKIP_ALONE_MS goes with the controls: hidden while they are, back when they
+ * are (the skip key works either way). Enters with a short fade/rise; leaves
+ * the same way (state indication, occasional → standard motion).
  */
 export function SkipButton({
   active,
@@ -177,18 +181,29 @@ export function SkipButton({
   useEffect(() => {
     if (active) setShown(active);
   }, [active]);
-  // Skipped (or the segment ended) with focus on it: focus goes back to the player, its keys keep working.
+  // A new segment shows on its own for a while; after that only with the controls.
+  const segment = active ? `${active.kind}@${active.span.start}` : null;
+  const [alone, setAlone] = useState(segment);
+  useEffect(() => {
+    if (!segment) return;
+    setAlone(segment);
+    const t = setTimeout(() => setAlone(null), SKIP_ALONE_MS);
+    return () => clearTimeout(t);
+  }, [segment]);
+  const visible = !!active && (chromeVisible || alone === segment);
+  // Skipped, ended or hidden with focus on it: focus goes back to the player, its keys keep working.
   const button = useRef<HTMLButtonElement>(null);
-  useHandFocus(button, !active);
+  useHandFocus(button, !visible);
 
   return (
     <button
       ref={button}
       className="skip-button"
-      data-visible={!!active}
+      data-visible={visible}
+      data-segment={!!active}
       data-chrome={chromeVisible}
-      tabIndex={active ? 0 : -1}
-      inert={!active}
+      tabIndex={visible ? 0 : -1}
+      inert={!visible}
       onClick={(e) => {
         e.stopPropagation();
         onSkip();
