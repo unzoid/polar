@@ -26,8 +26,10 @@ pub fn to_vtt(bytes: &[u8]) -> String {
 fn decode(bytes: &[u8]) -> String {
     let utf16 = |be: bool| {
         let units: Vec<u16> = bytes[2..]
-            .chunks_exact(2)
-            .map(|p| if be { u16::from_be_bytes([p[0], p[1]]) } else { u16::from_le_bytes([p[0], p[1]]) })
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&p| if be { u16::from_be_bytes(p) } else { u16::from_le_bytes(p) })
             .collect();
         String::from_utf16_lossy(&units)
     };

@@ -247,6 +247,8 @@ impl Indexer {
                     extra: vec![
                         CatalogExtra { name: "search".into(), options: None, is_required: false },
                         CatalogExtra { name: "skip".into(), options: None, is_required: false },
+                        // The server reads it (`catalog`'s `genre`); listed so add-on clients offer it.
+                        CatalogExtra { name: "genre".into(), options: None, is_required: false },
                     ],
                 })
             })

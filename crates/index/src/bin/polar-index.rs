@@ -32,9 +32,18 @@ async fn main() {
         .with_state(indexer);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "7000".into());
-    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!("can't listen on 127.0.0.1:{port}: {e} (set PORT to use another port)");
+            std::process::exit(1);
+        }
+    };
     tracing::info!("listening on http://127.0.0.1:{port}/manifest.json");
-    axum::serve(listener, app).await.unwrap();
+    if let Err(e) = axum::serve(listener, app).await {
+        tracing::error!("server stopped: {e}");
+        std::process::exit(1);
+    }
 }
 
 /// `top.json` or `top/search=sandglass&skip=20.json` → (id, extras)
