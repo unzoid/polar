@@ -14,7 +14,7 @@ import { TitleHeading } from "../components/title/TitleHeading";
 import { RatingRing } from "../components/RatingRing";
 import { Segmented } from "../components/Segmented";
 import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
-import { episodeCode, formatRuntime, joinFacts, seasonLabel } from "../lib/format";
+import { episodeCode, formatRuntime, isReleased, joinFacts, seasonLabel } from "../lib/format";
 import { type PlayRequest, trailerFor, useFileTrailer, usePlayTarget } from "../lib/playback";
 import { prefetchStreams, useMeta, useProgress, useSettings, useStreams } from "../lib/net";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, Video } from "../lib/types";
@@ -135,6 +135,7 @@ function DetailHero({
           item={item}
           playlist
           download={item.type === "movie"}
+          downloadVideo={isSeries && next?.video && isReleased(next.video) ? next.video : undefined}
         >
           {trailer.visible && (
             <IconButton

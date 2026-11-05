@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
@@ -11,6 +11,7 @@ import type { Shape, Shelf } from "../lib/catalog";
 import type { MetaPreview, Progress } from "../lib/types";
 import { StageProvider, TvStage, useStage, useStageSeed } from "./TvStage";
 import { isMenuKey, openCardMenu } from "./TvCardMenu";
+import { refocusNear } from "./spatial";
 import { Skeleton } from "../components/ui/Skeleton";
 
 /** Resting on a card this long means interest: fetch its page ahead. Longer than desktop — a held D-pad passes every card. */
@@ -124,14 +125,32 @@ export function TvRail({ title, children }: { title?: string; children: ReactNod
   );
 }
 
+/**
+ * A shelf still loading. Its first card can take focus, so moving down stops here instead of
+ * jumping over it (test report 1, item 20); when the cards arrive, focus moves onto them.
+ */
 export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; shape: Shape; count?: number }) {
+  const first = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(
+    () => () => {
+      const el = first.current;
+      if (el && document.activeElement === el) refocusNear(el.getBoundingClientRect());
+    },
+    [],
+  );
   return (
     <TvRail title={title}>
-      {Array.from({ length: count }, (_, i) => (
-        <span key={i} className="tv-card tv-card-skeleton" data-shape={shape} aria-hidden>
-          <Skeleton as="span" className="tv-card-frame" />
-        </span>
-      ))}
+      {Array.from({ length: count }, (_, i) =>
+        i === 0 ? (
+          <span key={i} ref={first} className="tv-card tv-card-skeleton" data-shape={shape} tabIndex={0} role="img" aria-label="Loading">
+            <Skeleton as="span" className="tv-card-frame" />
+          </span>
+        ) : (
+          <span key={i} className="tv-card tv-card-skeleton" data-shape={shape} aria-hidden>
+            <Skeleton as="span" className="tv-card-frame" />
+          </span>
+        ),
+      )}
     </TvRail>
   );
 }

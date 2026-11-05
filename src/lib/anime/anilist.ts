@@ -6,6 +6,7 @@ import { isRecord, listOf, str } from "../parse";
 import { readAnime, readLinked, readPage, readSlot } from "./responses";
 import { walkSeasons } from "./seasons";
 import { oneFranchiseEach } from "./franchise";
+import { batcher } from "../net/batch";
 
 /**
  * AniList (graphql.anilist.co): the anime catalogue, seasons, the airing
@@ -222,23 +223,32 @@ signal,
   };
 }
 
-/** One shelf per genre, fetched when it scrolls near. */
+/**
+ * Genre shelves asked for close together (scrolling down the Anime page) go to AniList as one
+ * request, a page per genre under its own alias: fewer requests against the rate limit, and the row
+ * on screen no longer waits behind a queue of single ones (test report 1, item 21).
+ */
+const genreShelves = batcher(async (genres: string[]) => {
+  const vars = Object.fromEntries(genres.map((g, i) => [`g${i}`, g]));
+  const data = await gql(
+    `query (${genres.map((_, i) => `$g${i}: String`).join(", ")}) {
+      ${genres.map((_, i) => `g${i}: Page(perPage: 24) { media(type: ANIME, isAdult: false, genre: $g${i}, sort: TRENDING_DESC) { ${LISTED} } }`).join("\n")}
+    }`,
+    vars,
+  );
+  return genres.map((_, i) => {
+    const page = data[`g${i}`];
+    return listed(isRecord(page) ? page.media : undefined);
+  });
+});
+
+/** One shelf per genre, fetched when it scrolls near (with any others asked for at the same time). */
 export function useAnimeGenre(genre: string, enabled: boolean) {
   return useQuery({
-queryKey: keys.anime.genre(genre),
-staleTime: 60 * 60_000,
-enabled,
-queryFn: async ({ signal }) =>
-  listed(
-    readPage(
-      await gql(
-        `query ($genre: String) { Page(perPage: 24) { media(type: ANIME, isAdult: false, genre: $genre, sort: TRENDING_DESC) { ${LISTED} } } }`,
-        { genre },
-        signal,
-      ),
-      "media",
-    ).items,
-  ),
+    queryKey: keys.anime.genre(genre),
+    staleTime: 60 * 60_000,
+    enabled,
+    queryFn: () => genreShelves(genre),
   });
 }
 

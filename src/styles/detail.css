@@ -455,15 +455,16 @@
     opacity: 1;
   }
 }
-/* Download sits beside Sources and shows on hover the same way - except once
-   an episode is coming down or here, when its ring or check stays in view. */
+/* Download sits beside Sources, always in view (test report 1, item 18: shown
+   only on hover nobody found it, and touch and TV have no hover); dimmed until
+   the card is pointed at or focused, or while it's coming down or here. */
 .episode-download {
   position: absolute;
   top: 10px;
   right: 54px;
   width: 36px;
   height: 36px;
-  opacity: 0;
+  opacity: 0.8;
   transition:
     opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
