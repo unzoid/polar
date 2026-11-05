@@ -107,3 +107,46 @@ fn field_names_match_contract() {
     let written: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     assert!(written == actual, "contract/app.json should read:\n{}", render(&actual));
 }
+
+/// Every `CmdError` code, checked against `contract/error-codes.json`, which
+/// `tests/contract.test.ts` holds against `CommandErrorCode` in `src/lib/errors.ts`.
+#[test]
+fn error_codes_match_contract() {
+    use polar_addon::AddonError;
+    use polar_index::IndexError;
+    let http = reqwest::Client::new().get("http://[::1").build().unwrap_err();
+    let all = [
+        CmdError::Index(IndexError::NotFound),
+        CmdError::Index(IndexError::UnsupportedId("x".into())),
+        CmdError::Index(IndexError::Upstream("x".into())),
+        CmdError::Addon(AddonError::Http(http)),
+        CmdError::Addon(AddonError::Decode("x".into())),
+        CmdError::NotFound("x".into()),
+        CmdError::Unsupported("x".into()),
+        CmdError::Upstream("x".into()),
+        CmdError::Save("x".into()),
+        CmdError::Source("x".into()),
+        CmdError::Player("x".into()),
+        CmdError::Other("x".into()),
+    ];
+    // A new variant fails to compile here until it is added to `all` above.
+    for e in &all {
+        match e {
+            CmdError::Index(IndexError::NotFound | IndexError::UnsupportedId(_) | IndexError::Upstream(_))
+            | CmdError::Addon(AddonError::Http(_) | AddonError::Decode(_))
+            | CmdError::NotFound(_)
+            | CmdError::Unsupported(_)
+            | CmdError::Upstream(_)
+            | CmdError::Save(_)
+            | CmdError::Source(_)
+            | CmdError::Player(_)
+            | CmdError::Other(_) => {}
+        }
+    }
+    let mut codes: Vec<_> = all.iter().map(CmdError::code).collect();
+    codes.sort();
+    codes.dedup();
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../contract/error-codes.json");
+    let written: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    assert!(written == json!(codes), "contract/error-codes.json should read:\n{}\n", json!(codes));
+}

@@ -81,6 +81,11 @@ no real account, key or add-on is used in CI.
 2. T-036 SQL integration: the PGlite checks move into the repo (`tests/sql/`) and run in CI.
    Done: they are part of `bun run test`, so the front-end job runs them; no separate job.
 3. T-037 Rust integration: local add-on server, downloads, command JSON.
+   Done: `crates/addon/tests/addon_server.rs` (every resource, redirects, errors without the
+   link, size cap), resume tests in `src-tauri/src/downloads.rs`, `contract/error-codes.json`
+   held against `CmdError` and `CommandErrorCode`. Command JSON field names were already in
+   `contract/app.json` (M5); commands are not called with a test `AppState` (they take tauri
+   `State`, which needs a running app: T-040 covers them end to end).
 4. T-038 Component tests with a DOM.
 5. T-039 Fake bridge + Playwright end-to-end on the web build.
 6. T-040 tauri-driver app smoke test (nightly).
