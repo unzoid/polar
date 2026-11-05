@@ -127,6 +127,9 @@ an HTTPS stream plays (mbedTLS reads `cacert.pem`, made from `/system/etc/securi
 Roboto; hardware decoding (Settings → Advanced) on and off both play; autocrop (MediaCodec copied back) works;
 a TV box with 2 GB of memory plays a 4K file (the cache is 64 MiB there). Not built: Picture in picture,
 background audio, the media session (lock screen controls).
+The same job builds an unsigned release APK and app bundle (`android-release-unsigned`), minified by R8:
+`proguard-rules.pro` keeps `MpvSurface`'s native methods and `polarDevice`; check that a release build, signed with
+any key for testing, starts and plays like the debug one.
 
 ## Saving in the background (R4, H8/M4)
 

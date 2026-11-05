@@ -64,7 +64,8 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
   (source archives, dynamic linking on iOS) are set out in §7 (T-050).
 - **Apple TV: later.** Planned as in §4 (native SwiftUI app on the core crates through a
   binding) and not built in this cycle.
-- **Unsigned builds only.** CI builds unsigned Android and iOS packages; signing keys come
+- **Unsigned builds only.** CI builds unsigned Android and iOS packages (Android: a debug APK and an
+  unsigned release APK and bundle); signing keys come
   later as CI secrets, when the owner opens the store accounts (Google Play USD 25 once, Apple
   Developer Program USD 99 a year).
 - Still open, asked when a release nears: app names and store identifiers (`identifier` in
