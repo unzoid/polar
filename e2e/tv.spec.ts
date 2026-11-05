@@ -45,3 +45,33 @@ test("a title plays from the remote and Back leaves the player", async ({ app })
   await expect(app.locator(".player")).toHaveCount(0);
   await expect(app.getByRole("heading", { level: 1, name: "Quiet Machines" })).toBeVisible();
 });
+
+test("in a title's Sources, up and down move between the rows of filter chips (re-test 7)", async ({ app }) => {
+  await press(app, "ArrowDown", "ArrowRight", "ArrowRight", "Enter");
+  await expect(focused(app)).toHaveAccessibleName("Play First Episode");
+  await app.getByRole("button", { name: "Choose Source" }).focus();
+  await press(app, "Enter");
+  const panel = app.getByRole("dialog", { name: "Sources" });
+  await expect(panel).toBeVisible();
+  const row = () => focused(app).evaluate((el) => el.closest(".srcf-chiprow")?.getAttribute("aria-label") ?? "list");
+  await panel.getByRole("group", { name: "Quality" }).getByRole("button").first().focus();
+  await press(app, "ArrowDown");
+  expect(await row()).toBe("Add-on");
+  await press(app, "ArrowUp");
+  expect(await row()).toBe("Quality");
+});
+
+test("in the player's Sources, up and down move between the rows of filter chips (re-test 7)", async ({ app }) => {
+  await press(app, "ArrowDown", "ArrowRight", "ArrowRight", "Enter");
+  await expect(focused(app)).toHaveAccessibleName("Play First Episode");
+  await press(app, "Enter");
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Sources", exact: true }).click();
+  const head = app.locator(".options-column").filter({ has: app.locator(".srcf") });
+  await head.getByRole("group", { name: "Quality" }).getByRole("button").first().focus();
+  const row = () => focused(app).evaluate((el) => el.closest(".srcf-chiprow")?.getAttribute("aria-label") ?? "list");
+  await press(app, "ArrowDown");
+  expect(await row()).toBe("Add-on");
+  await press(app, "ArrowUp");
+  expect(await row()).toBe("Quality");
+});

@@ -6,7 +6,6 @@ import { isRecord, listOf, str } from "../parse";
 import { readAnime, readLinked, readPage, readSlot } from "./responses";
 import { walkSeasons } from "./seasons";
 import { oneFranchiseEach } from "./franchise";
-import { batcher } from "../net/batch";
 
 /**
  * AniList (graphql.anilist.co): the anime catalogue, seasons, the airing
@@ -223,33 +222,41 @@ signal,
   };
 }
 
-/**
- * Genre shelves asked for close together (scrolling down the Anime page) go to AniList as one
- * request, a page per genre under its own alias: fewer requests against the rate limit, and the row
- * on screen no longer waits behind a queue of single ones (test report 1, item 21).
- */
-const genreShelves = batcher(async (genres: string[]) => {
-  const vars = Object.fromEntries(genres.map((g, i) => [`g${i}`, g]));
-  const data = await gql(
-    `query (${genres.map((_, i) => `$g${i}: String`).join(", ")}) {
-      ${genres.map((_, i) => `g${i}: Page(perPage: 24) { media(type: ANIME, isAdult: false, genre: $g${i}, sort: TRENDING_DESC) { ${LISTED} } }`).join("\n")}
-    }`,
-    vars,
-  );
-  return genres.map((_, i) => {
-    const page = data[`g${i}`];
-    return listed(isRecord(page) ? page.media : undefined);
-  });
-});
+/** A genre shelf's first cards: a small answer that comes quickly, so the row fills from the left (re-test 21). */
+export const GENRE_FIRST = 8;
+/** The whole shelf, asked for once the first cards are in. */
+const GENRE_ALL = 24;
 
-/** One shelf per genre, fetched when it scrolls near (with any others asked for at the same time). */
+/** A genre's shelf, trending first: `perPage` entries, in a request of its own. */
+export async function genreShelf(genre: string, perPage: number): Promise<AnimeCard[] | undefined> {
+  const data = await gql(
+    `query ($genre: String) {
+      Page(perPage: ${perPage}) { media(type: ANIME, isAdult: false, genre: $genre, sort: TRENDING_DESC) { ${LISTED} } }
+    }`,
+    { genre },
+  );
+  return listed(isRecord(data.Page) ? data.Page.media : undefined);
+}
+
+/**
+ * One shelf per genre, fetched when it scrolls near. Each shelf is its own request and shows as soon
+ * as it's in, never waiting for another (re-test 21: one request for several rows made all of them
+ * wait for the slowest); its first cards come first, the rest of the row right after.
+ */
 export function useAnimeGenre(genre: string, enabled: boolean) {
-  return useQuery({
-    queryKey: keys.anime.genre(genre),
+  const first = useQuery({
+    queryKey: keys.anime.genreFirst(genre),
     staleTime: 60 * 60_000,
     enabled,
-    queryFn: () => genreShelves(genre),
+    queryFn: () => genreShelf(genre, GENRE_FIRST),
   });
+  const all = useQuery({
+    queryKey: keys.anime.genre(genre),
+    staleTime: 60 * 60_000,
+    enabled: enabled && first.isFetched,
+    queryFn: () => genreShelf(genre, GENRE_ALL),
+  });
+  return { data: all.data ?? first.data, isError: first.isError && all.isError };
 }
 
 // --- Seasons ---------------------------------------------------------------

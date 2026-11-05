@@ -5,6 +5,7 @@ import { VideoBackdrop } from "./VideoBackdrop";
 import { IconButton } from "../ui/Button";
 import type { MediaLike } from "./mpvMedia";
 import { prefersReducedMotion, useLayer } from "../../lib/ui";
+import { nearest } from "../../tv/spatial";
 
 export interface OptionItem {
   id: string;
@@ -227,7 +228,15 @@ function moveFocus(root: HTMLElement | null, key: string) {
   const step = key === "ArrowDown" || key === "ArrowRight" ? 1 : -1;
 
   if (hi >= 0) {
-    if (horizontal && head[hi + step]) return head[hi + step].focus();
+    // TV's filter chips come in rows (re-test 7): left/right along a row, up/down between rows,
+    // down from the last row into the list.
+    const row = active!.closest(".srcf-chiprow");
+    if (row) {
+      const inRow = head.filter((el) => row.contains(el));
+      if (horizontal) return inRow[inRow.indexOf(active!) + step]?.focus();
+      const next = nearest(active!, head.filter((el) => !row.contains(el)), key === "ArrowDown" ? "down" : "up");
+      if (next) return next.focus();
+    } else if (horizontal && head[hi + step]) return head[hi + step].focus();
     if (key === "ArrowDown") return show(items[0]);
     if (!horizontal) return;
   }
@@ -242,7 +251,11 @@ function moveFocus(root: HTMLElement | null, key: string) {
   }
   const i = items.indexOf(active as HTMLElement);
   if (i === 0 && step < 0 && head.length) {
-    return (head.find((el) => el.getAttribute("aria-pressed") === "true") ?? head[0]).focus();
+    // Into the last row of chips when there are rows, else the head's pressed control.
+    const rows = [...column.querySelectorAll(".options-head .srcf-chiprow")];
+    const last = rows.at(-1);
+    const pool = last ? head.filter((el) => last.contains(el)) : head;
+    return (pool.find((el) => el.getAttribute("aria-pressed") === "true") ?? pool[0]).focus();
   }
   show(items[Math.min(items.length - 1, Math.max(0, i + step))]);
 }

@@ -28,7 +28,7 @@
  *  - `data-nav-keep`    A new page leaves focus here (focusWhenReady's
  *                       `respectKeep`): the section tabs, the search field.
  */
-import { prefersReducedMotion } from "../lib/ui";
+import { glideScroll } from "./follow";
 
 export type Dir = "up" | "down" | "left" | "right";
 
@@ -42,7 +42,6 @@ export const KEY_DIRS: Record<string, Dir> = {
 const FOCUSABLE = "button, a[href], input, select, textarea, [tabindex]";
 const memory = new WeakMap<Element, HTMLElement>();
 
-const reducedMotion = prefersReducedMotion;
 
 export function isNavigable(el: Element): el is HTMLElement {
   if (!(el instanceof HTMLElement)) return false;
@@ -198,19 +197,13 @@ function resolveEntry(from: HTMLElement, target: HTMLElement) {
 
 // --- Moving -----------------------------------------------------------------
 
-/** Moves closer together than this are a held direction (or a fast thumb). */
-const QUICK_MS = 220;
-let lastMove = 0;
 
 /**
- * Move focus one step in `dir`. Returns false when there's nowhere to go. While moves come
- * quickly (a held stick or D-pad), the page follows instantly instead of restarting a smooth
- * scroll at every step, which juddered (test report 1, item 20).
+ * Move focus one step in `dir`. Returns false when there's nowhere to go. The page follows with
+ * one glide that a held stick or D-pad keeps steering (follow.ts): neither a restarted smooth
+ * scroll per step, which juddered, nor an instant jump per row (test report 1 and re-test, item 20).
  */
 export function move(dir: Dir): boolean {
-  const now = performance.now();
-  const quick = now - lastMove < QUICK_MS;
-  lastMove = now;
   const scope = activeScope();
   if (!scope) return false;
   const current = document.activeElement;
@@ -221,7 +214,7 @@ export function move(dir: Dir): boolean {
   }
   const target = nearest(current, navigables(scope), dir);
   if (!target) return false;
-  focusEl(resolveEntry(current, target), !quick);
+  focusEl(resolveEntry(current, target));
   return true;
 }
 
@@ -277,13 +270,17 @@ function offsetWithin(el: HTMLElement, ancestor: HTMLElement) {
 
 /** Bring a newly focused control into place: pinned in its shelf, its row where the screen wants it. */
 export function reveal(el: HTMLElement, smooth = true) {
-  const behavior: ScrollBehavior = smooth && !reducedMotion() ? "smooth" : "instant";
+  // Smooth: our own glide (follow.ts), which a held direction keeps heading on instead of restarting.
+  const scrollTo = (box: HTMLElement, axis: "x" | "y", to: number) => {
+    if (smooth) glideScroll(box, axis, to);
+    else box[axis === "x" ? "scrollLeft" : "scrollTop"] = to;
+  };
 
   const rail = el.closest<HTMLElement>("[data-nav-rail]");
   if (rail) {
     const card = [...rail.children].find((c) => c.contains(el)) as HTMLElement | undefined;
     const start = parseFloat(getComputedStyle(rail).scrollPaddingInlineStart) || 0;
-    if (card) rail.scrollTo({ left: offsetWithin(card, rail).left - start, behavior });
+    if (card) scrollTo(rail, "x", offsetWithin(card, rail).left - start);
   }
 
   const scroller = el.closest<HTMLElement>("[data-nav-scroll]");
@@ -311,7 +308,7 @@ export function reveal(el: HTMLElement, smooth = true) {
       else return;
     }
   }
-  scroller.scrollTo({ top: Math.max(0, next), behavior });
+  scrollTo(scroller, "y", Math.max(0, next));
 }
 
 /**
