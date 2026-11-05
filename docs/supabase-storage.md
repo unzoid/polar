@@ -212,7 +212,11 @@ card shows the built poster, or a blank one.
 API keys (TMDB, OMDb, MDBList, Seekr) and add-on manifest URLs stay on each device (I-009 A). Built
 and off: the `syncSecrets` setting seals them with a passphrase typed on each device (PBKDF2-SHA-256
 → AES-GCM, §2.1 option C) into the settings document as one `sealed` field; the server never sees
-the passphrase or the plain values. Turning it on is for when the database is upgraded.
+the passphrase or the plain values. Built: `src/lib/account/secrets.ts` (format `s1.salt.nonce.ciphertext`,
+600,000 rounds) and `settingsDoc.ts` (tested); Settings → Account → "Sync API keys and addons". The
+passphrase is kept on the device (localStorage, per profile), beside the keys it protects, which are
+there in plain text anyway. A `sealed` field a device can't open is sent back unchanged, so a device
+without the passphrase doesn't wipe the others' keys.
 
 ## 4. Codecs
 

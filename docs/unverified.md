@@ -157,6 +157,20 @@ devices.
 5. A version older than this one, signed in after the migration: library and progress no longer
    sync for it (expected, cut over at once); updating it pushes what it has.
 
+## Settings sync without keys and add-on links (T-029, I-009)
+
+Settings documents now carry only what a profile changed from the defaults (`settings_defaults`
+command, not run here: src-tauri only type-checks) and never API keys or add-on links. Tested here
+as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not run in the app.
+
+1. Two devices, one profile: change Seek step on one; the other takes it after a sync. Set it back to
+   the default on the first: the second goes back too.
+2. A TMDB key or an add-on added on one device does not appear on the other.
+3. Settings → Account → Sync API keys and addons → Turn On, same passphrase on both: a key set on one
+   arrives on the other, add-ons follow. Another passphrase on the second: it says the keys were
+   sealed with another passphrase and keeps its own; the first device's keys stay on the server.
+4. Sign out on a device that had its own keys and add-ons before signing in: they are back as they were.
+
 ## Earlier items
 
 - Settings → About → Cache and Credits cards (TMDB logo 12 px under the notice): look only.
