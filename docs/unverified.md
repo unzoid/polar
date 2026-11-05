@@ -63,6 +63,22 @@ and the one it stopped at. In GitHub: Actions → App end to end → Run workflo
 
 What CI checks, layer by layer: [testing.md](testing.md).
 
+## Android build (`src-tauri/gen/android`, CI job `android`, T-042)
+
+Never built: the Android SDK and NDK can't be downloaded here (Google's hosts are refused). The
+project was generated with `tauri android init` against stand-in SDK, NDK and Java folders, so
+the files are Tauri's template for this app, with Polarity's launcher icon (`tauri icon`) on a dark
+background in place of Tauri's logo. Checked here: `src-tauri` type-checks and passes clippy for
+`aarch64-linux-android` (zig standing in for the NDK's compiler; nothing linked), the updater and
+process permissions now sit in `capabilities/desktop.json`, which mobile builds skip, and gilrs is
+left out of phone builds (the Gamepad API still sees controllers). Unknown until the job runs:
+Gradle 9.6 and the Android Gradle plugin 9.3 on Java 21, whether the runner image has the SDK
+platform the project compiles against (the job installs it), and the APK itself. To try it on a
+desktop with Android Studio: `bun run tauri android dev` with an emulator running, or download the
+`android-debug-apk` artifact from a CI run and `adb install` it. On a phone, look for: the app opens
+on the home screen, the phone layout and bottom tab bar, a title plays in `<video>` where the phone
+can decode it.
+
 ## Saving in the background (R4, H8/M4)
 
 `polar.json` is now written by a background thread about a second after a change,

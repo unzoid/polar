@@ -14,6 +14,7 @@ use polar_library::keychain::{Chunked, SecretStore, StoreError};
 use crate::commands::{CmdError, Result};
 
 /// The service every entry is filed under: the app id, so it stays when the name changes.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 const SERVICE: &str = "app.getpolar.desktop";
 
 /// What the web view may keep here: the auth client's own keys, nothing else.

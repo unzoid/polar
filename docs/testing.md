@@ -15,8 +15,9 @@ test uses a real account, key or add-on, and none needs a secret.
 | End to end, web build | `e2e/*.spec.ts` (Playwright) | `bun run e2e` | `e2e-web` |
 | End to end, real app | `e2e/app/smoke.ts` (tauri-driver) | `bunx tauri build --debug --no-bundle`, then `bun run e2e:app` | `e2e-app` (nightly, `master`) |
 
-Also on every push: `bun run build` (which type-checks), `cargo fmt --all --check` and
-`cargo clippy --workspace --all-targets -- -D warnings`. Before a pull request run at least
+Also on every push: `bun run build` (which type-checks), `cargo fmt --all --check`,
+`cargo clippy --workspace --all-targets -- -D warnings`, and the Android app built as a debug APK
+for the emulator and for phones (job `android`; the APK is kept for 14 days as `android-debug-apk`). Before a pull request run at least
 `bun run typecheck`, `bun run test` and `cargo test --workspace`.
 
 ## Unit tests (TypeScript)

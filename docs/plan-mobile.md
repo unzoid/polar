@@ -12,7 +12,8 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
   phones and TVs; `mpv_available` is false where mpv can't embed, so `<video>` plays.
 - Phone and tablet layouts (`formFactor.ts`, `data-form`/`data-touch`, bottom tab bar, safe
   areas, 44 px targets) and TV mode (`src/tv`, arrow keys, one Back stack).
-- Not built: the Android and Xcode projects, signing, a player better than `<video>` on
+- Android project (`src-tauri/gen/android`, T-042): generated, built in CI as a debug APK.
+- Not built: the Xcode project, signing, a player better than `<video>` on
   mobile, anything for tvOS.
 
 ## 2. Android (phones and tablets) first
