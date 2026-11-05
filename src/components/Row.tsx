@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from "./icons";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { EdgeBlur } from "./EdgeBlur";
 
 /**
@@ -19,6 +19,14 @@ export function Row({
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: true, end: false });
+  // Until someone scrolls it, a shelf shows its first title. Titles shown
+  // higher up are taken out of it as they load; without this, scroll-snap
+  // keeps the card it was on in view and the shelf opens part-way along.
+  const touched = useRef(false);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el && !touched.current && el.scrollLeft !== 0) el.scrollLeft = 0;
+  });
 
   useEffect(() => {
     const el = scroller.current;
@@ -31,17 +39,22 @@ export function Row({
       setEdges((e) => (e.start === start && e.end === end ? e : { start, end }));
     };
     update();
+    const touch = () => (touched.current = true);
+    const events = ["wheel", "pointerdown", "touchstart", "keydown", "focusin"] as const;
+    for (const e of events) el.addEventListener(e, touch, { passive: true });
     el.addEventListener("scroll", update, { passive: true });
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => {
       el.removeEventListener("scroll", update);
+      for (const e of events) el.removeEventListener(e, touch);
       ro.disconnect();
     };
   }, []);
 
   const page = (dir: 1 | -1) => {
     const el = scroller.current;
+    touched.current = true;
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: "smooth" });
   };
 

@@ -13,7 +13,8 @@ import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
 
 const library: LibraryItem[] = [...fx.library];
 const progress: Progress[] = [...fx.progress];
-let settings: Settings = { ...fx.settings };
+// `fake.html?theme=black` and the like start with that setting changed.
+let settings: Settings = { ...fx.settings, ...Object.fromEntries(new URLSearchParams(location.search)) };
 
 type Args = Record<string, unknown>;
 
