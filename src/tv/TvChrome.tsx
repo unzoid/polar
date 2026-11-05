@@ -13,13 +13,15 @@ import {
   useGamepadConnected,
   usePadFamily,
   type Button as PadKey,
+  type ControllerNotice,
   type PadFamily,
 } from "./gamepad";
 import { useBack, useFocusTrap } from "./shell";
 import { setTvMode } from "./tvMode";
 import { appWindow } from "../lib/platform";
 import { Button, IconButton } from "../components/ui/Button";
-import { Toast } from "../components/ui/Toast";
+import { TOAST_OUT_MS, Toast } from "../components/ui/Toast";
+import { usePresence } from "../lib/ui";
 
 export const TV_TABS: { route: TabRoute; label: string }[] = [
   { route: { name: "search" }, label: "Search" },
@@ -264,28 +266,33 @@ export function usePadGlyph(tv: boolean) {
  * A controller coming or going gets a notice, in either mode. The OS reports
  * a controller as soon as it's plugged in or switched on, but the app can
  * only use it after a button press, so the notice says so until then. In
- * desktop mode it also offers TV mode (Menu switches straight over).
+ * desktop mode it also offers TV mode (Menu switches straight over). In TV
+ * mode it can't be dismissed, so it stays up only briefly (#41).
  */
 export function ControllerToast({ tv }: { tv: boolean }) {
-  const notice = useControllerNotice();
+  const live = useControllerNotice();
   const prefs = usePrefs();
+  const liveOfferTv = !tv && live?.kind === "connected" && prefs.suggestTvMode;
+  const show = !!live && (prefs.controllerAlerts || liveOfferTv);
+  // Fades out (#41): the notice stays on screen, as it was, while it leaves.
+  const { shown: notice, leaving } = usePresence(show ? live : null, TOAST_OUT_MS);
   const offerTv = !tv && notice?.kind === "connected" && prefs.suggestTvMode;
-  const show = !!notice && (prefs.controllerAlerts || offerTv);
   const awaiting = !!notice?.awaitingPress;
 
   useEffect(() => {
-    if (!show || !notice) return;
-    const ms = offerTv ? 10_000 : awaiting ? 12_000 : notice.kind === "connected" ? 4500 : 3500;
+    if (!show || !live) return;
+    const ms = noticeMs(live, tv, liveOfferTv);
     const t = window.setTimeout(dismissNotice, ms);
     return () => window.clearTimeout(t);
-  }, [show, notice, offerTv, awaiting]);
+  }, [show, live, tv, liveOfferTv]);
 
-  if (!show || !notice) return null;
+  if (!notice) return null;
   const connected = notice.kind === "connected";
   return (
     <Toast
       key={notice.key}
       variant={tv ? "tv" : undefined}
+      leaving={leaving}
       data-kind={notice.kind}
       icon={<GamepadIcon off={!connected} />}
       actions={
@@ -314,6 +321,13 @@ export function ControllerToast({ tv }: { tv: boolean }) {
       )}
     </Toast>
   );
+}
+
+/** How long a controller notice stays up. */
+function noticeMs(notice: ControllerNotice, tv: boolean, offerTv: boolean) {
+  if (offerTv) return 10_000;
+  if (tv) return notice.awaitingPress ? 6000 : 3000;
+  return notice.awaitingPress ? 12_000 : notice.kind === "connected" ? 4500 : 3500;
 }
 
 function GamepadIcon({ off }: { off?: boolean }) {

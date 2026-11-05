@@ -91,11 +91,11 @@
   font-size: var(--fs-sm);
   overflow-wrap: anywhere;
 }
-/* In TV mode: up top, clear of the hints bar, at TV size. */
+/* In TV mode: bottom left, level with the hints bar on the right, so the top bar stays clear (#41); at TV size. */
 .toast-tv {
-  top: 1.5rem;
-  bottom: auto;
-  --toast-from: -12px;
+  left: var(--tv-gutter);
+  bottom: 1.25rem;
+  translate: none;
   z-index: var(--z-popover);
   padding: 0.6rem 1.5rem 0.6rem 1.25rem;
 }
