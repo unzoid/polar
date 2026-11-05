@@ -8,3 +8,5 @@ src-tauri/gen/
 src-tauri/vendor/
 e2e/.results/
 e2e/.report/
+.claude/skills/
+.agents/skills/
