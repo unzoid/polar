@@ -12,7 +12,7 @@ import { refreshLocalViews, sync } from "./sync";
 /**
  *  - loading:    restoring the session
  *  - signed-out: show the sign-in screen
- *  - guest:      using Polar without an account (local library only)
+ *  - guest:      using Polarity without an account (local library only)
  *  - onboarding: new account, naming and picking an icon for the first profile
  *  - profiles:   signed in, "Who's watching?"
  *  - ready:      signed in with a profile; the app is showing

@@ -73,8 +73,8 @@ if (!flags.has("--no-build")) {
 
 // 2. Publish.
 const bundle = join(root, "target", "release", "bundle");
-const dmg = join(bundle, "dmg", `Polar_${version}_aarch64.dmg`);
-const update = join(bundle, "macos", "Polar.app.tar.gz");
+const dmg = join(bundle, "dmg", `Polarity_${version}_aarch64.dmg`);
+const update = join(bundle, "macos", "Polarity.app.tar.gz");
 for (const f of [dmg, update, `${update}.sig`]) {
   if (!existsSync(f)) {
     console.error(`Missing ${f}.`);
@@ -82,19 +82,19 @@ for (const f of [dmg, update, `${update}.sig`]) {
   }
 }
 const minos = (() => {
-  const plist = join(bundle, "macos", "Polar.app", "Contents", "Info.plist");
+  const plist = join(bundle, "macos", "Polarity.app", "Contents", "Info.plist");
   return readFileSync(plist, "utf8").match(/LSMinimumSystemVersion<\/key>\s*<string>([^<]+)/)?.[1];
 })();
 const body = `Polarity for macOS (Apple Silicon${minos ? `, macOS ${minos} or later` : ""}). A preview of the Mac app.
 
-**Install:** download \`Polar_${version}_aarch64.dmg\`, open it and drag Polar to Applications. The app isn't notarized yet, so the first time, right-click Polar in Applications and choose **Open**, then **Open** again. If macOS still says it's damaged, run \`xattr -cr /Applications/Polar.app\` in Terminal.
+**Install:** download \`Polarity_${version}_aarch64.dmg\`, open it and drag Polarity to Applications. The app isn't notarized yet, so the first time, right-click Polarity in Applications and choose **Open**, then **Open** again. If macOS still says it's damaged, run \`xattr -cr /Applications/Polarity.app\` in Terminal.
 
 mpv is built in (no Homebrew needed).
 
 ### What's new
 ${notes}
 
-mpv and its libraries are bundled (GPLv2+). Their licences and source links are in \`Polar.app/Contents/Resources/licenses/mpv\`.
+mpv and its libraries are bundled (GPLv2+). Their licences and source links are in \`Polarity.app/Contents/Resources/licenses/mpv\`.
 `;
 const bodyPath = join(bundle, "release-body-mac.md");
 writeFileSync(bodyPath, body);

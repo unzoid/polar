@@ -3,7 +3,7 @@
  * same show lead to it. See docs/anime-identity.md.
  *
  * Canonical ids are what every store keys titles by: an IMDb id (`tt…`) or,
- * for anime with no IMDb page Polar plays from, `kitsu:N`. Anything else
+ * for anime with no IMDb page Polarity plays from, `kitsu:N`. Anything else
  * (`anilist:N`, `mal:N`, and `kitsu:N` once an IMDb page is known) is an
  * alias of a canonical id. An IMDb id is never an alias, so two IMDb shows
  * are never joined into one.
@@ -27,7 +27,7 @@ export interface VideoRef {
 const IMDB = /^tt\d+$/;
 const NUM = /^\d+$/;
 
-/** A title id, or null when the string isn't one Polar knows. */
+/** A title id, or null when the string isn't one Polarity knows. */
 export function parseTitleId(id: string): TitleId | null {
   if (IMDB.test(id)) return { kind: "imdb", value: id };
   const [prefix, value, ...rest] = id.split(":");
@@ -61,7 +61,7 @@ export function formatVideoId(v: VideoRef): string {
   return v.title.kind === "imdb" ? `${t}:${v.season ?? 1}:${v.episode}` : `${t}:${v.episode}`;
 }
 
-/** The title a video id belongs to (`tt1:2:3` → `tt1`); the id itself when it isn't one Polar can read. */
+/** The title a video id belongs to (`tt1:2:3` → `tt1`); the id itself when it isn't one Polarity can read. */
 export const titleOfVideo = (videoId: string) => {
   const v = parseVideoId(videoId);
   return v ? formatTitleId(v.title) : videoId;
@@ -71,8 +71,8 @@ export const titleOfVideo = (videoId: string) => {
 export const isCanonicalKind = (kind: IdKind) => kind === "imdb" || kind === "kitsu";
 
 /**
- * What Polar knows links one anime together: its AniList entry, and the ids
- * of the same show elsewhere. `canonical` is the id Polar plays it from.
+ * What Polarity knows links one anime together: its AniList entry, and the ids
+ * of the same show elsewhere. `canonical` is the id Polarity plays it from.
  */
 export interface AnimeLink {
   canonical: string;

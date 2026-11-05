@@ -1,4 +1,4 @@
-# Cycle 3 plan: Polar on Android and iOS, then the TV platforms
+# Cycle 3 plan: Polarity on Android and iOS, then the TV platforms
 
 The third cycle (goal addendum 2026-11-05), built on the platform structure in
 `docs/ARCHITECTURE.md`: the core crates and `src/lib` stay as they are, each platform fills

@@ -127,12 +127,12 @@ filler) is kept in localStorage (`polar.animePlayContext.v1`) instead of memory.
 How to check:
 
 1. Open an anime with an IMDb page and several seasons, play episode 2 a minute, quit
-   Polar. Start it again and play episode 2 from Continue Watching without opening
+   Polarity. Start it again and play episode 2 from Continue Watching without opening
    the anime page: AniSkip's opening skip should appear, and the source list should
    include anime add-ons that only know Kitsu ids.
 2. Turn on "skip filler" and, after a restart, let a show with filler episodes
    autoplay from Continue Watching up to a filler run: it should be skipped.
-3. A show watched under `kitsu:N` before (an older Polar build, a Kitsu-only show
+3. A show watched under `kitsu:N` before (an older Polarity build, a Kitsu-only show
    that later got an IMDb page): open its anime page; the library entry and the
    watched marks should now show under the IMDb title, once, in Library, History and
    Continue Watching.
@@ -280,11 +280,28 @@ against a real project.
 ## Log file (R4 M14)
 
 - The rotation (`crates/library/src/logfile.rs`) is tested here; the app's wiring (`src-tauri/src/logging.rs`) is
-  only type-checked. To check on a desktop: start Polar, then open the log folder the README names; `polar.log`
-  starts with "Polar <version> starting". Remove the MDBList key's last letter and open a title: a "ratings
+  only type-checked. To check on a desktop: start Polarity, then open the log folder the README names; `polar.log`
+  starts with "Polarity <version> starting". Remove the MDBList key's last letter and open a title: a "ratings
   from api.mdblist.com failed" line appears without the key in it. Search the file for your keys and add-on links:
   none should be there.
 - The Linux path assumes Tauri's `app_log_dir` is `~/.local/share/<identifier>/logs`; check it once on Linux.
+
+## Name and sign-in session in the keychain
+
+- The name is Polarity in the installer (`productName`), README, the log's first line, the User-Agent
+  (`polarity/<version>`) and the UI; the app id `app.getpolar.desktop` stays, so data, log and web view folders
+  don't move. Not seen: whether the Windows installer of "Polarity" upgrades an installed "Polar" in place or
+  installs beside it (NSIS keys its folder by product name), and the macOS bundle now being `Polarity.app`.
+- The session's layout in the keychain (`crates/library/src/keychain.rs`, split into chunks under Windows'
+  limit, a failed write keeps the old value) and the web view's side (`src/lib/platform/keychain.ts`: move on
+  first start, fall back, read once per run) are tested here. `src-tauri/src/keychain.rs` over `keyring` 4 is
+  only type-checked (Linux and Windows); no keychain was touched on this machine. To check on each system:
+  sign in, quit, start again: still signed in, and an entry under `app.getpolar.desktop` is in Keychain Access
+  (macOS), Credential Manager (Windows) or Seahorse/KWallet (Linux). Signed in with an older build, the first
+  start of this one keeps you signed in and moves the session there. On Linux without a Secret Service, sign-in
+  still works and is kept by the app itself. Sign out: the entries are gone.
+- Phones: no keyring store is wired yet (`keyring` isn't built for Android/iOS); the session stays in the web
+  view's storage there.
 
 ## Phone and tablet layouts (T-033)
 
@@ -472,9 +489,9 @@ against a real project.
   only): only a missing `polar.json`/`downloads.json` starts fresh now. Any other read error leaves the file
   alone for the session (nothing is saved over it; actions that save report "could not save") and a toast says
   so with the reason; a damaged file is copied aside as before, and if that copy fails nothing is saved
-  either. The decision is `polar_library::opened` (tested). To check: quit Polar, make `polar.json` in the app
+  either. The decision is `polar_library::opened` (tested). To check: quit Polarity, make `polar.json` in the app
   data folder unreadable (`chmod 000 polar.json` on Linux/macOS; on Windows deny Read in its Security tab),
-  start Polar: the toast shows, adding a title fails, and after quitting and restoring the permission the
+  start Polarity: the toast shows, adding a title fails, and after quitting and restoring the permission the
   file still holds the old library. Then put `{` into a copy of the file: a `polar.corrupt-….json` appears
   and the app starts empty.
 - Sign-out with unsynced changes (rewrite R1, critique C2): sign-out now pushes every profile of the account

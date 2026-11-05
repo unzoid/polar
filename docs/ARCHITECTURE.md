@@ -1,6 +1,6 @@
 # Architecture
 
-How Polar is put together, where platform code may live, and what each platform it
+How Polarity is put together, where platform code may live, and what each platform it
 targets provides. For the order the code was rewritten in, see `docs/rewrite-plan.md`;
 for the interface components, `docs/ui-components.md`.
 
@@ -44,7 +44,7 @@ Rules:
 | Bridge | `bridge.ts`: `call(command, args)`, `on(event, handler)`, `inShell` | `tauri::generate_handler!` in `src-tauri/src/lib.rs` | Tauri carries it everywhere; nothing differs |
 | Player | `components/player/mpvMedia.ts` (`MpvMedia`, the same shape as `<video>`), chosen in `screens/Player.tsx` by `mpv_available` | `player/` (`mod.rs`: `Mpv`, `Engine`, the IPC reader; `commands.rs`: the `mpv_*` commands; `autocrop.rs`; `ipc.rs`), `macos/mpv_view.m`, `streamcheck.rs`; what any engine follows in `crates/player` (allow-lists, `Tune`, `CropTracker`/`zoom_for`) | Windows: mpv process drawing into the window (`--wid`). macOS: libmpv in the app. Elsewhere `mpv_available` is false and the webview's `<video>` plays |
 | Storage | `lib/settings/prefs.ts` (device prefs in `localStorage`), `lib/api.ts` for the rest | `store.rs` + `polar_library::saver` (`polar.json` in the app data folder), `downloads.rs` | Tauri picks the folders (`app_data_dir`, `app_cache_dir`) per system |
-| Keys | `lib/account/secrets.ts` (sealed sync, off by default) | `polar.json` (`store.rs`), owner-only on Unix | Desktop: a file only the user can read. Phones/TV: the app's private storage |
+| Keys | `lib/account/secrets.ts` (sealed sync, off by default); `keychain.ts`: the sign-in session's storage, falling back to `localStorage` | API keys: `polar.json` (`store.rs`), owner-only on Unix. Session: `keychain.rs` over the `keyring` crate, laid out by `polar_library::keychain` (split under Windows' 2,560-byte limit) | Keychain on macOS, Credential Manager on Windows, Secret Service on Linux (none running: the web view keeps it). Phones/TV: no keychain wired yet, the web view's storage |
 | Window | `window.ts`: `AppWindow` (minimise, maximise, close, fullscreen, focus, resize, zoom) | Tauri window, `tauri.conf.json`, `tauri.macos.conf.json`, `tauri.windows.conf.json` | Windows/Linux draw our buttons (`components/WindowControls.tsx`), macOS keeps its traffic lights; on phones and TVs the window is the screen |
 | Input | keyboard and pointer in the webview; `tv/gamepad.ts` (Gamepad API + native hot-plug); `lib/settings/keybinds.ts` | `controllers.rs` (gilrs: hot-plug only) | ⌘ vs Ctrl (`device.ts` `MOD`); TV remotes send arrow keys and Back, which TV mode already uses |
 | Updates | `updates.ts`: `AppUpdates` (`canUpdate`, `version`, `check`, `relaunch`); state in `lib/updater.ts` | `tauri-plugin-updater` + `tauri-plugin-process`, desktop only (`src-tauri/Cargo.toml`, `#[cfg(desktop)]` in `lib.rs`) | Desktop updates itself from the signed `latest.json`; app stores update phone and TV builds, so `canUpdate` is false there |

@@ -3,7 +3,7 @@
 //! `docs/anime-identity.md`.
 //!
 //! Canonical ids are what every store keys titles by: an IMDb id (`tt…`) or,
-//! for anime with no IMDb page Polar plays from, `kitsu:N`. `anilist:N`,
+//! for anime with no IMDb page Polarity plays from, `kitsu:N`. `anilist:N`,
 //! `mal:N`, and `kitsu:N` once an IMDb page is known, are aliases of a
 //! canonical id. An IMDb id is never an alias, so two IMDb shows are never
 //! joined into one.
@@ -27,8 +27,8 @@ pub fn is_canonical_kind(id: &str) -> bool {
     is_imdb(id) || is_kitsu(id)
 }
 
-/// What Polar knows links one anime together: its AniList entry, and the ids
-/// of the same show elsewhere. `canonical` is the id Polar plays it from.
+/// What Polarity knows links one anime together: its AniList entry, and the ids
+/// of the same show elsewhere. `canonical` is the id Polarity plays it from.
 /// One per AniList entry; the newest decision about an entry wins.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

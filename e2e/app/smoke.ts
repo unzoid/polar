@@ -17,7 +17,7 @@
  *
  * On Linux the app's data goes to a fresh folder (XDG_* variables). On Windows
  * it can't be moved, so it runs only on CI or with POLAR_E2E_APP_OK=1, and then
- * writes into your own Polar profile.
+ * writes into your own Polarity profile.
  *
  * POLAR_APP=<path> picks the binary (default target/debug/polar[.exe]);
  * TAURI_DRIVER=<path> the driver (default tauri-driver on PATH).
@@ -37,7 +37,7 @@ const TITLE = { id: "tt9999990", type: "movie", name: "Polar Smoke Test" };
 type Ref = { [ELEMENT]: string };
 
 if (windows && !process.env.CI && !process.env.POLAR_E2E_APP_OK) {
-  console.error("On Windows this writes into your own Polar profile; set POLAR_E2E_APP_OK=1 to run it anyway.");
+  console.error("On Windows this writes into your own Polarity profile; set POLAR_E2E_APP_OK=1 to run it anyway.");
   process.exit(2);
 }
 

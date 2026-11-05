@@ -184,7 +184,7 @@ impl Downloads {
             state: state.to_owned(),
             inner: Mutex::new(Inner { items, ..Inner::default() }),
             http: reqwest::Client::builder()
-                .user_agent(concat!("polar/", env!("CARGO_PKG_VERSION")))
+                .user_agent(concat!("polarity/", env!("CARGO_PKG_VERSION")))
                 .connect_timeout(Duration::from_secs(15))
                 .build()
                 .unwrap_or_default(),

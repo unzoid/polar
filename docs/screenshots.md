@@ -33,12 +33,12 @@ Some things these licences don't cover:
   doesn't matter. For a home-screen shot, prefer titles whose TMDB art comes from the film itself.
 
 The IMDb ids come from Wikidata (P345) for Tears of Steel and Big Buck Bunny. Sintel's is the one
-its Russian Wikipedia article gives. If a search in Polar opens a different title, use that title's id
+its Russian Wikipedia article gives. If a search in Polarity opens a different title, use that title's id
 instead.
 
-## Playing one in Polar
+## Playing one in Polarity
 
-Polar plays streams from addons, so `scripts/open-films-addon.ts` is a small local addon that offers
+Polarity plays streams from addons, so `scripts/open-films-addon.ts` is a small local addon that offers
 a stream for these three films and nothing else:
 
 ```sh
@@ -47,7 +47,7 @@ bun scripts/open-films-addon.ts
 bun scripts/open-films-addon.ts --file tt1254207=/path/to/big_buck_bunny_1080p_h264.mov
 ```
 
-1. Start Polar (`bun run app`). In Settings → Add-ons, add
+1. Start Polarity (`bun run app`). In Settings → Add-ons, add
    `http://127.0.0.1:7878/manifest.json`.
 2. Search for "Sintel" (or the other titles), open it, and pick the source "Open films".
    - Sintel streams `Sintel.2010.1080p.mkv` (1.2 GB) from download.blender.org.
@@ -65,7 +65,7 @@ bun scripts/open-films-addon.ts --file tt1254207=/path/to/big_buck_bunny_1080p_h
 5. For a short recording (a few seconds of scrubbing or opening the bar), use ⇧⌘5 on macOS or
    Win+Alt+R on Windows. Convert it to a small looping GIF or MP4 under about 5 MB, for example
    `ffmpeg -i in.mov -vf "fps=15,scale=900:-1" -t 8 readme-images/player.gif`.
-6. Remove the addon from Polar afterwards if you don't want it in your synced settings.
+6. Remove the addon from Polarity afterwards if you don't want it in your synced settings.
 
 ## Putting it in the README
 
