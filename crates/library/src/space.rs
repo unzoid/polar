@@ -3,7 +3,7 @@
 //! writes canonicalise the id they are given, and recording an anime link
 //! moves what was kept under its other ids onto the canonical one.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +85,20 @@ pub const CONTINUE_LIMIT: usize = 20;
 /// How many titles the Library's "Watched" shelf shows.
 pub const HISTORY_LIMIT: usize = 200;
 
+/// Records changed on this device and not yet on the server, by key. Pulled
+/// changes never land here, so they aren't sent back; a clock that steps
+/// back can't hide an edit either.
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Dirty {
+    /// Library ids, in the library or removed.
+    pub library: BTreeSet<String>,
+    /// Progress video ids.
+    pub progress: BTreeSet<String>,
+    /// AniList ids.
+    pub links: BTreeSet<u32>,
+}
+
 /// One person's library and watch history: the signed-out "local" space, or
 /// one per account profile. Each is a full offline copy; sync only moves
 /// changes between it and the server.
@@ -97,8 +111,13 @@ pub struct Space {
     pub progress: HashMap<String, Progress>,
     /// AniList id → what Polar knows about that entry.
     pub links: BTreeMap<u32, AnimeLink>,
-    /// Local clock (ms) of the last successful push.
+    /// Stores written before `dirty`: the local clock (ms) of the last push.
+    /// Read once, to work out what was still unpushed.
     pub pushed_at: u64,
+    /// What changed here and hasn't reached the server (critique H2). `None`
+    /// in stores written before it: then what changed since `pushed_at`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dirty: Option<Dirty>,
     /// Server cursor of the last pull (opaque to Rust).
     pub pulled_at: Option<String>,
 }
@@ -119,6 +138,7 @@ impl Space {
     /// the library afterwards.
     pub fn library_toggle(&mut self, mut item: LibraryItem, at: u64) -> bool {
         item.id = self.aliases().canonical(&item.id).to_owned();
+        self.dirty_mut().library.insert(item.id.clone());
         if self.library.remove(&item.id).is_some() {
             self.removed.insert(item.id, at);
             false
@@ -145,6 +165,7 @@ impl Space {
         for (i, mut p) in entries.into_iter().enumerate() {
             p.meta_id = aliases.canonical(&p.meta_id).to_owned();
             p.updated_at = at + i as u64;
+            self.dirty_mut().progress.insert(p.video_id.clone());
             self.progress.insert(p.video_id.clone(), p);
         }
     }
@@ -191,6 +212,7 @@ impl Space {
             Some(old) if old.updated_at > link.updated_at || *old == link => return false,
             _ => {}
         }
+        self.dirty_mut().links.insert(link.anilist);
         self.links.insert(link.anilist, link);
         self.rekey();
         true
@@ -214,6 +236,7 @@ impl Space {
         }
         let links_at = self.links.values().map(|l| l.updated_at).max().unwrap_or(0);
         let mut changed = false;
+        self.dirty_mut();
 
         let mut moving: Vec<String> =
             self.library.keys().filter(|k| aliases.canonical(k) != k.as_str()).cloned().collect();
@@ -221,6 +244,7 @@ impl Space {
         for old_id in moving {
             let Some(mut item) = self.library.remove(&old_id) else { continue };
             changed = true;
+            self.dirty_mut().library.extend([old_id.clone(), aliases.canonical(&old_id).to_owned()]);
             let at = links_at.max(item.changed_at());
             let gone = self.removed.entry(old_id).or_default();
             *gone = (*gone).max(at);
@@ -242,13 +266,17 @@ impl Space {
             self.library.insert(id, item);
         }
 
+        let mut moved = Vec::new();
         for p in self.progress.values_mut() {
             let id = aliases.canonical(&p.meta_id);
             if id != p.meta_id {
                 p.meta_id = id.to_owned();
+                moved.push(p.video_id.clone());
                 changed = true;
             }
         }
+        // The server keeps progress per title, so it goes up under its new one.
+        self.dirty_mut().progress.extend(moved);
         changed
     }
 }

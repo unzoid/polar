@@ -1,58 +1,61 @@
 import { describe, expect, test } from "bun:test";
 import { pushEach, pushSpace, unpushedCount, type PushDeps } from "../src/lib/account/spacePush";
 import type { AnimeLink } from "../src/lib/library/identity";
-import type { LocalChanges, Progress, SyncLibraryItem } from "../src/lib/types";
+import type { LocalChanges, Progress, Pushed, SyncLibraryItem } from "../src/lib/types";
 
-const item = (id: string) => ({ id }) as unknown as SyncLibraryItem;
-const entry = (id: string) => ({ id }) as unknown as Progress;
-const link = (id: string) => ({ anilist: id }) as unknown as AnimeLink;
+const item = (id: string, updatedAt = 1) => ({ id, updatedAt }) as unknown as SyncLibraryItem;
+const entry = (videoId: string, updatedAt = 1) => ({ videoId, updatedAt }) as unknown as Progress;
+const link = (anilist: number, updatedAt = 1) => ({ anilist, updatedAt }) as unknown as AnimeLink;
 
 /** A device with spaces of unpushed rows, and a server that takes them unless told otherwise. */
 function fake(spaces: Record<string, Partial<LocalChanges>>, server: { down?: Set<string>; noLinks?: boolean } = {}) {
   const pushed: Record<string, LocalChanges[keyof LocalChanges][]> = {};
+  const marked: Record<string, Pushed> = {};
   const deps: PushDeps = {
     async changes(space) {
       const s = spaces[space] ?? {};
-      return { library: s.library ?? [], progress: s.progress ?? [], links: s.links ?? [], cursor: 7, pulledAt: null };
+      return { library: s.library ?? [], progress: s.progress ?? [], links: s.links ?? [], pulledAt: null };
     },
     async push(space, changes) {
       if (server.down?.has(space)) throw new Error("offline");
       pushed[space] = [changes.library, changes.progress, changes.links];
       return { links: !server.noLinks };
     },
-    async markPushed(space) {
-      spaces[space] = {};
+    async markPushed(space, receipt) {
+      marked[space] = receipt;
+      const s = spaces[space];
+      const has = (ids: [unknown, number][], id: unknown, at: number) => ids.some(([i, t]) => i === id && t === at);
+      spaces[space] = {
+        library: s.library?.filter((i) => !has(receipt.library, i.id, i.updatedAt)),
+        progress: s.progress?.filter((p) => !has(receipt.progress, p.videoId, p.updatedAt)),
+        links: s.links?.filter((l) => !has(receipt.links, l.anilist, l.updatedAt)),
+      };
     },
   };
-  return { deps, pushed };
+  return { deps, pushed, marked };
 }
 
 describe("pushSpace", () => {
-  test("pushes the changes and marks them pushed", async () => {
-    const { deps, pushed } = fake({ a: { library: [item("tt1")], progress: [entry("tt2")] } });
-    const r = await pushSpace("a", deps);
-    expect(pushed.a).toEqual([[item("tt1")], [entry("tt2")], []]);
-    expect(r.linksUnsent).toBe(false);
+  test("pushes the changes and marks each by the time it carried", async () => {
+    const { deps, pushed, marked } = fake({ a: { library: [item("tt1", 5)], progress: [entry("tt2:1:1", 6)] } });
+    await pushSpace("a", deps);
+    expect(pushed.a).toEqual([[item("tt1", 5)], [entry("tt2:1:1", 6)], []]);
+    expect(marked.a).toEqual({ library: [["tt1", 5]], progress: [["tt2:1:1", 6]], links: [] });
     expect(await unpushedCount(["a"], deps.changes)).toBe(0);
   });
 
-  test("nothing changed: no request, still marked", async () => {
-    const { deps, pushed } = fake({ a: {} });
+  test("nothing changed: no request, nothing marked", async () => {
+    const { deps, pushed, marked } = fake({ a: {} });
     await pushSpace("a", deps);
     expect(pushed.a).toBeUndefined();
+    expect(marked.a).toBeUndefined();
   });
 
-  test("a server without the links table leaves the links unsent", async () => {
-    const { deps } = fake({ a: { links: [link("1")] } }, { noLinks: true });
-    expect((await pushSpace("a", deps)).linksUnsent).toBe(true);
-  });
-
-  test("links unsent before stay unsent until they can go in full", async () => {
-    const { deps, pushed } = fake({ a: {}, b: {} });
-    expect((await pushSpace("a", deps, { wasUnsent: true })).linksUnsent).toBe(true);
-    const all = [link("1"), link("2")];
-    expect((await pushSpace("b", deps, { wasUnsent: true, allLinks: all })).linksUnsent).toBe(false);
-    expect(pushed.b[2]).toEqual(all);
+  test("a server without the links table leaves the links unpushed", async () => {
+    const { deps, marked } = fake({ a: { library: [item("tt1")], links: [link(1)] } }, { noLinks: true });
+    await pushSpace("a", deps);
+    expect(marked.a.links).toEqual([]);
+    expect(await unpushedCount(["a"], deps.changes)).toBe(1);
   });
 
   test("a failed push is not marked", async () => {
@@ -67,7 +70,7 @@ describe("before sign-out", () => {
     const { deps } = fake(
       {
         a: { library: [item("tt1")], progress: [entry("tt1"), entry("tt2")] },
-        b: { progress: [entry("tt3")], links: [link("5")] },
+        b: { progress: [entry("tt3")], links: [link(5)] },
         c: { library: [item("tt4")] },
       },
       { down: new Set(["a"]) },

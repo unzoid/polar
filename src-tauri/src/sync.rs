@@ -3,13 +3,13 @@
 //! is configured and uses these commands to read local changes and merge
 //! remote ones. The merge rules live in `polar_library::sync`.
 
-use polar_library::{AnimeLink, Changes, Display, Progress, SyncLibraryItem, Untitled};
+use polar_library::{AnimeLink, Changes, Display, Progress, Pushed, SyncLibraryItem, Untitled};
 use serde::Serialize;
 use tauri::State;
 
 use crate::commands::Result;
 use crate::locks::Locked;
-use crate::store::{now, LOCAL_SPACE};
+use crate::store::LOCAL_SPACE;
 use crate::AppState;
 
 #[derive(Debug, Serialize)]
@@ -17,8 +17,6 @@ use crate::AppState;
 pub struct LocalChanges {
     #[serde(flatten)]
     pub changes: Changes,
-    /// Pass back to `sync_mark_pushed` once these reached the server.
-    pub cursor: u64,
     pub pulled_at: Option<String>,
 }
 
@@ -40,7 +38,7 @@ pub fn space_import_local(state: State<'_, AppState>, space: String) -> Result<(
         let target = d.spaces.entry(space).or_default();
         target.import(&local);
         // Everything imported still has to reach the server.
-        target.pushed_at = 0;
+        target.mark_all_unpushed();
     })
 }
 
@@ -66,18 +64,18 @@ pub fn space_forget(state: State<'_, AppState>, space: Option<String>) -> Result
 #[tauri::command]
 pub fn sync_changes(state: State<'_, AppState>, space: String) -> LocalChanges {
     let store = state.store.locked();
-    let cursor = now();
     match store.data.spaces.get(&space) {
-        Some(s) => LocalChanges { changes: s.changes_since(s.pushed_at), cursor, pulled_at: s.pulled_at.clone() },
-        None => LocalChanges { changes: Changes::default(), cursor, pulled_at: None },
+        Some(s) => LocalChanges { changes: s.unpushed(), pulled_at: s.pulled_at.clone() },
+        None => LocalChanges { changes: Changes::default(), pulled_at: None },
     }
 }
 
+/// These records reached the server (each with the time it carried).
 #[tauri::command]
-pub fn sync_mark_pushed(state: State<'_, AppState>, space: String, cursor: u64) -> Result<()> {
+pub fn sync_mark_pushed(state: State<'_, AppState>, space: String, pushed: Pushed) -> Result<()> {
     state.persist(|d| {
         if let Some(s) = d.spaces.get_mut(&space) {
-            s.pushed_at = s.pushed_at.max(cursor);
+            s.mark_pushed(&pushed);
         }
     })
 }

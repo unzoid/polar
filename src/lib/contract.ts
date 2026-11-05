@@ -152,7 +152,7 @@ export const contract = {
     type: true,
   } satisfies Keys<Download>,
   InstalledAddon: { manifest: true, manifestUrl: true } satisfies Keys<InstalledAddon>,
-  LocalChanges: { cursor: true, library: true, links: true, progress: true, pulledAt: true } satisfies Keys<LocalChanges>,
+  LocalChanges: { library: true, links: true, progress: true, pulledAt: true } satisfies Keys<LocalChanges>,
   "Playable.external": { kind: true, url: true } satisfies Keys<Extract<Playable, { kind: "external" }>>,
   "Playable.unsupported": { kind: true, reason: true } satisfies Keys<Extract<Playable, { kind: "unsupported" }>>,
   "Playable.url": { kind: true, url: true } satisfies Keys<Extract<Playable, { kind: "url" }>>,

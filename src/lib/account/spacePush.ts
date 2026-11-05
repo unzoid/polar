@@ -4,40 +4,36 @@
  * before sign-out, which drops every profile's copy from this device. Kept apart from sync.ts so
  * it can be tested without the app's `window`.
  */
-import type { AnimeLink } from "../library/identity";
-import type { LocalChanges } from "../types";
+import type { LocalChanges, Pushed } from "../types";
 import type { SyncChanges } from "./backend";
 
 export interface PushDeps {
-  /** Local changes since the last push (`api.syncChanges`). */
+  /** Local changes not yet on the server (`api.syncChanges`). */
   changes(space: string): Promise<LocalChanges>;
   /** To the server; resolves to whether the links were stored. */
   push(space: string, changes: SyncChanges): Promise<{ links: boolean }>;
-  /** Everything up to `cursor` reached the server (`api.syncMarkPushed`). */
-  markPushed(space: string, cursor: number): Promise<void>;
-}
-
-export interface PushResult {
-  local: LocalChanges;
-  /** The server had no place for the links: send them all again next time. */
-  linksUnsent: boolean;
+  /** These reached the server (`api.syncMarkPushed`). */
+  markPushed(space: string, pushed: Pushed): Promise<void>;
 }
 
 /**
- * One space's changes up to the server. `allLinks`, when given, replaces the changed links (a
- * server that couldn't take links before gets them in full); a space whose links were unsent and
- * that can't be given them in full stays unsent.
+ * One space's changes up to the server. What was sent is marked pushed by the time it carried, so
+ * an edit made meanwhile goes next time; rows the server kept a newer copy of come back on the
+ * pull. Links a server without their table couldn't take stay unpushed and go again.
  */
-export async function pushSpace(space: string, deps: PushDeps, opts: { allLinks?: AnimeLink[]; wasUnsent?: boolean } = {}): Promise<PushResult> {
+export async function pushSpace(space: string, deps: PushDeps): Promise<LocalChanges> {
   const local = await deps.changes(space);
-  const links = opts.allLinks ?? local.links;
-  let unsent = !!opts.wasUnsent && !opts.allLinks;
-  if (local.library.length || local.progress.length || links.length) {
-    const stored = await deps.push(space, { library: local.library, progress: local.progress, links });
-    if (links.length > 0 && !stored.links) unsent = true;
-  }
-  await deps.markPushed(space, local.cursor);
-  return { local, linksUnsent: unsent };
+  const { library, progress } = local;
+  let links = local.links;
+  if (!library.length && !progress.length && !links.length) return local;
+  const stored = await deps.push(space, { library, progress, links });
+  if (!stored.links) links = [];
+  await deps.markPushed(space, {
+    library: library.map((i) => [i.id, i.updatedAt]),
+    progress: progress.map((p) => [p.videoId, p.updatedAt]),
+    links: links.map((l) => [l.anilist, l.updatedAt]),
+  });
+  return local;
 }
 
 /** How many library items, progress entries and anime links would be lost if these spaces were dropped now. */
