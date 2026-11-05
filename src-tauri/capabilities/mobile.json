@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "Main window on Android: Back at the start screen closes the app (src/lib/platform/back.ts)",
+  "windows": ["main"],
+  "platforms": ["android"],
+  "permissions": ["core:app:allow-exit"]
+}

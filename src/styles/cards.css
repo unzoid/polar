@@ -98,15 +98,20 @@
   -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent);
   mask-image: linear-gradient(to bottom, #000 40%, transparent);
 }
-/* A 4×3 pixel copy of the art, stretched: one smooth wash of its colours. */
+/* A 4×3 pixel copy of the art, stretched: one smooth wash of its colours. The
+   blur and tone are drawn into the canvas once where the browser can (AmbientWash). */
 .hero-ambient canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  filter: blur(40px) saturate(1.5) brightness(0.75);
+  --wash: blur(40px) saturate(1.5) brightness(0.75);
+  filter: var(--wash);
   transform: scale(1.15); /* hide the blur's soft edges */
   transition: opacity 600ms var(--ease-std);
+}
+.hero-ambient canvas[data-baked] {
+  filter: none;
 }
 .hero-ambient canvas[data-current="false"] {
   opacity: 0;

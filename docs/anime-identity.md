@@ -5,7 +5,7 @@ Code references are to commit bcd0a85.
 
 ## The problem
 
-Polar knows a show by a string id. For anything a metadata addon knows that is an IMDb id
+Polarity knows a show by a string id. For anything a metadata addon knows that is an IMDb id
 (`tt0000103`); for anime with no usable IMDb page it is a Kitsu id (`kitsu:7442`). Episodes
 are `tt…:S:E` or `kitsu:N:E`. The anime pages start from an AniList entry and pick the id each
 time the page is opened (`usePlayback` in `src/screens/AnimeDetail.tsx`, `TvAnimeDetail` in
@@ -29,7 +29,7 @@ Nothing remembers that choice. So the same show splits into several items when:
 A related, non-anime split: with a TMDB key, episode ids use TMDB's season numbering
 (`crates/index/src/tmdb.rs`), without one Cinemeta's. That is handled separately (step 6).
 
-Constraint: no central database of Polar's own (the Supabase project has 500 MB in all). The
+Constraint: no central database of Polarity's own (the Supabase project has 500 MB in all). The
 mapping has to come from public mapping sources (ani.zip, with Fribb/anime-lists as fallback,
 see `docs/data-sources.md`) and from each user's own choices, stored with their own data.
 
@@ -37,7 +37,7 @@ see `docs/data-sources.md`) and from each user's own choices, stored with their 
 
 **Canonical id.** Every title has exactly one canonical id, and every store keys titles by it:
 
-- an IMDb id `tt…` when Polar plays the show from an IMDb page;
+- an IMDb id `tt…` when Polarity plays the show from an IMDb page;
 - otherwise `kitsu:N`.
 
 Other ids are **aliases**: `kitsu:N` (once an IMDb page is known), `anilist:N`, `mal:N`. An alias
@@ -45,7 +45,7 @@ points at a canonical id. Two rules keep this from merging different shows:
 
 1. **An IMDb id is never an alias.** Two `tt` ids are never joined, whatever any source says.
    Paleblade and Paleblade: Hundred-Night Ash War stay two titles, even though ani.zip links HNAW's
-   AniList entry to Paleblade's IMDb id and Polar plays it from HNAW's.
+   AniList entry to Paleblade's IMDb id and Polarity plays it from HNAW's.
 2. **An alias has one target; the latest decision wins.** `anilist:41467 → tt0000111` replaces an
    earlier `anilist:41467 → tt0000103`. Aliases form chains of at most two steps
    (`anilist → kitsu → tt`); resolving follows them, with a step limit so a bad record cannot
@@ -59,13 +59,13 @@ see one title. The anime page already lines every AniList episode up with both i
 
 **Where an alias comes from**, in order of trust:
 
-1. The user's own data: the id Polar actually played or added from (written when it happens).
+1. The user's own data: the id Polarity actually played or added from (written when it happens).
 2. ani.zip's `mappings` (live, cached on disk for 7 days).
 3. Fribb/anime-lists `anime-list-mini.json`, fetched from GitHub at runtime and cached for a
    week, only when ani.zip fails (approved in I-001; `crates/anime/src/anime_lists.rs`, used by
    `fetchAniZip` in `src/lib/anime/anizip.ts`).
 
-**Anime links.** For each canonical anime title Polar stores one small record, the *link*:
+**Anime links.** For each canonical anime title Polarity stores one small record, the *link*:
 `{ anilist, mal?, kitsu? }`, plus `imdb` when canonical is a `tt`. It is the persisted form of
 what the in-memory maps hold today, and the alias set is derived from it (`anilist:N`, `mal:N`,
 `kitsu:N` all point at the canonical id). One record per anime title the user has touched: a

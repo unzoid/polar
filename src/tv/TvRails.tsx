@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
@@ -24,6 +24,7 @@ const INTENT_MS = 450;
 export function TvCard({
   item,
   shape,
+  artFallbacks,
   progress,
   kicker,
   chip,
@@ -34,6 +35,8 @@ export function TvCard({
 }: {
   item: MetaPreview;
   shape: Shape;
+  /** Pictures to try in turn when the card's own won't load. */
+  artFallbacks?: string[];
   progress?: number;
   kicker?: string;
   /** Short label shown on the card itself, e.g. "S2, E4 · 23m left". */
@@ -94,7 +97,7 @@ export function TvCard({
     >
       <span className="tv-card-frame">
         {art ? (
-          <Img src={art} alt="" className="tv-card-img" onError={onArtError} />
+          <Img src={art} fallbacks={artFallbacks} alt="" className="tv-card-img" onFail={onArtError} />
         ) : (
           <span className="tv-card-fallback">{item.name}</span>
         )}
@@ -239,6 +242,14 @@ export interface RailRow {
 }
 
 /**
+ * One row of a browse screen. Moving to another row re-renders only the rows whose `near` changes,
+ * not every shelf and card on the page each step of a held direction (#36).
+ */
+const BrowseRow = memo(function BrowseRow({ row, near }: { row: RailRow; near: boolean }) {
+  return row.render(near);
+});
+
+/**
  * A browse screen: the stage on top, rails below. The focused rail always
  * sits at the same height just under the stage — moving down slides the
  * rails up rather than moving your eye down the screen.
@@ -255,7 +266,7 @@ export function TvBrowse({ rows }: { rows: RailRow[] }) {
         <div className="tv-rails" data-nav-scroll="start" onFocus={onFocus}>
           {rows.map((r, i) => (
             <div key={r.key} data-row={i}>
-              {r.render(i <= focusRow + LOOKAHEAD)}
+              <BrowseRow row={r} near={i <= focusRow + LOOKAHEAD} />
             </div>
           ))}
         </div>

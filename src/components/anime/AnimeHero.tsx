@@ -5,6 +5,7 @@ import {
   countdown,
   FORMAT_LABEL,
   heroLogo,
+  heroSubtitle,
   SEASON_LABEL,
   STATUS_LABEL,
   untilAiring,
@@ -68,8 +69,7 @@ export function AnimeHero({
         ? "No episodes to play yet"
         : undefined;
   const shownLogo = heroLogo({ aniZipLogo: logo, metaId: pb.metaId, meta: pb.meta, metaLoading: pb.metaLoading });
-  // Under a logo of unknown language, the name the user reads; otherwise the other script.
-  const nativeTitle = shownLogo.logo && !shownLogo.readable ? name : prefs.animeTitles === "native" ? item.title.romaji : item.title.native;
+  const subtitle = heroSubtitle(item.title, prefs.animeTitles, !!shownLogo.logo);
   const score = useAnimeScore()(item.averageScore);
   const studio = anime?.studios.edges.find((e) => e.isMain && e.node.isAnimationStudio)?.node.name;
   const next = item.nextAiringEpisode;
@@ -79,7 +79,7 @@ export function AnimeHero({
     <section className="detail-hero anime-hero">
       <div className="detail-hero-main">
         <TitleHeading name={name} logo={shownLogo.logo} look="detail" />
-        {nativeTitle && (nativeTitle !== name || (shownLogo.logo && !shownLogo.readable)) && <p className="anime-native t-callout">{nativeTitle}</p>}
+        {subtitle && <p className="anime-native t-callout">{subtitle}</p>}
         <p className="detail-facts anime-meta-line t-callout tabular">
           {score && (
             <span className="anime-score" title="AniList score">

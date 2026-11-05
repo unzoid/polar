@@ -44,11 +44,14 @@ const memory = new WeakMap<Element, HTMLElement>();
 
 
 export function isNavigable(el: Element): el is HTMLElement {
-  if (!(el instanceof HTMLElement)) return false;
+  return el instanceof HTMLElement && navigableAt(el, el.getBoundingClientRect());
+}
+
+/** isNavigable for an element whose box `r` has already been read. */
+function navigableAt(el: HTMLElement, r: DOMRect) {
   if ((el as HTMLButtonElement).disabled || el.tabIndex < 0) return false;
-  if (el.closest("[inert]")) return false;
-  const r = el.getBoundingClientRect();
   if (!r.width || !r.height) return false;
+  if (el.closest("[inert]")) return false;
   return el.checkVisibility({ visibilityProperty: true });
 }
 
@@ -146,9 +149,11 @@ function score(a: DOMRect, b: DOMRect, dir: Dir) {
 /**
  * The best control in `dir` from `from`, among `candidates`. Inside a `data-nav-group`, up and
  * down look there first (test report 1, item 7): a short row of chips beside a wide list would
- * otherwise lose to the list, which sits right under every chip.
+ * otherwise lose to the list, which sits right under every chip. With `accept`, a candidate counts
+ * only if it passes, and only those that would win are asked (move: every control on the page,
+ * checked for being navigable only when it's the best yet, #36).
  */
-export function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
+export function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir, accept?: (el: HTMLElement, box: DOMRect) => boolean) {
   const horizontal = dir === "left" || dir === "right";
   const group = horizontal ? null : from.closest("[data-nav-group]");
   if (group) {
@@ -156,13 +161,19 @@ export function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir) 
       from,
       candidates.filter((c) => group.contains(c)),
       dir,
+      accept,
     );
     if (inside) return inside;
   }
-  return nearestOf(from, candidates, dir);
+  return nearestOf(from, candidates, dir, accept);
 }
 
-function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir): HTMLElement | null {
+function nearestOf(
+  from: HTMLElement,
+  candidates: HTMLElement[],
+  dir: Dir,
+  accept?: (el: HTMLElement, box: DOMRect) => boolean,
+): HTMLElement | null {
   const a = from.getBoundingClientRect();
   const horizontal = dir === "left" || dir === "right";
   // At the end of a shelf (or the navbar), left/right stops — it never jumps to another row.
@@ -174,20 +185,27 @@ function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir): HTML
     const b = el.getBoundingClientRect();
     if (inRail && gap(a.top, a.bottom, b.top, b.bottom) > 0) continue;
     const s = score(a, b, dir);
-    if (s < bestScore) {
+    if (s < bestScore && (!accept || accept(el, b))) {
       bestScore = s;
       best = el;
     }
   }
-  return horizontal || !best ? best : adjacentRow(from, best, candidates, dir);
+  return horizontal || !best ? best : adjacentRow(from, best, candidates, dir, accept);
 }
 
 /**
  * Up or down to a card in another shelf (`data-nav-row`) lands in the shelf next to this one, on its
  * nearest card (#42): the sideways cost in score() would otherwise let a further shelf whose cards
- * line up beat a shorter one in between.
+ * line up beat a shorter one in between. Shelves nearer than the winner's are tried nearest first;
+ * one with nothing `accept` takes is passed over.
  */
-function adjacentRow(from: HTMLElement, best: HTMLElement, candidates: HTMLElement[], dir: Dir): HTMLElement | null {
+function adjacentRow(
+  from: HTMLElement,
+  best: HTMLElement,
+  candidates: HTMLElement[],
+  dir: Dir,
+  accept?: (el: HTMLElement, box: DOMRect) => boolean,
+): HTMLElement | null {
   const bestRow = best.closest("[data-nav-row]");
   if (!bestRow || bestRow.contains(from)) return best;
   const a = from.getBoundingClientRect();
@@ -196,23 +214,24 @@ function adjacentRow(from: HTMLElement, best: HTMLElement, candidates: HTMLEleme
     if (dir === "down") return r.top >= (a.top + a.bottom) / 2 ? r.top - a.bottom : Infinity;
     return r.bottom <= (a.top + a.bottom) / 2 ? a.top - r.bottom : Infinity;
   };
-  let near = bestRow;
-  let nearDistance = distance(bestRow);
+  const limit = distance(bestRow);
+  // Each shelf's box is read once; null: not nearer than the winner's.
+  const nearer = new Map<Element, { distance: number; cards: HTMLElement[] } | null>();
   for (const el of candidates) {
     const row = el.closest("[data-nav-row]");
-    if (!row || row === near || row.contains(from)) continue;
-    const d = distance(row);
-    if (d < nearDistance) {
-      nearDistance = d;
-      near = row;
+    if (!row || row === bestRow || row.contains(from)) continue;
+    if (!nearer.has(row)) {
+      const d = distance(row);
+      nearer.set(row, d < limit ? { distance: d, cards: [] } : null);
     }
+    nearer.get(row)?.cards.push(el);
   }
-  if (near === bestRow) return best;
-  return nearestOf(
-    from,
-    candidates.filter((c) => near.contains(c)),
-    dir,
-  );
+  const rows = [...nearer.values()].filter((r) => r !== null).sort((x, y) => x.distance - y.distance);
+  for (const row of rows) {
+    const hit = nearestOf(from, row.cards, dir, accept);
+    if (hit) return hit;
+  }
+  return best;
 }
 
 /**
@@ -245,7 +264,10 @@ export function move(dir: Dir): boolean {
     if (first) focusEl(first);
     return !!first;
   }
-  const target = nearest(current, navigables(scope), dir);
+  // Each control's box is read once, and only a would-be winner is checked further: on a page of
+  // shelves that's hundreds of controls, every step of a held direction (#36).
+  const all = [...scope.querySelectorAll(FOCUSABLE)].filter((el): el is HTMLElement => el instanceof HTMLElement);
+  const target = nearest(current, all, dir, navigableAt);
   if (!target) return false;
   focusEl(resolveEntry(current, target));
   return true;

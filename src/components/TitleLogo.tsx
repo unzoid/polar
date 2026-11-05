@@ -58,30 +58,42 @@ export function toneUrl(src: string): string {
   }
 }
 
-/** True when the visible pixels are, on average, dark. */
+/** True when the logo is inked dark throughout (measured on a downscaled copy). */
 function measure(img: HTMLImageElement) {
   try {
-    const w = 64;
-    const h = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * w)) || 16;
+    // Wide enough that thin bright detail (a ring, small letters) survives the downscale.
+    const w = 128;
+    const h = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * w)) || 32;
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return false;
     ctx.drawImage(img, 0, 0, w, h);
-    const px = ctx.getImageData(0, 0, w, h).data;
-    let sum = 0;
-    let weight = 0;
-    for (let i = 0; i < px.length; i += 4) {
-      const a = px[i + 3] / 255;
-      if (a < 0.5) continue;
-      // Relative luminance (sRGB, roughly): how bright the ink is.
-      sum += (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]) * a;
-      weight += a;
-    }
-    return weight > 0 && sum / weight / 255 < 0.22;
+    return isDarkInk(ctx.getImageData(0, 0, w, h).data);
   } catch {
     // A host without CORS taints the canvas: leave the logo as it is.
     return false;
   }
+}
+
+/**
+ * Whether RGBA pixels are a logo inked dark throughout: dark on average, and
+ * hardly any bright ink. A dark shape carrying bright letters or a ring (#11)
+ * already reads on dark art; as a silhouette its detail would turn white on white.
+ */
+export function isDarkInk(px: ArrayLike<number>) {
+  let sum = 0;
+  let bright = 0;
+  let weight = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    const a = px[i + 3] / 255;
+    if (a < 0.5) continue;
+    // Relative luminance (sRGB, roughly): how bright the ink is.
+    const lum = (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]) / 255;
+    sum += lum * a;
+    if (lum > 0.55) bright += a;
+    weight += a;
+  }
+  return weight > 0 && sum / weight < 0.22 && bright / weight < 0.05;
 }

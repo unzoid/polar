@@ -51,3 +51,16 @@ test("TV: down and up between shelves go to the adjacent shelf's nearest card, e
   expect(nearest(b[2], all, "down")).toBe(c[2]);
   page.remove();
 });
+
+test("TV: a shelf in between whose cards can't take focus is passed over (#42 with #36's check)", () => {
+  const page = document.createElement("div");
+  document.body.append(page);
+  const a = shelf(page, "A", 0, 8);
+  const b = shelf(page, "B", 300, 3);
+  const c = shelf(page, "C", 600, 8);
+  const all = [...a, ...b, ...c];
+  const accept = (el: HTMLElement) => !b.includes(el as HTMLButtonElement);
+  expect(nearest(a[4], all, "down", accept)).toBe(c[4]);
+  expect(nearest(c[1], all, "up", accept)).toBe(a[1]);
+  page.remove();
+});

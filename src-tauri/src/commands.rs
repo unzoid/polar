@@ -27,7 +27,7 @@ pub enum CmdError {
     /// What was asked for isn't there (any more).
     #[error("{0}")]
     NotFound(String),
-    /// Not something Polar does: an id it doesn't key by, a link it won't open.
+    /// Not something Polarity does: an id it doesn't key by, a link it won't open.
     #[error("{0}")]
     Unsupported(String),
     /// A web service (Seekr, IntroDB) failed or said no.

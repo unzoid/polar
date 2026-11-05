@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Polar",
+  "productName": "Polarity",
   "version": "0.17.0",
   "identifier": "app.getpolar.desktop",
   "build": {

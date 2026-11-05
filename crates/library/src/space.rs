@@ -109,7 +109,7 @@ pub struct Space {
     /// Removed library items → when (ms), so removals sync too.
     pub removed: HashMap<String, u64>,
     pub progress: HashMap<String, Progress>,
-    /// AniList id → what Polar knows about that entry.
+    /// AniList id → what Polarity knows about that entry.
     pub links: BTreeMap<u32, AnimeLink>,
     /// Stores written before `dirty`: the local clock (ms) of the last push.
     /// Read once, to work out what was still unpushed.

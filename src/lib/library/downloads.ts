@@ -1,4 +1,5 @@
 import { call } from "../platform/bridge";
+import { isDesktop } from "../platform/device";
 import { useQuery } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
 import { queryClient } from "../net/queries";
@@ -143,6 +144,12 @@ export async function removeDownload(id: string) {
     emit();
   }
 }
+
+/**
+ * Whether a download can be shown in a file manager: on desktop only. On Android and iOS downloads live in
+ * the app's own storage (app_data_dir/downloads), which no file manager opens, and the player plays them from there.
+ */
+export const canRevealDownloads = isDesktop;
 
 /** Show the file in Explorer / Finder. */
 export const revealDownload = (id: string) => call("download_reveal", { id });
