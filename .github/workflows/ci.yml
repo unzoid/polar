@@ -2,18 +2,18 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A new push to a PR replaces its running checks; every commit on master
-# keeps its own run.
+# A new push to a branch or PR replaces its running checks; every commit on
+# master keeps its own run.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   frontend:
@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -48,6 +48,15 @@ jobs:
           toolchain: stable
           components: clippy
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # Linux: the web view (WebKitGTK) and what tauri and gilrs link against.
+      # mpv runs as its own process there, so nothing of it is linked.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev libssl-dev libudev-dev
       # Debug builds (tests, clippy) don't embed the frontend, so no `dist` is
       # needed. On Windows tauri-build does need the bundled mpv files listed in
       # tauri.windows.conf.json; macOS loads an installed libmpv at runtime.
