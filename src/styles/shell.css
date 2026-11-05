@@ -448,6 +448,20 @@
 :root[data-form="phone"] .toast:not(.toast-tv) {
   bottom: calc(1rem + var(--tabbar-h));
 }
+/* A screen's title gets its own line; its controls (Discover's genre and catalog)
+   go under it and scroll sideways rather than run off the edge. */
+:root[data-form="phone"] .screen-header {
+  flex-wrap: wrap;
+}
+:root[data-form="phone"] .discover-controls {
+  max-width: 100%;
+  padding: 2px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+:root[data-form="phone"] .discover-controls > * {
+  flex: none;
+}
 /* Touch: the bar's icons grow to a finger's size. */
 :root[data-touch="true"] .navbar-icon {
   min-width: var(--hit);

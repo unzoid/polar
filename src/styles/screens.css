@@ -581,6 +581,25 @@ button.shortcut-combo:hover {
     transform var(--dur-fast) var(--ease-out),
     opacity var(--dur-fast) var(--ease-std);
 }
+/* Phone: two tiles a row leave no room for the chevron; the name and count keep it. */
+:root[data-form="phone"] .library-collections {
+  gap: 0.625rem;
+}
+:root[data-form="phone"] .library-tile {
+  gap: 0.625rem;
+  min-height: 4.5rem;
+  padding: 0.75rem;
+}
+:root[data-form="phone"] .library-tile-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+:root[data-form="phone"] .library-tile-title {
+  font-size: var(--fs-lg);
+}
+:root[data-form="phone"] .library-tile-chevron {
+  display: none;
+}
 .library-rows {
   padding-bottom: 3rem;
 }
