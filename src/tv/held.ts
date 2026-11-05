@@ -9,7 +9,8 @@ const SETTLE_MS = 180;
 let timer = 0;
 
 export function markHeldMove() {
-  document.documentElement.setAttribute("data-nav-held", "");
+  // Set once per hold: setting it again each repeat would restyle the whole page each time.
+  if (!document.documentElement.hasAttribute("data-nav-held")) document.documentElement.setAttribute("data-nav-held", "");
   window.clearTimeout(timer);
   timer = window.setTimeout(() => document.documentElement.removeAttribute("data-nav-held"), SETTLE_MS);
 }
