@@ -26,6 +26,13 @@ Rules:
   crates themselves.
 - **Only `src/lib/platform` imports `@tauri-apps/*`.** Everything else goes through its
   interfaces. `tests/platformBoundary.test.ts` fails if another file does.
+- **The web view reaches only what its own code fetches.** `connect-src` in
+  `src-tauri/tauri.conf.json` names those hosts (AniList, ani.zip, AniSkip, IMDb's suggestion API,
+  GitHub's releases and the add-on list) and `*.supabase.co`; add-ons, TMDB, Cinemeta, subtitles and
+  downloads go through Rust. A self-hosted account backend needs its host added there. Pictures and
+  video stay open to any `https:`/`http:` host, since add-ons choose them. The web view has no
+  `opener`, `fs` or `shell` permission: links open through `open_external` (https only) and files are
+  revealed by download id. `tests/webviewPolicy.test.ts` checks all three.
 - **Platform differences in the shell stay in the module that owns the concern** (the
   player in `player.rs` and `macos/`, controllers in `controllers.rs`), behind the commands
   the front end already calls, so a new platform changes that module and nothing above it.

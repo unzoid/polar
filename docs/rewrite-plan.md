@@ -157,6 +157,12 @@ Done in the same migration, so the server is changed once:
   M17 done: `src-tauri/src/locks.rs` (`locked()`, `reading()`, `writing()`) everywhere outside tests, and the
   index cache the same way; the `expect("http client")` constructors are left (a TLS init failure at launch).
 - **M2 / M20** Capabilities and CSP narrowed to what the commands use. **M19** proxy headers on playback.
+  M2/M20 done: `opener:default` dropped from `capabilities/default.json` (the Rust commands open links and
+  reveal files; `@tauri-apps/plugin-opener` removed from the front end), `connect-src` lists the hosts the
+  front end fetches plus `*.supabase.co` (no `https:`/`wss:`/loopback catch-alls), checked by
+  `tests/webviewPolicy.test.ts`. `img-src`/`media-src` keep `https:`/`http:`: add-ons choose posters and
+  streams, local ones over http. The WebView2 flags are kept: `msSmartScreenProtection` is in Tauri's own
+  default list, which `additionalBrowserArgs` replaces, so it stays as Tauri ships it.
 - **L18** `player.rs` split into `ipc.rs`, `autocrop.rs`, `snapshot.rs`, tests in their own module.
 
 ### R5. Screens (T-008)

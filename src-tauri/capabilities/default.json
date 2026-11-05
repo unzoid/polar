@@ -13,7 +13,6 @@
     "core:window:allow-is-fullscreen",
     "core:window:allow-is-minimized",
     "core:webview:allow-set-webview-zoom",
-    "opener:default",
     "updater:default",
     "process:allow-restart"
   ]
