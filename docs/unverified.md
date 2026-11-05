@@ -185,6 +185,14 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
 - Apple TV: docs/ARCHITECTURE.md §3 says tvOS has no web view and Tauri 2 doesn't target it (from Tauri's list of
   supported platforms: Windows, macOS, Linux, Android, iOS). Check before planning cycle 3.
 
+- Narrower web view policy (R4 M2/M20): `connect-src` now names its hosts and `opener:default` is gone. Checked
+  here only by `tests/webviewPolicy.test.ts`, which reads the code for the hosts it fetches. To check on a desktop:
+  open the devtools console (right-click → Inspect in a debug build) and look for "Refused to connect" while you
+  sign in, start a Watch Party (Supabase realtime over `wss://`), open Anime and an anime title (AniList, ani.zip),
+  play an anime episode with skip times (AniSkip), open Discover's add-on list, and run Check for updates. Links
+  (Trailer → YouTube, Credits) must still open in the browser and Downloads → Show in folder still reveal the file.
+  A self-hosted Supabase (not `*.supabase.co`) is refused until its host is added to `connect-src`.
+
 ## Phone and tablet layouts (T-033)
 
 - The layouts were first checked by reading the CSS, and the form-factor rules by tests
