@@ -52,11 +52,7 @@ Big cards, a clock, and everything reachable with a controller or the arrow keys
 
 Subtitles, audio, sources and episodes sit in the bottom bar.
 
-<!-- Player screenshot goes here: take it with an open film, as docs/screenshots.md says, then
-uncomment these two lines and fill in the credit for the film you used.
-![Player](readme-images/player.png)
-<sub>Sintel © copyright Blender Foundation | durian.blender.org, CC BY 3.0</sub>
--->
+
 
 ## Getting started
 
