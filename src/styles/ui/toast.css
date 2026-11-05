@@ -24,6 +24,26 @@
     transform: translateY(12px);
   }
 }
+/* Going away: the way in, backwards (Toast leaving). */
+.toast[data-leaving] {
+  animation: toast-out 220ms var(--ease-out) forwards;
+  pointer-events: none;
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+/* Saved-data problems sit above every window, Settings included: they report what was just done there. */
+.toast.store-toast {
+  z-index: var(--z-notice);
+}
 .toast .toast-action {
   height: 36px;
   padding: 0 1rem;
@@ -90,5 +110,8 @@
 @media (prefers-reduced-motion: reduce) {
   .toast {
     animation-name: fade-in;
+  }
+  .toast[data-leaving] {
+    animation-name: fade-out;
   }
 }

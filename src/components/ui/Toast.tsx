@@ -11,6 +11,8 @@ export type ToastProps = Omit<HTMLAttributes<HTMLDivElement>, "className" | "chi
   lines?: boolean;
   /** `tv`: up top, clear of the hints bar, at TV size. */
   variant?: "tv";
+  /** Going away: plays the way out (toast-out); the caller removes it afterwards. */
+  leaving?: boolean;
   /** Extra classes for one toast's own touches (`update-toast`), not for restyling. */
   className?: string;
 };
@@ -20,12 +22,12 @@ export type ToastProps = Omit<HTMLAttributes<HTMLDivElement>, "className" | "chi
  * came or went, an update is ready. Announced politely (`role="status"`). The caller decides when it
  * shows and for how long. Styling in styles/ui/toast.css.
  */
-export function Toast({ icon, children, actions, lines, variant, className, ...rest }: ToastProps) {
+export function Toast({ icon, children, actions, lines, variant, leaving, className, ...rest }: ToastProps) {
   let cls = variant === "tv" ? "toast toast-tv" : "toast";
   if (lines) cls += " toast-lines";
   if (className) cls += ` ${className}`;
   return (
-    <div className={cls} role="status" {...rest}>
+    <div className={cls} role="status" data-leaving={leaving || undefined} {...rest}>
       {icon}
       <span className="toast-text">{children}</span>
       {actions}

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { MutationObserver } from "@tanstack/react-query";
 import { onSaveFailure, saveFailureText, storeLocal } from "../src/lib/errors";
 
 // api.ts reaches modules that read localStorage when they load.
@@ -9,7 +10,7 @@ const mem = new Map<string, string>();
   removeItem: (k: string) => void mem.delete(k),
 };
 const { api } = await import("../src/lib/api");
-const { keys, queryClient } = await import("../src/lib/net");
+const { keys, queryClient, settingsMutation } = await import("../src/lib/net");
 
 // The native side answers through window.__TAURI_INTERNALS__ (what @tauri-apps/api's invoke calls).
 const g = globalThis as { window?: unknown };
@@ -62,5 +63,34 @@ describe("save failures are never silent (test report 1, item 3)", () => {
     expect(storeLocal("k", "v", { setItem: () => {} })).toBe(true);
     off();
     expect(heard).toEqual(["The quota has been exceeded."]);
+  });
+
+  test("a setting that couldn't be saved stays as chosen: no new, old, new flip (re-test 3c)", async () => {
+    // The native side keeps the change in memory and says it couldn't write it.
+    nativeAnswers((cmd) => {
+      if (cmd === "settings_set") throw { code: "save_failed", message: "could not save: denied" };
+      return null;
+    });
+    queryClient.setQueryData(keys.settings, { theme: "dark", cardSize: "m" });
+    const seen: unknown[] = [];
+    const unsub = queryClient.getQueryCache().subscribe((e) => {
+      if (e.query.queryKey[0] === keys.settings[0] && e.type === "updated") seen.push((e.query.state.data as { cardSize?: string })?.cardSize);
+    });
+    const m = new MutationObserver(queryClient, settingsMutation(queryClient));
+    await m.mutate({ cardSize: "l" } as never).catch(() => {});
+    unsub();
+    expect(queryClient.getQueryData<{ cardSize: string }>(keys.settings)?.cardSize).toBe("l");
+    expect(seen).not.toContain("m");
+  });
+
+  test("a setting refused for another reason goes back to what it was", async () => {
+    nativeAnswers((cmd) => {
+      if (cmd === "settings_set") throw { code: "invalid", message: "no" };
+      return null;
+    });
+    queryClient.setQueryData(keys.settings, { theme: "dark", cardSize: "m" });
+    const m = new MutationObserver(queryClient, settingsMutation(queryClient));
+    await m.mutate({ cardSize: "l" } as never).catch(() => {});
+    expect(queryClient.getQueryData<{ cardSize: string }>(keys.settings)?.cardSize).toBe("m");
   });
 });

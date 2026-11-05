@@ -1,6 +1,7 @@
 import { type QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { api } from "../api";
+import { errorCode } from "../errors";
 import { sync } from "../account/sync";
 import { aniZipLookup } from "../anime/anizip";
 import { groupBoost, preferredGroups } from "../anime/groups";
@@ -163,24 +164,35 @@ export function preloadImage(src?: string) {
 }
 
 /**
- * Change settings and save them right away (optimistic: the UI reflects the
- * change at once, and rolls back if saving fails). For toggles and pickers;
- * text fields that need an explicit Save use the form in Settings instead.
+ * What `useUpdateSettings` runs, for a given cache. Optimistic: the UI reflects the change at once
+ * and rolls back if it was refused. A change that only couldn't be written (`save_failed`) stays:
+ * the native side keeps it until Polarity quits, and rolling back would flip new, old, new when the
+ * settings are read again (re-test 3c).
  */
-export function useUpdateSettings() {
-  const qc = useQueryClient();
-  return useMutation({
+export function settingsMutation(qc: QueryClient) {
+  return {
     mutationFn: async (patch: Partial<Settings>) => {
       const current = qc.getQueryData<Settings>(keys.settings) ?? (await api.settings());
       return api.saveSettings({ ...current, ...patch });
     },
-    onMutate: async (patch) => {
+    onMutate: async (patch: Partial<Settings>) => {
       await qc.cancelQueries({ queryKey: keys.settings });
       const previous = qc.getQueryData<Settings>(keys.settings);
       if (previous) qc.setQueryData(keys.settings, { ...previous, ...patch });
       return { previous };
     },
-    onError: (_e, _p, ctx) => ctx?.previous && qc.setQueryData(keys.settings, ctx.previous),
-    onSuccess: (saved) => qc.setQueryData(keys.settings, saved),
-  });
+    onError: (e: unknown, _p: Partial<Settings>, ctx: { previous?: Settings } | undefined) => {
+      if (errorCode(e) !== "save_failed" && ctx?.previous) qc.setQueryData(keys.settings, ctx.previous);
+    },
+    onSuccess: (saved: Settings) => qc.setQueryData(keys.settings, saved),
+  };
+}
+
+/**
+ * Change settings and save them right away (see `settingsMutation`). For toggles and pickers;
+ * text fields that need an explicit Save use the form in Settings instead.
+ */
+export function useUpdateSettings() {
+  const qc = useQueryClient();
+  return useMutation(settingsMutation(qc));
 }

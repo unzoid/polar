@@ -324,12 +324,13 @@ function DesktopApp() {
           </section>
         ))}
         <ControllerToast tv={false} />
-        <StoreProblemToast tv={false} />
         <UpdateToast hidden={!!playing} />
       </main>
       <WhatsNewSheet />
       <PlayerLayer player={player} leaving={leaving} />
       <LazySettingsOverlay />
+      {/* After Settings: it reports changes made there too, so it must never be under it or inert with the page. */}
+      <StoreProblemToast tv={false} />
       {!playing && <CardMenuHost />}
       <TrailerHost />
     </div>

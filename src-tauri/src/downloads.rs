@@ -145,16 +145,14 @@ pub fn is_local(url: &str) -> bool {
 }
 
 impl Downloads {
-    /// The list from `state` (copied there first from `legacy`, where earlier versions kept it with
-    /// the files; those stay where they are), new files into `dir`.
+    /// The list from `state` (taken over first from `legacy`, where earlier versions kept it with
+    /// the files: copied, the old one renamed `downloads.json.moved`; the files stay where they
+    /// are), new files into `dir`.
     pub fn load(state: &Path, dir: PathBuf, legacy: Option<&Path>) -> Self {
         let path = state.join("downloads.json");
-        if let Some(old) = legacy.map(|l| l.join("downloads.json")).filter(|old| *old != path && old.exists()) {
-            if !path.exists() {
-                let copied = std::fs::create_dir_all(state).and_then(|()| std::fs::copy(&old, &path));
-                if let Err(e) = copied {
-                    tracing::warn!("couldn't move the downloads list: {e}");
-                }
+        if let Some(old) = legacy.map(|l| l.join("downloads.json")) {
+            if let Err(e) = polar_library::moved::take_over(&old, &path) {
+                tracing::warn!("couldn't move the downloads list: {e}");
             }
         }
         let (mut items, problem): (Vec<Download>, _) = match opened::open(std::fs::read(&path)) {

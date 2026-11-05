@@ -17,6 +17,7 @@ pub mod display;
 pub mod filenames;
 pub mod identity;
 pub mod logfile;
+pub mod moved;
 pub mod opened;
 pub mod saver;
 pub mod space;
