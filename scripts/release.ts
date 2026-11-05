@@ -71,8 +71,8 @@ if (!flags.has("--no-build")) {
 
 // 3. The update feed.
 const bundle = join(root, "target", "release", "bundle");
-const setup = join(bundle, "nsis", `Polar_${version}_x64-setup.exe`);
-const msi = join(bundle, "msi", `Polar_${version}_x64_en-US.msi`);
+const setup = join(bundle, "nsis", `Polarity_${version}_x64-setup.exe`);
+const msi = join(bundle, "msi", `Polarity_${version}_x64_en-US.msi`);
 for (const f of [setup, `${setup}.sig`, msi, `${msi}.sig`]) {
   if (!existsSync(f)) {
     console.error(`Missing ${f}. Was it built with createUpdaterArtifacts and a signing key?`);
@@ -98,7 +98,7 @@ writeFileSync(feedPath, JSON.stringify(feed, null, 2));
 // 4. Publish.
 const body = `Polarity for Windows (x64).
 
-**Install:** download \`Polar_${version}_x64-setup.exe\` (recommended) or the \`.msi\`. Already have Polarity 0.1.3 or later? It updates itself: you'll be asked to restart when it's ready.
+**Install:** download \`Polarity_${version}_x64-setup.exe\` (recommended) or the \`.msi\`. Already have Polarity 0.1.3 or later? It updates itself: you'll be asked to restart when it's ready.
 
 ### What's new
 ${notes}

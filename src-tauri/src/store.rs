@@ -331,7 +331,7 @@ impl Store {
     pub fn load(path: PathBuf) -> Self {
         let (mut data, problem) = match opened::open::<Data>(std::fs::read(&path)) {
             Opened::Data(data) if data.version > VERSION => {
-                // A newer Polar wrote this: what this build doesn't know
+                // A newer Polarity wrote this: what this build doesn't know
                 // would be dropped on the next save, so keep its file aside.
                 let backup = path.with_extension(format!("v{}-{}.json", data.version, now()));
                 tracing::warn!("{} is from a newer version; keeping it as {}", path.display(), backup.display());

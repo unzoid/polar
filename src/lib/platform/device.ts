@@ -27,6 +27,20 @@ export const isMac = os === "macos";
 /** A desktop system: windows, a pointer and a keyboard first, the app updates itself. */
 export const isDesktop = os === "windows" || os === "macos" || os === "linux";
 
+type TvBridge = { polarDevice?: { isTv?: () => boolean } };
+
+/** Whether the device itself is a TV: Android's activity says so through `polarDevice` (gen/android MainActivity.kt) before the page loads. */
+export function detectTvDevice(scope: TvBridge | undefined): boolean {
+  try {
+    return scope?.polarDevice?.isTv?.() === true;
+  } catch {
+    return false;
+  }
+}
+
+/** A TV set or box (Android TV, Google TV, Fire TV): TV mode is on at start there. */
+export const isTvDevice = detectTvDevice(typeof window === "undefined" ? undefined : (window as TvBridge));
+
 /** The shortcut modifier, as stored in bindings ("Ctrl+k" / "Meta+k"). */
 export const MOD = isMac ? "Meta" : "Ctrl";
 
