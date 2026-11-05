@@ -561,7 +561,10 @@ async fn launch(
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: no console flash
     }
-    let mut child = cmd.spawn().map_err(|e| format!("couldn't start mpv: {e}"))?;
+    let mut child = cmd.spawn().map_err(|e| {
+        tracing::error!("couldn't start mpv: {e}");
+        format!("couldn't start mpv: {e}")
+    })?;
 
     // The pipe appears once mpv has initialised.
     let started = Instant::now();
@@ -572,6 +575,7 @@ async fn launch(
             Err(_) if started.elapsed() < Duration::from_secs(8) => tokio::time::sleep(Duration::from_millis(15)).await,
             Err(e) => {
                 let _ = child.kill();
+                tracing::error!("mpv didn't open its control pipe: {e}");
                 return Err(format!("mpv didn't open its control pipe: {e}"));
             }
         }

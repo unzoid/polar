@@ -1,6 +1,6 @@
 //! What a profile owns and how it changes: the library, watch progress and
 //! anime links of one space, the operations the app performs on them, and
-//! the local half of account sync. No Tauri, and no I/O outside [`saver`], so
+//! the local half of account sync. No Tauri, and no I/O outside [`saver`] and [`logfile`], so
 //! all of it is tested here; `src-tauri` keeps the file and the commands.
 //!
 //! - [`identity`]: canonical title ids and aliases (one show, one item).
@@ -9,11 +9,13 @@
 //! - [`display`]: names and pictures filled in for pulled titles.
 //! - [`opened`]: what to make of a data file read at start-up (missing, unreadable, corrupt).
 //! - [`saver`]: writing a data file in the background, all or nothing.
+//! - [`logfile`]: the app's log file, kept to a size.
 
 #[cfg(test)]
 mod contract;
 pub mod display;
 pub mod identity;
+pub mod logfile;
 pub mod opened;
 pub mod saver;
 pub mod space;

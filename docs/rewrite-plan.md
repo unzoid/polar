@@ -153,7 +153,11 @@ Done in the same migration, so the server is changed once:
   UI or the polar-index HTTP API (tested). `subtitle_vtt` fetches only URLs the `subtitles` command listed (`polar_addon::offered`, tested); Seekr's
   thumbnail index capped at 4 MB. Left: animefillerlist pages (a fixed host) are still read whole.
   **M14** `tracing`-style logging to a rotating file (only `log` + an existing writer if it needs no new
-  crate; otherwise asked). **M17** `Mutex` unwraps replaced by a poison-tolerant helper.
+  crate; otherwise asked). M14 done with crates already in the build (`tracing`, `tracing-subscriber`, now a
+  workspace dependency): `polar_library::logfile` (1 MB, one older copy, tested) and `src-tauri/src/logging.rs`
+  (warnings from everything, Polar's own info, panics); `eprintln!` gone; failures that were dropped now logged:
+  data file and downloads list saves, bundled add-on install, ratings (by host, `without_url`: the query holds the
+  key), IMDb lookups (no title id), mpv not starting. **M17** `Mutex` unwraps replaced by a poison-tolerant helper.
   M17 done: `src-tauri/src/locks.rs` (`locked()`, `reading()`, `writing()`) everywhere outside tests, and the
   index cache the same way; the `expect("http client")` constructors are left (a TLS init failure at launch).
 - **M2 / M20** Capabilities and CSP narrowed to what the commands use. **M19** proxy headers on playback.
