@@ -6,8 +6,8 @@
 //!
 //! The file (`anime-list-mini.json`, about 6 MB) is downloaded only the first
 //! time the fallback is needed, kept in the app's cache folder and replaced
-//! when it is over a week old. It is fetched at runtime rather than bundled:
-//! the repository declares no licence (docs/data-sources.md, section 6).
+//! when it is over a week old. It is fetched at runtime, not bundled
+//! (docs/data-sources.md, Decisions).
 
 use std::collections::HashMap;
 use std::path::PathBuf;

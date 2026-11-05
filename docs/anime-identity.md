@@ -31,7 +31,7 @@ A related, non-anime split: with a TMDB key, episode ids use TMDB's season numbe
 
 Constraint: no central database of Polar's own (the Supabase project has 500 MB in all). The
 mapping has to come from public mapping sources (ani.zip, with Fribb/anime-lists as fallback,
-see `docs/data-sources.md` §4) and from each user's own choices, stored with their own data.
+see `docs/data-sources.md`) and from each user's own choices, stored with their own data.
 
 ## The model
 

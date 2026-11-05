@@ -1,7 +1,7 @@
 /**
- * Where the app's data comes from, for Settings → About → Credits. Some of
- * these terms require the credit (TMDB, TheTVDB); the rest are courtesy.
- * docs/data-sources.md has each source's terms. Swapping a source means
+ * Where the app's data comes from, for Settings → About → Credits. TMDB and
+ * TheTVDB ask for theirs; the rest are courtesy. docs/data-sources.md lists
+ * every source. Swapping a source means
  * changing its entry here too.
  */
 export interface Credit {
