@@ -4,6 +4,9 @@ use std::collections::VecDeque;
 
 use serde_json::Value;
 
+use crate::bars::Measured;
+use crate::motion::{Easing, Glide};
+
 /// Finds the picture's edges in each frame (`reset=1`: no memory between
 /// frames; [`CropTracker`] does the remembering): rows and columns whose
 /// average is above `limit` (a fraction of the signal range) are picture.
@@ -69,6 +72,54 @@ pub fn zoom_for((v, h): (i64, i64), (w, hgt): (i64, i64), (dw, dh): (i64, i64), 
     (picture / full).log2().max(0.0)
 }
 
+/// The `video-zoom` to send mpv, frame by frame (docs/autocrop.md §6): a
+/// change [`CropTracker::on_cut`] says lands with the picture, a new file
+/// or a new window size is shown at once; any other change of 1% or more
+/// ([`zoom_changed`]) glides along `easing`, sent on every frame until it
+/// settles. Times are seconds on a steady clock.
+#[derive(Debug, Clone)]
+pub struct CropZoom {
+    glide: Glide,
+    /// The load and window size the glide belongs to.
+    load: Option<u64>,
+    window: (i64, i64),
+    /// The zoom mpv has (`None`: unknown, send the next one).
+    sent: Option<f64>,
+}
+
+impl CropZoom {
+    pub fn new(easing: Easing) -> Self {
+        CropZoom { glide: Glide::new(easing, 0.0), load: None, window: (0, 0), sent: None }
+    }
+
+    /// The zoom to send now, if it differs from what mpv has. `target` is
+    /// [`zoom_for`] the tracker's bars; `at_once` is its [`on_cut`](CropTracker::on_cut).
+    pub fn next(&mut self, load: u64, window: (i64, i64), target: f64, at_once: bool, now: f64) -> Option<f64> {
+        let fresh = self.load != Some(load) || self.window != window;
+        if fresh {
+            (self.load, self.window) = (Some(load), window);
+            self.glide.jump(target, now);
+        } else if target != self.glide.target() {
+            if at_once {
+                self.glide.jump(target, now);
+            } else if zoom_changed(Some((load, self.glide.target())), load, target) {
+                self.glide.go(target, now);
+            }
+        }
+        let zoom = self.glide.at(now);
+        if self.sent.is_some_and(|s| (s - zoom).abs() < 1e-6) {
+            return None;
+        }
+        self.sent = Some(zoom);
+        Some(zoom)
+    }
+
+    /// mpv didn't take the last zoom: send again next time.
+    pub fn unsent(&mut self) {
+        self.sent = None;
+    }
+}
+
 /// A picture area in video pixels, as cropdetect reports it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
@@ -82,7 +133,9 @@ pub struct Rect {
 const CROP_HISTORY: usize = 12;
 /// Frames bar edges must hold still for before they're cropped: bars this
 /// file has shown before, and bars that leave a common picture shape. Any
-/// other shape needs [`CROP_HISTORY`].
+/// other shape needs [`CROP_HISTORY`]. Crisp bars (only our own detector,
+/// `bars`, tells) are cropped on their first frame when they leave a common
+/// shape, else as known bars.
 const KNOWN_FRAMES: usize = 2;
 const COMMON_FRAMES: usize = 4;
 /// How far apart (pixels) readings of the same bar edge may be. A real bar's
@@ -109,6 +162,14 @@ const COMMON_ASPECTS: &[f64] = &[1.33, 1.37, 1.43, 1.5, 1.66, 1.78, 1.85, 1.9, 2
 ///    must be at least 40% of the frame.
 ///  * Black frames (fades) say nothing either way.
 ///  * Bars thinner than 1% a side aren't worth cropping.
+///  * With [`update_measured`](Self::update_measured), bars whose edges are
+///    crisp on both sides need fewer frames: 1 for a common shape, 2 for
+///    any other. A wrong crop costs one frame, since it's undone as soon as
+///    picture shows in the bar.
+///  * Bars the film animates itself (they open or close over a shot): once
+///    3 frames in a row have crisp edges moving the same way, each frame's
+///    bars are shown as they are, with no hold ([`following`](Self::following)),
+///    until the edges hold still for 2 frames or stop being crisp.
 ///
 /// Each axis is judged on its own, so a dark vignette at the sides doesn't
 /// hold up cropping the letterbox.
@@ -119,10 +180,19 @@ pub struct CropTracker {
     full: (i64, i64),
     /// Bar thickness per frame, `[top, bottom, left, right]`, oldest first.
     recent: VecDeque<[i64; 4]>,
+    /// Whether the newest frame's bars are crisp on both sides, per axis,
+    /// and for how many frames in a row they have been.
+    crisp: [bool; 2],
+    crisp_run: [usize; 2],
+    /// Per axis: following bars the film animates.
+    follow: [bool; 2],
     /// Bars removed now: (top and bottom, left and right).
     shown: (i64, i64),
     /// Bar thicknesses cropped earlier in this load, per axis.
     known: [Vec<i64>; 2],
+    /// Whether the newest frame changed the bars on the frame the picture's
+    /// own bars changed (or by following animated bars).
+    on_cut: bool,
 }
 
 impl CropTracker {
@@ -138,9 +208,20 @@ impl CropTracker {
     /// Feed one frame's reading (`None` if cropdetect had nothing).
     /// `display` is the frame's display size, for non-square pixels.
     pub fn update(&mut self, load: u64, full: (i64, i64), display: (i64, i64), reading: Option<Rect>) {
+        self.feed(load, full, display, reading, [false; 2]);
+    }
+
+    /// Feed one frame as our own detector measured it (`None`: a black frame).
+    pub fn update_measured(&mut self, load: u64, full: (i64, i64), display: (i64, i64), measured: Option<Measured>) {
+        let crisp = measured.map_or([false; 2], |m| [m.crisp[0] && m.crisp[1], m.crisp[2] && m.crisp[3]]);
+        self.feed(load, full, display, measured.map(|m| m.rect), crisp);
+    }
+
+    fn feed(&mut self, load: u64, full: (i64, i64), display: (i64, i64), reading: Option<Rect>, crisp: [bool; 2]) {
         if load != self.load || full != self.full {
             *self = CropTracker { load, full, ..Default::default() };
         }
+        self.on_cut = false;
         let (fw, fh) = full;
         // An all-black frame comes back as an empty or inside-out area.
         let Some(r) =
@@ -152,22 +233,83 @@ impl CropTracker {
             self.recent.pop_front();
         }
         self.recent.push_back([r.y, fh - r.y - r.h, r.x, fw - r.x - r.w]);
+        self.crisp = crisp;
+        for (run, crisp) in self.crisp_run.iter_mut().zip(crisp) {
+            *run = if crisp { *run + 1 } else { 0 };
+        }
 
         let shown = [self.shown.0, self.shown.1];
         let mut next = shown;
         for axis in 0..2 {
-            if let Some(thinner) = self.revealed(axis, shown[axis]) {
+            self.follow[axis] = (self.follow[axis] || self.animated(axis)) && self.still_animated(axis);
+            if self.follow[axis] {
+                let newest = self.recent.back().map_or([0; 4], |r| *r);
+                next[axis] = newest[2 * axis].min(newest[2 * axis + 1]);
+            } else if let Some(thinner) = self.revealed(axis, shown[axis]) {
                 next[axis] = thinner;
             } else if let Some(bars) = self.settled(axis, shown, display) {
                 next[axis] = bars;
             }
         }
         for axis in 0..2 {
-            if next[axis] > shown[axis] && !self.known[axis].iter().any(|k| (k - next[axis]).abs() <= EDGE_SLACK) {
+            if next[axis] > shown[axis]
+                && !self.follow[axis]
+                && !self.known[axis].iter().any(|k| (k - next[axis]).abs() <= EDGE_SLACK)
+            {
                 self.known[axis].push(next[axis]);
             }
         }
+        let previous = (self.recent.len() >= 2).then(|| self.recent[self.recent.len() - 2]);
+        let newest = self.recent.back().map_or([0; 4], |r| *r);
+        self.on_cut = (0..2).any(|axis| next[axis] != shown[axis])
+            && (0..2).filter(|&axis| next[axis] != shown[axis]).all(|axis| {
+                self.follow[axis]
+                    || previous.is_none_or(|p| {
+                        (0..2).any(|side| (p[2 * axis + side] - newest[2 * axis + side]).abs() > EDGE_SLACK)
+                    })
+            });
         self.shown = (next[0], next[1]);
+    }
+
+    /// Whether the newest frame changed the bars on the very frame the
+    /// picture's own bars changed (the first frame of a file, a cut, a known
+    /// shape coming back) or by following animated bars: then the zoom jumps
+    /// to it, since readings run a frame ahead of the screen and the jump
+    /// lands with the picture. A change believed a few frames late is eased
+    /// instead ([`CropZoom`]).
+    pub fn on_cut(&self) -> bool {
+        self.on_cut
+    }
+
+    /// Whether bars are being animated by the film: following them frame by frame.
+    pub fn following(&self) -> bool {
+        self.follow[0] || self.follow[1]
+    }
+
+    /// The last 3 frames' edges on `axis` are crisp and each moved the same
+    /// way by a small step (at most 3% of the frame per frame).
+    fn animated(&self, axis: usize) -> bool {
+        let dim = if axis == 0 { self.full.1 } else { self.full.0 };
+        if self.crisp_run[axis] < 3 || self.recent.len() < 3 {
+            return false;
+        }
+        let last: Vec<&[i64; 4]> = self.recent.iter().rev().take(3).collect();
+        let steps: Vec<i64> = (0..2)
+            .flat_map(|side| (0..2).map(move |i| (side, i)))
+            .map(|(side, i)| last[i][2 * axis + side] - last[i + 1][2 * axis + side])
+            .collect();
+        let way = steps[0].signum();
+        way != 0 && steps.iter().all(|d| d.signum() == way && d.abs() * 100 <= dim * 3)
+    }
+
+    /// Still following on `axis`: crisp, not held still for 2 frames, and
+    /// leaving at least 40% of the frame.
+    fn still_animated(&self, axis: usize) -> bool {
+        let dim = if axis == 0 { self.full.1 } else { self.full.0 };
+        let mut last = self.recent.iter().rev();
+        let (Some(a), Some(b)) = (last.next(), last.next()) else { return false };
+        let held = a[2 * axis] == b[2 * axis] && a[2 * axis + 1] == b[2 * axis + 1];
+        self.crisp[axis] && !held && (dim - 2 * a[2 * axis].min(a[2 * axis + 1])) * 10 >= dim * 4
     }
 
     /// Picture inside the cropped bars on `axis` (0: top/bottom, 1:
@@ -194,7 +336,7 @@ impl CropTracker {
         let even = ((dim as f64 * 0.02).round() as i64).max(EDGE_SLACK);
         let edge = |n: usize, side: usize| self.recent.iter().rev().take(n).map(move |r| r[2 * axis + side]);
         // How many of the latest frames the bar edges have held still for.
-        let held = [KNOWN_FRAMES, COMMON_FRAMES, CROP_HISTORY]
+        let held = [1, KNOWN_FRAMES, COMMON_FRAMES, CROP_HISTORY]
             .into_iter()
             .take_while(|&n| {
                 self.recent.len() >= n
@@ -202,6 +344,9 @@ impl CropTracker {
                         .all(|side| edge(n, side).max().unwrap_or(0) - edge(n, side).min().unwrap_or(0) <= EDGE_SLACK)
             })
             .last()?;
+        if held < KNOWN_FRAMES && !self.crisp[axis] {
+            return None; // one frame is enough only for crisp bars
+        }
         let (a, b) = (edge(held, 0).min().unwrap_or(0), edge(held, 1).min().unwrap_or(0));
         if (a - b).abs() > even {
             return None;
@@ -220,9 +365,12 @@ impl CropTracker {
             return Some(bars); // thinner bars: nothing more is cut off
         }
         let shape = (pw as f64 * dw as f64 / fw as f64) / (ph as f64 * dh as f64 / fh as f64);
-        let needed = if self.known[axis].iter().any(|k| (k - bars).abs() <= EDGE_SLACK) {
+        let common = COMMON_ASPECTS.iter().any(|c| (shape / c - 1.0).abs() <= 0.02);
+        let needed = if self.crisp[axis] && common {
+            1
+        } else if self.crisp[axis] || self.known[axis].iter().any(|k| (k - bars).abs() <= EDGE_SLACK) {
             KNOWN_FRAMES
-        } else if COMMON_ASPECTS.iter().any(|c| (shape / c - 1.0).abs() <= 0.02) {
+        } else if common {
             COMMON_FRAMES
         } else {
             CROP_HISTORY
@@ -359,6 +507,69 @@ mod tests {
     }
 
     #[test]
+    fn crisp_bars_crop_on_their_first_frame() {
+        let crisp = |rect: Rect, c: [bool; 4]| Some(Measured { rect, crisp: c });
+        let mut t = CropTracker::default();
+        t.update_measured(1, HD, HD, crisp(FULL, [false; 4]));
+        t.update_measured(1, HD, HD, crisp(SCOPE, [true, true, false, false]));
+        assert_eq!(t.bars(1), (140, 0), "2.40:1 with crisp edges: at once");
+        t.update_measured(1, HD, HD, crisp(FULL, [false; 4]));
+        assert_eq!(t.bars(1), (0, 0));
+        // An odd shape with crisp edges: 2 frames.
+        let odd = Rect { w: 1920, h: 900, x: 0, y: 90 };
+        t.update_measured(1, HD, HD, crisp(odd, [true, true, false, false]));
+        assert_eq!(t.bars(1), (0, 0));
+        t.update_measured(1, HD, HD, crisp(odd, [true, true, false, false]));
+        assert_eq!(t.bars(1), (90, 0));
+        // Crisp on one side only: the usual 4 frames for a common shape.
+        let mut t = CropTracker::default();
+        for n in 1..=4 {
+            t.update_measured(1, HD, HD, crisp(SCOPE, [true, false, false, false]));
+            assert_eq!(t.bars(1), if n < 4 { (0, 0) } else { (140, 0) }, "frame {n}");
+        }
+        // Black frames say nothing, as with cropdetect.
+        t.update_measured(1, HD, HD, None);
+        assert_eq!(t.bars(1), (140, 0));
+    }
+
+    #[test]
+    fn bars_the_film_animates_are_followed_frame_by_frame() {
+        let crisp_scope = |v: i64| {
+            Some(Measured { rect: Rect { w: 1920, h: 1080 - 2 * v, x: 0, y: v }, crisp: [v > 0, v > 0, false, false] })
+        };
+        // The bars open, 140 to 0 in steps of 7 px (20 frames), then full frame.
+        let mut t = CropTracker::default();
+        let mut shown = Vec::new();
+        for v in (0..=20).map(|i| 140 - 7 * i).chain([0, 0]) {
+            t.update_measured(1, HD, HD, crisp_scope(v));
+            shown.push((v, t.bars(1).0, t.following()));
+        }
+        // From the 3rd frame of the move on, exactly the picture's bars.
+        assert!(shown[2..].iter().all(|&(v, b, _)| b == v), "{shown:?}");
+        assert!(shown[2..20].iter().all(|&(_, _, f)| f) && !shown[21].2, "{shown:?}");
+        // Closing, 0 to 140: followed too, and left when the bars hold still.
+        let mut t = CropTracker::default();
+        let mut shown = Vec::new();
+        for v in (0..=14).map(|i| 10 * i).chain([140, 140, 140]) {
+            t.update_measured(1, HD, HD, crisp_scope(v));
+            shown.push((v, t.bars(1).0, t.following()));
+        }
+        assert!(shown[3..].iter().all(|&(v, b, _)| b == v), "{shown:?}");
+        assert!(!shown.last().unwrap().2, "{shown:?}");
+        // Edges that only jitter, or aren't crisp, are never followed.
+        let mut t = CropTracker::default();
+        for v in [140, 138, 140, 138, 140, 138] {
+            t.update_measured(1, HD, HD, crisp_scope(v));
+            assert!(!t.following());
+        }
+        let mut t = CropTracker::default();
+        for v in [140, 130, 120, 110, 100] {
+            t.update(1, HD, HD, crisp_scope(v).map(|m| m.rect));
+            assert!(!t.following());
+        }
+    }
+
+    #[test]
     fn each_load_starts_over() {
         let mut t = CropTracker::default();
         feed(&mut t, &[Some(SCOPE); 5]);
@@ -395,5 +606,58 @@ mod tests {
         assert!(zoom_changed(Some((1, 0.4)), 1, 0.43));
         assert!(zoom_changed(Some((1, 0.01)), 1, 0.0), "back to none always");
         assert!(!zoom_changed(Some((1, 0.0)), 1, 0.0));
+    }
+
+    #[test]
+    fn changes_on_the_frame_the_bars_change_are_on_the_cut() {
+        let crisp = |rect: Rect| Some(Measured { rect, crisp: [true, true, false, false] });
+        let mut t = CropTracker::default();
+        t.update_measured(1, HD, HD, crisp(SCOPE));
+        assert!(t.on_cut(), "the first frame of a file");
+        t.update_measured(1, HD, HD, crisp(SCOPE));
+        assert!(!t.on_cut(), "no change");
+        t.update(1, HD, HD, Some(FULL));
+        assert!(t.on_cut(), "back to full frame on the cut");
+        // cropdetect: a new shape believed 4 frames after the cut is late.
+        let mut t = CropTracker::default();
+        let late: Vec<bool> = (0..4)
+            .map(|_| {
+                t.update(1, HD, HD, Some(SCOPE));
+                t.on_cut()
+            })
+            .collect();
+        assert_eq!((t.bars(1), late), ((140, 0), vec![false; 4]));
+        // Known bars coming back after full frame: 2 frames, also late.
+        t.update(1, HD, HD, Some(FULL));
+        t.update(1, HD, HD, Some(SCOPE));
+        t.update(1, HD, HD, Some(SCOPE));
+        assert_eq!((t.bars(1), t.on_cut()), ((140, 0), false));
+        // A black frame keeps the bars and is no change.
+        t.update(1, HD, HD, None);
+        assert!(!t.on_cut());
+    }
+
+    #[test]
+    fn crop_zoom_jumps_on_cuts_and_glides_otherwise() {
+        const WIN: (i64, i64) = (2000, 837);
+        let fps = 1.0 / 24.0;
+        let mut z = CropZoom::new(Easing::EaseOut);
+        assert_eq!(z.next(1, WIN, 0.0, false, 0.0), Some(0.0), "the first value is sent");
+        assert_eq!(z.next(1, WIN, 0.0, false, fps), None, "nothing new");
+        // A late change: eased over several frames, each one sent.
+        let sent: Vec<f64> = (2..20).filter_map(|n| z.next(1, WIN, 0.4, false, n as f64 * fps)).collect();
+        assert!(sent.len() >= 8 && sent.windows(2).all(|w| w[1] > w[0]), "{sent:?}");
+        assert!(sent[0] > 0.0 && sent[0] < 0.2 && *sent.last().unwrap() == 0.4, "{sent:?}");
+        assert_eq!(z.next(1, WIN, 0.4, false, 1.0), None, "settled");
+        // A change under 1% isn't started.
+        assert_eq!(z.next(1, WIN, 0.402, false, 1.1), None);
+        // On a cut: there at once.
+        assert_eq!(z.next(1, WIN, 0.0, true, 1.2), Some(0.0));
+        // A new file or a new window size: at once too.
+        assert_eq!(z.next(2, WIN, 0.3, false, 1.3), Some(0.3));
+        assert_eq!(z.next(2, (1920, 1080), 0.0, false, 1.4), Some(0.0));
+        // mpv refused it: sent again.
+        z.unsent();
+        assert_eq!(z.next(2, (1920, 1080), 0.0, false, 1.5), Some(0.0));
     }
 }

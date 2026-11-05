@@ -4,7 +4,8 @@
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use polar_player::crop::{cropdetect_for, cropdetect_reading, zoom_changed, zoom_for, CropTracker, Rect, CROPDETECT};
+use polar_player::crop::{cropdetect_for, cropdetect_reading, zoom_for, CropTracker, CropZoom, Rect, CROPDETECT};
+use polar_player::motion::Easing;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
@@ -43,11 +44,13 @@ async fn crop_geometry(mpv: &Mpv) -> Option<CropGeometry> {
 /// While autocrop is on: mpv reports cropdetect's reading whenever it
 /// changes, and the playback position once per displayed frame, observed in
 /// that order so each frame's reading arrives before its tick. Every frame
-/// goes to [`CropTracker`] and the zoom follows at once. Readings run a
-/// frame ahead of the screen (mpv filters a frame before showing it), so a
-/// switch the tracker believes straight away lands on the cut. While paused
-/// no frames come and nothing changes, except keeping the zoom right for
-/// the window.
+/// goes to [`CropTracker`], and [`CropZoom`] moves the zoom: at once for a
+/// switch the tracker believes on the frame it happens (readings run a
+/// frame ahead of the screen, as mpv filters a frame before showing it, so
+/// it lands on the cut) and for bars the film animates, eased (ease-out)
+/// for one believed a few frames late. While paused
+/// no frames come and nothing changes, except finishing a move and keeping
+/// the zoom right for the window.
 pub(super) async fn autocrop(app: AppHandle, run: u64) {
     let meta_id = CROP_OBSERVE_BASE + run * 2;
     let frame_id = meta_id + 1;
@@ -61,7 +64,8 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
     let mut tracker = CropTracker::default();
     let mut reading: Option<Rect> = None;
     let mut geometry: Option<(CropGeometry, Instant)> = None;
-    let mut sent: Option<(u64, f64)> = None; // (load, video-zoom) last set on mpv
+    let mut zoom = CropZoom::new(Easing::default());
+    let clock = Instant::now();
     let mut filter = CROPDETECT; // what mpv_tune added
     loop {
         let event = tokio::time::timeout(Duration::from_millis(500), rx.recv()).await;
@@ -108,9 +112,12 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
         if frame {
             tracker.update(load, g.size, g.display, reading);
         }
-        let zoom = zoom_for(tracker.bars(load), g.size, g.display, g.window);
-        if zoom_changed(sent, load, zoom) && mpv.request(json!(["set_property", "video-zoom", zoom])).await.is_ok() {
-            sent = Some((load, zoom));
+        let target = zoom_for(tracker.bars(load), g.size, g.display, g.window);
+        let at_once = frame && tracker.on_cut();
+        if let Some(z) = zoom.next(load, g.window, target, at_once, clock.elapsed().as_secs_f64()) {
+            if mpv.request(json!(["set_property", "video-zoom", z])).await.is_err() {
+                zoom.unsent();
+            }
         }
     }
     let state = app.state::<AppState>();

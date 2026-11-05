@@ -8,3 +8,8 @@ license.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+
+# A tool (docs/autocrop.md); `test = true` so `cargo test` runs its tests.
+[[example]]
+name = "autocrop_compare"
+test = true

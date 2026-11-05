@@ -1,0 +1,189 @@
+# Autocrop: removing black bars without the viewer noticing
+
+Status, 2026-11-05: built and tested in `crates/player`: the detector and the crisp-edge lock
+(§2), animated bars (§5, `CropTracker::following`), eased moves (§6, `motion::Glide`,
+`crop::CropZoom`). The desktop engine (`src-tauri/src/player/autocrop.rs`) now jumps on the cut
+and eases late changes, still with cropdetect's readings, which give no crisp edges.
+Designed here and waiting on the engine work: the pre-roll crop (§3) and the lookahead (§4).
+The aim is crop changes the viewer doesn't notice: a change on a cut jumps on the cut frame,
+and ease-out is the default for the rest.
+
+## 1. Today (desktop)
+
+mpv runs FFmpeg's `cropdetect` on every frame (`crop::CROPDETECT`, `reset=1`), and
+`CropTracker` (`crates/player/src/crop.rs`) decides from those readings which bars to remove;
+`src-tauri/src/player/autocrop.rs` turns that into `video-zoom`. What the viewer sees: the first
+crop comes a few frames into the film, and on a change of bars the crop follows a few frames
+late (4 frames for a common shape, 12 for an odd one). Such a late change is eased
+(§6) and one seen on the frame it happens (back to full frame, picture in a cropped bar) jumps.
+
+## 2. Our own detector (`crates/player/src/bars.rs`)
+
+FFmpeg's `cropdetect` is a GPL-only part, so the LGPL build (iOS, `plan-mobile.md` §7) has
+none. `bars::detect` is an **independent implementation**, written from the idea and not from
+`vf_cropdetect.c` (which a port would make GPL). Per frame:
+
+- A line (row or column) is **bar** when at most 1% of 512 samples along it are lit (more than
+  `limit` above `black`: 24 steps for SDR, 18 for HDR). Counting lit samples, not averaging,
+  keeps a dark line with a few highlights (stars, a lamp) as picture.
+- Bars run in from each edge; columns are judged over the picture's rows only, so a letterbox
+  doesn't dilute them. A frame with no lit line (a fade) gives no reading.
+- An edge is **crisp** when a line within 3 of the bar has at least 25% lit samples: the picture
+  starts at once. Dark picture next to a bar comes up over many lines and isn't crisp.
+
+`CropTracker::update_measured` takes crisp edges as leave to crop sooner: bars crisp on both
+sides of an axis are cropped on their first frame when they leave a common shape (2.39:1,
+1.85:1, 4:3, ...), after 2 frames otherwise. A wrong crop shows for one frame, since picture in
+a cropped bar un-crops at once. Readings: luma (`Luma8`) or mpv's `screenshot-raw` (`Bgr0`).
+
+**Measuring it against cropdetect.** `bun scripts/autocrop-compare.ts <film>` cuts shots from a
+film without bars of its own (Sintel, Tears of Steel), frames each as full frame, 2.39:1, 1.85:1
+or 4:3 at 1920x1080, so the truth is known, and runs both detectors through the same tracker
+(`cargo run --release -p polar-player --example autocrop_compare`). Columns: time to first crop
+per change of bars, bars never cropped, crop changes per minute, frames that cut picture off,
+frames that leave bars on screen. A second table counts how each crop change would be shown (§6):
+on the cut, following animated bars, eased because caught late, correcting a misread (at once
+or eased), and changes into a misread. Needs an ffmpeg built with `cropdetect` (a GPL build) and
+a test film (Sintel from download.blender.org).
+
+## 3. Pre-roll: the crop is right on the first frame
+
+While the stream buffers, a second, light player instance (the **probe**) opens the same link:
+
+- `--vid=1 --aid=no --sid=no --ao=null --vo=null` (libmpv: no output; frames come through
+  `screenshot-raw`), `--hr-seek=no` and `--vd-lavc-skipframe=nonkey`, so every seek lands on a
+  keyframe and only keyframes are decoded; `--hwdec=no` and a small `--demuxer-max-bytes`.
+- It seeks to 8 points spread over the first 3 minutes (skipping the first 10 s, which are often
+  logos on black) and measures one keyframe at each. Cost: about 8 keyframes and the container
+  index, a few MB, read with range requests alongside the main buffering.
+- The bars at least 5 of the 8 agree on (within 4 px, crisp) are the opening crop; anything
+  less clear starts uncropped, as today. The main player loads paused with `video-zoom`
+  already set, and starts when the probe is done or after a 1.5 s budget, whichever is first,
+  so autocrop never delays the start by more than that.
+- Films that change aspect (IMAX sequences) start with their dominant opening bars; §4 handles
+  the changes.
+
+## 4. Lookahead: a change lands on the frame it happens
+
+Encoders put keyframes at scene cuts (x264/x265 `scenecut`), and bars almost always change at
+a cut. A lookahead decoder runs ahead of the playhead decoding only keyframes at low cost, and
+hands the tracker a **schedule**: from pts P on, these bars. The engine applies each entry when
+the frame with pts P is displayed, so the crop changes on the cut itself, where a jump can't be
+seen. Changes the lookahead can't see (bars that change between keyframes, live streams) are
+left to the live detector of §1-2, as today.
+
+**Where the lookahead reads from.** libmpv gives no API to read packets out of its demuxer
+cache (`client.h`; `demuxer-cache-state` reports only ranges and sizes). Two ways:
+
+1. **From mpv's own cache, no extra download.** `dump-cache <start> no <file>` writes the cached
+   packets to a file and keeps appending what mpv reads from the network ("continuous dumping",
+   `input.rst`). Polarity's cache already reads 90 s ahead (`--cache-secs=90`,
+   `--demuxer-max-bytes=192MiB`), so the probe decodes keyframes from that file up to ~90 s
+   ahead. Costs: disk writes at the film's bitrate (a 2 h 10 Mbps film: ~9 GB written to a
+   temporary file, kept to a window by restarting the dump), and mpv's caveats: the dump works
+   reliably only when the output format matches the input's (MKV to MKV, MP4 to MP4), and a seek
+   outside the cache breaks it (restart the dump after each such seek). Started at load time,
+   when the cache is nearly empty, since dumping a large cache at once freezes the player.
+2. **Own range requests.** The probe of §3 keeps running, seeking keyframe to keyframe ahead of
+   the playhead through the container's index (MKV Cues, MP4 `stss`). It downloads keyframes
+   only: at one keyframe every 2-4 s of 150-500 KB each, roughly 0.3-2 Mbit/s, i.e. 3-15% on top
+   of a 10-20 Mbit/s film (to be measured). It needs a seekable source with an index; HLS/DASH
+   segments start with a keyframe, so there it fetches only the first part of each segment.
+
+The plan is (1) on desktop, where disk and bandwidth are plentiful and nothing is fetched twice,
+and (2) where (1) fails (format mismatch, no disk), with the measurements below deciding the
+defaults per device class.
+
+**What gets measured** (in the app, on a 10 Mbit/s MKV and an HLS stream, 10 minutes each):
+extra bytes received (from mpv's `raw-input-rate` on both instances), probe CPU time (process
+CPU against playback alone), on phones battery drain over 30 minutes against the same run
+without lookahead (Android `BatteryManager`, iOS `UIDevice.batteryLevel`), and how many crop
+changes landed on the cut frame. The lookahead gets its own setting (Settings → Player, under
+Autocrop: "Look ahead for bar changes"), on by default where the measured cost is small, off by
+default on phones on mobile data if it isn't.
+
+**Landing on a frame.** The engine observes `time-pos` per displayed frame (as autocrop does
+now) and sets `video-zoom` when the next frame's pts reaches P; readings already run a frame
+ahead of the screen, so the change lands on the cut. To check on the desktop build: frame-exact
+landing with `--video-sync=display-resample` and without.
+
+## 5. Animated bars: follow the picture
+
+Some films move their own bars: the bars open or close over a few seconds within a shot. Hysteresis there would make the crop lag the image. The tracker enters
+**follow mode** when 3 frames in a row have crisp edges that move the same way by a small step
+(at most 3% of the frame per frame), and then shows each frame's crisp reading as it is: no
+hold, no easing, and the 1% minimum zoom change (`zoom_changed`) is skipped so each step is
+sent. It leaves follow mode when the edges hold still for 2 frames (then normal rules apply), or
+an edge stops being crisp (then it keeps the last bars until the usual rules decide).
+
+## 6. Moves Polarity makes itself: eased, not linear
+
+Where the crop changes without a cut to hide it (the live detector catches a change a few frames
+late, or corrects itself), the zoom moves along a curve instead of jumping or moving linearly.
+Three curves, from `crop::Easing`:
+
+- **ease-out** (default): fast at first, settling slowly (cubic, 400 ms);
+- **spring**: a critically damped spring, fast and settling with no overshoot, which also
+  keeps its speed when the target changes mid-move (settles to 99% in about 550 ms);
+- **ease-in-out**: slow, fast, slow (cubic, 500 ms).
+
+The path each takes, frame by frame at 24 fps, so they can be compared (short
+side-by-side clips follow when the desktop build runs); redraw both with
+`cargo run -p polar-player --example autocrop_easing [-- --table]`:
+
+![The crop's path per frame for each easing](autocrop-easing.svg)
+
+| frame | ms | ease-out | spring | ease-in-out |
+|---|---|---|---|---|
+| 0 | 0 | 0% | 0% | 0% |
+| 1 | 42 | 28% | 9% | 0% |
+| 2 | 83 | 50% | 26% | 2% |
+| 3 | 125 | 68% | 44% | 6% |
+| 4 | 167 | 80% | 59% | 15% |
+| 5 | 208 | 89% | 71% | 29% |
+| 6 | 250 | 95% | 80% | 50% |
+| 7 | 292 | 98% | 86% | 71% |
+| 8 | 333 | 100% | 91% | 85% |
+| 9 | 375 | 100% | 94% | 94% |
+| 10 | 417 | 100% | 96% | 98% |
+| 11 | 458 | 100% | 97% | 100% |
+| 12 | 500 | 100% | 98% | 100% |
+| 13 | 542 | 100% | 99% | 100% |
+| 14 | 583 | 100% | 99% | 100% |
+| 15 | 625 | 100% | 100% | 100% |
+| 16 | 667 | 100% | 100% | 100% |
+
+(From frame 16 on all three are at 100%.)
+
+A change that lands on a cut (§4) or follows animated bars (§5) is never eased (the cut
+hides the jump). Ease-out is the default; the other two stay for comparison.
+
+**When does easing happen at all?** Almost every real change of bars is either at a scene cut
+or a move the film makes itself, and neither is eased. Easing is the fallback for what slips
+past those two:
+
+- a change the lookahead missed, or one that falls between keyframes, so it is only seen live
+  a few frames late;
+- no lookahead: switched off (phones, §4), or not built yet (the desktop today: every change
+  cropdetect believes after 2, 4 or 12 frames is late and eased);
+- right after a seek, before the lookahead has caught up;
+- above all, the detector correcting its own misread: a dark or fading shot read as wider
+  bars, then the picture lighting up again.
+
+So the priority is that the detector rarely misreads, and easing only softens what still gets
+through. The rule that guards it: the picture is never shrunk (bars cropped further) on a dark
+or fading shot unless the bars are confirmed: crisp on both sides (§2), or held still for 2 frames
+at bars this file has shown, 4 at a common shape and 12 at any other; un-cropping is always at once, on the frame the
+picture appears in a cropped bar (`CropTracker::revealed`), so a misread hides picture for as
+little as possible and its correction is shown on the frame it happens. How often each case
+happens is the second table of §2's comparison, run on the test films.
+
+In code: `CropTracker::on_cut` says whether the newest frame changed the bars on the frame the
+picture's own bars changed (or followed animated bars), and `crop::CropZoom` jumps for those, a
+new file and a new window size, and otherwise glides past the 1% threshold (`zoom_changed`),
+sending the zoom on every frame until it settles.
+
+## 7. Open
+
+- The measurement of §2 on real film, and whether our detector replaces cropdetect on desktop.
+- Lookahead defaults per device, after §4's measurements.

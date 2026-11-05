@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 430" width="720" height="430" font-family="system-ui, -apple-system, Segoe UI, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Autocrop: the crop's path per frame for each easing</title>
+<desc id="d">Share of the crop move done at each frame (24 fps) for ease-out, spring and ease-in-out; each dot is one frame. Numbers in docs/autocrop.md section 6.</desc>
+<style>
+  .bg { fill: #fcfcfb } .ink { fill: #1a1a19 } .ink2 { fill: #5f5e58 } .grid { stroke: #e4e3df } .axis { stroke: #8c8b84 }
+  .s0 { stroke: #2a78d6; fill: #2a78d6 } .s1 { stroke: #eb6834; fill: #eb6834 } .s2 { stroke: #1baf7a; fill: #1baf7a }
+  .l0 { stroke: #2a78d6 } .l1 { stroke: #eb6834 } .l2 { stroke: #1baf7a }
+  .ring { stroke: #fcfcfb }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #1a1a19 } .ink { fill: #f0efec } .ink2 { fill: #c3c2b7 } .grid { stroke: #33322f } .axis { stroke: #7a7972 }
+    .s0 { stroke: #3987e5; fill: #3987e5 } .s1 { stroke: #d95926; fill: #d95926 } .s2 { stroke: #199e70; fill: #199e70 }
+    .l0 { stroke: #3987e5 } .l1 { stroke: #d95926 } .l2 { stroke: #199e70 }
+    .ring { stroke: #1a1a19 }
+  }
+  line, polyline { fill: none } polyline { stroke-width: 2; stroke-linejoin: round }
+  circle { stroke-width: 2 } circle:hover { r: 6 }
+</style>
+<rect class="bg" width="720" height="430" rx="8"/>
+<text class="ink" x="24" y="32" font-size="16" font-weight="600">How the crop moves, frame by frame (24 fps)</text>
+<circle class="s0 ring" cx="28" cy="52" r="4"/><text class="ink2" x="38" y="56" font-size="13">ease-out (default)</text>
+<circle class="s1 ring" cx="192" cy="52" r="4"/><text class="ink2" x="202" y="56" font-size="13">spring</text>
+<circle class="s2 ring" cx="272" cy="52" r="4"/><text class="ink2" x="282" y="56" font-size="13">ease-in-out</text>
+<line class="axis" x1="64" x2="684" y1="372" y2="372"/><text class="ink2" x="56" y="376" font-size="12" text-anchor="end">0%</text>
+<line class="grid" x1="64" x2="684" y1="297" y2="297"/><text class="ink2" x="56" y="301" font-size="12" text-anchor="end">25%</text>
+<line class="grid" x1="64" x2="684" y1="222" y2="222"/><text class="ink2" x="56" y="226" font-size="12" text-anchor="end">50%</text>
+<line class="grid" x1="64" x2="684" y1="147" y2="147"/><text class="ink2" x="56" y="151" font-size="12" text-anchor="end">75%</text>
+<line class="grid" x1="64" x2="684" y1="72" y2="72"/><text class="ink2" x="56" y="76" font-size="12" text-anchor="end">100%</text>
+<text class="ink2" x="64" y="392" font-size="12" text-anchor="middle">0 ms</text>
+<text class="ink2" x="219" y="392" font-size="12" text-anchor="middle">250 ms</text>
+<text class="ink2" x="374" y="392" font-size="12" text-anchor="middle">500 ms</text>
+<text class="ink2" x="529" y="392" font-size="12" text-anchor="middle">750 ms</text>
+<text class="ink2" x="684" y="392" font-size="12" text-anchor="middle">1000 ms</text>
+<text class="ink2" x="374" y="414" font-size="12" text-anchor="middle">time since the move started</text>
+<text class="ink2" x="16" y="222" font-size="12" transform="rotate(-90 16 222)" text-anchor="middle">share of the move done</text>
+<polyline class="l0" points="64.0,372.0 89.8,287.7 115.7,220.8 141.5,169.5 167.3,131.5 193.2,105.0 219.0,87.8 244.8,78.0 270.7,73.4 296.5,72.1 322.3,72.0 348.2,72.0 374.0,72.0 399.8,72.0 425.7,72.0 451.5,72.0 477.3,72.0 503.2,72.0 529.0,72.0 554.8,72.0 580.7,72.0 606.5,72.0 632.3,72.0 658.2,72.0 684.0,72.0"/>
+<circle class="s0 ring" cx="64.0" cy="372.0" r="4"><title>ease-out: frame 0, 0 ms, 0%</title></circle>
+<circle class="s0 ring" cx="89.8" cy="287.7" r="4"><title>ease-out: frame 1, 42 ms, 28%</title></circle>
+<circle class="s0 ring" cx="115.7" cy="220.8" r="4"><title>ease-out: frame 2, 83 ms, 50%</title></circle>
+<circle class="s0 ring" cx="141.5" cy="169.5" r="4"><title>ease-out: frame 3, 125 ms, 68%</title></circle>
+<circle class="s0 ring" cx="167.3" cy="131.5" r="4"><title>ease-out: frame 4, 167 ms, 80%</title></circle>
+<circle class="s0 ring" cx="193.2" cy="105.0" r="4"><title>ease-out: frame 5, 208 ms, 89%</title></circle>
+<circle class="s0 ring" cx="219.0" cy="87.8" r="4"><title>ease-out: frame 6, 250 ms, 95%</title></circle>
+<circle class="s0 ring" cx="244.8" cy="78.0" r="4"><title>ease-out: frame 7, 292 ms, 98%</title></circle>
+<circle class="s0 ring" cx="270.7" cy="73.4" r="4"><title>ease-out: frame 8, 333 ms, 100%</title></circle>
+<circle class="s0 ring" cx="296.5" cy="72.1" r="4"><title>ease-out: frame 9, 375 ms, 100%</title></circle>
+<circle class="s0 ring" cx="322.3" cy="72.0" r="4"><title>ease-out: frame 10, 417 ms, 100%</title></circle>
+<polyline class="l1" points="64.0,372.0 89.8,344.9 115.7,292.7 141.5,239.3 167.3,193.8 193.2,158.2 219.0,131.7 244.8,112.8 270.7,99.5 296.5,90.3 322.3,84.1 348.2,80.0 374.0,77.2 399.8,75.4 425.7,74.2 451.5,73.4 477.3,72.9 503.2,72.6 529.0,72.4 554.8,72.2 580.7,72.1 606.5,72.1 632.3,72.1 658.2,72.0 684.0,72.0"/>
+<circle class="s1 ring" cx="64.0" cy="372.0" r="4"><title>spring: frame 0, 0 ms, 0%</title></circle>
+<circle class="s1 ring" cx="89.8" cy="344.9" r="4"><title>spring: frame 1, 42 ms, 9%</title></circle>
+<circle class="s1 ring" cx="115.7" cy="292.7" r="4"><title>spring: frame 2, 83 ms, 26%</title></circle>
+<circle class="s1 ring" cx="141.5" cy="239.3" r="4"><title>spring: frame 3, 125 ms, 44%</title></circle>
+<circle class="s1 ring" cx="167.3" cy="193.8" r="4"><title>spring: frame 4, 167 ms, 59%</title></circle>
+<circle class="s1 ring" cx="193.2" cy="158.2" r="4"><title>spring: frame 5, 208 ms, 71%</title></circle>
+<circle class="s1 ring" cx="219.0" cy="131.7" r="4"><title>spring: frame 6, 250 ms, 80%</title></circle>
+<circle class="s1 ring" cx="244.8" cy="112.8" r="4"><title>spring: frame 7, 292 ms, 86%</title></circle>
+<circle class="s1 ring" cx="270.7" cy="99.5" r="4"><title>spring: frame 8, 333 ms, 91%</title></circle>
+<circle class="s1 ring" cx="296.5" cy="90.3" r="4"><title>spring: frame 9, 375 ms, 94%</title></circle>
+<circle class="s1 ring" cx="322.3" cy="84.1" r="4"><title>spring: frame 10, 417 ms, 96%</title></circle>
+<circle class="s1 ring" cx="348.2" cy="80.0" r="4"><title>spring: frame 11, 458 ms, 97%</title></circle>
+<circle class="s1 ring" cx="374.0" cy="77.2" r="4"><title>spring: frame 12, 500 ms, 98%</title></circle>
+<circle class="s1 ring" cx="399.8" cy="75.4" r="4"><title>spring: frame 13, 542 ms, 99%</title></circle>
+<circle class="s1 ring" cx="425.7" cy="74.2" r="4"><title>spring: frame 14, 583 ms, 99%</title></circle>
+<circle class="s1 ring" cx="451.5" cy="73.4" r="4"><title>spring: frame 15, 625 ms, 100%</title></circle>
+<circle class="s1 ring" cx="477.3" cy="72.9" r="4"><title>spring: frame 16, 667 ms, 100%</title></circle>
+<circle class="s1 ring" cx="503.2" cy="72.6" r="4"><title>spring: frame 17, 708 ms, 100%</title></circle>
+<circle class="s1 ring" cx="529.0" cy="72.4" r="4"><title>spring: frame 18, 750 ms, 100%</title></circle>
+<circle class="s1 ring" cx="554.8" cy="72.2" r="4"><title>spring: frame 19, 792 ms, 100%</title></circle>
+<circle class="s1 ring" cx="580.7" cy="72.1" r="4"><title>spring: frame 20, 833 ms, 100%</title></circle>
+<circle class="s1 ring" cx="606.5" cy="72.1" r="4"><title>spring: frame 21, 875 ms, 100%</title></circle>
+<circle class="s1 ring" cx="632.3" cy="72.1" r="4"><title>spring: frame 22, 917 ms, 100%</title></circle>
+<circle class="s1 ring" cx="658.2" cy="72.0" r="4"><title>spring: frame 23, 958 ms, 100%</title></circle>
+<circle class="s1 ring" cx="684.0" cy="72.0" r="4"><title>spring: frame 24, 1000 ms, 100%</title></circle>
+<polyline class="l2" points="64.0,372.0 89.8,371.3 115.7,366.4 141.5,353.2 167.3,327.6 193.2,285.2 219.0,222.0 244.8,158.8 270.7,116.4 296.5,90.8 322.3,77.6 348.2,72.7 374.0,72.0 399.8,72.0 425.7,72.0 451.5,72.0 477.3,72.0 503.2,72.0 529.0,72.0 554.8,72.0 580.7,72.0 606.5,72.0 632.3,72.0 658.2,72.0 684.0,72.0"/>
+<circle class="s2 ring" cx="64.0" cy="372.0" r="4"><title>ease-in-out: frame 0, 0 ms, 0%</title></circle>
+<circle class="s2 ring" cx="89.8" cy="371.3" r="4"><title>ease-in-out: frame 1, 42 ms, 0%</title></circle>
+<circle class="s2 ring" cx="115.7" cy="366.4" r="4"><title>ease-in-out: frame 2, 83 ms, 2%</title></circle>
+<circle class="s2 ring" cx="141.5" cy="353.2" r="4"><title>ease-in-out: frame 3, 125 ms, 6%</title></circle>
+<circle class="s2 ring" cx="167.3" cy="327.6" r="4"><title>ease-in-out: frame 4, 167 ms, 15%</title></circle>
+<circle class="s2 ring" cx="193.2" cy="285.2" r="4"><title>ease-in-out: frame 5, 208 ms, 29%</title></circle>
+<circle class="s2 ring" cx="219.0" cy="222.0" r="4"><title>ease-in-out: frame 6, 250 ms, 50%</title></circle>
+<circle class="s2 ring" cx="244.8" cy="158.8" r="4"><title>ease-in-out: frame 7, 292 ms, 71%</title></circle>
+<circle class="s2 ring" cx="270.7" cy="116.4" r="4"><title>ease-in-out: frame 8, 333 ms, 85%</title></circle>
+<circle class="s2 ring" cx="296.5" cy="90.8" r="4"><title>ease-in-out: frame 9, 375 ms, 94%</title></circle>
+<circle class="s2 ring" cx="322.3" cy="77.6" r="4"><title>ease-in-out: frame 10, 417 ms, 98%</title></circle>
+<circle class="s2 ring" cx="348.2" cy="72.7" r="4"><title>ease-in-out: frame 11, 458 ms, 100%</title></circle>
+<circle class="s2 ring" cx="374.0" cy="72.0" r="4"><title>ease-in-out: frame 12, 500 ms, 100%</title></circle>
+</svg>

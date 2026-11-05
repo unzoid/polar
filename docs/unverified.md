@@ -396,6 +396,14 @@ against a real project.
 - Shortcuts synced between a Mac and a PC: Ctrl+K set on Windows arrives as ⌘K on the Mac. Tested as functions
   only; check by changing a ⌘ shortcut on one machine and looking at Settings → Controls on the other.
 
+## Eased autocrop moves (docs/autocrop.md §6)
+
+- `crop::CropZoom` and `CropTracker::on_cut` are tested in `crates/player`; their wiring in
+  `src-tauri/src/player/autocrop.rs` only type-checks here (no mpv, no WebKitGTK). Unknown: whether mpv shows
+  a `video-zoom` sent on every frame smoothly (no dropped or doubled steps), and whether a jump lands on the
+  cut frame itself, with `--video-sync=display-resample` and without. To check: play a film with bars that change
+  mid-shot on the desktop build and watch the crop settle.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The
