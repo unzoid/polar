@@ -12,7 +12,8 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
   phones and TVs; `mpv_available` is false where mpv can't embed, so `<video>` plays.
 - Phone and tablet layouts (`formFactor.ts`, `data-form`/`data-touch`, bottom tab bar, safe
   areas, 44 px targets) and TV mode (`src/tv`, arrow keys, one Back stack).
-- Not built: the Android and Xcode projects, signing, a player better than `<video>` on
+- Android project (`src-tauri/gen/android`, T-042): generated, built in CI as a debug APK.
+- Not built: the Xcode project, signing, a player better than `<video>` on
   mobile, anything for tvOS.
 
 ## 2. Android (phones and tablets) first
@@ -39,7 +40,7 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 1. **Project**: `tauri ios init` on a Mac with Xcode; the GitHub `macos` runner builds it
    unsigned in CI.
 2. **Player**: libmpv (§5) in a Metal view behind the web view (as `macos/mpv_view.m` does on
-   the Mac), built as a dynamic framework if the LGPL route of §7 requires it. Until then
+   the Mac), built as a dynamic framework (§7). Until then
    WKWebView's `<video>` (AVFoundation) plays MP4/HLS with H.264/HEVC, not MKV or DTS.
 3. **Shell**: same gaps as Android (`gilrs` off, downloads into the app sandbox, exclude them
    from iCloud backup).
@@ -59,9 +60,7 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 ## 5. Owner choices (answered 2026-11-05, I-011)
 
 - **Player: libmpv on Android and iOS**, the same formats as desktop. Its GPL/LGPL duties
-  (source offer, dynamic linking on iOS, what the App Store allows) are worked out with sources
-  in §7 before the engines are built (T-050); if one of them forces a choice, it goes back to
-  the owner.
+  (source archives, dynamic linking on iOS) are set out in §7 (T-050).
 - **Apple TV: later.** Planned as in §4 (native SwiftUI app on the core crates through a
   binding) and not built in this cycle.
 - **Unsigned builds only.** CI builds unsigned Android and iOS packages; signing keys come
@@ -73,17 +72,42 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 ## 6. Order
 
 1. T-042 Android project and shell gating; app builds for the emulator in CI.
-2. T-043 Android back button, keyboard, downloads folder; emulator end-to-end run.
-3. T-050 libmpv licence duties on Android and iOS, with sources (§7).
+2. T-043 Android back button, keyboard, downloads folder; emulator run (built: Back through `onBackButtonPress`
+   as Escape, Home, then leave; the web view ends at the keyboard; no "Show in Folder" off desktop; the
+   emulator smoke test `e2e/android/smoke.sh` in `e2e-app.yml`, not the whole e2e suite, which needs a
+   WebDriver into the WebView).
+3. T-050 how libmpv and FFmpeg are built on Android and iOS (§7).
 4. T-044 Android libmpv engine.
 5. T-045 iOS project; unsigned build on the macOS runner.
 6. T-046 iOS libmpv engine and sandbox details.
-7. T-047 Android TV: manifest, banner, TV mode at start; TV emulator run.
+7. T-047 Android TV: manifest, banner, TV mode at start (built: a `polarDevice` JavaScript interface from
+   `MainActivity.kt` instead of a plugin command, so the answer is there before the first script runs); TV emulator run left.
 8. T-048 Apple TV: later (I-011); §4 is the plan.
 9. T-049 Docs: ARCHITECTURE §3 rows to "built", `docs/unverified.md` per device, README.
 
-## 7. libmpv licence duties (T-050, to be written)
+## 7. How libmpv and FFmpeg are built on Android and iOS (T-050)
 
-GPL/LGPL obligations of shipping libmpv and FFmpeg on Android and iOS: which build options
-keep them LGPL, the source offer, dynamic linking on iOS, and what the App Store and Google
-Play terms allow, each with its primary source.
+| Platform | mpv | FFmpeg | TLS | Linking |
+|---|---|---|---|---|
+| Android | as `mpv-android` builds it (GPL) | `--enable-gpl --enable-version3` | mbedTLS | shared libraries in the APK |
+| iOS, iPadOS | `-Dgpl=false` (LGPLv2.1+) | without `--enable-gpl` or `--enable-version3` (LGPLv2.1+) | Secure Transport | dynamic xcframeworks, embedded and signed by Xcode |
+
+Each release, on both platforms, carries:
+
+- the source archives of the exact mpv, FFmpeg and library versions it bundles, the configure
+  lines, any `changes.diff`, and what's needed to build them;
+- the licence texts, and the notices in Settings → About → Credits, as `scripts/fetch-mpv.ts`
+  does for Windows (see `docs/licensing.md`);
+- on iOS, a licence agreement for the app that allows modifying the LGPL parts and reverse
+  engineering to debug such changes.
+
+FFmpeg's `cropdetect` filter is a GPL part, so the iOS build has none. Autocrop there uses
+Polarity's own black-bar detector (MIT, `crates/player`, fed small frames through mpv's
+`screenshot-raw`), written from the idea, not from FFmpeg's `vf_cropdetect.c`. It smooths over
+time and locks on fast, and is measured against `cropdetect` on the same clips (time to first
+crop, crop changes per minute, wrong crops) to decide whether it replaces `cropdetect` on
+desktop too. The audio presets (`tune.rs`: `pan`, `dynaudnorm`) are LGPL parts and work on
+both builds.
+
+Primary sources: mpv's `Copyright` file, FFmpeg's `LICENSE.md` and https://ffmpeg.org/legal.html,
+`mpv-android`'s `buildscripts/scripts/ffmpeg.sh` and `mpv.sh`.

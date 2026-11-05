@@ -14,7 +14,8 @@ import {
   move,
   ownsArrows,
 } from "./spatial";
-import { dismissTop, onDismissed } from "../lib/ui";
+import { dismissDepth, dismissTop, onDismissed, pressEscape, useSystemBack } from "../lib/ui";
+import { leaveApp } from "../lib/platform";
 import { Desktop } from "../components/icons";
 import { actionFor, shortcutText } from "../lib/settings";
 import { playSound } from "./sounds";
@@ -89,6 +90,13 @@ export function TvApp() {
 
   useEffect(installFocusMemory, []);
   useEffect(installPointerFocus, []);
+  // A remote's Back on Android TV is the system Back: the same as Escape here, except that Back with only the
+  // menu open on Home leaves the app (Back on Home opens the menu, so the second Back leaves, as TV apps do).
+  useSystemBack(() => {
+    const onlyMenu = menuOpen && dismissDepth() === 1 && !playing && stack.length === 1 && activeTab.name === "home";
+    if (onlyMenu) void leaveApp();
+    else pressEscape();
+  });
 
   // The pack's startup chime (if it has one) as TV mode opens, once the first frame is up.
   useEffect(() => {

@@ -17,12 +17,12 @@ import { Anime, AnimeBrowse, AnimeSchedule } from "./screens/Anime";
 import { useAccount } from "./lib/account";
 import { ControllerToast } from "./tv/TvChrome";
 import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
-import { lazyNamed, usePageFocus } from "./lib/ui";
+import { dismissDepth, lazyNamed, pressEscape, systemBackAction, usePageFocus, useSystemBack } from "./lib/ui";
 import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
-import { appWindow } from "./lib/platform";
+import { appWindow, leaveApp } from "./lib/platform";
 import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
@@ -275,7 +275,7 @@ function startRoute(page: SettingsT["startPage"] | undefined): Route {
 }
 
 function DesktopApp() {
-  const { stack, current, back } = useRouter();
+  const { stack, current, back, tab } = useRouter();
   const { playing, player, leaving } = usePlayerLayer(current);
   // The page under the player stays mounted so leaving playback is instant.
   const pages = stack.filter((e) => e.route.name !== "player");
@@ -297,6 +297,15 @@ function DesktopApp() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [playing, back]);
+
+  // Android's back button and gesture: Escape's Back, then Home, then the app closes.
+  useSystemBack(() => {
+    const open = !!playing || isSettingsOpen() || dismissDepth() > 0;
+    const action = systemBackAction({ open, pushed: stack.length - 1, atHome: rootTab(stack).name === "home" });
+    if (action === "escape") pressEscape();
+    else if (action === "home") tab({ name: "home" });
+    else void leaveApp();
+  });
 
   return (
     <div

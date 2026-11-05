@@ -1,6 +1,6 @@
 import { storeLocal } from "../lib/errors";
 import { useSyncExternalStore } from "react";
-import { appWindow, inShell } from "../lib/platform";
+import { appWindow, inShell, isTvDevice } from "../lib/platform";
 
 /**
  * TV mode: the whole app goes fullscreen with a 10-foot interface driven by
@@ -8,7 +8,14 @@ import { appWindow, inShell } from "../lib/platform";
  * Big Picture's "start in Big Picture" — leave it from the TV menu.
  */
 const KEY = "polar.tvMode";
-let on = localStorage.getItem(KEY) === "1";
+
+/**
+ * On a TV it is on at every start, whatever was stored: the desktop interface needs a pointer, and a remote has
+ * none. Leaving it there lasts until the app closes.
+ */
+export const startsInTvMode = (stored: string | null, tvDevice: boolean) => tvDevice || stored === "1";
+
+let on = startsInTvMode(localStorage.getItem(KEY), isTvDevice);
 const listeners = new Set<() => void>();
 
 function apply() {
