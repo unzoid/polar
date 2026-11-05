@@ -24,7 +24,7 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
    WebView's Gamepad API), `tauri-plugin-opener` (works on Android), downloads to the app's
    own folder, `polar.json` in app-private storage (no 0600 needed there).
 3. **Player**: libmpv (§5), built like `mpv-android`'s, drawing into a `SurfaceView` behind
-   the web view, becomes an `Engine` in `player.rs` reached through a Tauri mobile plugin
+   the web view, becomes an `Engine` in `player/mod.rs` reached through a Tauri mobile plugin
    (Kotlin) and makes `mpv_available` true; the front end's `MpvMedia` stays. Until it lands,
    `<video>` in Android System WebView plays MP4/WebM/HLS as the device supports.
 4. **Input**: back gesture/button sends the same Back as TV mode (`dismissTop`); on-screen

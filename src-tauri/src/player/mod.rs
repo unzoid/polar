@@ -19,6 +19,15 @@
 //! The process is started on first playback and kept alive (idle, black,
 //! hidden under opaque pages) so the next title starts instantly; it's shut
 //! down after a few idle minutes (to give its memory back) and when the app exits.
+//!
+//! Here: [`Mpv`], the engines and the IPC reader. [`commands`] holds the
+//! `mpv_*` commands, [`autocrop`] the black-bar zoom, [`ipc`] the transport.
+
+mod autocrop;
+mod commands;
+mod ipc;
+
+pub use commands::*;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -30,17 +39,15 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, WriteHalf};
 use tokio::sync::{mpsc, oneshot, Mutex};
 
+use autocrop::CROP_OBSERVE_BASE;
 use ipc::Stream as IpcStream;
 
-use polar_player::allow::{check_command, check_property, is_web_url};
-use polar_player::crop::{cropdetect_for, cropdetect_reading, zoom_changed, zoom_for, CropTracker, Rect, CROPDETECT};
 use polar_player::tune::Tune;
 
-use crate::commands::CmdError;
 use crate::locks::Locked;
 use crate::AppState;
 
@@ -299,40 +306,6 @@ fn window_id(window: &WebviewWindow) -> Result<String, String> {
     {
         let _ = window;
         Err("the built-in mpv player isn't supported on this system yet".into())
-    }
-}
-
-/// mpv's IPC transport: a named pipe on Windows, a Unix socket elsewhere.
-mod ipc {
-    #[cfg(windows)]
-    pub type Stream = tokio::net::windows::named_pipe::NamedPipeClient;
-    #[cfg(unix)]
-    pub type Stream = tokio::net::UnixStream;
-
-    /// Where this app instance's mpv listens.
-    pub fn endpoint() -> String {
-        #[cfg(windows)]
-        {
-            format!(r"\\.\pipe\polar-mpv-{}", std::process::id())
-        }
-        #[cfg(unix)]
-        {
-            let path = std::env::temp_dir().join(format!("polar-mpv-{}.sock", std::process::id()));
-            // A socket left by an earlier run with this pid would refuse mpv's bind.
-            let _ = std::fs::remove_file(&path);
-            path.to_string_lossy().into_owned()
-        }
-    }
-
-    pub async fn connect(endpoint: &str) -> std::io::Result<Stream> {
-        #[cfg(windows)]
-        {
-            tokio::net::windows::named_pipe::ClientOptions::new().open(endpoint)
-        }
-        #[cfg(unix)]
-        {
-            tokio::net::UnixStream::connect(endpoint).await
-        }
     }
 }
 
@@ -640,250 +613,4 @@ async fn read_loop(
     if !quiet.load(Ordering::Relaxed) {
         let _ = app.emit("mpv://event", json!({ "event": "shutdown" }));
     }
-}
-
-// --- Commands --------------------------------------------------------------
-
-/// Whether mpv can be the player here: it must be installed and able to draw
-/// into our window, which only Windows (`--wid`) and macOS (libmpv) can do so
-/// far (see [`window_id`]). Elsewhere the player uses the webview's `<video>`.
-#[tauri::command]
-pub fn mpv_available() -> bool {
-    #[cfg(target_os = "macos")]
-    return mpv_library().is_some();
-    #[cfg(windows)]
-    return mpv_binary().is_some();
-    #[cfg(not(any(windows, target_os = "macos")))]
-    false
-}
-
-/// Load `url` (optionally starting at `start` seconds) and play. With `probe_id`,
-/// the link check reports its steps as `player://probe` events. `headers` are
-/// the stream's `behaviorHints.proxyHeaders.request`; only those
-/// `polar_player::headers` passes reach the link check and mpv.
-#[tauri::command]
-pub async fn mpv_load(
-    app: AppHandle,
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-    url: String,
-    start: Option<f64>,
-    probe_id: Option<u32>,
-    headers: Option<std::collections::HashMap<String, String>>,
-) -> Result<(), CmdError> {
-    // Web streams, or a finished download - never any other path on disk.
-    let downloaded = app.state::<Arc<crate::downloads::Downloads>>().owns(&url);
-    if !is_web_url(&url) && !downloaded {
-        return Err(CmdError::Unsupported("only http(s) streams and downloads can be played".into()));
-    }
-    // A link that's not ready yet, or a placeholder clip in place of the video.
-    let headers =
-        if downloaded { Vec::new() } else { polar_player::headers::playback_headers(&headers.unwrap_or_default()) };
-    let url = if downloaded { url } else { crate::streamcheck::prepare(&app, &url, headers.clone(), probe_id).await? };
-    state.mpv.touch();
-    state.mpv.ensure(&app, &window).await.map_err(CmdError::Player)?;
-    let mut options = String::new();
-    if let Some(s) = start.filter(|s| *s > 1.0) {
-        options = format!("start={s:.2}");
-    }
-    // A new file is measured afresh (autocrop): drop the last one's crop.
-    state.mpv.loads.fetch_add(1, Ordering::SeqCst);
-    state.mpv.request(json!(["set_property", "video-zoom", 0])).await.ok();
-    // The add-on's headers for this source, or none left over from the last one.
-    let fields = polar_player::headers::mpv_fields(&headers);
-    state.mpv.request(json!(["set_property", "http-header-fields", fields])).await.map_err(CmdError::Player)?;
-    state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await.map_err(CmdError::Player)?;
-    state.mpv.request(json!(["set_property", "pause", false])).await.map_err(CmdError::Player)?;
-    state.mpv.set_visible(true).await;
-    Ok(())
-}
-
-/// An allow-listed mpv command, e.g. `["seek", 10, "relative"]`.
-#[tauri::command]
-pub async fn mpv_command(state: State<'_, AppState>, args: Vec<Value>) -> Result<Value, String> {
-    check_command(&args)?;
-    state.mpv.request(Value::Array(args)).await
-}
-
-#[tauri::command]
-pub async fn mpv_set(state: State<'_, AppState>, name: String, value: Value) -> Result<(), String> {
-    check_property(&name)?;
-    state.mpv.request(json!(["set_property", name, value])).await.map(|_| ())
-}
-
-/// Apply [`Tune`] to the running mpv. Takes effect immediately (audio
-/// filters, decoding, debanding) or from the next read-ahead (cache).
-#[tauri::command]
-pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) -> Result<(), String> {
-    if state.mpv.conn.lock().await.is_none() {
-        return Ok(());
-    }
-    let mpv = &state.mpv;
-    let was = *mpv.tuned.locked();
-    if was == tune {
-        return Ok(());
-    }
-    if was.audio_filters() != tune.audio_filters() {
-        mpv.request(json!(["set_property", "af", tune.audio_filters()])).await?;
-    }
-    if was.hwdec_mode() != tune.hwdec_mode() {
-        mpv.request(json!(["set_property", "hwdec", tune.hwdec_mode()])).await?;
-    }
-    if was.autocrop != tune.autocrop {
-        if tune.autocrop {
-            mpv.request(json!(["vf", "add", CROPDETECT])).await?;
-        } else {
-            mpv.request(json!(["vf", "remove", "@autocrop"])).await?;
-            mpv.request(json!(["set_property", "video-zoom", 0])).await?;
-        }
-        // Dialogue placed and sized by the window rather than the (zoomed)
-        // picture, so cropping never moves, grows or stretches it. See
-        // [`zoom_for`]. Positioned signs still follow the picture.
-        mpv.request(json!(["set_property", "sub-ass-force-margins", tune.autocrop])).await?;
-        mpv.request(json!(["set_property", "sub-ass-scale-with-window", tune.autocrop])).await?;
-    }
-    if was.deband != tune.deband {
-        mpv.request(json!(["set_property", "deband", tune.deband])).await?;
-    }
-    if was.buffer != tune.buffer {
-        let (secs, bytes) = tune.cache();
-        mpv.request(json!(["set_property", "cache-secs", secs])).await?;
-        mpv.request(json!(["set_property", "demuxer-max-bytes", bytes])).await?;
-    }
-    *mpv.tuned.locked() = tune;
-    if tune.autocrop && !was.autocrop {
-        let run = mpv.autocrop_run.fetch_add(1, Ordering::SeqCst) + 1;
-        tauri::async_runtime::spawn(autocrop(app, run));
-    }
-    Ok(())
-}
-
-/// Property-change ids from here up are autocrop's own observations: the
-/// reader hands them to the running [`autocrop`] task instead of the UI.
-const CROP_OBSERVE_BASE: u64 = 1 << 32;
-
-/// What [`autocrop`] needs to know about the video and the window.
-#[derive(Debug, Clone, Copy)]
-struct CropGeometry {
-    /// Frame size in video pixels, and as displayed (non-square pixels).
-    size: (i64, i64),
-    display: (i64, i64),
-    window: (i64, i64),
-    /// The cropdetect filter this video needs ([`cropdetect_for`]).
-    filter: &'static str,
-}
-
-async fn crop_geometry(mpv: &Mpv) -> Option<CropGeometry> {
-    let params = mpv.request(json!(["get_property", "video-params"])).await.ok()?;
-    let osd = mpv.request(json!(["get_property", "osd-dimensions"])).await.ok()?;
-    let int = |v: &Value, k: &str| v.get(k).and_then(Value::as_i64).filter(|n| *n > 0);
-    Some(CropGeometry {
-        size: (int(&params, "w")?, int(&params, "h")?),
-        display: (int(&params, "dw")?, int(&params, "dh")?),
-        window: (int(&osd, "w")?, int(&osd, "h")?),
-        filter: cropdetect_for(params.get("gamma").and_then(Value::as_str)),
-    })
-}
-
-/// While autocrop is on: mpv reports cropdetect's reading whenever it
-/// changes, and the playback position once per displayed frame, observed in
-/// that order so each frame's reading arrives before its tick. Every frame
-/// goes to [`CropTracker`] and the zoom follows at once. Readings run a
-/// frame ahead of the screen (mpv filters a frame before showing it), so a
-/// switch the tracker believes straight away lands on the cut. While paused
-/// no frames come and nothing changes, except keeping the zoom right for
-/// the window.
-async fn autocrop(app: AppHandle, run: u64) {
-    let meta_id = CROP_OBSERVE_BASE + run * 2;
-    let frame_id = meta_id + 1;
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    {
-        let state = app.state::<AppState>();
-        *state.mpv.crop_events.locked() = Some((run, tx));
-        let _ = state.mpv.request(json!(["observe_property", meta_id, "vf-metadata/autocrop"])).await;
-        let _ = state.mpv.request(json!(["observe_property", frame_id, "time-pos"])).await;
-    }
-    let mut tracker = CropTracker::default();
-    let mut reading: Option<Rect> = None;
-    let mut geometry: Option<(CropGeometry, Instant)> = None;
-    let mut sent: Option<(u64, f64)> = None; // (load, video-zoom) last set on mpv
-    let mut filter = CROPDETECT; // what mpv_tune added
-    loop {
-        let event = tokio::time::timeout(Duration::from_millis(500), rx.recv()).await;
-        let state = app.state::<AppState>();
-        let mpv = &state.mpv;
-        if !mpv.tuned.locked().autocrop || mpv.autocrop_run.load(Ordering::SeqCst) != run {
-            break;
-        }
-        let frame = match event {
-            Ok(None) => break, // a newer run took over
-            Ok(Some((id, data))) if id == meta_id => {
-                reading = cropdetect_reading(&data);
-                continue;
-            }
-            Ok(Some((id, data))) if id == frame_id => data.is_number(),
-            Ok(Some(_)) => continue,
-            Err(_) => false, // nothing for 500 ms: paused
-        };
-        let load = mpv.loads.load(Ordering::SeqCst);
-        // The window changes size (fullscreen) and the video rarely does:
-        // re-read them 4 times a second, and on every idle tick.
-        if !frame || geometry.is_none_or(|(_, at)| at.elapsed() >= Duration::from_millis(250)) {
-            geometry = crop_geometry(mpv).await.map(|g| (g, Instant::now()));
-        }
-        let Some((g, _)) = geometry else {
-            continue; // between files: nothing to measure
-        };
-        // HDR and SDR need different thresholds: swap the filter when the video's changes.
-        if g.filter != filter {
-            if !mpv.tuned.locked().autocrop {
-                break;
-            }
-            mpv.request(json!(["vf", "remove", "@autocrop"])).await.ok();
-            if mpv.request(json!(["vf", "add", g.filter])).await.is_ok() {
-                filter = g.filter;
-                reading = None;
-            }
-            continue;
-        }
-        if frame {
-            tracker.update(load, g.size, g.display, reading);
-        }
-        let zoom = zoom_for(tracker.bars(load), g.size, g.display, g.window);
-        if zoom_changed(sent, load, zoom) && mpv.request(json!(["set_property", "video-zoom", zoom])).await.is_ok() {
-            sent = Some((load, zoom));
-        }
-    }
-    let state = app.state::<AppState>();
-    {
-        let mut slot = state.mpv.crop_events.locked();
-        if slot.as_ref().is_some_and(|(r, _)| *r == run) {
-            *slot = None;
-        }
-    }
-    let _ = state.mpv.request(json!(["unobserve_property", meta_id])).await;
-    let _ = state.mpv.request(json!(["unobserve_property", frame_id])).await;
-}
-
-/// Stop playback but keep mpv alive (idle) for the next title.
-#[tauri::command]
-pub async fn mpv_stop(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    if state.mpv.conn.lock().await.is_none() {
-        return Ok(());
-    }
-    state.mpv.schedule_idle_shutdown(&app);
-    state.mpv.set_visible(false).await;
-    state.mpv.request(json!(["stop"])).await.map(|_| ())
-}
-
-/// The current frame as a JPEG data URL — mpv's picture lives in a native
-/// window the page can't sample, so overlays blur this snapshot instead.
-#[tauri::command]
-pub async fn mpv_snapshot(state: State<'_, AppState>) -> Result<String, String> {
-    let path = std::env::temp_dir().join("polar-mpv").join("frame.jpg");
-    let path_str = path.to_string_lossy().to_string();
-    state.mpv.request(json!(["screenshot-to-file", path_str, "video"])).await?;
-    let bytes = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
-    use base64::Engine as _;
-    Ok(format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
