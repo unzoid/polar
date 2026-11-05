@@ -627,6 +627,78 @@
   }
 }
 
+/* Phone: the whole screen, the icon rail, and a control that doesn't fit beside its
+   label goes under it at full width (dropdowns, sliders, chips). */
+@media (max-width: 600px) {
+  .t3s {
+    width: 100vw;
+    height: 100dvh;
+    grid-template-columns: 52px minmax(0, 1fr);
+    border: 0;
+    border-radius: 0;
+    padding: var(--safe-top) 0 var(--safe-bottom);
+  }
+  .t3s-sidebar {
+    padding: 0.5rem 0.25rem;
+  }
+  .t3s-header {
+    height: 52px;
+    padding: 0 0.5rem 0 1rem;
+  }
+  .t3s-crumb-root,
+  .t3s-crumb-sep,
+  .t3s-ghost-label {
+    display: none;
+  }
+  .t3s-crumbs {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .t3s-scroll {
+    scrollbar-gutter: auto;
+  }
+  .t3s-page {
+    gap: 2rem;
+    padding: 1.25rem 0.75rem 3rem;
+  }
+  .t3s .settings-group-title,
+  .t3s .settings-footer,
+  .t3s .settings-error {
+    padding: 0 0.25rem;
+  }
+  .t3s .settings-row {
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    padding: 0.875rem 1rem;
+  }
+  .t3s .settings-row-text {
+    flex: 1 1 11rem;
+  }
+  /* Icon, text, value and chevron stay on one line. */
+  .t3s .settings-row-button {
+    flex-wrap: nowrap;
+  }
+  .t3s .settings-row-button .settings-row-value {
+    margin-left: 0;
+  }
+  .t3s .shortcut-search {
+    min-width: 0;
+  }
+  .t3s .settings-row .select-trigger,
+  .t3s .settings-row .slider-field {
+    width: 100%;
+  }
+  .t3s .settings-card-pad {
+    padding: 0.875rem 1rem 1rem;
+  }
+  .t3s .settings-expand-body {
+    padding: 0 1rem 1rem;
+  }
+  .t3s .sub-setting-text {
+    flex: 1 1 7rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .t3s .switch::after {
     transition: none;

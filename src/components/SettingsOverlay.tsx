@@ -215,7 +215,7 @@ export function SettingsOverlay() {
                   title="Interface sounds and controller notices on this device"
                 >
                   <Reset size={14} strokeWidth={2.2} />
-                  Restore device defaults
+                  <span className="t3s-ghost-label">Restore device defaults</span>
                 </button>
                 <Dialog.Close className={iconButtonClass("settings")} aria-label="Close settings">
                   <Close size={16} strokeWidth={2.2} />
