@@ -142,7 +142,7 @@ export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; sh
     <TvRail title={title}>
       {Array.from({ length: count }, (_, i) =>
         i === 0 ? (
-          <span key={i} ref={first} className="tv-card tv-card-skeleton" data-shape={shape} tabIndex={0} role="img" aria-label="Loading">
+          <span key={i} ref={first} className="tv-card tv-card-skeleton" data-shape={shape} tabIndex={0} role="img" aria-label="Loading" data-nav-loading>
             <Skeleton as="span" className="tv-card-frame" />
           </span>
         ) : (
