@@ -12,6 +12,7 @@ pub mod client;
 #[cfg(test)]
 mod contract;
 pub mod numbering;
+pub mod offered;
 pub mod probe;
 pub mod rank;
 pub mod subs;
