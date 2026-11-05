@@ -8,8 +8,9 @@ with the app, and how to check each item. It grows as work lands (T-011 finishes
 
 ## Built by reading only (`src-tauri`)
 
-`src-tauri` was checked with `rustfmt` and by reading. `cargo build` / `bun tauri dev`
-on a desktop is the first check for every item below.
+`src-tauri` was checked with `rustfmt`, by reading and, from R4 on, with `cargo clippy
+--all-targets` against stub system libraries (it type-checks; it can't link or run here).
+`cargo build` / `bun tauri dev` on a desktop is the first check for every item below.
 
 ## Saving in the background (R4, H8/M4)
 
@@ -27,6 +28,7 @@ instead of by each command before it returns. The writer is tested in
 4. Make `polar.json` read-only (or fill the disk) and change a setting: the app should
    say it could not save (the error comes with the next change after the failed write).
 5. Edit `"version"` to 2 and start: a `polar.v2-<time>.json` copy appears next to it.
+6. Linux/macOS: `ls -l polar.json` shows `-rw-------` after the first change.
 
 ## Downloads: pause, resume and stalls (R4, H9)
 
