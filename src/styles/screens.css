@@ -84,7 +84,8 @@
   flex: none;
   width: 16rem; /* as wide as the dropdowns beside it */
 }
-/* The slider gets the room; the box is only as wide as what's in it. */
+/* The slider gets the room; the box grows with what's in it, from a width that fits "Never" and "100 %"
+   so the sliders of the rows in one card end at the same place. */
 .slider-field-slider {
   flex: 1;
   min-width: 0;
@@ -105,7 +106,7 @@
   justify-content: flex-end;
   gap: 0.25rem;
   flex: none;
-  min-width: 3rem;
+  min-width: 4.5rem;
   height: 2rem;
   padding: 0 0.5rem;
   border-radius: var(--r-sm);
@@ -130,6 +131,10 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
   color: var(--text);
+}
+/* What 0 means ("Any size") is wider than any number the box takes. */
+.slider-field-box[data-zero="true"] input {
+  max-width: 9ch;
 }
 /* What 0 means ("Never") reads as the value, not a hint. */
 .slider-field-box input::placeholder {

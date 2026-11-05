@@ -34,7 +34,7 @@ export function ProfileMenu() {
           <Avatar id={avatar} />
           <div>
             <strong>{name}</strong>
-            <span className="profile-menu-email">{me ? account.user?.email : "Not signed in"}</span>
+            {me ? <span className="profile-menu-email">{account.user?.email}</span> : <span>Not signed in</span>}
           </div>
         </div>
         {others.map((p) => (
