@@ -24,6 +24,8 @@ interface Target {
   episode?: boolean;
   /** Where "Go to Show" leads, when not the title's own page (an anime's AniList page). */
   open?: () => void;
+  /** False when the title has no id the library knows (an anime with no IMDb or Kitsu link): only "Go to Show". */
+  linked?: boolean;
   x: number;
   y: number;
   key: number;
@@ -49,8 +51,8 @@ export function menuPoint(e: ReactMouseEvent<HTMLElement>) {
 }
 
 /** Opens the menu for `item` at `at`, for cards that work out their title first. */
-export function openCardMenu(item: MetaPreview, at: { x: number; y: number }, open?: () => void) {
-  set({ item, open, ...at, key: ++opened });
+export function openCardMenu(item: MetaPreview, at: { x: number; y: number }, open?: () => void, { linked = true } = {}) {
+  set({ item, open, linked, ...at, key: ++opened });
 }
 
 /** Spread on a card: `<button {...cardMenu(item)}>`. */
@@ -73,7 +75,27 @@ export function CardMenuHost() {
     () => current,
   );
   if (!target) return null;
+  if (target.linked === false) return <UnlinkedMenu key={target.key} target={target} />;
   return <OpenMenu key={target.key} target={target} />;
+}
+
+/** A zero-size point where the pointer was. */
+const pointAnchor = (x: number, y: number) => ({ getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) });
+
+/** The menu of a title nothing else can be done with yet: its page. */
+function UnlinkedMenu({ target }: { target: Target }) {
+  const { item, open, x, y } = target;
+  const { navigate } = useRouter();
+  return (
+    <MenuRoot open modal={false} onOpenChange={(open) => !open && set(null)}>
+      <MenuPopup anchor={pointAnchor(x, y)} side="bottom" align="start" sideOffset={2} collisionPadding={12} aria-label={`${item.name} options`}>
+        <MenuHeader title={item.name} />
+        <MenuItem icon={<Info />} onClick={open ?? (() => navigate({ name: "detail", type: item.type, id: item.id, preview: item }))}>
+          {item.type === "series" ? "Go to Show" : "Go to Movie"}
+        </MenuItem>
+      </MenuPopup>
+    </MenuRoot>
+  );
 }
 
 function OpenMenu({ target }: { target: Target }) {
@@ -81,8 +103,7 @@ function OpenMenu({ target }: { target: Target }) {
   const { navigate } = useRouter();
   const a = useTitleActions(item, entry);
   const close = () => set(null);
-  // A zero-size point where the pointer was.
-  const anchor = { getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) };
+  const anchor = pointAnchor(x, y);
   const imdb = imdbUrl(item.id);
 
   return (

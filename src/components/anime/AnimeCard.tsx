@@ -45,21 +45,24 @@ export function useAnimeHandlers() {
   const qc = useQueryClient();
   return (item: Media) => ({
     onClick: () => navigate({ name: "anime-detail", id: item.id, preview: item }),
-    // The menu works on the IMDb title ani.zip links the show to (that's what
-    // the library, playlists and watch history key on).
+    // The menu works on the id the show plays from (what the library, playlists and watch history key on):
+    // the IMDb title ani.zip links it to, else its Kitsu id, as the anime page does. With neither (an
+    // upcoming show, often), or no answer from ani.zip, it still opens, with only "Go to Show".
     onContextMenu: (e: React.MouseEvent<HTMLElement>) => {
       e.preventDefault();
       const at = menuPoint(e);
-      void qc.fetchQuery({ ...aniZipQuery(item.id), staleTime: 30 * 60_000 }).then((zip) => {
-        const imdb = zip?.mappings?.imdb_id;
-        if (!imdb) return;
-        const name = item.title.english ?? item.title.romaji ?? item.title.native ?? "";
-        openCardMenu(
-          { id: imdb, type: item.format === "MOVIE" ? "movie" : "series", name, poster: item.coverImage.extraLarge ?? item.coverImage.large ?? undefined },
-          at,
-          () => navigate({ name: "anime-detail", id: item.id, preview: item }),
-        );
-      });
+      const page = () => navigate({ name: "anime-detail", id: item.id, preview: item });
+      void qc
+        .fetchQuery({ ...aniZipQuery(item.id), staleTime: 30 * 60_000 })
+        .catch(() => null)
+        .then((zip) => {
+          const kitsu = zip?.mappings?.kitsu_id;
+          const id = zip?.mappings?.imdb_id ?? (kitsu ? `kitsu:${kitsu}` : undefined);
+          const name = item.title.english ?? item.title.romaji ?? item.title.native ?? "";
+          const poster = item.coverImage.extraLarge ?? item.coverImage.large ?? undefined;
+          const type = item.format === "MOVIE" ? "movie" : "series";
+          openCardMenu({ id: id ?? `anilist:${item.id}`, type, name, poster }, at, page, { linked: !!id });
+        });
     },
   });
 }
