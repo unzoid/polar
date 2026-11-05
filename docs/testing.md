@@ -83,8 +83,9 @@ add-ons, sources and search instead. Look at a new screen with both before it sh
 
 `e2e/app/smoke.ts` drives the debug build through `tauri-driver`, with a small WebDriver client
 of its own (no test framework): start without an account, turn Skip intros on, add a title
-through the command bridge, quit, start again and find both still there (the store on disk and
-the web view's storage). It needs `cargo install tauri-driver --locked` and the platform's
+through the command bridge, quit with the window's Close button, start again and find both still
+there (the store on disk and the web view's storage). Ending the WebDriver session instead kills
+the app before it writes what is still pending at exit. It needs `cargo install tauri-driver --locked` and the platform's
 driver: `webkit2gtk-driver` on Linux (`xvfb-run -a bun run e2e:app` without a display), an
 msedgedriver of the WebView2 version on Windows. macOS has no driver for its web view. On Linux
 the app's data goes to a fresh folder; on Windows it can't be moved, so the script runs there only

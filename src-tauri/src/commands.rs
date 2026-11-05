@@ -259,7 +259,7 @@ pub async fn addon_install(state: State<'_, AppState>, url: String) -> Result<In
     manifest.behavior_hints.get_or_insert_with(Default::default);
     let addon = InstalledAddon { manifest_url, manifest };
     let saved = addon.clone();
-    state.persist(|d| {
+    state.persist_now(|d| {
         // Reinstalling (or reconfiguring) keeps the addon's place in the order.
         match d.addons.iter_mut().find(|a| a.manifest.id == saved.manifest.id) {
             Some(slot) => *slot = saved,
@@ -271,7 +271,7 @@ pub async fn addon_install(state: State<'_, AppState>, url: String) -> Result<In
 
 #[tauri::command]
 pub fn addon_remove(state: State<'_, AppState>, id: String) -> Result<()> {
-    state.persist(|d| d.addons.retain(|a| a.manifest.id != id))
+    state.persist_now(|d| d.addons.retain(|a| a.manifest.id != id))
 }
 
 // --- Library & progress --------------------------------------------------
@@ -291,7 +291,7 @@ pub fn library_toggle(state: State<'_, AppState>, item: MetaPreview) -> Result<b
     let item =
         LibraryItem { id: item.id, ty: item.ty, name: item.name, poster: item.poster, added_at: 0, updated_at: 0 };
     let mut added = false;
-    state.persist(|d| added = d.space_mut().library_toggle(item, now()))?;
+    state.persist_now(|d| added = d.space_mut().library_toggle(item, now()))?;
     Ok(added)
 }
 
@@ -396,7 +396,7 @@ pub fn settings_set(state: State<'_, AppState>, settings: Settings) -> Result<Se
         *state.indexer.writing() = Arc::new(Indexer::new(crate::index_config(&settings)));
     }
     let next = settings.clone();
-    state.persist(|d| d.settings = next)?;
+    state.persist_now(|d| d.settings = next)?;
     Ok(SettingsView { settings, metadata_source: state.indexer().source() })
 }
 

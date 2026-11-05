@@ -12,8 +12,8 @@
  * WKWebView driver.
  *
  * Steps: start without an account, turn Skip intros on in Settings, add a
- * title to the Library through the command bridge, quit, start again and find
- * both still there.
+ * title to the Library through the command bridge, quit with the window's Close
+ * button, start again and find both still there.
  *
  * On Linux the app's data goes to a fresh folder (XDG_* variables). On Windows
  * it can't be moved, so it runs only on CI or with POLAR_E2E_APP_OK=1, and then
@@ -46,6 +46,8 @@ async function wd<T>(method: string, path: string, body?: unknown): Promise<T> {
     method,
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
+    // A command sent while the app quits may never be answered.
+    signal: AbortSignal.timeout(60_000),
   });
   const json = (await res.json()) as { value: T & { error?: string; message?: string } };
   if (!res.ok) throw new Error(`${method} ${path}: ${json.value?.error ?? res.status} ${json.value?.message ?? ""}`);
@@ -119,8 +121,20 @@ class Session {
     return this.run<boolean>("return arguments[0].checked", el);
   }
 
-  end() {
-    return wd("DELETE", `/session/${this.id}`);
+  /**
+   * Quits as someone would, with the window's Close button. The app writes what's still pending
+   * (progress waits a second) as it exits; ending the WebDriver session kills it before that.
+   */
+  async quit() {
+    const close = await until("the window's Close button", () => this.find(".window-controls button[aria-label=Close]"));
+    // The window can go before the click is answered.
+    await wd("POST", `/session/${this.id}/element/${close[ELEMENT]}/click`, {}).catch(() => {});
+    const gone = () =>
+      wd("GET", `/session/${this.id}/title`)
+        .then(() => false)
+        .catch(() => true);
+    await until("the app to quit", gone, 20_000);
+    await wd("DELETE", `/session/${this.id}`).catch(() => {});
   }
 }
 
@@ -163,7 +177,8 @@ try {
   step("Skip intros turned on");
   if (!(await s.invoke<boolean>("library_toggle", { item: TITLE }))) throw new Error("library_toggle removed the title instead of adding it");
   step("a title added to the Library");
-  await s.end();
+  await s.quit();
+  step("quit");
 
   s = await Session.start();
   step("the app opened again");
@@ -177,7 +192,7 @@ try {
   await s.click("Library in the navigation bar", "nav[aria-label=Primary] button", "Library");
   await until("the title on the Library page", () => s.run<boolean>("return document.body.innerText.includes(arguments[0])", TITLE.name));
   step("the title still in the Library");
-  await s.end();
+  await s.quit();
   console.log("smoke test passed");
 } catch (e) {
   console.error(`smoke test failed: ${e instanceof Error ? e.message : e}`);
