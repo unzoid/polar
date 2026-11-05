@@ -175,6 +175,28 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
    sealed with another passphrase and keeps its own; the first device's keys stay on the server.
 4. Sign out on a device that had its own keys and add-ons before signing in: they are back as they were.
 
+## Sync leftovers: dirty set, per-key settings merge, playlists (T-053, R2)
+
+Tested here: `crates/library` (`sync.rs` tests: pulled rows not sent back, an edit during a push, a
+clock stepping back, a store from before the dirty set), `tests/spacePush.test.ts`,
+`tests/settingsDoc.test.ts` (merge, first round, unknown keys, other passphrase),
+`tests/playlistSpaces.test.ts` (newer-version playlists, the 100 limit), and in PGlite that a settings
+write the server skips comes back with no row and a too-large one fails with 23514. Not run in the app or
+against a real project.
+
+1. Two devices, one profile, both offline: change Seek step on one and Subtitle size on the other, then
+   go online. Both end with both changes (before, the later device's whole document won).
+2. Add an add-on on a device signing in to an existing profile for the first time (sealed sync on): it stays.
+3. Update the app on a device that already had an account: the first round pushes only what changed since
+   its last push before the update (no full re-upload); after that, a pull is not pushed back (Supabase
+   logs: no library/progress upserts right after a pull with nothing changed here).
+4. Watch something while offline with the clock set an hour back, then fix the clock and go online: the
+   progress still goes up.
+5. 100 playlists: New Playlist disappears from Library, the card menu, the title page and TV; delete one
+   and it comes back.
+6. Settings → Account says "too large to sync" only when sealed add-on links push the document past the
+   server's 16 KB; removing some makes it sync again without a restart.
+
 ## Platform layer (T-030, docs/ARCHITECTURE.md)
 
 - Window, updates and native events now go through `src/lib/platform` (built and type-checked here, never run in
