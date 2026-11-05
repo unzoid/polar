@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "polarity-web",
+  "name": "polarity",
   // The Worker only answers /api/*; Cloudflare serves the built pages in dist/
   // directly (/download → /download/ → download/index.html).
   "main": "server/worker.ts",
