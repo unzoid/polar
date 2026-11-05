@@ -38,6 +38,9 @@ function TvScreen({ route }: { route: Route }) {
     case "discover":
       return <TvDiscover type={route.type} />;
     case "library":
+    // Collections and playlists are desktop pages; switching modes on one lands here.
+    case "library-collection":
+    case "playlist":
       return <TvLibrary />;
     case "calendar":
       return <TvCalendar />;

@@ -21,15 +21,15 @@ import {
   type PlaylistItem,
 } from "../lib/library";
 import { useLibrary, useWatchHistory } from "../lib/net";
-import { useRouter } from "../lib/router";
+import { useRouter, type Route } from "../lib/router";
 import { progressFraction, progressItem } from "../lib/catalog";
 import type { ContentType } from "../lib/types";
 import { buttonClass } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { PosterGrid } from "../components/title/PosterGrid";
 
-type Collection = "saved" | "watched" | "playlists" | "downloads";
-type Open = { view: Collection } | { view: "playlist"; id: string; fresh: boolean } | null;
+type Collection = Extract<Route, { name: "library-collection" }>["view"];
+type Open = { view: Collection } | { view: "playlist"; id: string; fresh: boolean };
 type Kind = "all" | ContentType;
 type Sort = "recent" | "title";
 
@@ -48,35 +48,62 @@ const SORTS: { value: Sort; label: string }[] = [
  * Your titles, nothing suggested. Laid out like Apple Music's library: the
  * collections up top as big tiles (Saved, Playlists, Downloads, Watched),
  * each with its count, then a shelf of the latest from each. A tile or "See
- * All" opens the whole collection; a playlist opens from there.
+ * All" opens the whole collection (route `library-collection`); a playlist
+ * opens from there (route `playlist`), so Esc and Back step out one page at a time.
  */
 export function Library() {
-  const [open, setOpen] = useState<Open>(null);
-  const back = () => setOpen(null);
+  const open = useOpen();
   return (
     <div className="scroll">
-      {!open && <Overview onOpen={setOpen} />}
-      {open?.view === "saved" && (
+      <Overview onOpen={open} />
+    </div>
+  );
+}
+
+/** Library's sub-pages go on the navigation stack, like Anime's. */
+function useOpen() {
+  const { navigate } = useRouter();
+  return (o: Open) => navigate(o.view === "playlist" ? { name: "playlist", id: o.id, fresh: o.fresh } : { name: "library-collection", view: o.view });
+}
+
+/** One collection in full. */
+export function LibraryCollection({ view }: { view: Collection }) {
+  const { back } = useRouter();
+  const open = useOpen();
+  return (
+    <div className="scroll">
+      {view === "saved" && (
         <CollectionPage title="Saved" onBack={back} filters>
           {(kind, sort) => <Saved kind={kind} sort={sort} />}
         </CollectionPage>
       )}
-      {open?.view === "watched" && (
+      {view === "watched" && (
         <CollectionPage title="Watched" onBack={back} filters>
           {(kind, sort) => <WatchedGrid kind={kind} sort={sort} />}
         </CollectionPage>
       )}
-      {open?.view === "playlists" && (
+      {view === "playlists" && (
         <CollectionPage title="Playlists" onBack={back}>
-          {() => <Playlists onOpen={(id, fresh = false) => setOpen({ view: "playlist", id, fresh })} />}
+          {() => <Playlists onOpen={(id, fresh = false) => open({ view: "playlist", id, fresh })} />}
         </CollectionPage>
       )}
-      {open?.view === "downloads" && (
+      {view === "downloads" && (
         <CollectionPage title="Downloads" onBack={back}>
           {() => <Downloads />}
         </CollectionPage>
       )}
-      {open?.view === "playlist" && <PlaylistView id={open.id} fresh={open.fresh} onClose={() => setOpen({ view: "playlists" })} />}
+    </div>
+  );
+}
+
+/** One playlist; its back button names the page it came from. */
+export function LibraryPlaylist({ id, fresh }: { id: string; fresh: boolean }) {
+  const { back, stack } = useRouter();
+  // Where it was opened from (pages pushed on top later don't change it).
+  const [backLabel] = useState(() => (stack[stack.length - 2]?.route.name === "library-collection" ? "Playlists" : "Library"));
+  return (
+    <div className="scroll">
+      <PlaylistView id={id} fresh={fresh} onClose={back} backLabel={backLabel} />
     </div>
   );
 }
@@ -438,7 +465,7 @@ function Playlists({ onOpen }: { onOpen: (id: string, isNew?: boolean) => void }
   );
 }
 
-function PlaylistView({ id, fresh, onClose }: { id: string; fresh: boolean; onClose: () => void }) {
+function PlaylistView({ id, fresh, onClose, backLabel }: { id: string; fresh: boolean; onClose: () => void; backLabel: string }) {
   const playlist = usePlaylists().find((p) => p.id === id);
   if (!playlist) return null;
   const n = playlist.items.length;
@@ -448,7 +475,7 @@ function PlaylistView({ id, fresh, onClose }: { id: string; fresh: boolean; onCl
       <div className="playlist-view-head">
         <button className="playlist-back t-callout" onClick={onClose}>
           <ChevronLeft size={16} strokeWidth={2.25} />
-          Playlists
+          {backLabel}
         </button>
         <div className="playlist-view-title">
           <input
