@@ -12,13 +12,14 @@ src/lib/<domain>                         front-end logic: account, anime, catalo
 src/lib/platform                         the only front-end code that knows it runs in Tauri
 ──────────────── bridge: commands and events ────────────────
 src-tauri/src                            the native shell: commands, player, downloads, store, controllers
-crates/addon, anime, index, library      the core: add-on protocol, anime ids and filler, search/metadata, library and sync
+crates/addon, anime, index, library,     the core: add-on protocol, anime ids and filler, search/metadata, library and sync,
+  player                                 the player's rules (mpv allow-lists, picture/sound presets, autocrop)
 ```
 
 Rules:
 
 - **The core crates hold no platform code.** They build and test on any system with
-  `cargo test -p polar-addon -p polar-library -p polar-anime -p polar-index`. Their only
+  `cargo test -p polar-addon -p polar-library -p polar-anime -p polar-index -p polar-player`. Their only
   `cfg` outside tests is `#[cfg(unix)]` in `crates/library/src/saver.rs`, which makes
   `polar.json` owner-only (0600) where the system has Unix permissions; elsewhere it does
   nothing. Paths come in from the shell (`app_data_dir`, `app_cache_dir`), never from the
@@ -34,7 +35,7 @@ Rules:
 | Concern | Front end (`src/lib/platform` unless named) | Native side | How it differs by platform |
 |---|---|---|---|
 | Bridge | `bridge.ts`: `call(command, args)`, `on(event, handler)`, `inShell` | `tauri::generate_handler!` in `src-tauri/src/lib.rs` | Tauri carries it everywhere; nothing differs |
-| Player | `components/player/mpvMedia.ts` (`MpvMedia`, the same shape as `<video>`), chosen in `screens/Player.tsx` by `mpv_available` | `player.rs` (`mpv_*` commands, `Engine`), `macos/mpv_view.m`, `streamcheck.rs` | Windows: mpv process drawing into the window (`--wid`). macOS: libmpv in the app. Elsewhere `mpv_available` is false and the webview's `<video>` plays |
+| Player | `components/player/mpvMedia.ts` (`MpvMedia`, the same shape as `<video>`), chosen in `screens/Player.tsx` by `mpv_available` | `player.rs` (`mpv_*` commands, `Engine`), `macos/mpv_view.m`, `streamcheck.rs`; what any engine follows in `crates/player` (allow-lists, `Tune`, `CropTracker`/`zoom_for`) | Windows: mpv process drawing into the window (`--wid`). macOS: libmpv in the app. Elsewhere `mpv_available` is false and the webview's `<video>` plays |
 | Storage | `lib/settings/prefs.ts` (device prefs in `localStorage`), `lib/api.ts` for the rest | `store.rs` + `polar_library::saver` (`polar.json` in the app data folder), `downloads.rs` | Tauri picks the folders (`app_data_dir`, `app_cache_dir`) per system |
 | Keys | `lib/account/secrets.ts` (sealed sync, off by default) | `polar.json` (`store.rs`), owner-only on Unix | Desktop: a file only the user can read. Phones/TV: the app's private storage |
 | Window | `window.ts`: `AppWindow` (minimise, maximise, close, fullscreen, focus, resize, zoom) | Tauri window, `tauri.conf.json`, `tauri.macos.conf.json`, `tauri.windows.conf.json` | Windows/Linux draw our buttons (`components/WindowControls.tsx`), macOS keeps its traffic lights; on phones and TVs the window is the screen |
@@ -72,7 +73,7 @@ size and input:
 
 1. Make the shell build there (`tauri android init` / `tauri ios init`); gate desktop-only
    plugins as `src-tauri/Cargo.toml` already does for the updater.
-2. If the player can do better than `<video>`, give `player.rs` an engine for it and make
-   `mpv_available` say so; the front end needs no change.
+2. If the player can do better than `<video>`, give `player.rs` an engine for it (reusing
+   `crates/player`'s rules) and make `mpv_available` say so; the front end needs no change.
 3. Add the system to `Os` in `src/lib/platform/device.ts` if it has to be told apart.
 4. Fill in its row in §3 and what can't be checked in `docs/unverified.md`.

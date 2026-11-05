@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/addon", "crates/anime", "crates/index", "crates/library", "src-tauri"]
+members = ["crates/addon", "crates/anime", "crates/index", "crates/library", "crates/player", "src-tauri"]
 
 [workspace.package]
 version = "0.17.0"
@@ -12,6 +12,7 @@ polar-addon = { path = "crates/addon" }
 polar-anime = { path = "crates/anime" }
 polar-index = { path = "crates/index" }
 polar-library = { path = "crates/library" }
+polar-player = { path = "crates/player" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "gzip", "rustls-tls", "charset", "http2", "macos-system-configuration"] }

@@ -31,7 +31,7 @@ pub async fn prepare(app: &AppHandle, url: &str, id: Option<u32>) -> Result<Stri
 /// The same check for the built-in (WebView) player; `mpv_load` runs it itself.
 #[tauri::command]
 pub async fn stream_probe(app: AppHandle, url: String, probe_id: Option<u32>) -> Result<String, CmdError> {
-    if !crate::player::is_web_url(&url) {
+    if !polar_player::allow::is_web_url(&url) {
         return Ok(url);
     }
     prepare(&app, &url, probe_id).await
