@@ -3,6 +3,7 @@
     "windows": [
       {
         "title": "Polarity",
+        "create": false,
         "width": 1440,
         "height": 900,
         "minWidth": 960,

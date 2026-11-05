@@ -30,7 +30,7 @@ import { join, resolve } from "node:path";
 const windows = process.platform === "win32";
 const PORT = 4444;
 const BASE = `http://127.0.0.1:${PORT}`;
-const ELEMENT = "element-6066-11e4-a52f-4a5c6aaa6ab";
+const ELEMENT = "element-6066-11e4-a52e-4f735466cecf";
 const app = resolve(process.env.POLAR_APP ?? join("target", "debug", windows ? "polar.exe" : "polar"));
 const TITLE = { id: "tt9999990", type: "movie", name: "Polar Smoke Test" };
 
