@@ -86,7 +86,9 @@ no real account, key or add-on is used in CI.
    held against `CmdError` and `CommandErrorCode`. Command JSON field names were already in
    `contract/app.json` (M5); commands are not called with a test `AppState` (they take tauri
    `State`, which needs a running app: T-040 covers them end to end).
-4. T-038 Component tests with a DOM.
+4. T-038 Component tests with a DOM (done): `tests/dom`, run apart from the other tests by
+   `bun run test:dom` (part of `bun run test`) with happy-dom preloaded (`tests/dom/setup.ts`),
+   so the plain unit tests keep a runtime without a DOM.
 5. T-039 Fake bridge + Playwright end-to-end on the web build.
 6. T-040 tauri-driver app smoke test (nightly).
 7. T-041 Docs: `docs/testing.md` (how to run each layer, how to add a test), README
