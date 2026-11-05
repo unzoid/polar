@@ -141,7 +141,7 @@ function NavLinks({ links, isActive, open }: { links: typeof LINKS; isActive: (r
           tabIndex={i >= fit ? -1 : undefined}
           aria-current={isActive(l.route) ? "page" : undefined}
           onPointerDown={(e) => e.button === 0 && open(l.route)} // respond on press
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && open(l.route)}
+          onClick={(e) => e.detail === 0 && open(l.route)} // keyboard and screen readers (detail 0)
         >
           {l.label}
         </button>
