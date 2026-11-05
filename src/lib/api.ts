@@ -20,6 +20,8 @@ import type {
   SkipSegments,
   LocalChanges,
   SyncLibraryItem,
+  TitleDisplay,
+  TitleRef,
 } from "./types";
 import { settingsChanged } from "./settings/changes";
 import type { AnimeLink } from "./library/identity";
@@ -92,6 +94,10 @@ export const api = {
   /** `links: null` leaves the links alone (the server has none to give). */
   syncApply: (space: string, remote: { library: SyncLibraryItem[]; progress: Progress[]; links: AnimeLink[] | null }, pulledAt: string | null) =>
     invoke<boolean>("sync_apply", { space, ...remote, pulledAt }),
+
+  /** Titles pulled without a name, most recent first; `fillDisplay` fills in what was found. */
+  untitled: (space: string) => invoke<TitleRef[]>("space_untitled", { space }),
+  fillDisplay: (space: string, found: TitleDisplay[]) => invoke<boolean>("space_fill_display", { space, found }),
 
   settings: () => invoke<Settings>("settings_get"),
   saveSettings: (settings: Settings) => invoke<Settings>("settings_set", { settings }).then(changed),

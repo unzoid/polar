@@ -6,7 +6,7 @@
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
-use crate::{AnimeLink, LibraryItem, Progress, SyncLibraryItem};
+use crate::{AnimeLink, LibraryItem, Progress, SyncLibraryItem, Untitled};
 
 fn keys<T: Serialize>(value: &T) -> Value {
     let Value::Object(map) = serde_json::to_value(value).unwrap() else { panic!("not an object") };
@@ -57,6 +57,7 @@ fn field_names_match_contract() {
         "AnimeLink",
         keys(&AnimeLink { canonical: "tt1".into(), anilist: 1, mal: Some(1), kitsu: Some(1), updated_at: 1 }),
     );
+    add("Untitled", keys(&Untitled { id: "tt1".into(), ty: "series".into() }));
 
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../contract/library.json");
     let actual = Value::Object(types);

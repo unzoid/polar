@@ -3,7 +3,7 @@
 //! is configured and uses these commands to read local changes and merge
 //! remote ones. The merge rules live in `polar_library::sync`.
 
-use polar_library::{AnimeLink, Changes, Progress, SyncLibraryItem};
+use polar_library::{AnimeLink, Changes, Display, Progress, SyncLibraryItem, Untitled};
 use serde::Serialize;
 use tauri::State;
 
@@ -101,6 +101,25 @@ pub fn sync_apply(
         changed = s.merge(Changes { library, progress, links: links.unwrap_or_default() });
         if pulled_at.is_some() {
             s.pulled_at = pulled_at;
+        }
+    })?;
+    Ok(changed)
+}
+
+/// Titles pulled without a name (the account keeps none), most recent first.
+#[tauri::command]
+pub fn space_untitled(state: State<'_, AppState>, space: String) -> Vec<Untitled> {
+    state.store.locked().data.spaces.get(&space).map(|s| s.untitled()).unwrap_or_default()
+}
+
+/// Names and pictures found for pulled titles; fills only what is missing
+/// and moves no times, so nothing is pushed back.
+#[tauri::command]
+pub fn space_fill_display(state: State<'_, AppState>, space: String, found: Vec<Display>) -> Result<bool> {
+    let mut changed = false;
+    state.persist(|d| {
+        if let Some(s) = d.spaces.get_mut(&space) {
+            changed = s.fill_display(found);
         }
     })?;
     Ok(changed)
