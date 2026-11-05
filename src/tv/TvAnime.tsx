@@ -21,7 +21,9 @@ import {
   untilAiring,
   useAnimeScore,
   useAniZip,
+  useLinkedImdb,
   useShelfVisible,
+  withLinkedArt,
 } from "../lib/anime";
 import { cachedLookup } from "../lib/net";
 import { usePrefs } from "../lib/settings";
@@ -159,7 +161,12 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
   const timer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  const item = useMemo(() => animePreview(card, zip, prefs.animeTitles), [card, zip, prefs.animeTitles]);
+  // A widescreen card shows the linked IMDb title's backdrop first, opened or not (#34).
+  const imdb = useLinkedImdb(card.id);
+  const { item, fallbacks } = useMemo(() => {
+    const preview = animePreview(card, zip, prefs.animeTitles);
+    return shape === "landscape" ? withLinkedArt(preview, imdb) : { item: preview, fallbacks: undefined };
+  }, [card, zip, prefs.animeTitles, shape, imdb]);
   const next = prefs.animeCardCountdown ? card.nextAiringEpisode : undefined;
   const nextText = next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`;
   // What's on the card stays artwork; when it airs goes on the stage above.
@@ -192,6 +199,7 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
     <TvCard
       item={item}
       shape={shape}
+      artFallbacks={fallbacks}
       kicker={kicker}
       localOnly
       onOpen={() => void open()}

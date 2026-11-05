@@ -24,6 +24,7 @@ const INTENT_MS = 450;
 export function TvCard({
   item,
   shape,
+  artFallbacks,
   progress,
   kicker,
   chip,
@@ -34,6 +35,8 @@ export function TvCard({
 }: {
   item: MetaPreview;
   shape: Shape;
+  /** Pictures to try in turn when the card's own won't load. */
+  artFallbacks?: string[];
   progress?: number;
   kicker?: string;
   /** Short label shown on the card itself, e.g. "S2, E4 · 23m left". */
@@ -94,7 +97,7 @@ export function TvCard({
     >
       <span className="tv-card-frame">
         {art ? (
-          <Img src={art} alt="" className="tv-card-img" onError={onArtError} />
+          <Img src={art} fallbacks={artFallbacks} alt="" className="tv-card-img" onFail={onArtError} />
         ) : (
           <span className="tv-card-fallback">{item.name}</span>
         )}
