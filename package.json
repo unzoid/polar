@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "bun test tests",
+    "test": "bun test --path-ignore-patterns='tests/dom/**' tests && bun run test:dom",
+    "test:dom": "bun test --preload ./tests/dom/setup.ts tests/dom",
     "tauri": "tauri",
     "app": "tauri dev",
     "index": "cargo run -p polar-index --features server"
@@ -36,6 +37,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "happy-dom": "^21.0.4",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
   }
