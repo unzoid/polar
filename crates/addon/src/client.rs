@@ -122,6 +122,8 @@ pub async fn read_capped(mut res: reqwest::Response, max: usize) -> Result<Vec<u
 
 pub fn resource_url(base: &str, resource: &str, ty: &str, id: &str, extra: &[(&str, &str)]) -> String {
     let base = AddonClient::base_url(base);
+    // Both come from add-ons and the UI: encoded, so neither can add path segments or a query (L13).
+    let ty = urlencoding::encode(ty);
     let id = urlencoding::encode(id);
     if extra.is_empty() {
         format!("{base}/{resource}/{ty}/{id}.json")
@@ -377,6 +379,8 @@ mod tests {
             resource_url("https://a.io", "catalog", "movie", "top", &[("search", "sandglass 2")]),
             "https://a.io/catalog/movie/top/search=sandglass%202.json"
         );
+        // A type can't add path segments or a query either.
+        assert_eq!(resource_url("https://a.io", "meta", "../x?y", "tt1", &[]), "https://a.io/meta/..%2Fx%3Fy/tt1.json");
     }
 
     #[test]

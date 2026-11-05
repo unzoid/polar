@@ -220,6 +220,10 @@ pub fn resolve(stream: Stream) -> Playable {
         return Playable::Url { url };
     }
     if let Some(yt) = stream.yt_id {
+        // An add-on's id goes into a link the system opens: only a real video id gets through (L13).
+        if !is_youtube_id(&yt) {
+            return Playable::Unsupported { reason: "This stream's YouTube id isn't valid.".into() };
+        }
         return Playable::External { url: format!("https://www.youtube.com/watch?v={yt}") };
     }
     if let Some(url) = stream.external_url {
@@ -579,3 +583,22 @@ pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
 #[cfg(test)]
 #[path = "contract.rs"]
 mod contract;
+
+/// YouTube video ids: 11 characters of letters, digits, `-` and `_`.
+fn is_youtube_id(id: &str) -> bool {
+    id.len() == 11 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+#[cfg(test)]
+mod youtube_tests {
+    use super::is_youtube_id;
+
+    #[test]
+    fn only_real_video_ids_pass() {
+        assert!(is_youtube_id("dQw4w9WgXcQ"));
+        assert!(is_youtube_id("a-b_c-d_e-f"));
+        assert!(!is_youtube_id("dQw4w9WgXc"));
+        assert!(!is_youtube_id("dQw4w9WgXcQ&list=x"));
+        assert!(!is_youtube_id("dQw4w9WgX/Q"));
+    }
+}
