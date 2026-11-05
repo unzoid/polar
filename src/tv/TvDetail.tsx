@@ -186,7 +186,7 @@ export function PlaylistsPanel({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref);
-  const { rows, toggle } = usePlaylistChecklist(item);
+  const { rows, toggle, full } = usePlaylistChecklist(item);
   return (
     <div className="tv-panel tv-sources tv-playlists" ref={ref} data-nav-scope role="dialog" aria-label="Add to playlist">
       <header className="tv-sources-head">
@@ -214,16 +214,18 @@ export function PlaylistsPanel({
             </button>
           </div>
         ))}
-        <button
-          className="tv-playlist-row tv-playlist-new"
-          data-nav-default={rows.length === 0 || undefined}
-          onClick={onNew}
-        >
-          <span className="tv-playlist-check">
-            <Plus size={22} />
-          </span>
-          <span className="tv-playlist-name">New Playlist</span>
-        </button>
+        {!full && (
+          <button
+            className="tv-playlist-row tv-playlist-new"
+            data-nav-default={rows.length === 0 || undefined}
+            onClick={onNew}
+          >
+            <span className="tv-playlist-check">
+              <Plus size={22} />
+            </span>
+            <span className="tv-playlist-name">New Playlist</span>
+          </button>
+        )}
       </div>
     </div>
   );

@@ -89,3 +89,55 @@ describe("pushing a profile that isn't shown (sign-out)", () => {
     expect(store.has("polar.playlists.p4")).toBe(false);
   });
 });
+
+describe("playlists from a newer version (critique H5)", () => {
+  const v2 = Uint8Array.from([2, 9, 9, 9]);
+
+  test("the codec says it can't read them instead of handing back an empty list", async () => {
+    const { decodeItems, encodeItems } = await import("../src/lib/library/playlistCodec");
+    expect(decodeItems(v2)).toBeNull();
+    const ok = encodeItems([{ id: "tt0000100", type: "movie" }, { id: "kitsu:5", type: "series" }]);
+    expect(decodeItems(ok)).toEqual([{ id: "tt0000100", type: "movie" }, { id: "kitsu:5", type: "series" }]);
+    // Cut short: nothing half-read.
+    expect(decodeItems(ok.subarray(0, ok.length - 2))).toBeNull();
+    expect(decodeItems(new Uint8Array())).toBeNull();
+  });
+
+  test("they are kept as they came, take no titles, and a rename sends the same bytes back", async () => {
+    pl.setPlaylistSpace("p5");
+    pl.applyRemotePlaylists("p5", [{ id: "n1", name: "From later", items: v2, deleted: false, updatedAt: 10 }], "c1");
+    const kept = saved("p5").playlists[0];
+    expect(kept.items).toEqual([]);
+    expect(kept.packed).toBe("\\x02090909");
+
+    pl.addToPlaylist("n1", title("tt1"));
+    expect(pl.unpushedPlaylists("p5")).toBe(0);
+    const { playlistRows } = await import("../src/lib/library/playlistChecklist");
+    expect(playlistRows(saved("p5").playlists, "tt1")).toEqual([]);
+
+    pl.renamePlaylist("n1", "Renamed");
+    const rows = pl.playlistChanges().rows;
+    expect(rows.map((r) => [r.name, [...r.items]])).toEqual([["Renamed", [...v2]]]);
+
+    // Read back from storage (restart) the same way.
+    pl.setPlaylistSpace(null);
+    pl.setPlaylistSpace("p5");
+    expect(saved("p5").playlists[0].packed).toBe("\\x02090909");
+
+    pl.deletePlaylist("n1");
+    const gone = saved("p5").playlists[0];
+    expect(gone.deleted && gone.packed === undefined).toBe(true);
+    pl.setPlaylistSpace(null);
+  });
+});
+
+describe("the playlist limit (critique H4)", () => {
+  test("no more than MAX_PLAYLISTS live ones; a deleted one makes room", () => {
+    pl.setPlaylistSpace("p6");
+    for (let i = 0; i < pl.MAX_PLAYLISTS; i++) expect(pl.createPlaylist(`L${i}`)).not.toBeNull();
+    expect(pl.createPlaylist("One too many")).toBeNull();
+    pl.deletePlaylist(saved("p6").playlists[0].id);
+    expect(pl.createPlaylist("Room again")).not.toBeNull();
+    pl.setPlaylistSpace(null);
+  });
+});

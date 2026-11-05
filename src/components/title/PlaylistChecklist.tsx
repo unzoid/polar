@@ -4,6 +4,7 @@ import {
   createPlaylist,
   freshPlaylistName,
   inAnyPlaylist,
+  MAX_PLAYLISTS,
   type PlaylistRow,
   playlistRows,
   removeFromPlaylist,
@@ -25,6 +26,8 @@ export function usePlaylistChecklist(item: MetaPreview) {
   return {
     rows: playlistRows(playlists, item.id),
     inAny: inAnyPlaylist(playlists, item.id),
+    /** No room for another playlist (MAX_PLAYLISTS): New Playlist isn't offered. */
+    full: playlists.length >= MAX_PLAYLISTS,
     toggle: (row: PlaylistRow) => (row.has ? removeFromPlaylist(row.id, item.id) : addToPlaylist(row.id, item)),
     /** Starts a playlist with the title in it; without a name, "New Playlist" (2, 3, …). */
     create: (name?: string) => createPlaylist(name || freshPlaylistName(playlists.map((p) => p.name)), item),
@@ -45,10 +48,12 @@ export function PlaylistChecklist({ item, look }: { item: MetaPreview; look: "me
           {row.name}
         </MenuCheckItem>
       ))}
-      {list.rows.length > 0 && <MenuSeparator />}
-      <MenuItem icon={<Plus />} onClick={() => list.create()}>
-        New Playlist
-      </MenuItem>
+      {list.rows.length > 0 && !list.full && <MenuSeparator />}
+      {!list.full && (
+        <MenuItem icon={<Plus />} onClick={() => list.create()}>
+          New Playlist
+        </MenuItem>
+      )}
     </>
   );
 }
@@ -78,7 +83,7 @@ function PopoverChecklist({ list }: { list: ReturnType<typeof usePlaylistCheckli
           ))}
         </div>
       )}
-      {creating ? (
+      {list.full ? null : creating ? (
         <form className="playlist-menu-form" onSubmit={create}>
           <TextField
             autoFocus
