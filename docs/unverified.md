@@ -1,11 +1,11 @@
 # What could not be checked on the dev machine
 
 The work on this branch was done on a Linux VM with no display, no WebKitGTK and no
-mpv. `tsc`, `vite build`, `bun run test` and `cargo test` for `polar-addon`,
-`polar-anime` and `polar-library` run there; `src-tauri` does not build there. The
+mpv. `tsc`, `vite build`, `bun run test` and `cargo test` for the five core crates
+(`polar-addon`, `polar-anime`, `polar-index`, `polar-library`, `polar-player`) run there; `src-tauri` does not build there. The
 screens were looked at only in a headless Chromium against a fake shell (below,
 T-051), never in the app's own window. This file lists what still needs a person
-with the app, and how to check each item. It grows as work lands (T-011 finishes it).
+with the app, and how to check each item.
 
 ## Built by reading only (`src-tauri`)
 
@@ -231,6 +231,36 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
   number above the title; no window buttons. As an iPad: the desktop layout with 44 px bar icons.
 - A desktop window narrower than 600 px now gets the hero and episode-list changes too (not the tab bar).
 - Touch: a tap on the playing video shows or hides the controls whatever "Clicking the video" says.
+
+## Screens, player and engine after R5 (T-008)
+
+- Player: the clock, skip button, Up Next and the 75 % prefetch now follow the playhead through
+  `useMediaTime` instead of re-rendering the whole player four times a second. Seen working here in headless
+  Chromium with the built-in player (the fake shell's links answered by a test file): the clock ticks, ← / →
+  seek, Space pauses and the clock stops, clicking the clock cycles remaining / elapsed / ends at, Sources opens,
+  Esc leaves; on a series Up Next appears in the last 40 s and the next episode starts by itself after the
+  countdown. Not seen: mpv (Windows, macOS), where time comes from mpv's reports. To check on a desktop: play an
+  episode, watch the clock and scrubber for a minute (smooth, no jumps), let it reach the credits (Up Next), and
+  open each panel while it plays.
+- Screens load their own code the first time they open: the player (fetched once the app is idle), TV mode,
+  Settings, sign-in and profiles, an anime's page, and the avatar art. All seen opening in Chromium except
+  sign-in and profiles (no account there). To check in the app: sign out and in, switch to TV mode, open
+  Settings, an anime and a profile menu; each should appear at once, without a blank frame.
+- Library: Saved, Watched, Playlists and Downloads, and each playlist, are pages of their own: Esc and the
+  mouse's back button step out one page (seen in Chromium). A new playlist still opens with its name selected.
+- Accessibility: with "Show titles" off, cards keep their title as their name for screen readers; the season
+  picker, episode ranges and anime schedule days are radio groups. Not checked with a screen reader: try
+  Narrator or VoiceOver on a title page and the nav tabs (Enter and Space open a tab).
+- mpv engine (only type-checked): closing the app while mpv is busy now kills mpv; if mpv exits, waiting calls
+  fail at once instead of after 5 s; autocrop stops when mpv shuts down after being idle; frame snapshots for
+  the blurred overlays use their own file each. To check on Windows: play something, quit the app from the tray
+  or Alt+F4 mid-load, and see that no `mpv.exe` stays in Task Manager. If the app itself crashes, mpv can still
+  be left running (no Windows Job Object yet, T-052).
+- The link check gives up after 25 s in all and lets the player try the link (tested here against a slow
+  local server). Subtitles in UTF-16 or Windows-1252 now show their accents and curly quotes (tested); an
+  add-on subtitle without a language is listed as "Unknown language".
+- Shortcuts synced between a Mac and a PC: Ctrl+K set on Windows arrives as ⌘K on the Mac. Tested as functions
+  only; check by changing a ⌘ shortcut on one machine and looking at Settings → Controls on the other.
 
 ## Screens in headless Chromium (T-051)
 

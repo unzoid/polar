@@ -98,3 +98,44 @@ size and input:
    `crates/player`'s rules) and make `mpv_available` say so; the front end needs no change.
 3. Add the system to `Os` in `src/lib/platform/device.ts` if it has to be told apart.
 4. Fill in its row in §3 and what can't be checked in `docs/unverified.md`.
+
+## 6. Where each README feature lives
+
+Each line of the README's "What's in it", from the screen to the code that does the work. Checked
+against the tree at the end of the rewrite (T-011); `docs/unverified.md` says what of it could only be
+read, not run, here.
+
+| Feature | Screens and components | Logic (`src/lib`) | Native side and crates |
+|---|---|---|---|
+| Home: hero, Continue Watching, trending rows | `screens/Home.tsx`, `components/title/Shelf.tsx`, `Row.tsx`; TV `tv/TvScreens.tsx` | `catalog/shelves.ts`, `net/queries.ts` (`useContinueWatching`) | `commands.rs` (`catalog`, `continue_watching`), `crates/index` |
+| Series and Movies pages, genres | `screens/Discover.tsx`; TV `TvScreens.tsx` | `catalog/genres.ts` | `crates/index` (`catalog` with `genre`) |
+| Anime section: search, details, episodes | `screens/Anime.tsx`, `screens/AnimeDetail.tsx` (own chunk), `components/anime/*`; TV `tv/TvAnime.tsx` | `anime/*` (AniList, Kitsu, ani.zip, AniSkip; `merge.ts`, `links.ts` for one identity per show) | `crates/anime` (Fribb lists, filler), `crates/library/src/identity.rs` |
+| Search with recent searches | `components/NavBar.tsx` (search field), `screens/Search.tsx`; TV `tv/TvKeyboard.tsx` | `catalog/searchQuery.ts`, `catalog/recentSearches.ts`, `anime/search.ts` | `commands.rs` (`search`), `crates/index` |
+| IMDb ratings, trailers on the backdrop | `components/ImdbBadge.tsx`, `RatingRing.tsx`, `BackdropTrailer.tsx`, `Trailer.tsx` | `playback/trailers.ts` (TMDB videos first) | `ratings.rs`, `imdb.rs` |
+| Calendar | `screens/Calendar.tsx` | `catalog/calendar.ts` (6 lookups at a time) | `commands.rs` (`meta`) |
+| mpv inside the window | `screens/Player.tsx` (own chunk), `components/player/mpvMedia.ts` | — | `player/`, `macos/`, `crates/player` (§2) |
+| Source, subtitles, audio, speed from the player bar | `components/player/OptionsOverlay.tsx`, `useTracks.ts`, `SubtitleSettings.tsx`, `SourceFilters.tsx` | `playback/sources.ts`, `playback/languages.ts` | `commands.rs` (`streams`, `subtitles`), `crates/addon` (`rank.rs`, `subs.rs`) |
+| Episode shelf, Next Episode | `components/title/EpisodeShelf.tsx`, player Episodes panel and Up Next card (`Player.tsx`) | `library/episodes.ts`, `playback/autoplay.ts` | `crates/addon/src/numbering.rs` |
+| Skip intros and recaps, skip filler | `components/player/SkipSegments.tsx` | `anime/aniskip.ts`, `anime/playContext.ts` (`isFiller`), `anime/episodeFlags.ts` | `introdb.rs`, `crates/anime/src/fillers.rs` |
+| Subtitle, sound and picture settings mid-video | `components/player/SubtitleSettings.tsx`, `useMpvTune.ts`, Settings → Playback/Subtitles | `settings/schema.ts` | `player/commands.rs` (`mpv_tune`), `crates/player/src/tune.rs` |
+| Source filters, stream check | `components/SourceFilters.tsx`, `components/player/PlayerStatus.tsx` (start-up steps) | `playback/sources.ts`, `playback/startLog.ts` | `streamcheck.rs`, `crates/addon/src/probe.rs` |
+| Resume | `components/player/useProgressSaver.ts`, `Player.tsx` (`resumePoint`) | `library/episodeState.ts` | `commands.rs` (`progress_save`, `progress_for`), `store.rs` |
+| Watchlist, history, playlists | `screens/Library.tsx` (routes `library-collection`, `playlist`), `components/title/LibraryButton.tsx`, `PlaylistChecklist.tsx` | `library/playlists.ts`, `library/watched.ts`, `library/titleActions.ts` | `store.rs`, `crates/library` |
+| Downloads | `components/DownloadButton.tsx`, Library → Downloads | `library/downloads.ts` | `downloads.rs` |
+| Right-click menu on cards | `components/CardMenu.tsx`; TV `tv/TvCardMenu.tsx` | `library/titleActions.ts` | — |
+| Accounts and profiles, synced | `screens/account/*` (own chunks), `components/ProfileMenu.tsx`, `Avatar.tsx` | `account/*` (`supabase.ts`, `sync.ts`, `settingsSync.ts`, `progressCodec.ts`) | `crates/library/src/sync.rs`, `supabase/migrations` (`docs/supabase-storage.md`) |
+| Watch parties | `components/party/*`, `components/player/usePartySync.ts`; TV `tv/TvJoinParty.tsx` | `party/party.ts`, `party/messages.ts` | Supabase Realtime (no server of ours) |
+| TV mode, controller and remote | `src/tv` (own chunk) | `settings/keybinds.ts`, `ui/dismiss.ts` | `controllers.rs` |
+
+## 7. How sync flows
+
+1. Every change is saved on the device first (`store.rs`, `polar.json`); `sync.schedule()`
+   (`lib/account/sync.ts`) queues a round.
+2. A round pushes what changed since the last cursor and pulls what other devices pushed
+   (`src-tauri/src/sync.rs` `sync_changes`; `crates/library/src/sync.rs` `merge` keeps the newest, and local names
+   and pictures, since the server holds none: `docs/supabase-storage.md`).
+3. After a round, titles that arrived without a name or picture are looked up on this device
+   (`lib/account/titleDisplay.ts`).
+4. Settings sync separately and only what differs from the defaults (`settingsDoc.ts`); keys and
+   add-on links stay on the device unless "Sync API keys and addons" seals them with a passphrase
+   (`secrets.ts`).
