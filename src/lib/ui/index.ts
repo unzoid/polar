@@ -8,6 +8,7 @@ export * from "./handFocus";
 export * from "./layer";
 export * from "./lazy";
 export * from "./motion";
+export * from "./presence";
 export * from "./reducedMotion";
 export * from "./score";
 export * from "./useFoldSnap";

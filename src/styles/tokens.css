@@ -109,6 +109,7 @@
   --z-overlay: 50;
   --z-popover: 60;
   --z-modal: 900;
+  --z-notice: 950; /* saved-data problems: above Settings, under dropdowns */
   --z-dropdown: 1000;
   --z-system: 2147483647;
 
