@@ -46,6 +46,8 @@ relative to `src/`; each primitive's CSS is `styles/ui/<name>.css`, the title pa
 | `useLayer(root, open, onClose, { modal })` (`lib/ui/layer.ts`) | A modal layer you draw yourself: `useDismiss` plus focus in on open, Tab kept inside, focus back to the opener on close. Give the root `tabIndex={-1}` and `data-layer`. Used by `Sheet`, the trailer, the player's `OptionsOverlay` |
 | `useBack(active, handler)` (`tv/shell.ts`) | The same stack, named for TV panels |
 | `useNearViewport`, `useInfiniteSentinel` (`lib/ui/viewport.ts`) | Lazy shelves; the next page of a grid |
+| `lazyNamed(load, name)`, `whenIdle(fn)` (`lib/ui/lazy.ts`) | A screen or window most sessions don't open, in its own chunk (`App.tsx`, `PlayerLayer.tsx`); draw it inside `<Suspense>`. `.preload()` where waiting would show (the player, when idle). Keep anything the start-up screen draws out of these modules |
+| `useMediaTime(media, select)` (`components/player/useMediaTime.ts`) | Anything in the player that follows the playhead: `select` returns a primitive, so only that part re-renders (`PlayerClock`, skip segment, Up Next). Never keep the time in player state |
 | `useCardIntent(warm, delay)` (`lib/ui/cardIntent.ts`) | Prefetch after resting on a card (hover or focus) |
 | `useTitlePlayback(onPick, beforePlay?)` (`lib/playback/useTitlePlayback.ts`), `needsPick` (`lib/playback/titlePlayback.ts`) | Play now or ask for a source: the one rule (H14) |
 | `useSetting(id)` (`lib/settings/useSetting.ts`) | Read and save one setting from the schema |
