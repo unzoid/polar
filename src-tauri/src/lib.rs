@@ -1,3 +1,5 @@
+#[cfg(any(windows, test))]
+mod automation;
 mod commands;
 mod controllers;
 mod downloads;
@@ -177,6 +179,8 @@ pub fn run() {
             controllers::watch(app.handle().clone());
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move { install_bundled_addons(handle).await });
+            #[cfg(windows)]
+            automation::create_main_window(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

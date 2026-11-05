@@ -48,7 +48,10 @@ The first push shows these; a failing job prints its step and keeps the Playwrig
 
 ## App smoke test (`.github/workflows/e2e-app.yml`, T-040)
 
-Never run anywhere: it needs the built app, which can't link here. Checked here: the script
+It can't run here (the app can't link). Its first CI runs failed (#46): on Linux the script read
+elements under a wrong W3C key, and on Windows the elevated runner's WebView2 dropped the driver's
+DevTools port (fixed through `src-tauri/src/automation.rs`, see [testing.md](testing.md)); both
+fixes are confirmed only by the next run on `master`. Checked here: the script
 type-checks (`bunx tsc -p e2e`), the workflow parses as YAML, its actions are pinned to the same
 commits as `ci.yml`, tauri-driver 2.1.0 is the newest release on crates.io and msedgedriver-tool is
 pinned to its newest commit (GitHub API, 2026-11-05). Unknown until it runs: whether WebKitWebDriver

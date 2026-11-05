@@ -88,7 +88,11 @@ the web view's storage). It needs `cargo install tauri-driver --locked` and the 
 driver: `webkit2gtk-driver` on Linux (`xvfb-run -a bun run e2e:app` without a display), an
 msedgedriver of the WebView2 version on Windows. macOS has no driver for its web view. On Linux
 the app's data goes to a fresh folder; on Windows it can't be moved, so the script runs there only
-on CI or with `POLAR_E2E_APP_OK=1`, and writes into your own profile.
+on CI or with `POLAR_E2E_APP_OK=1`, and writes into your own profile. GitHub's Windows runners
+run elevated, and WebView2 150 and later ignore the driver's `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`
+in an elevated process, so on Windows the main window is created in `setup` and a debug build
+passes those arguments and the driver's profile folder through the WebView2 API
+(`src-tauri/src/automation.rs`); release builds use the config alone.
 
 Not covered by any layer yet: the player with mpv (needs a desktop, [desktop test](unverified.md)),
 sign-in and sync against a real Supabase project, and the real add-ons and metadata services.
