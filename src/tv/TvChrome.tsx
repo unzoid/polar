@@ -51,11 +51,12 @@ export function TvNav({ onMenu }: { onMenu: () => void }) {
   const tabs = useTvTabs();
 
   return (
-    <header className="tv-nav" data-nav-keep data-nav-memory data-nav-prefer-entry data-nav-lock-x>
+    <header className="tv-nav" data-nav-memory data-nav-prefer-entry data-nav-lock-x>
       <button className="tv-nav-me" onClick={onMenu} aria-label="Menu">
         {profile ? <Avatar id={profile.avatar} /> : <Tv size={28} />}
       </button>
-      <nav className="tv-nav-tabs" aria-label="Sections">
+      {/* Switching sections keeps focus on the tabs; the menu's choices (Settings) land in the page. */}
+      <nav className="tv-nav-tabs" aria-label="Sections" data-nav-keep>
         {tabs.map((t) => {
           const current = sameTab(t.route, active);
           return (
