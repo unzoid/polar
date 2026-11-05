@@ -106,7 +106,7 @@ export function Player({
   const { data: meta } = useMeta(type, metaId);
   const { data: settings } = useSettings();
   const { touch } = useFormFactor();
-  // Engine: embedded mpv when installed (plays HEVC/MKV, AC3/DTS audio, every
+  // Engine: embedded mpv when installed (plays every codec, AC3/DTS audio, every
   // subtitle format), else the WebView's own <video>.
   const engineQuery = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
   const engine: "mpv" | "html" | null = engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
@@ -123,7 +123,9 @@ export function Player({
   const { steps, add: logStep } = useStartLog();
   useEffect(() => {
     if (engine === "mpv") logStep("Player: mpv", "info", "player");
-    else if (engine === "html") logStep("Player: built-in (mpv isn't installed; MKV, HEVC and some audio won't play)", "info", "player");
+    // What the built-in player can't do depends on the file's codecs and the machine, not on MKV (test report 1, item 23).
+    else if (engine === "html")
+      logStep("Player: built-in (mpv isn't installed, so some files may not play: AC3/DTS audio, HEVC where the system can't decode it)", "info", "player");
   }, [engine, logStep]);
   const source = useSource(type, metaId, videoId, stream, roomHint, logStep);
 
@@ -740,7 +742,7 @@ export function Player({
             name={meta?.name}
             background={meta?.background}
             steps={steps}
-            backend={engine ?? "not chosen yet"}
+            backend={engine === "html" ? "built-in" : (engine ?? "not chosen yet")}
             onSources={() => setOptions("sources")}
           />
         )}

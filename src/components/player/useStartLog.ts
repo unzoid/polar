@@ -12,12 +12,23 @@ export type LogStep = (text: string, tone?: StepTone, stage?: StartStage, key?: 
  * with the time since the player opened and redacts it; a line with the same
  * `key` as the one before replaces it (buffering 10% → 40% is one line).
  */
+/** Lines repeated within this long are one step. */
+const SAME_STEP_MS = 250;
+
 export function useStartLog() {
   const t0 = useRef(performance.now());
   const keyOfLast = useRef<string | undefined>(undefined);
+  const lastSaid = useRef(new Map<string, number>());
   const [steps, setSteps] = useState<StartStep[]>([]);
   const add = useCallback<LogStep>((text, tone = "info", stage, key) => {
-    const step = { at: performance.now() - t0.current, text: redact(text), tone, stage };
+    const now = performance.now();
+    // The same line again within moments is the same step told twice (effects run twice in
+    // development builds), not something that happened again (test report 1, item 28).
+    const said = `${tone}|${stage}|${text}`;
+    const before = lastSaid.current.get(said);
+    lastSaid.current.set(said, now);
+    if (key == null && before !== undefined && now - before < SAME_STEP_MS) return;
+    const step = { at: now - t0.current, text: redact(text), tone, stage };
     const replace = key != null && keyOfLast.current === key;
     keyOfLast.current = key;
     setSteps((s) => (replace ? [...s.slice(0, -1), step] : s.length >= MAX_STEPS ? s : [...s, step]));

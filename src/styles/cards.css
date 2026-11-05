@@ -882,3 +882,8 @@ video.trailer-video {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Where the trailer comes from (IMDb, TMDB · YouTube), quietly beside its name. */
+.trailer-source {
+  flex: none;
+  color: var(--text-3);
+}

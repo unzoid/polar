@@ -339,7 +339,7 @@ impl Store {
                     Ok(_) => (data, None),
                     Err(copy) => (
                         data,
-                        Some(format!("{} is from a newer Polar and couldn't be backed up ({copy})", path.display())),
+                        Some(format!("{} is from a newer Polarity and couldn't be backed up ({copy})", path.display())),
                     ),
                 }
             }

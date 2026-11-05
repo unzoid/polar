@@ -95,10 +95,11 @@ function CreditsCard() {
     <Card
       title="Credits"
       footer={
-        <>
-          <img className="settings-credits-tmdb" src={tmdbLogo} alt="TMDB" draggable={false} />
+        // The notice, then TMDB's logo 12px under it, as one block of their own (test report 1, item 26).
+        <span className="settings-credits-tmdb-block">
           {TMDB_NOTICE}
-        </>
+          <img className="settings-credits-tmdb" src={tmdbLogo} alt="TMDB" draggable={false} />
+        </span>
       }
     >
       <ExpandRow icon={Info} title="Data sources" caption="Where titles, episodes, ratings and subtitles come from" {...expand("credits")}>

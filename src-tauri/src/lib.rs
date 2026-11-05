@@ -145,8 +145,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            logging::init(&app.path().app_log_dir()?);
-            tracing::info!("Polar {} starting", app.package_info().version);
+            logging::init(&app.path().app_log_dir()?, app.path().home_dir().ok().as_deref());
+            tracing::info!("Polarity {} starting", app.package_info().version);
             #[cfg(desktop)]
             {
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -155,7 +155,7 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             let path = dir.join("polar.json");
             migrate_legacy_store(&dir, &path);
-            downloads::manage(app.handle(), &dir);
+            downloads::manage(app.handle(), &dir)?;
             let store = Arc::new(Mutex::new(store::Store::load(path)));
             let cache = app.path().app_cache_dir()?;
             let indexer = Indexer::new(index_config(&store.locked().data.settings));

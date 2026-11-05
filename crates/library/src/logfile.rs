@@ -20,11 +20,26 @@ struct Inner {
     path: PathBuf,
     max: u64,
     open: Option<(File, u64)>,
+    /// The user's home folder as it may appear in a line (both slash kinds), written as `~`.
+    home: Vec<String>,
 }
 
 impl LogFile {
     pub fn new(path: impl Into<PathBuf>, max: u64) -> Self {
-        LogFile(Arc::new(Mutex::new(Inner { path: path.into(), max, open: None })))
+        LogFile(Arc::new(Mutex::new(Inner { path: path.into(), max, open: None, home: Vec::new() })))
+    }
+
+    /// Paths under `home` are written from `~`, so the log never carries the user's name
+    /// (`C:\Users\<name>\…`): people are asked to send its lines with bug reports (test report 1,
+    /// item 30), and Copy Details hides the home folder the same way.
+    pub fn hiding_home(self, home: &Path) -> Self {
+        let h = home.to_string_lossy().trim_end_matches(['/', '\\']).to_owned();
+        if h.len() > 1 {
+            let mut inner = self.0.lock().unwrap_or_else(|p| p.into_inner());
+            inner.home = vec![h.replace('/', "\\"), h.replace('\\', "/")];
+            inner.home.dedup();
+        }
+        self
     }
 
     /// The older half, `<name>.1`.
@@ -59,10 +74,38 @@ impl Inner {
     }
 }
 
+/// `buf` with the home folder written as `~`, or None when it isn't in it.
+fn hide_home(buf: &[u8], home: &[String]) -> Option<Vec<u8>> {
+    if home.is_empty() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(buf);
+    if !home.iter().any(|h| text.contains(h.as_str())) {
+        return None;
+    }
+    let mut out = text.into_owned();
+    for h in home {
+        let mut from = 0;
+        while let Some(at) = out[from..].find(h.as_str()).map(|i| i + from) {
+            let end = at + h.len();
+            // Only the whole folder: `C:\Users\Ada` isn't in `C:\Users\Adam`.
+            if out[end..].chars().next().is_some_and(|c| c.is_alphanumeric() || "._-".contains(c)) {
+                from = end;
+                continue;
+            }
+            out.replace_range(at..end, "~");
+            from = at + 1;
+        }
+    }
+    Some(out.into_bytes())
+}
+
 impl Write for LogFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut inner = self.0.lock().unwrap_or_else(|p| p.into_inner());
-        match inner.file(buf.len() as u64).and_then(|f| f.write_all(buf)) {
+        let hidden = hide_home(buf, &inner.home);
+        let bytes = hidden.as_deref().unwrap_or(buf);
+        match inner.file(bytes.len() as u64).and_then(|f| f.write_all(bytes)) {
             Ok(()) => {}
             // Try a fresh handle next time (the folder may have been removed).
             Err(_) => inner.open = None,
@@ -102,6 +145,20 @@ mod tests {
         assert_eq!(fs::read_to_string(LogFile::previous(&path)).unwrap(), "0123456789\nabcdefgh\n");
         log.write_all(b"0123456789abcdef\n").unwrap();
         assert_eq!(fs::read_to_string(LogFile::previous(&path)).unwrap(), "next\n");
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn the_home_folder_is_written_as_a_tilde() {
+        let d = dir("home");
+        let path = d.join("polar.log");
+        let mut log = LogFile::new(&path, 1000).hiding_home(Path::new(r"C:\Users\Ada"));
+        log.write_all(br"ERROR polar_lib::store: can't read C:\Users\Ada\AppData\Roaming\app\polar.json").unwrap();
+        log.write_all(b"\nand C:/Users/Ada/x, but not C:\\Users\\Adam\n").unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with(r"ERROR polar_lib::store: can't read ~\AppData\Roaming\app\polar.json"), "{text}");
+        assert!(text.contains("and ~/x"), "{text}");
+        assert!(text.contains(r"but not C:\Users\Adam"), "{text}");
         fs::remove_dir_all(&d).unwrap();
     }
 

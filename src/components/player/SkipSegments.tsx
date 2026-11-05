@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { api } from "../../lib/api";
 import { aniSkipSegments } from "../../lib/anime";
 import { withShortcut } from "../../lib/settings";
+import { useHandFocus } from "../../lib/ui";
 import type { SkipSegments, Span } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvChapter } from "./mpvMedia";
 import { useMediaTime } from "./useMediaTime";
@@ -176,14 +177,18 @@ export function SkipButton({
   useEffect(() => {
     if (active) setShown(active);
   }, [active]);
+  // Skipped (or the segment ended) with focus on it: focus goes back to the player, its keys keep working.
+  const button = useRef<HTMLButtonElement>(null);
+  useHandFocus(button, !active);
 
   return (
     <button
+      ref={button}
       className="skip-button"
       data-visible={!!active}
       data-chrome={chromeVisible}
       tabIndex={active ? 0 : -1}
-      aria-hidden={!active}
+      inert={!active}
       onClick={(e) => {
         e.stopPropagation();
         onSkip();

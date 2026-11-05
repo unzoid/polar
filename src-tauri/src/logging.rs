@@ -16,9 +16,13 @@ use tracing_subscriber::prelude::*;
 
 const MAX_BYTES: u64 = 1024 * 1024;
 
-/// Start logging to `<dir>/polar.log`. Called once, first thing at start-up.
-pub fn init(dir: &Path) {
-    let file = LogFile::new(dir.join("polar.log"), MAX_BYTES);
+/// Start logging to `<dir>/polar.log`, with paths under `home` written from `~`. Called once,
+/// first thing at start-up.
+pub fn init(dir: &Path, home: Option<&Path>) {
+    let mut file = LogFile::new(dir.join("polar.log"), MAX_BYTES);
+    if let Some(home) = home {
+        file = file.hiding_home(home);
+    }
     let filter = Targets::new().with_default(Level::WARN).with_target("polar", Level::INFO);
     let to_file = tracing_subscriber::fmt::layer().with_ansi(false).with_writer(move || file.clone());
     let layer = to_file.with_filter(filter.clone());

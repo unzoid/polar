@@ -14,6 +14,7 @@
 #[cfg(test)]
 mod contract;
 pub mod display;
+pub mod filenames;
 pub mod identity;
 pub mod logfile;
 pub mod opened;

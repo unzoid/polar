@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { usePrefs } from "../lib/settings";
+import { useHandFocus } from "../lib/ui";
 import { MOD_LABEL } from "../lib/platform";
 import { useSettings } from "../lib/net";
 import { WindowControls } from "./WindowControls";
@@ -42,6 +43,9 @@ export function NavBar() {
   const isActive = (r: TabRoute) => JSON.stringify(r) === JSON.stringify(active);
   // Search results are closed by clearing the field, not with Back.
   const canGoBack = stack.length > 1 && current.name !== "search";
+  // Back to a top-level page with focus on Back: it hides, so focus moves off it first (test report 1, item 25).
+  const backButton = useRef<HTMLButtonElement>(null);
+  useHandFocus(backButton, !canGoBack);
   const scrolled = useActivePageScrolled(stack.length);
   const { data: settings } = useSettings();
   const { animeEnabled, showTvButton } = usePrefs();
@@ -58,12 +62,13 @@ export function NavBar() {
       </div>
       {/* Always takes its place, so the brand and tabs never shift when it appears. */}
       <button
+        ref={backButton}
         className="navbar-icon navbar-back pressable"
         data-shown={canGoBack}
         onClick={back}
         aria-label="Back"
         title="Back (Esc)"
-        aria-hidden={!canGoBack}
+        inert={!canGoBack}
         tabIndex={canGoBack ? 0 : -1}
         disabled={!canGoBack}
       >
