@@ -7,6 +7,7 @@ import { useAccount } from "../../lib/account";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
+import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AccountPage() {
   const account = useAccount();
@@ -28,7 +29,7 @@ export function AccountPage() {
 
   return (
     <>
-      <Card footer="Your library, watch history, playlists, settings, shortcuts and addons sync automatically. Volume and TV mode stay on this device.">
+      <Card footer="Your library, where you are in each title, playlists, settings and shortcuts sync automatically. API keys, addons, volume and TV mode stay on this device.">
         <ActionRow title="Email" caption={account.user?.email} label="Sign Out" onClick={() => void account.signOut()} />
       </Card>
 
@@ -40,6 +41,10 @@ export function AccountPage() {
           </div>
         ))}
         <LinkRow icon={Edit} title="Manage profiles" onClick={() => account.switchProfile("manage")} />
+      </Card>
+
+      <Card title="Sync">
+        <SettingRow id="syncEpisodeHistory" />
       </Card>
 
       <Card title="Danger Zone">

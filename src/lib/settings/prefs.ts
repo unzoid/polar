@@ -61,6 +61,11 @@ export interface Prefs {
   autoDownloadUpdates: boolean;
   /** The TV mode button in the navbar (Settings → Controls & TV). */
   showTvButton: boolean;
+  /**
+   * Sync every episode's position, not only each title's newest. Off: the account keeps one entry per
+   * title. Only worth turning on once the server runs supabase/optional/per_episode_progress.sql.
+   */
+  syncEpisodeHistory: boolean;
 
   /** Ecchi anime (AniList's adult titles never show): as is, blurred, or left out. Synced. */
   matureContent: "show" | "blur" | "hide";
@@ -119,6 +124,7 @@ const DEFAULTS: Prefs = {
   searchSuggestions: true,
   autoDownloadUpdates: true,
   showTvButton: true,
+  syncEpisodeHistory: false,
   matureContent: "show",
   animeEnabled: true,
   animeHiddenShelves: "",
