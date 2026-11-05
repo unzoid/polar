@@ -142,9 +142,9 @@ How to check, with a TMDB key set in Settings:
 `supabase/migrations/20261105000000_compact_storage.sql` moves library and progress into
 `library` and `progress` without any show information, keeps one progress entry per title, takes
 keys and add-on links out of stored settings and drops the old tables (docs/supabase-storage.md).
-Checked here in PGlite (Postgres 17, `work/tmp/pgcheck/compact.ts`, 29 checks: copy, codec in SQL
-and TypeScript alike, both trigger modes, clamping, RLS between two users, playlist limit, the
-check script). Not checked: a real Supabase project, PostgREST's upsert through the trigger, and two
+Checked in PGlite (Postgres 17, `tests/sql/compactStorage.test.ts`, run by `bun run test` and on
+every push in CI: every migration from empty, copy, codec in SQL and TypeScript alike, both
+trigger modes, clamping, RLS between two users, anime links, playlist limit, the check script). Not checked: a real Supabase project, PostgREST's upsert through the trigger, and two
 devices.
 
 1. On a copy of the project run part 1 of `supabase/checks/compact_storage.sql`, apply the
