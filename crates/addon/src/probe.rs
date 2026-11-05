@@ -52,6 +52,9 @@ pub struct Probe {
     pub retry_after: Vec<Duration>,
     pub connect_timeout: Duration,
     pub timeout: Duration,
+    /// The whole check, retries and redirects included: past it the player tries the link as it is
+    /// (a slow server answering 503 four times could otherwise hold playback for over a minute).
+    pub deadline: Duration,
     /// Sent with every request, redirects included (`polar_player::headers` picks them).
     pub headers: Vec<(String, String)>,
 }
@@ -63,6 +66,7 @@ impl Default for Probe {
             retry_after: [600, 1500, 3000].map(Duration::from_millis).to_vec(),
             connect_timeout: Duration::from_secs(8),
             timeout: Duration::from_secs(20),
+            deadline: Duration::from_secs(25),
             headers: Vec::new(),
         }
     }
@@ -101,10 +105,22 @@ impl Probe {
             return Ok(start.into());
         };
 
+        let until = Instant::now() + self.deadline;
+        let late = |url: &Url, on: &mut dyn FnMut(ProbeEvent)| {
+            on(ProbeEvent::Unreachable {
+                host: host_label(url),
+                error: "no answer in time".into(),
+                ms: self.deadline.as_millis() as u64,
+            });
+            Ok(url.to_string())
+        };
         let mut last = None;
         for attempt in 0..=self.retry_after.len() {
             if attempt > 0 {
                 let wait = self.retry_after[attempt - 1];
+                if Instant::now() + wait >= until {
+                    break;
+                }
                 on(ProbeEvent::Retry { after_ms: wait.as_millis() as u64 });
                 tokio::time::sleep(wait).await;
             }
@@ -113,7 +129,11 @@ impl Probe {
             let mut hops = 0;
             let (res, took) = loop {
                 let sent = Instant::now();
-                let mut req = http.get(url.clone()).header(header::RANGE, "bytes=0-1023");
+                let Some(left) = until.checked_duration_since(sent).filter(|d| !d.is_zero()) else {
+                    return late(&url, on);
+                };
+                let mut req =
+                    http.get(url.clone()).header(header::RANGE, "bytes=0-1023").timeout(left.min(self.timeout));
                 for (k, v) in &self.headers {
                     req = req.header(k.as_str(), v.as_str());
                 }
@@ -448,6 +468,36 @@ mod tests {
             let (r, events) = run(&format!("{base}/busy")).await;
             assert!(r.unwrap_err().starts_with("The source kept answering 503 Service Unavailable"));
             assert_eq!(events.iter().filter(|e| matches!(e, ProbeEvent::Request { .. })).count(), 4);
+        })
+    }
+
+    #[test]
+    fn a_slow_busy_server_gives_up_at_the_deadline_and_lets_the_player_try() {
+        block(async {
+            // A slow "503" every time: without the deadline, 4 tries of up to `timeout` each.
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            tokio::spawn(async move {
+                loop {
+                    let (mut sock, _) = listener.accept().await.unwrap();
+                    tokio::spawn(async move {
+                        let mut buf = vec![0u8; 4096];
+                        let _ = sock.read(&mut buf).await;
+                        tokio::time::sleep(Duration::from_millis(150)).await;
+                        let _ = sock.write_all(answer("503 Service Unavailable", &[]).as_bytes()).await;
+                        let _ = sock.shutdown().await;
+                    });
+                }
+            });
+            let probe = Probe { deadline: Duration::from_millis(400), timeout: Duration::from_secs(5), ..quick() };
+            let url = format!("{base}/busy");
+            let started = Instant::now();
+            let mut events = vec![];
+            let r = probe.check(Url::parse(&url).unwrap(), &mut |e| events.push(e)).await;
+            assert!(started.elapsed() < Duration::from_millis(1000), "{:?}", started.elapsed());
+            // Ran out of time mid-request: the player gets the link and reports its own error.
+            assert_eq!(r.unwrap(), url);
+            assert!(events.iter().any(|e| matches!(e, ProbeEvent::Unreachable { .. })), "{events:?}");
         })
     }
 
