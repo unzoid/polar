@@ -100,7 +100,9 @@ export function readLinked(v: unknown): ChainLink | undefined {
     const relation = relationType(r.relationType);
     const nodeId = id(node.id);
     if (!relation || nodeId === undefined) return undefined;
-    return { relationType: relation, node: { id: nodeId, type: str(node.type) ?? null, format: oneOf(FORMATS)(node.format) ?? null } };
+    // Asked with its own details and links (the season walk), the entry comes whole.
+    const full = isRecord(node.relations) ? readLinked(node) : undefined;
+    return { relationType: relation, node: { id: nodeId, type: str(node.type) ?? null, format: oneOf(FORMATS)(node.format) ?? null, ...(full && { full }) } };
   });
   return { ...card, relations: { edges: relations } };
 }

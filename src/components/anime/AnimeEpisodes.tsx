@@ -35,6 +35,8 @@ export interface Franchise {
   seasons: AnimeSeason[];
   active: number;
   select: (id: number) => void;
+  /** More seasons are still being looked up. */
+  loading?: boolean;
 }
 
 const PAGE = 100;
@@ -251,15 +253,20 @@ const PENDING = "anime-pending:";
  * their own so long names (Paleblade's arcs) all show. Switching swaps the
  * page's season in place.
  */
-export function SeasonTabs({ franchise: { seasons, active, select } }: { franchise: Franchise }) {
+export function SeasonTabs({ franchise: { seasons, active, select, loading } }: { franchise: Franchise }) {
   const title = useAnimeTitle();
   const labels = distinctLabels(
-    seasons.map((s) => title(s.card.title)),
+    seasons.map((s) => [title(s.card.title), s.card.title.romaji, s.card.title.english]),
     seasons.map((s) => s.label),
   );
   return (
     <div className="seasons-tabs">
       <SeasonPicker value={active} onChange={select} options={seasons.map((s, i) => ({ id: s.card.id, label: labels[i] }))} />
+      {loading && (
+        <span className="seasons-loading t-callout" role="status">
+          Loading seasons…
+        </span>
+      )}
     </div>
   );
 }

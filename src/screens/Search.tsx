@@ -39,8 +39,9 @@ export function Search() {
 
   // Titles without art are almost always stubs nobody's looking for.
   // An anime shows once, as the anime (AniList), not again as a series or movie.
-  const movies = withoutAnime(data?.movies.filter((m) => m.poster), anime.items, aliases);
-  const series = withoutAnime(data?.series.filter((m) => m.poster), anime.items, aliases);
+  // Against every entry found, not one per franchise: a later part Cinemeta lists as its own show goes too.
+  const movies = withoutAnime(data?.movies.filter((m) => m.poster), anime.all, aliases);
+  const series = withoutAnime(data?.series.filter((m) => m.poster), anime.all, aliases);
   const waiting = !hasQuery || !data;
   const nothing = !waiting && !genre && !movies!.length && !series!.length && !anime.items?.length && !anime.loading;
 

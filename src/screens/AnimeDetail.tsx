@@ -25,14 +25,19 @@ import type { EpisodeLayout } from "../lib/types";
 export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   const [activeId, setActiveId] = useState(id);
   const { data: opened } = useAnime(id);
-  const { data: chain } = useAnimeSeasons(opened);
-  const seasons = chain && chain.length > 1 && chain.some((s) => s.card.id === id) ? chain : undefined;
+  const { data: walk, isPending: walking } = useAnimeSeasons(opened);
+  const chain = walk?.seasons;
+  const found = chain && chain.length > 1 && chain.some((s) => s.card.id === id) ? chain : undefined;
+  // Other seasons may be on the way (a long walk while AniList is busy): say so, with this entry as the one tab meanwhile.
+  const linked = !!opened?.relations.edges.some((e) => (e.relationType === "PREQUEL" || e.relationType === "SEQUEL") && e.node.type !== "MANGA");
+  const seasonsLoading = linked && (walking || walk?.complete === false);
+  const title = useAnimeTitle();
+  const seasons = found ?? (seasonsLoading && opened ? [{ card: opened, label: title(opened.title) }] : undefined);
   // While a season loads, the last one stays on screen (dimmed) so the page keeps its height and place.
   const { data: loaded, isError } = useAnime(activeId, { keepPrevious: true });
   const anime = loaded?.id === activeId ? loaded : undefined;
   const shown: Card | undefined = anime ?? seasons?.find((s) => s.card.id === activeId)?.card ?? (activeId === id ? preview : loaded);
   const { data: zip } = useAniZip(activeId);
-  const title = useAnimeTitle();
 
   const scroller = useRef<HTMLDivElement>(null);
   useFoldSnap(scroller, !!shown);
@@ -41,7 +46,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   if (!shown) return <Skeleton className="detail-loading" />;
 
   const { background: art, logo } = animeArt(shown, zip);
-  const franchise = seasons && { seasons, active: activeId, select: setActiveId };
+  const franchise = seasons && { seasons, active: activeId, select: setActiveId, loading: seasonsLoading };
 
   return (
     <div className="detail anime-detail" style={{ "--cover": shown.coverImage.color ?? undefined } as React.CSSProperties}>
