@@ -4,8 +4,9 @@ What Polar stores in its Supabase project, how much each row costs, and the comp
 replaces today's tables. Goal 5: everything going into Supabase as small as it can be, within the
 free plan's 500 MB database ([supabase.com/pricing](https://supabase.com/pricing)).
 
-Status: **design settled** (owner's answers to I-006, 2026-11-05, in §6); migration and codecs
-being built. The settings document (§2.1) waits for I-009.
+Status: **migration written and checked in PGlite** (`supabase/migrations/20261105000000_compact_storage.sql`);
+the app's side is being built. Owner's decisions (I-006, I-009 and the goal's addendum of 2026-11-05)
+in §6.
 
 ## 1. What is stored today
 
@@ -35,10 +36,12 @@ rows), then measures `pg_total_relation_size` (heap + TOAST + every index) after
 | B. A without any names or images, one row per episode | 156 B | 151 B × 11,600 = 1,712 KiB | 2.0 MiB |
 | **D. Names and images once per title, image URLs prefix-coded, episodes packed per title** | 225 B | 365 B × 2,000 titles = 712 KiB | **1.1 MiB** |
 | C. D without names or images | 156 B | 258 B × 2,000 = 504 KiB | 0.8 MiB |
-| **E. C plus each title's name (chosen, §3)** | 188 B | 270 B × 2,000 = 528 KiB | **0.9 MiB** |
+| E. C plus each title's name | 188 B | 270 B × 2,000 = 528 KiB | 0.9 MiB |
+| **F. No show information; progress one entry per title (built, §3)** | 156 B | 193 B × 2,000 = 376 KiB | **0.66 MiB** |
+| G. F with every episode packed per title (built, off: §3.4) | 156 B | 254 B × 2,000 = 496 KiB | 0.78 MiB |
 
 So for a profile this heavy, today's layout fits about 90 such profiles into ~450 MB of app data;
-D fits about 400, E about 510 and C about 560. Most profiles are far lighter; the ratio holds.
+D fits about 400, F about 680 and G about 580. Most profiles are far lighter; the ratio holds.
 
 Where the bytes go in today's progress row: ~24 B tuple header and 4 B line pointer, 32 B of the
 two uuids, ~170 B of the two image URLs, ~40 B of name and episode title, ~40 B of numbers, and
@@ -85,22 +88,20 @@ a Supabase dashboard login, a backup), and the keys are the user's own accounts 
 MDBList and Seekr. A and B keep them off the server; C keeps them on it but unreadable without the
 passphrase; D keeps them readable as today.
 
-## 3. Layout (E): what accounts keep
+## 3. Layout (F): only the user's own data
 
-The owner's rule (I-006): an account keeps only the user's own data (which titles, where they
-stopped, when) and no image links; a name only where a card must show it the moment a new device
-signs in, with what it costs.
+The owner's rule (goal, 2026-11-05): no show information in Polar's database. Names, posters,
+backgrounds, episode titles and every other fact about a show or film come from the metadata
+sources, never from Supabase. An account holds which titles, where the user stopped, when, and
+their settings and profiles.
 
-- **Images: none.** Each device builds them from the id where the source has a fixed pattern, or
-  looks the title up once and keeps what it found (§3.6). A device's own copies stay on that device.
-- **Names: one per title, kept.** The Library screen sorts by title (`src/screens/Library.tsx`
-  `arrange`, "Sort by: Title") across every saved title at once, and every card's caption is the
-  name: without it a new device would fetch one metadata record per saved title before it could
-  draw or sort the grid. Cost, measured as in §2: 32 B a library title and 12 B a progress title
-  (E against C), **88 KiB for the heavy profile, about 10% of what it keeps**.
-- **Episode titles: none.** Only the Continue Watching card shows one (`S1E2 · title`), and that card
-  already fetches the show's metadata for its logo (`src/screens/Home.tsx` `ContinueCard`); until it
-  arrives the card says `S1E2 · show name`.
+- **Library:** id, movie or series, when added, when last changed, removed or not.
+- **Progress:** one row per title holding **one entry**, the newest video the profile is on (what
+  Continue Watching needs): its id, season and episode numbers, position, duration, time. Every
+  episode's position stays on the device that played it.
+- **Every picture and name is looked up on the device** (§3.6) and kept there.
+- Per-episode history (every video packed per title, merged per video on the server) is built and
+  tested but off (§3.4).
 
 ### 3.1 `progress`: one row per title
 
@@ -109,7 +110,6 @@ create table public.progress (
   profile_id uuid not null references public.profiles(id) on delete cascade,
   meta_id text not null,               -- canonical id: tt…, kitsu:N, or an addon's own id
   kind smallint not null,              -- 0 movie, 1 series
-  name text not null,                  -- follows the newest entry (§3.4)
   entries bytea not null check (octet_length(entries) <= 32768),
   updated_at bigint not null,          -- ms, newest entry
   synced_at timestamptz not null default now(),
@@ -117,10 +117,10 @@ create table public.progress (
 );
 ```
 
-`entries` holds every video of the title (§4.1): its id, season and episode, position and duration in
-whole seconds, and the time it was last written. Continue watching and history show the newest video
-per title (`crates/library/src/space.rs` `latest_per_title`); other episodes' titles come from the
-metadata source when the episode list is opened, as they already do.
+`entries` (§4.1) holds the newest video of the title: its id, season and episode, position and
+duration in whole seconds, and the time it was written. Continue watching and history show the
+newest video per title (`crates/library/src/space.rs` `latest_per_title`), so that is all a new
+device needs. With per-episode history on (§3.4) it holds every video of the title instead.
 
 ### 3.2 `library`
 
@@ -129,7 +129,6 @@ create table public.library (
   profile_id uuid not null references public.profiles(id) on delete cascade,
   meta_id text not null,
   kind smallint not null,              -- 0 movie, 1 series; 128 + kind = removed
-  name text not null,                  -- '' for a removal
   added_at int not null,               -- seconds since 1970 (display order only)
   updated_at bigint not null,          -- ms, what last-write-wins compares
   synced_at timestamptz not null default now(),
@@ -144,23 +143,36 @@ still learn of them.
 
 - `anime_links`, `playlists`, `profile_settings`: lose `user_id` and its index, and the pull index
   (§3.5). Contents unchanged: links are already ~30 B of data, playlists already packed.
-- `profile_settings.data` stays jsonb until I-009 is answered.
+- `profile_settings.data` stays jsonb, but holds only what a profile changed from the defaults, and
+  never API keys or add-on links (I-009: they stay on each device; a new device asks for them again).
+  The migration takes keys and `addons` out of the documents already stored. Encrypted sync of keys
+  and add-on links with a passphrase is built behind a setting, off (§3.7).
 
 ### 3.4 Merging on the server
 
-Last write wins per **video**, not per row, so two devices that played different episodes of a show
-both keep theirs. The `before insert or update` trigger on `progress`:
+The `progress_sync` trigger (`before insert or update`) checks every push: entries that don't decode
+as version 1 are refused (`bad_entries`), each time is clamped to `now() + 5 min` (critique H2), and
+the entries are re-encoded, so what is stored always decodes.
 
-1. decodes `old.entries` and `new.entries`, keeps for each video id the entry with the larger time
+**One entry per title (on):** `progress_newest` keeps the push's newest entry when it is newer than
+the stored one, else writes nothing; `kind` follows it.
+
+**Per-episode history (built, off):** `supabase/optional/per_episode_progress.sql` swaps in
+`progress_merge`, last write wins per **video**, so two devices that played different episodes of a
+show both keep theirs:
+
+1. decodes the stored and pushed entries, keeps for each video id the entry with the larger time
    (ties keep the stored one: a re-sent push changes nothing);
-2. takes `name` and `kind` from the push only when its newest entry is newer than anything stored;
+2. takes `kind` from the push only when its newest entry is newer than anything stored;
 3. returns `null` (no write, `synced_at` untouched) when nothing changed, so re-sends don't wake
-   other devices;
-4. clamps every time to `now() + 5 min` (critique H2): a device with its clock far ahead can't make
-   its rows win for ever.
+   other devices.
 
-Clients push only the entries that changed since their last push; the trigger merges them in. A pull
-returns whole rows. `library` keeps `sync_lww` (one record a row) with the same clamp.
+The device setting `syncEpisodeHistory` (off) makes the app push every changed episode instead of
+only each title's newest; it is only worth turning on after the script has run.
+`per_episode_progress_off.sql` goes back, cutting every row down to its newest entry. Measured cost:
+the heavy profile's progress grows from 376 KiB to 496 KiB (§2).
+
+`library` keeps `sync_lww` (one record a row) with the same clamp.
 
 ### 3.5 Row level security without `user_id`
 
@@ -174,33 +186,45 @@ At most 5 profiles an account, so the sub-select is a few index reads. Account d
 cascades through `profiles`. Pulls (`profile_id = $1 and synced_at > $2`) walk the primary key's
 `profile_id` prefix and filter: a few thousand rows at most, so the separate pull index is dropped.
 
-### 3.6 Images on the device
+### 3.6 Names and pictures on the device
 
-A pulled title arrives with a name and no pictures. The device fills them in this order and keeps the
-result in its own store (`polar.json`), so each title is looked up at most once per device:
+A pulled title arrives with an id, a kind and times only. The device fills in its name and pictures
+and keeps them in its own store (`polar.json`), so each title is looked up at most once per device.
+Pictures are built from the id where the source has a fixed pattern; everything else is looked up
+through the title's metadata (`api.meta`, the call the title page makes).
 
-| Id | Poster | Background | Source of the pattern |
-|---|---|---|---|
-| `tt…` (IMDb) | `https://images.metahub.space/poster/medium/{id}/img` | `https://images.metahub.space/background/large/{id}/img` | Cinemeta's own answers name these paths for every title, e.g. [`/meta/series/tt0000105.json`](https://v3-cinemeta.strem.io/meta/series/tt0000105.json) gives `poster/small/tt0000105/img` and `background/medium/tt0000105/img`; the larger sizes are what `crates/index/src/cinemeta.rs` `upgrade_images` already asks for |
-| `kitsu:N` | `https://media.kitsu.app/anime/poster_images/{N}/medium.jpg` | looked up | Kitsu's API gives exactly this path for every size, e.g. [`/api/edge/anime/1`](https://kitsu.io/api/edge/anime/1) and `7442`; the Kitsu add-on's [`/meta/series/kitsu:1.json`](https://anime-kitsu.strem.fun/meta/series/kitsu:1.json) gives the same poster. Covers carry a hash or a varying extension (`anime/1/cover_image/large-88da….jpeg`, `cover_images/7442/original.png`), so they can't be built |
-| anything else (an add-on's own id) | looked up | looked up | no pattern: the add-on decides |
-| TMDB pictures | — | — | never built: [TMDB's image guide](https://developer.themoviedb.org/docs/image-basics) says the `file_path` comes from the movie or show's own record |
+| Id | Name | Poster | Background | Source of the pattern |
+|---|---|---|---|---|
+| `tt…` (IMDb) | looked up | `https://images.metahub.space/poster/medium/{id}/img` | `https://images.metahub.space/background/large/{id}/img` | Cinemeta's own answers name these paths for every title, e.g. [`/meta/series/tt0000105.json`](https://v3-cinemeta.strem.io/meta/series/tt0000105.json) gives `poster/small/tt0000105/img` and `background/medium/tt0000105/img`; the larger sizes are what `crates/index/src/cinemeta.rs` `upgrade_images` already asks for |
+| `kitsu:N` | looked up | `https://media.kitsu.app/anime/poster_images/{N}/medium.jpg` | looked up | Kitsu's API gives exactly this path for every size, e.g. [`/api/edge/anime/1`](https://kitsu.io/api/edge/anime/1) and `7442`; the Kitsu add-on's [`/meta/series/kitsu:1.json`](https://anime-kitsu.strem.fun/meta/series/kitsu:1.json) gives the same poster. Covers carry a hash or a varying extension (`anime/1/cover_image/large-88da….jpeg`, `cover_images/7442/original.png`), so they can't be built |
+| anything else (an add-on's own id) | looked up | looked up | looked up | no pattern: the add-on decides |
+| TMDB pictures | — | — | — | never built: [TMDB's image guide](https://developer.themoviedb.org/docs/image-basics) says the `file_path` comes from the movie or show's own record |
 
-"Looked up" means the device asks the title's metadata (`api.meta`, the same call the title page
-makes), takes its poster and background, and stores them on the library item or progress row. A
-built picture that fails to load (metahub and Kitsu answer 404 for titles without one) falls back to
-the lookup once. All checked 2026-11-05.
+A built picture that fails to load (metahub and Kitsu answer 404 for titles without one) falls back
+to the lookup once. All checked 2026-11-05.
+
+The cost of keeping names off the server: a new device looks up every saved and started title once
+(through the limiter, newest first) before the Library can sort by title; until a name arrives the
+card shows the built poster, or a blank one.
+
+### 3.7 Keys and add-on links
+
+API keys (TMDB, OMDb, MDBList, Seekr) and add-on manifest URLs stay on each device (I-009 A). Built
+and off: the `syncSecrets` setting seals them with a passphrase typed on each device (PBKDF2-SHA-256
+→ AES-GCM, §2.1 option C) into the settings document as one `sealed` field; the server never sees
+the passphrase or the plain values. Turning it on is for when the database is upgraded.
 
 ## 4. Codecs
 
-Shared by the app (TypeScript, `src/lib/account/progressCodec.ts`) and the SQL trigger. Every format
+Shared by the app (TypeScript, `src/lib/account/progressCodec.ts`) and the SQL functions
+`polar_entries` (decode) and `polar_entry` (encode one video) in the migration. Every format
 starts with a version byte; an unknown version decodes to nothing and is never written over
 (critique H5).
 
 ### 4.1 Progress entries
 
 ```
-[version = 1] then per video, sorted by its key bytes (form + payload; order only makes the bytes repeatable):
+[version = 1] then per video (one, unless per-episode history is on), sorted by its key bytes (form + payload; order only makes the bytes repeatable):
   [flags] [key payload] [season varint]? [episode varint]? [position varint] [duration varint] [age varint]
   flags bits 0-1, the video id's form:
     0  the title's own id (a movie), no payload
@@ -218,35 +242,39 @@ A typical episode is 1 + 2 + 2 + 2 + 3-4 ≈ 10-11 bytes. Varints are LEB128 lik
 
 ## 5. Migration from today's tables (cut over at once)
 
-One migration, `supabase/migrations/<date>_compact_storage.sql`:
+`supabase/migrations/20261105000000_compact_storage.sql`, checked in PGlite (Postgres 17) with
+`work/tmp/pgcheck/compact.ts`, 28 checks:
 
 1. creates `library` and `progress` with their triggers and policies and the SQL codec functions;
-2. copies the old rows in: progress grouped by profile and meta id, positions rounded, the name from
-   each title's newest row; library removals as `128 + kind`;
-3. drops `library_items` and `watch_progress` (owner's answer: no forwarding period), and the
-   `user_id` columns, their indexes and the pull indexes of the kept tables.
+2. copies the old rows in: library without names or posters (removals as `128 + kind`), progress as
+   each title's newest video, position rounded (NaN or negative → 0);
+3. drops `library_items` and `watch_progress` (no forwarding period), the `user_id` columns of the
+   kept tables with their policies, and `anime_links`' pull index;
+4. removes keys and `addons` from the stored settings documents;
+5. clamps client times (H2) and makes the playlist limit count live playlists on real inserts only
+   (H4).
 
-App versions older than the migration stop syncing library and progress until they are updated;
-their own data stays on their devices and is pushed when they update. The app treats a missing
-`progress` table (`PGRST205`/`42P01`) as "server not migrated yet": it keeps library and progress
-on the device and pushes them once the table is there.
+**What the copy loses on the server:** every episode but the newest per title, and all names and
+pictures. Each device keeps its own full history and pictures locally. App versions older than the
+migration stop syncing library and progress until they are updated; their data stays on their
+devices and is pushed when they update. The app treats a missing `progress` table
+(`PGRST205`/`42P01`) as "server not migrated yet": it keeps library and progress on the device and
+pushes them once the table is there.
 
-The same migration carries the sync fixes of `docs/rewrite-plan.md` R2, so the server changes once:
-`updated_at` clamped to `now() + 5 min` (critique H2), the playlist limit counting live playlists on
-real inserts only (H4), pulls ordered by `(synced_at, key)` (M8), and the legacy `stream` column gone
-with `watch_progress` (C3).
+Left for the app: pulls ordered by `(synced_at, key)` (M8).
 
-## 6. Owner's choices (I-006, answered 2026-11-05)
+## 6. Owner's decisions
 
-- What accounts keep: only the user's own data; no image links (§3.6); names only where a card needs
-  them at once, with the cost stated (§3: names kept, 88 KiB of 0.9 MiB for the heavy profile;
-  episode titles dropped).
-- One row per title, episodes packed, merged per episode on the server (§3.1, §3.4).
-- Old app versions: cut over at once (§5).
+- I-006 (2026-11-05): one row per title (§3.1), merged on the server (§3.4); cut over at once (§5).
+- Goal addendum (2026-11-05): no show information in the database at all (§3, §3.6); progress one
+  entry per title, per-episode history built behind a setting with its script ready (§3.4).
+- I-009 (2026-11-05): keys and add-on links on the device only, removed from stored documents by
+  the migration; encrypted sync built behind a setting, off (§3.7); settings documents carry only
+  what a profile changed from the defaults.
 
 ## 7. Checks the owner runs on a real project
 
-To be written with the migration (`docs/unverified.md` will point here): apply the migration on a
+To be written with the app's side (`docs/unverified.md` will point here): apply the migration on a
 copy, run `supabase/checks/compact_storage.sql` (row counts old vs new, a round trip of every row
 through the codec, RLS from two users), compare `select pg_size_pretty(pg_database_size(current_database()))`
 before and after, and sync two devices across the change.
