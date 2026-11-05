@@ -427,6 +427,9 @@
   font-weight: 700;
   letter-spacing: 0.02em;
 }
+.episode-watched[data-animate="true"] {
+  animation: icon-swap 200ms var(--ease-out);
+}
 .episode-watched ~ .episode-tag {
   left: 40px;
 }
