@@ -334,7 +334,7 @@ impl Store {
                 // A newer Polar wrote this: what this build doesn't know
                 // would be dropped on the next save, so keep its file aside.
                 let backup = path.with_extension(format!("v{}-{}.json", data.version, now()));
-                eprintln!("polar: {} is from a newer version; keeping it as {}", path.display(), backup.display());
+                tracing::warn!("{} is from a newer version; keeping it as {}", path.display(), backup.display());
                 match std::fs::copy(&path, &backup) {
                     Ok(_) => (data, None),
                     Err(copy) => (
@@ -350,7 +350,7 @@ impl Store {
                 // settings on the next save, so the unreadable file is kept
                 // next to it first; without that copy nothing is saved.
                 let backup = path.with_extension(format!("corrupt-{}.json", now()));
-                eprintln!("polar: {} is unreadable ({e}); keeping it as {}", path.display(), backup.display());
+                tracing::error!("{} is unreadable ({e}); keeping it as {}", path.display(), backup.display());
                 match std::fs::copy(&path, &backup) {
                     Ok(_) => (Data::default(), None),
                     Err(copy) => (
@@ -360,7 +360,7 @@ impl Store {
                 }
             }
             Opened::Unreadable(e) => {
-                eprintln!("polar: can't read {} ({e}); not saving over it", path.display());
+                tracing::error!("can't read {} ({e}); not saving over it", path.display());
                 (Data::default(), Some(format!("{} couldn't be read ({e})", path.display())))
             }
         };

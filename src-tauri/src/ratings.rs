@@ -107,9 +107,17 @@ impl RatingsClient {
         out
     }
 
+    /// The answer as JSON, or `None` (logged by host: the query holds the key).
     async fn json(&self, url: &str, query: &[(&str, &str)]) -> Option<Value> {
-        let res = self.http.get(url).query(query).send().await.ok()?;
-        res.error_for_status().ok()?.json().await.ok()
+        let answer = async { self.http.get(url).query(query).send().await?.error_for_status()?.json().await };
+        answer
+            .await
+            .map_err(|e| {
+                let host =
+                    reqwest::Url::parse(url).ok().and_then(|u| u.host_str().map(str::to_owned)).unwrap_or_default();
+                tracing::warn!("ratings from {host} failed: {}", e.without_url());
+            })
+            .ok()
     }
 
     async fn mdblist(&self, imdb_id: &str, ty: &str, key: &str) -> Option<Ratings> {

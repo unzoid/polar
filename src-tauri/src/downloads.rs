@@ -155,7 +155,7 @@ impl Downloads {
             Opened::Unreadable(e) => (Vec::new(), Some(format!("{} couldn't be read ({e})", path.display()))),
         };
         if let Some(problem) = &problem {
-            eprintln!("polar: {problem}; not saving the downloads list over it");
+            tracing::error!("{problem}; not saving the downloads list over it");
         }
         for d in &mut items {
             // Cut off by the app quitting: comes back paused, ready to resume.
@@ -192,7 +192,9 @@ impl Downloads {
             return;
         }
         if let Ok(json) = serde_json::to_vec(items) {
-            let _ = polar_library::saver::write_atomic(&self.dir.join("downloads.json"), &json);
+            if let Err(e) = polar_library::saver::write_atomic(&self.dir.join("downloads.json"), &json) {
+                tracing::warn!("the downloads list wasn't saved: {e}");
+            }
         }
     }
 

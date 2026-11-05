@@ -205,6 +205,15 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
 - A source that needs a Cookie or Authorization header still fails to play (only downloads send those); on Linux
   the built-in player can't send any header.
 
+## Log file (R4 M14)
+
+- The rotation (`crates/library/src/logfile.rs`) is tested here; the app's wiring (`src-tauri/src/logging.rs`) is
+  only type-checked. To check on a desktop: start Polar, then open the log folder the README names; `polar.log`
+  starts with "Polar <version> starting". Remove the MDBList key's last letter and open a title: a "ratings
+  from api.mdblist.com failed" line appears without the key in it. Search the file for your keys and add-on links:
+  none should be there.
+- The Linux path assumes Tauri's `app_log_dir` is `~/.local/share/<identifier>/logs`; check it once on Linux.
+
 ## Phone and tablet layouts (T-033)
 
 - The layouts were first checked by reading the CSS, and the form-factor rules by tests

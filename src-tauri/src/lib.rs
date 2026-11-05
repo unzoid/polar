@@ -4,6 +4,7 @@ mod downloads;
 mod imdb;
 mod introdb;
 mod locks;
+mod logging;
 mod player;
 mod ratings;
 mod seekr;
@@ -79,7 +80,10 @@ fn store_saver(store: Arc<Mutex<store::Store>>) -> Saver {
             let store = store.locked();
             (store.path().to_owned(), store.encode()?)
         };
-        write_atomic(&path, &bytes).map_err(|e| e.to_string())
+        write_atomic(&path, &bytes).map_err(|e| {
+            tracing::warn!("{} wasn't saved: {e}", path.display());
+            e.to_string()
+        })
     })
 }
 
@@ -117,13 +121,22 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
         BUNDLED_ADDONS.iter().copied().filter(|url| !store.data.bundled_addons.iter().any(|u| u == url)).collect()
     };
     for url in pending {
-        let Ok(manifest) = state.addons.manifest(url).await else { continue };
-        let _ = state.persist(|data| {
+        let manifest = match state.addons.manifest(url).await {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::info!("bundled add-on not installed yet, next launch tries again: {e}");
+                continue;
+            }
+        };
+        let saved = state.persist(|data| {
             if !data.addons.iter().any(|a| a.manifest.id == manifest.id) {
                 data.addons.push(store::InstalledAddon { manifest_url: url.into(), manifest });
             }
             data.bundled_addons.push(url.into());
         });
+        if let Err(e) = saved {
+            tracing::warn!("bundled add-on not saved: {e}");
+        }
     }
 }
 
@@ -132,6 +145,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            logging::init(&app.path().app_log_dir()?);
+            tracing::info!("Polar {} starting", app.package_info().version);
             #[cfg(desktop)]
             {
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;

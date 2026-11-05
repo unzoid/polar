@@ -85,6 +85,10 @@ behaves differently on every system. Signed in to an account, your settings sync
 URLs stay on each device, unless you turn on Settings → Account → Sync API keys and addons, which
 sends them encrypted with a passphrase you type on each device.
 
+When something goes wrong, `polar.log` says what: `%LOCALAPPDATA%\app.getpolar.desktop\logs` on Windows,
+`~/Library/Logs/app.getpolar.desktop` on macOS, `~/.local/share/app.getpolar.desktop/logs` on Linux. It
+names hosts and reasons, never keys, links or what you watch, and stays under about 2 MB.
+
 ## Contributing
 
 Screenshots and recordings for the README use openly licensed films only: [docs/screenshots.md](docs/screenshots.md)

@@ -26,16 +26,19 @@ pub async fn title<T: DeserializeOwned>(query: &str, imdb_id: &str) -> Option<T>
     if !valid {
         return None;
     }
-    let resp: Resp<T> = client()?
-        .post(API)
-        .header("x-imdb-client-name", "imdb-web-next-localized")
-        .json(&json!({ "query": query, "variables": { "id": imdb_id } }))
-        .send()
-        .await
-        .ok()?
-        .json()
-        .await
-        .ok()?;
+    let http = client()?;
+    let answer = async {
+        http.post(API)
+            .header("x-imdb-client-name", "imdb-web-next-localized")
+            .json(&json!({ "query": query, "variables": { "id": imdb_id } }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<Resp<T>>()
+            .await
+    };
+    // Which title isn't logged: that would say what someone looked at.
+    let resp = answer.await.map_err(|e| tracing::warn!("IMDb lookup failed: {}", e.without_url())).ok()?;
     resp.data?.title
 }
 
