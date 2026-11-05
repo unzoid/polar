@@ -92,10 +92,19 @@ const MODERN_ARGS: &[&str] = &[
 
 type Pending = Arc<StdMutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>;
 
+/// The mpv process, shared so it can be killed while the connection is busy (see [`Mpv::kill`]).
+type Process = Arc<StdMutex<Child>>;
+
+/// This app's own folder for mpv's screenshots and snapshots: one per running app, so two
+/// copies (or another user's, in a shared `/tmp`) never write over each other's files.
+pub(super) fn shots_dir() -> PathBuf {
+    std::env::temp_dir().join(format!("polar-mpv-{}", std::process::id()))
+}
+
 /// What runs mpv: its own process, or (macOS) libmpv inside the app.
 enum Engine {
     #[cfg_attr(target_os = "macos", allow(dead_code))]
-    Process(Child),
+    Process(Process),
     #[cfg(target_os = "macos")]
     InApp(mac::Player),
 }
@@ -103,7 +112,7 @@ enum Engine {
 impl Engine {
     fn alive(&mut self) -> bool {
         match self {
-            Engine::Process(child) => matches!(child.try_wait(), Ok(None)),
+            Engine::Process(child) => matches!(child.locked().try_wait(), Ok(None)),
             #[cfg(target_os = "macos")]
             Engine::InApp(_) => true,
         }
@@ -111,10 +120,7 @@ impl Engine {
 
     fn kill(self) {
         match self {
-            Engine::Process(mut child) => {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
+            Engine::Process(child) => kill_process(&child),
             #[cfg(target_os = "macos")]
             Engine::InApp(player) => drop(player),
         }
@@ -152,6 +158,14 @@ pub struct Mpv {
     /// Where the reader sends autocrop's observed properties: the running
     /// task's number and channel ([`CROP_OBSERVE_BASE`]).
     crop_events: StdMutex<Option<CropSink>>,
+    /// The running mpv process, also held by its `Conn`; see [`Mpv::kill`].
+    process: StdMutex<Option<Process>>,
+}
+
+fn kill_process(child: &Process) {
+    let mut child = child.locked();
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 /// The mpv executable's file name here.
@@ -335,7 +349,7 @@ impl Mpv {
         }
 
         let pipe = ipc::endpoint();
-        let shots = std::env::temp_dir().join("polar-mpv");
+        let shots = shots_dir();
         let _ = std::fs::create_dir_all(&shots);
         // Compiled shaders persist here, so the first frame after an app
         // restart doesn't wait on shader compilation.
@@ -386,6 +400,11 @@ impl Mpv {
             base.push(format!("--sub-fonts-dir={}", fonts.display()));
         }
         let (engine, client) = start_engine(window, base, &pipe).await?;
+        *self.process.locked() = match &engine {
+            Engine::Process(child) => Some(child.clone()),
+            #[cfg(target_os = "macos")]
+            Engine::InApp(_) => None,
+        };
         let (reader, writer) = tokio::io::split(client);
         let pending: Pending = Arc::default();
         let quiet = Arc::new(AtomicBool::new(false));
@@ -405,27 +424,46 @@ impl Mpv {
     async fn request(&self, command: Value) -> Result<Value, String> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
         let (tx, rx) = oneshot::channel();
-        {
+        let pending = {
             let mut guard = self.conn.lock().await;
             let conn = guard.as_mut().ok_or("mpv isn't running")?;
             conn.pending.locked().insert(id, tx);
             let mut line = serde_json::to_vec(&json!({ "command": command, "request_id": id })).unwrap();
             line.push(b'\n');
-            conn.writer.write_all(&line).await.map_err(|e| e.to_string())?;
-        }
+            if let Err(e) = conn.writer.write_all(&line).await {
+                conn.pending.locked().remove(&id);
+                return Err(e.to_string());
+            }
+            conn.pending.clone()
+        };
+        // The reader answers, or drops every waiting request when mpv goes away (no 5 s wait then).
         match tokio::time::timeout(REQUEST_TIMEOUT, rx).await {
             Ok(Ok(result)) => result,
-            _ => Err("mpv didn't respond".into()),
+            Ok(Err(_)) => Err("mpv stopped".into()),
+            Err(_) => {
+                pending.locked().remove(&id);
+                Err("mpv didn't respond".into())
+            }
         }
     }
 
+    /// Stop mpv for good (the app is closing). The connection may be busy with a request, so
+    /// the process is killed directly then: it must never outlive the app.
     pub fn kill(&self) {
-        if let Ok(mut guard) = self.conn.try_lock() {
-            if let Some(conn) = guard.take() {
-                conn.quiet.store(true, Ordering::Relaxed);
-                conn.engine.kill();
+        match self.conn.try_lock() {
+            Ok(mut guard) => {
+                if let Some(conn) = guard.take() {
+                    conn.quiet.store(true, Ordering::Relaxed);
+                    conn.engine.kill();
+                }
+            }
+            Err(_) => {
+                if let Some(child) = self.process.locked().take() {
+                    kill_process(&child);
+                }
             }
         }
+        let _ = std::fs::remove_dir_all(shots_dir());
     }
 
     /// Show or hide the video layer (macOS, where it's ours to manage; on
@@ -481,7 +519,7 @@ async fn start_engine(
         // a newer option.
         None => launch(&bin, &base, false, pipe).await?.ok_or("mpv exited during startup")?,
     };
-    Ok((Engine::Process(child), client))
+    Ok((Engine::Process(Arc::new(StdMutex::new(child))), client))
 }
 
 /// macOS: libmpv in-process, drawing through its render API (`vo=libmpv`).
@@ -610,6 +648,8 @@ async fn read_loop(
         }
     }
     closed.store(true, Ordering::Relaxed);
+    // Nothing will answer now: dropping the senders fails every waiting request at once.
+    pending.locked().clear();
     if !quiet.load(Ordering::Relaxed) {
         let _ = app.emit("mpv://event", json!({ "event": "shutdown" }));
     }

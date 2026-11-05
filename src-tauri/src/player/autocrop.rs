@@ -70,6 +70,10 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
         if !mpv.tuned.locked().autocrop || mpv.autocrop_run.load(Ordering::SeqCst) != run {
             break;
         }
+        // mpv was shut down (idle, or it exited): the next start turns autocrop on afresh.
+        if mpv.conn.lock().await.is_none() {
+            break;
+        }
         let frame = match event {
             Ok(None) => break, // a newer run took over
             Ok(Some((id, data))) if id == meta_id => {
