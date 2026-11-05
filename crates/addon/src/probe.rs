@@ -264,6 +264,9 @@ pub fn content_range(value: &str) -> Option<(u64, Option<u64>)> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
 
     #[test]
     fn content_range_reads_start_and_total() {
@@ -273,12 +276,9 @@ mod tests {
         assert_eq!(content_range("bytes 9-3/10"), None);
         assert_eq!(content_range("items 0-1/2"), None);
     }
-    use std::sync::Arc;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::TcpListener;
 
-    /// Runs a test's future. Not `#[tokio::test]`: on the dev VM, tokio's `macros`
-    /// feature next to thiserror makes rustc lose thiserror (E0463, T-012).
+    /// Runs a test's future. Not `#[tokio::test]`, so the crate's tokio needs no
+    /// `macros` feature: one proc macro fewer to build and load.
     fn block<F: std::future::Future>(f: F) -> F::Output {
         tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(f)
     }
