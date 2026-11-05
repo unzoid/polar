@@ -48,3 +48,38 @@ test("search on a phone", async ({ app }) => {
   await expect(card(app, "Orchard House")).toBeVisible();
   expect(await fitsWidth(app)).toBe(true);
 });
+
+test("a sideways swipe on the featured card steps through the titles", async ({ app }) => {
+  const dots = app.getByRole("tablist", { name: "Featured" }).getByRole("tab");
+  await expect(dots.first()).toHaveAttribute("aria-selected", "true");
+  // The arrows give way to the swipe on a phone.
+  await expect(app.getByRole("button", { name: "Next featured" })).toBeHidden();
+  const swipe = (from: number, to: number) =>
+    app.locator(".hero-card").evaluate(
+      (el, [from, to]) => {
+        const r = el.getBoundingClientRect();
+        const y = r.top + r.height / 2;
+        const at = (type: string, x: number) =>
+          el.dispatchEvent(new PointerEvent(type, { pointerType: "touch", isPrimary: true, pointerId: 7, clientX: x, clientY: y, bubbles: true }));
+        at("pointerdown", r.left + r.width * from);
+        at("pointerup", r.left + r.width * to);
+      },
+      [from, to],
+    );
+  await swipe(0.8, 0.2);
+  await expect(dots.nth(1)).toHaveAttribute("aria-selected", "true");
+  await swipe(0.2, 0.8);
+  await expect(dots.first()).toHaveAttribute("aria-selected", "true");
+  // Still on Home: the swipe didn't open the title.
+  await expect(app.getByRole("tablist", { name: "Featured" })).toBeVisible();
+});
+
+test("a title page's action row fits a phone", async ({ app }) => {
+  const tabs = app.getByRole("navigation", { name: "Primary" });
+  await tabs.getByRole("button", { name: "Series", exact: true }).tap();
+  await card(app, "Kingsbridge").tap();
+  const download = app.locator(".detail-actions").getByRole("button").last();
+  await expect(download).toBeVisible();
+  const box = await download.boundingBox();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(app.viewportSize()!.width);
+});

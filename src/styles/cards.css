@@ -28,6 +28,8 @@
   overflow: hidden;
   isolation: isolate;
   cursor: pointer;
+  /* Up and down still scroll the page; sideways is the card's swipe. */
+  touch-action: pan-y;
   box-shadow:
     0 0 0 1px var(--fill-2),
     0 30px 60px -30px rgb(0 0 0 / 0.8);
@@ -815,6 +817,11 @@
   .home .hero-actions .btn {
     height: 46px;
   }
+}
+
+/* A phone swipes the card (Home.tsx useHeroSwipe); the dots still pick one. */
+:root[data-form="phone"] .hero-steps {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

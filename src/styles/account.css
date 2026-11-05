@@ -303,6 +303,13 @@
     opacity var(--dur-fast) var(--ease-std),
     scale 200ms var(--ease-out);
 }
+/* An icon and text inside keep the button's own spacing (the detail page's
+   "▶ Play First Episode" ran together). */
+.busy-label-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .busy-label .busy-ring {
   opacity: 0;
   scale: 0.6;
