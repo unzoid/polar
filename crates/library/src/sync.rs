@@ -109,16 +109,15 @@ impl Space {
             } else {
                 self.removed.remove(&item.id);
                 let updated_at = if item.updated_at > item.added_at { item.updated_at } else { 0 };
+                // The account keeps no names or pictures: keep what this device knows.
+                let (name, poster) = if item.name.is_empty() {
+                    self.display_of(&item.id).unwrap_or_default()
+                } else {
+                    (item.name, item.poster)
+                };
                 self.library.insert(
                     item.id.clone(),
-                    LibraryItem {
-                        id: item.id,
-                        ty: item.ty,
-                        name: item.name,
-                        poster: item.poster,
-                        added_at: item.added_at,
-                        updated_at,
-                    },
+                    LibraryItem { id: item.id, ty: item.ty, name, poster, added_at: item.added_at, updated_at },
                 );
             }
         }
@@ -132,6 +131,24 @@ impl Space {
             if p.stream.is_none() {
                 p.stream = local.and_then(|l| l.stream.clone());
             }
+            // Nor names or pictures: this video's own, else the title's from elsewhere on this device.
+            if p.name.is_empty() {
+                if let Some(l) = local {
+                    p.name = l.name.clone();
+                    p.poster = l.poster.clone();
+                    p.background = l.background.clone();
+                    p.episode_title = l.episode_title.clone();
+                } else if let Some(other) =
+                    self.progress.values().find(|o| o.meta_id == p.meta_id && !o.name.is_empty())
+                {
+                    p.name = other.name.clone();
+                    p.poster = other.poster.clone();
+                    p.background = other.background.clone();
+                } else if let Some((name, poster)) = self.display_of(&p.meta_id) {
+                    p.name = name;
+                    p.poster = poster;
+                }
+            }
             changed = true;
             self.progress.insert(p.video_id.clone(), p);
         }
@@ -139,6 +156,19 @@ impl Space {
             self.rekey();
         }
         changed || new_links
+    }
+}
+
+impl Space {
+    /// The name and poster this device has for a title, from its library or progress.
+    fn display_of(&self, meta_id: &str) -> Option<(String, Option<String>)> {
+        if let Some(i) = self.library.get(meta_id).filter(|i| !i.name.is_empty()) {
+            return Some((i.name.clone(), i.poster.clone()));
+        }
+        self.progress
+            .values()
+            .find(|p| p.meta_id == meta_id && !p.name.is_empty())
+            .map(|p| (p.name.clone(), p.poster.clone()))
     }
 }
 
@@ -186,6 +216,39 @@ mod tests {
         assert!(pull(&mut s, vec![], vec![progress("tt1", "v", 20, 30.0)]));
         assert_eq!(s.progress["v"].position, 30.0);
         assert!(s.progress["v"].stream.is_some());
+    }
+
+    #[test]
+    fn pulled_rows_without_names_keep_this_devices() {
+        let mut s = Space::default();
+        let mut mine = item("tt1", 10);
+        mine.name = "One".into();
+        mine.poster = Some("https://example.com/p.jpg".into());
+        let mut watched = progress("tt1", "tt1:1:1", 10, 5.0);
+        watched.name = "One".into();
+        watched.background = Some("https://example.com/b.jpg".into());
+        watched.episode_title = Some("Pilot".into());
+        pull(&mut s, vec![SyncLibraryItem::present(&mine)], vec![watched]);
+
+        let mut bare = sync_item("tt1", 20, false);
+        bare.name = String::new();
+        bare.poster = None;
+        let mut same = progress("tt1", "tt1:1:1", 20, 9.0);
+        same.name = String::new();
+        let mut next = progress("tt1", "tt1:1:2", 21, 1.0);
+        next.name = String::new();
+        let mut unknown = progress("tt2", "tt2", 21, 1.0);
+        unknown.name = String::new();
+        assert!(pull(&mut s, vec![bare], vec![same, next, unknown]));
+
+        assert_eq!(s.library["tt1"].name, "One");
+        assert_eq!(s.library["tt1"].poster.as_deref(), Some("https://example.com/p.jpg"));
+        assert_eq!(s.progress["tt1:1:1"].episode_title.as_deref(), Some("Pilot"));
+        assert_eq!(s.progress["tt1:1:1"].position, 9.0);
+        assert_eq!(s.progress["tt1:1:2"].name, "One");
+        assert_eq!(s.progress["tt1:1:2"].background.as_deref(), Some("https://example.com/b.jpg"));
+        assert_eq!(s.progress["tt1:1:2"].episode_title, None);
+        assert_eq!(s.progress["tt2"].name, "");
     }
 
     #[test]

@@ -1,8 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { count, likeTemplate, listOf, storedJson } from "../src/lib/parse";
-import { fromLibraryRow, fromLinkRow, fromPlaylistRow, fromProgressRow } from "../src/lib/account/supabase";
+import { fromLibraryRow, fromLinkRow, fromPlaylistRow, fromProgressRow, toLibraryRow, toProgressRows } from "../src/lib/account/supabase";
 import { readProfile } from "../src/lib/account/backend";
 import { playContextStore } from "../src/lib/anime/playContext";
+import type { Progress } from "../src/lib/types";
 
 /**
  * prefs, keybinds and playlists read localStorage when they load, and other test files may have
@@ -116,39 +117,72 @@ describe("what localStorage kept (critique M9)", () => {
 });
 
 describe("pulled rows (critique M9)", () => {
-  const lib = { meta_id: "tt1", type: "movie", name: "One", poster: null, added_at: "10", deleted: false, updated_at: 12, synced_at: "s" };
+  const lib = { meta_id: "tt1", kind: 0, added_at: "10", updated_at: 12_345, synced_at: "s" };
 
-  test("library rows: numbers from bigint strings, tombstones with an empty type, misfits left out", () => {
-    expect(fromLibraryRow(lib)).toEqual({ id: "tt1", type: "movie", name: "One", poster: null, addedAt: 10, deleted: false, updatedAt: 12 });
-    expect(fromLibraryRow({ ...lib, type: "", deleted: true })?.type).toBe("");
-    for (const bad of [{ type: "show" }, { type: null }, { meta_id: "" }, { added_at: -1 }, { poster: 3 }, { updated_at: "soon" }]) {
+  test("library rows: no name or poster, seconds back to ms, removals by kind, misfits left out", () => {
+    expect(fromLibraryRow(lib)).toEqual({ id: "tt1", type: "movie", name: "", poster: null, addedAt: 10_000, deleted: false, updatedAt: 12_345 });
+    // Never changed since added: the exact time comes back from updated_at.
+    expect(fromLibraryRow({ ...lib, added_at: 12 })?.addedAt).toBe(12_345);
+    expect(fromLibraryRow({ ...lib, kind: 1 })?.type).toBe("series");
+    expect(fromLibraryRow({ ...lib, kind: 129 })).toMatchObject({ type: "", deleted: true });
+    for (const bad of [{ kind: 2 }, { kind: null }, { meta_id: "" }, { added_at: -1 }, { updated_at: "soon" }]) {
       expect(fromLibraryRow({ ...lib, ...bad })).toBeUndefined();
     }
     expect(fromLibraryRow(null)).toBeUndefined();
   });
 
-  const prog = {
-    video_id: "tt2:1:3",
-    meta_id: "tt2",
+  test("library rows round-trip apart from names and pictures", () => {
+    const item = { id: "tt1", type: "series" as const, name: "One", poster: "p", addedAt: 10_000, deleted: false, updatedAt: 12_345 };
+    const { profile_id, ...row } = toLibraryRow("p1", item);
+    expect(profile_id).toBe("p1");
+    expect(row).toEqual({ meta_id: "tt1", kind: 1, added_at: 10, updated_at: 12_345 });
+    expect(fromLibraryRow(row)).toEqual({ ...item, name: "", poster: null });
+    expect(toLibraryRow("p1", { ...item, type: "", deleted: true }).kind).toBe(128);
+  });
+
+  const watched = (videoId: string, season: number | undefined, episode: number | undefined, updatedAt: number): Progress => ({
+    metaId: "tt2",
+    videoId,
     type: "series",
     name: "Two",
-    background: null,
     poster: "p",
-    season: 1,
-    episode: 3,
-    episode_title: null,
-    position: 12.5,
+    episodeTitle: "Ep",
+    season,
+    episode,
+    position: 12.4,
     duration: 1400,
-    updated_at: "99",
-    synced_at: "s",
-  };
+    updatedAt,
+  });
 
-  test("progress rows: season and episode must fit a u32 or be null", () => {
-    expect(fromProgressRow(prog)).toMatchObject({ videoId: "tt2:1:3", type: "series", season: 1, episode: 3, poster: "p", position: 12.5, updatedAt: 99 });
-    expect(fromProgressRow({ ...prog, season: null, episode: null })).toMatchObject({ season: undefined, episode: undefined });
-    for (const bad of [{ season: -1 }, { episode: 2 ** 33 }, { position: "x" }, { duration: Infinity }, { type: "" }, { video_id: 1 }]) {
-      expect(fromProgressRow({ ...prog, ...bad })).toBeUndefined();
-    }
+  test("progress: one row per title holding its newest entry, unless every episode is asked for", () => {
+    const list = [
+      watched("tt2:1:3", 1, 3, 99),
+      watched("tt2:1:4", 1, 4, 120),
+      { ...watched("tt3", undefined, undefined, 5), metaId: "tt3", type: "movie" as const },
+    ];
+    const rows = toProgressRows("p1", list, false);
+    expect(rows.map((r) => [r.meta_id, r.kind, r.updated_at])).toEqual([
+      ["tt2", 1, 120],
+      ["tt3", 0, 5],
+    ]);
+    expect(fromProgressRow(rows[0])).toEqual([
+      { metaId: "tt2", type: "series", name: "", videoId: "tt2:1:4", season: 1, episode: 4, position: 12, duration: 1400, updatedAt: 120 },
+    ]);
+    const all = fromProgressRow(toProgressRows("p1", list, true)[0])!;
+    expect(all.map((p) => [p.videoId, p.updatedAt])).toEqual([
+      ["tt2:1:3", 99],
+      ["tt2:1:4", 120],
+    ]);
+  });
+
+  test("progress rows: unknown entries, kinds and numbers beyond a u32 are left out", () => {
+    const row = toProgressRows("p1", [watched("tt2:1:3", 1, 3, 99)], false)[0];
+    expect(fromProgressRow({ ...row, entries: "\\x02" })).toBeUndefined();
+    expect(fromProgressRow({ ...row, entries: "zz" })).toBeUndefined();
+    expect(fromProgressRow({ ...row, kind: 5 })).toBeUndefined();
+    expect(fromProgressRow({ ...row, updated_at: "x" })).toBeUndefined();
+    const huge = toProgressRows("p1", [watched("tt2:1:3", 2 ** 33, 3, 99)], false)[0];
+    expect(fromProgressRow(huge)).toEqual([]);
   });
 
   test("link rows need canonical, anilist and a time", () => {
