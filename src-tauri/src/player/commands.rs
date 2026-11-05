@@ -2,7 +2,7 @@
 //! allow-listed commands and properties, picture/sound presets, stop, and a
 //! snapshot of the frame for blurred overlays.
 
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use polar_player::allow::{check_command, check_property, is_web_url};
@@ -149,10 +149,14 @@ pub async fn mpv_stop(app: AppHandle, state: State<'_, AppState>) -> Result<(), 
 /// window the page can't sample, so overlays blur this snapshot instead.
 #[tauri::command]
 pub async fn mpv_snapshot(state: State<'_, AppState>) -> Result<String, String> {
-    let path = std::env::temp_dir().join("polar-mpv").join("frame.jpg");
+    // A file of its own per call: two snapshots at once never read each other's half-written frame.
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let path = super::shots_dir().join(format!("frame-{}.jpg", NEXT.fetch_add(1, Ordering::Relaxed)));
     let path_str = path.to_string_lossy().to_string();
     state.mpv.request(json!(["screenshot-to-file", path_str, "video"])).await?;
-    let bytes = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
+    let read = tokio::fs::read(&path).await;
+    let _ = tokio::fs::remove_file(&path).await;
+    let bytes = read.map_err(|e| e.to_string())?;
     use base64::Engine as _;
     Ok(format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
