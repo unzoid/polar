@@ -1,7 +1,7 @@
 # Screenshots and recordings
 
-README images should show only content we're allowed to show. A frame from a current film or TV
-episode isn't (see `docs/legal-review.md` L2). For the player, use one of the Blender Foundation's
+README images show only openly licensed works, never a frame of a current film or TV episode
+(`AGENTS.md`, `docs/licensing.md`). For the player, use one of the Blender Foundation's
 open movies. Use them for posters and backdrops too, where you can.
 
 ## The films and their licences

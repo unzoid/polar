@@ -200,7 +200,7 @@ read-only: a title's progress is one row and the newest write wins it anyway.
 
 ## 4. Not in the rewrite
 
-- **H12** (IMDb's private API, filler scraping): a source decision, covered by `docs/data-sources.md`
-  and `docs/legal-review.md`; the code stays behind one module each so a replacement is one file.
+- **H12** (IMDb's unpublished API, filler HTML parsing): a source decision, recorded in `docs/data-sources.md`;
+  the code stays behind one module each so a replacement is one file.
 - **M15** release pipeline: needs signing keys and GitHub; listed in `docs/unverified.md`.
 - **M3** macOS media decoding: needs a Mac to check.

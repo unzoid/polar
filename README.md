@@ -98,12 +98,15 @@ a pull request: `bun run typecheck`, `bun run test`, and `cargo test --workspace
 tests (`bun run e2e`) on every push, and a smoke test of the built app nightly. How to run and add each kind of test:
 [docs/testing.md](docs/testing.md).
 
+What the project won't accept, and the rules coding agents follow: [CONTRIBUTING.md](CONTRIBUTING.md),
+[AGENTS.md](AGENTS.md).
+
 Screenshots and recordings for the README use openly licensed films only: [docs/screenshots.md](docs/screenshots.md)
 explains how to play one in Polar and how to credit it.
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). Bundled fonts, avatars and mpv keep their own licences: [docs/licensing.md](docs/licensing.md).
 
 ## Built with
 
