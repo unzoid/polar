@@ -1324,7 +1324,7 @@
 span.settings-credit-name {
   cursor: default;
 }
-/* TMDB's logo over its notice: their logo rules want it less prominent than Polar's. */
+/* TMDB's logo over its notice: their logo rules want it less prominent than Polarity's. */
 .settings-credits-tmdb-block {
   display: block;
   padding-top: 0.25rem;

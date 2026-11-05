@@ -11,6 +11,7 @@ import { parsePresence } from "../party/messages";
 import { normalizeAvatar } from "./avatars";
 import { fromHex, toHex } from "../library/playlistCodec";
 import { decodeEntries, encodeEntries, newestAt, type ProgressEntry } from "./progressCodec";
+import { keychainStorage } from "../platform/keychain";
 
 const PAGE = 1000;
 /** Re-read a little before the cursor: rows committed out of order still arrive. */
@@ -32,6 +33,8 @@ export function createSupabaseBackend(url: string, key: string, options: Supabas
       autoRefreshToken: true,
       detectSessionInUrl: false,
       storageKey: "polar.auth",
+      // The session goes to the system keychain where there is one.
+      storage: keychainStorage(),
     },
   });
 

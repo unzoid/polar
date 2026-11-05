@@ -191,9 +191,14 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  filter: blur(60px) saturate(1.5) brightness(0.65);
+  /* Drawn into the canvas once where the browser can (AmbientWash). */
+  --wash: blur(60px) saturate(1.5) brightness(0.65);
+  filter: var(--wash);
   transform: scale(1.2);
   transition: opacity 800ms var(--ease-std);
+}
+.tv-ambient canvas[data-baked] {
+  filter: none;
 }
 .tv-ambient canvas[data-current="false"] {
   opacity: 0;

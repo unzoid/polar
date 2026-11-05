@@ -256,7 +256,7 @@ impl Indexer {
         Manifest {
             id: "app.getpolar.index".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            name: "Polar Index".into(),
+            name: "Polarity Index".into(),
             description: Some("Movie and series catalogs with full episode metadata.".into()),
             logo: None,
             resources: vec![ManifestResource::Name("catalog".into()), ManifestResource::Name("meta".into())],

@@ -10,12 +10,14 @@
 //! - [`opened`]: what to make of a data file read at start-up (missing, unreadable, corrupt).
 //! - [`saver`]: writing a data file in the background, all or nothing.
 //! - [`logfile`]: the app's log file, kept to a size.
+//! - [`keychain`]: how a secret of any size is laid out in the system's keychain.
 
 #[cfg(test)]
 mod contract;
 pub mod display;
 pub mod filenames;
 pub mod identity;
+pub mod keychain;
 pub mod logfile;
 pub mod moved;
 pub mod opened;

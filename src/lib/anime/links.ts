@@ -5,6 +5,7 @@ import { api } from "../api";
 import { inShell } from "../platform/bridge";
 import { aliasTable, type AnimeLink } from "../library/identity";
 import { keys } from "../net/queryKeys";
+import { linkedImdb, useListedImdb } from "./landscapeArt";
 
 /**
  * The anime links of the active space (docs/anime-identity.md): which id
@@ -32,4 +33,11 @@ export const animeLinks = (): Promise<AnimeLink[]> => (inShell ? api.animeLinks(
 export function useAnimeAliases(): ReadonlyMap<string, string> {
   const { data } = useQuery({ queryKey: keys.animeLinks, queryFn: animeLinks, staleTime: Infinity });
   return useMemo(() => aliasTable(data ?? []), [data]);
+}
+
+/** {@link linkedImdb} for a card: the stored links and the id lists asked together. */
+export function useLinkedImdb(anilistId: number) {
+  const listed = useListedImdb(anilistId);
+  const { data: links } = useQuery({ queryKey: keys.animeLinks, queryFn: animeLinks, staleTime: Infinity });
+  return linkedImdb(anilistId, listed, links);
 }

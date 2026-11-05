@@ -94,7 +94,7 @@ impl Fillers {
     fn with_endpoints(cache_dir: PathBuf, jikan: &str, animefillerlist: &str) -> Self {
         let http = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(5))
-            .user_agent(concat!("polar/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("polarity/", env!("CARGO_PKG_VERSION")))
             .build()
             .unwrap_or_default();
         Self {

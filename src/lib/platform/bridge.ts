@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 /**
  * The one channel between the screens and the native side: commands it answers
  * (src-tauri/src/commands.rs and the modules it names) and events it sends.
- * Tauri carries it on every platform Polar targets, desktop and mobile; a shell
+ * Tauri carries it on every platform Polarity targets, desktop and mobile; a shell
  * without Tauri replaces this file and nothing above it.
  */
 

@@ -24,7 +24,7 @@ export interface Playlist {
   updatedAt: number;
   deleted?: boolean;
   /**
-   * Titles from a newer version of Polar, as they came (Postgres hex): `items` is empty, the
+   * Titles from a newer version of Polarity, as they came (Postgres hex): `items` is empty, the
    * titles can't change here, and a rename sends these bytes back untouched (critique H5).
    */
   packed?: string;
