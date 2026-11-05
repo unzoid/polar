@@ -14,7 +14,7 @@ const browse = (search: string, genre = "", tag = ""): BrowseFilters => ({ searc
  * AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search.
  * AniList's search is strict where Cinemeta's forgives a typo: when it finds nothing, `retry` (the
  * title of an animated show Cinemeta found for the same words) is searched for instead, so the
- * anime still comes up as itself (test report 1, items 1 and 28).
+ * anime still comes up as itself (test report 1, items 1 and 28). `retryTitle` picks it.
  */
 export function useAnimeResults(query: string, retry?: string) {
   const lower = query.toLowerCase();
@@ -24,7 +24,8 @@ export function useAnimeResults(query: string, retry?: string) {
   const first = q.data?.pages[0]?.media;
   const again = !genre && !tag && !!retry && retry.toLowerCase() !== lower && first?.length === 0;
   const q2 = useAnimeBrowse(browse(retry ?? ""), again);
-  const items = again ? q2.data?.pages[0]?.media : first;
+  const retried = q2.data?.pages[0]?.media;
+  const items = again ? retried && retryMatches(retried, retry!) : first;
   const searched = again ? retry! : query;
   return {
     title: genre || tag ? `${genre ?? tag} Anime` : "Anime",
@@ -39,6 +40,24 @@ export function useAnimeResults(query: string, retry?: string) {
 }
 
 
+type Found = { name: string; genres?: string[] };
+
+/**
+ * What to ask AniList for when the typed words find nothing: the first animated show or film the
+ * catalogs found, else their first show, else their first film. Catalog search answers often carry
+ * no genres at all (re-test 28), so the first result is the best guess there; `retryMatches` keeps
+ * that guess from bringing unrelated anime.
+ */
+export function retryTitle(series: Found[], movies: Found[]): string | undefined {
+  const all = [...series, ...movies];
+  return (all.find((m) => m.genres?.some((g) => /^anim(e|ation)$/i.test(g))) ?? series[0] ?? movies[0])?.name;
+}
+
+/** The entries AniList found for a guessed title that are named like it (any title starts with it). */
+export function retryMatches(items: AnimeCard[], retry: string): AnimeCard[] {
+  const q = norm(retry);
+  return items.filter((a) => [a.title.romaji, a.title.english, a.title.native].some((t) => !!q && norm(t).startsWith(q)));
+}
 
 /**
  * AniList's SEARCH_MATCH puts any title containing the words first, so a

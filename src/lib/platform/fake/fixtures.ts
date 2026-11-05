@@ -205,15 +205,18 @@ export const addons: InstalledAddon[] = [
 ];
 
 export function streams(): StreamsResult {
-  const rows: [number, boolean, number, string][] = [
-    [2160, true, 14.2e9, "WEB-DL HDR10"],
-    [1080, false, 4.1e9, "WEB-DL"],
-    [720, false, 1.6e9, "WEB"],
+  // Two add-ons and four picture sizes: the source bar shows all its controls (quality, add-on, Filters).
+  const rows: [string, number, boolean, number, string][] = [
+    ["Open Films", 2160, true, 14.2e9, "WEB-DL HDR10"],
+    ["Open Films", 1080, false, 4.1e9, "WEB-DL"],
+    ["Open Films", 720, false, 1.6e9, "WEB"],
+    ["Open Mirror", 1080, false, 3.9e9, "WEB-DL"],
+    ["Open Mirror", 480, false, 0.7e9, "DVD"],
   ];
   return {
-    streams: rows.map(([resolution, hdr, sizeBytes, title], k) => ({
-      addon: "Open Films",
-      stream: { url: `https://media.example/${k}.mp4`, name: `Open Films\n${resolution}p`, title },
+    streams: rows.map(([addon, resolution, hdr, sizeBytes, title], k) => ({
+      addon,
+      stream: { url: `https://media.example/${k}.mp4`, name: `${addon}\n${resolution}p`, title },
       quality: { resolution, hdr, dolbyVision: false, sizeBytes, lowQualitySource: false, direct: true, languages: ["en"], tags: hdr ? ["HDR10"] : [] },
       score: 100 - k * 10,
       label: `${resolution}p`,

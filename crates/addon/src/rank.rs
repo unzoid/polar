@@ -401,8 +401,8 @@ impl StreamFilter {
     }
 }
 
-/// Rank streams from many addons, best first. Duplicates (same URL) collapse
-/// to the highest scoring copy. Streams with nothing playable (no URL and no
+/// Rank streams from many addons, best first. Duplicates (same URL, or the same
+/// add-on, name and title) collapse to the highest scoring copy. Streams with nothing playable (no URL and no
 /// YouTube id) are dropped.
 pub fn rank_streams(streams: impl IntoIterator<Item = (String, Stream)>) -> Vec<RankedStream> {
     rank_streams_filtered(streams, &StreamFilter::default()).0
@@ -429,6 +429,13 @@ pub fn rank_streams_filtered(
         let Some(url) = &r.stream.url else { return true };
         seen.insert(url.clone())
     });
+    // The same file from the same add-on under another link (asked by two ids for one episode):
+    // its row would read the same twice. Only rows that say what the file is (a title) count.
+    let mut rows = std::collections::HashSet::new();
+    ranked.retain(|r| {
+        let Some(title) = r.stream.title.as_deref().or(r.stream.description.as_deref()) else { return true };
+        rows.insert((r.addon.clone(), r.stream.name.clone(), title.to_owned()))
+    });
     // Filter after de-duplicating, so the hidden count is of distinct sources.
     let before = ranked.len();
     ranked.retain(|r| filter.allows(&r.stream, &r.quality));
@@ -447,6 +454,25 @@ mod tests {
             url: Some(format!("https://example.com/{title}")),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn the_same_file_under_two_links_is_listed_once() {
+        // An add-on asked by two ids for one episode answers twice, each with its own link.
+        let a = stream("Addon\n1080p", "Show.S01E01.1080p.WEB\n💾 1.0 GB");
+        let mut b = a.clone();
+        b.url = Some("https://example.com/other-link".into());
+        let mut other_file = a.clone();
+        other_file.url = Some("https://example.com/third".into());
+        other_file.title = Some("Show.S01E01.1080p.WEB\n💾 1.1 GB".into());
+        let mut from_b = a.clone();
+        from_b.url = Some("https://example.org/b".into());
+        let ranked =
+            rank_streams([("a".into(), a.clone()), ("a".into(), b), ("a".into(), other_file), ("b".into(), from_b)]);
+        // One per add-on and file: the second add-on's copy and the other size stay.
+        let urls: Vec<_> = ranked.iter().filter_map(|r| r.stream.url.as_deref()).collect();
+        assert_eq!(urls.len(), 3, "{urls:?}");
+        assert!(urls.contains(&"https://example.org/b") && urls.contains(&"https://example.com/third"));
     }
 
     #[test]

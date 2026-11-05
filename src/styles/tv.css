@@ -1551,8 +1551,9 @@
 .player-action .pad-glyph {
   margin-left: 0.1rem;
 }
-.skip-button .pad-glyph {
-  margin-right: -0.4rem; /* sits where the icon was, nearer the edge */
+/* With a glyph the edges are even: as far from the badge on the right as from the text on the left. */
+.skip-button:has(.pad-glyph) {
+  padding-inline: 1.25rem;
 }
 /* On a light surface the glyph inverts. */
 :is(.btn-primary, .skip-button:focus) .pad-glyph {
