@@ -209,7 +209,8 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
 - Seen and fixed: every desktop screen (home, Series, Movies, Anime, Library, search, a show, a film, the
   player's start-up screen, the profile menu, every Settings page) at 1440×900 in dark and black; the same at
   390×844 as a phone; TV mode at 1920×1080 (home, each tab, a title, its Episodes, search, the menu, Settings,
-  the player), plus a library collection, the Calendar, a card's menu and the player's panels. Fixes: c395bfb, aa68e5e (Settings on a phone), 314ea46, de8af47, e31623c.
+  the player), plus a library collection, the Calendar, a card's menu and the player's panels. Fixes:
+  c395bfb, aa68e5e (Settings on a phone), 314ea46, de8af47, e31623c.
 - What Chromium can't stand in for:
   - The app's own windows. Chromium is close to WebView2 (Windows) but not to WebKitGTK (Linux) or WKWebView
     (macOS): look at `backdrop-filter` glass (navbar, menus, the TV menu), `field-sizing` in the Settings
