@@ -12,7 +12,9 @@ import {
 } from "../../lib/anime";
 import { joinFacts } from "../../lib/format";
 import { usePrefs } from "../../lib/settings";
-import { Star } from "../icons";
+import { Star, Volume, VolumeMuted } from "../icons";
+import { IconButton } from "../ui/Button";
+import { useEffect } from "react";
 import { SourcePicker, useSourcePicker } from "../title/SourcePicker";
 import { TitleActions } from "../title/TitleActions";
 import { TitleHeading } from "../title/TitleHeading";
@@ -24,8 +26,24 @@ import { useAnimePlayback } from "./useAnimePlayback";
  * episode's airing time, the first paragraph of its story and the action row,
  * playing whatever is up next.
  */
-export function AnimeHero({ item, anime, logo, name }: { item: AnimeCard; anime?: Anime; logo?: string; name: string }) {
+export function AnimeHero({
+  item,
+  anime,
+  logo,
+  name,
+  onImdb,
+  trailer,
+}: {
+  item: AnimeCard;
+  anime?: Anime;
+  logo?: string;
+  name: string;
+  /** The id it plays from, once known (the page's backdrop trailer is that title's). */
+  onImdb?: (id: string | undefined) => void;
+  trailer?: { visible: boolean; muted: boolean; toggleMute: () => void };
+}) {
   const pb = useAnimePlayback(anime ?? item);
+  useEffect(() => onImdb?.(pb.metaId), [onImdb, pb.metaId]);
   const picker = useSourcePicker();
   const prefs = usePrefs();
 
@@ -95,7 +113,19 @@ export function AnimeHero({ item, anime, logo, name }: { item: AnimeCard; anime?
               : undefined
           }
           item={pb.meta}
-        />
+        >
+          {trailer?.visible && (
+            <IconButton
+              variant="glass"
+              className="detail-mute"
+              onClick={trailer.toggleMute}
+              label={trailer.muted ? "Turn trailer sound on" : "Mute trailer"}
+              title={trailer.muted ? "Sound on" : "Mute"}
+            >
+              {trailer.muted ? <VolumeMuted size={20} /> : <Volume size={20} />}
+            </IconButton>
+          )}
+        </TitleActions>
         {unavailable && <p className="anime-unavailable t-caption">{unavailable}</p>}
       </div>
 

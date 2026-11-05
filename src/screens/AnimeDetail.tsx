@@ -1,4 +1,6 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
+import { useTrailerOpen } from "../components/Trailer";
 import { AnimeCharacters } from "../components/anime/AnimeCharacters";
 import { AnimeDetails } from "../components/anime/AnimeDetails";
 import { AnimeEpisodes, SeasonTabs, type Franchise } from "../components/anime/AnimeEpisodes";
@@ -42,6 +44,17 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   const scroller = useRef<HTMLDivElement>(null);
   useFoldSnap(scroller, !!shown);
 
+  // The IMDb trailer behind the page, as a show's page has (test report 1, item 17): one IMDb id
+  // covers the whole franchise and its trailer is the first season's, so only on the first entry.
+  const root = useRef<HTMLDivElement>(null);
+  const onTop = usePageOnTop(root);
+  const [imdb, setImdb] = useState<string>();
+  const [scrolledAway, setScrolledAway] = useState(false);
+  const bigTrailer = !!useTrailerOpen();
+  const firstEntry = !seasonsLoading && (!found || found[0].card.id === activeId);
+  const trailer = useBackdropTrailer(firstEntry && imdb?.startsWith("tt") ? imdb : undefined, { active: onTop, paused: scrolledAway || bigTrailer });
+  const onImdb = useCallback((id: string | undefined) => setImdb(id), []);
+
   if (isError && !shown) return <EmptyState>Couldn't load this anime from AniList. Try again in a minute.</EmptyState>;
   if (!shown) return <Skeleton className="detail-loading" />;
 
@@ -49,14 +62,24 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   const franchise = seasons && { seasons, active: activeId, select: setActiveId, loading: seasonsLoading };
 
   return (
-    <div className="detail anime-detail" style={{ "--cover": shown.coverImage.color ?? undefined } as React.CSSProperties}>
+    <div
+      className="detail anime-detail"
+      ref={root}
+      data-trailer={trailer.visible}
+      style={{ "--cover": shown.coverImage.color ?? undefined } as React.CSSProperties}
+    >
       <div className="detail-bg" aria-hidden>
         <Img src={art} alt="" loading="eager" className="detail-bg-sharp" />
+        {trailer.node}
         <Img src={art} alt="" loading="eager" className="detail-bg-blur" />
         <div className="detail-bg-scrim" />
       </div>
-      <div className="scroll detail-scroll" ref={scroller}>
-        <AnimeHero item={shown} anime={anime} logo={logo} name={title(shown.title)} />
+      <div
+        className="scroll detail-scroll"
+        ref={scroller}
+        onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
+      >
+        <AnimeHero item={shown} anime={anime} logo={logo} name={title(shown.title)} onImdb={onImdb} trailer={trailer} />
         {loaded && <Body anime={loaded} franchise={franchise} switching={!anime} />}
       </div>
     </div>
