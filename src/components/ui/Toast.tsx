@@ -1,5 +1,8 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
+/** How long a toast takes to fade out (styles/ui/toast.css, .toast[data-leaving]); pass `leaving` that long before removing it. */
+export const TOAST_OUT_MS = 220;
+
 export type ToastProps = Omit<HTMLAttributes<HTMLDivElement>, "className" | "children" | "role"> & {
   /** A 24px glyph at the start; give the svg `className="toast-icon"`. */
   icon?: ReactNode;
@@ -9,7 +12,7 @@ export type ToastProps = Omit<HTMLAttributes<HTMLDivElement>, "className" | "chi
   actions?: ReactNode;
   /** More than one line of text: a rounded box with room around it instead of a pill. */
   lines?: boolean;
-  /** `tv`: up top, clear of the hints bar, at TV size. */
+  /** `tv`: bottom left, clear of the top bar and the hints, at TV size. */
   variant?: "tv";
   /** Going away: plays the way out (toast.css data-leaving); the caller removes it afterwards. */
   leaving?: boolean;

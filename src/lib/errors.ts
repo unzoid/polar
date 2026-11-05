@@ -12,7 +12,7 @@ export interface CommandError {
 export type CommandErrorCode =
   /** What was asked for isn't there (any more). */
   | "not_found"
-  /** Not something Polar does: an id it doesn't key by, a link it won't open. */
+  /** Not something Polarity does: an id it doesn't key by, a link it won't open. */
   | "unsupported"
   /** The addon couldn't be reached. */
   | "network"

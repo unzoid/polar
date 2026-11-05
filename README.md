@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/polarity-colored.svg" alt="Polar" width="260">
+  <img src="assets/brand/polarity-colored.svg" alt="Polarity" width="260">
 </p>
 
 <p align="center">
@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="readme-images/home.png" alt="Polar home screen" width="900">
+  <img src="readme-images/home.png" alt="Polarity home screen" width="900">
 </p>
 
 ## What's in it
@@ -76,8 +76,10 @@ bun run index
 
 Settings, keys and add-on URLs are kept in `polar.json` in the app's data folder. On Linux and macOS
 only your user account can read it, and Windows keeps app data per user, but it isn't encrypted:
-other programs running as you can read your keys. Polar doesn't use the system keychain, which
-behaves differently on every system. Signed in to an account, your settings sync but keys and add-on
+other programs running as you can read your keys. Your sign-in session is kept in the system's
+keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service such as GNOME Keyring
+or KWallet on Linux), under `app.getpolar.desktop`; where there is none, the app keeps it itself, as
+before. Signed in to an account, your settings sync but keys and add-on
 URLs stay on each device, unless you turn on Settings → Account → Sync API keys and addons, which
 sends them encrypted with a passphrase you type on each device.
 
@@ -98,7 +100,7 @@ What the project won't accept, and the rules coding agents follow: [CONTRIBUTING
 [AGENTS.md](AGENTS.md).
 
 Screenshots and recordings for the README use openly licensed films only: [docs/screenshots.md](docs/screenshots.md)
-explains how to play one in Polar and how to credit it.
+explains how to play one in Polarity and how to credit it.
 
 ## Licence
 

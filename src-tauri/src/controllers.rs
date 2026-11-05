@@ -7,13 +7,14 @@
 //! on Windows, evdev on Linux, IOKit on macOS), and the frontend hears about
 //! it as `controller-connected` / `controller-disconnected` events. Input
 //! itself still goes through the Gamepad API.
+//!
+//! Android and iOS have no gilrs backend: there the watcher never starts,
+//! `controllers_list` answers `None`, and the UI falls back to the Gamepad API.
 
 use std::sync::Mutex;
-use std::time::Duration;
 
-use gilrs::{EventType, Gilrs};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, State};
 
 use crate::locks::Locked;
 
@@ -30,13 +31,19 @@ pub struct Controllers {
     connected: Mutex<Option<Vec<Controller>>>,
 }
 
-fn info(gilrs: &Gilrs, id: gilrs::GamepadId) -> Controller {
+#[cfg(desktop)]
+fn info(gilrs: &gilrs::Gilrs, id: gilrs::GamepadId) -> Controller {
     let pad = gilrs.gamepad(id);
     Controller { id: id.into(), name: pad.name().to_string() }
 }
 
 /// Watch for controllers on a thread of its own, for the life of the app.
+#[cfg(desktop)]
 pub fn watch(app: AppHandle) {
+    use gilrs::{EventType, Gilrs};
+    use std::time::Duration;
+    use tauri::{Emitter, Manager};
+
     std::thread::Builder::new()
         .name("controllers".into())
         .spawn(move || {
@@ -78,6 +85,10 @@ pub fn watch(app: AppHandle) {
         })
         .expect("spawn controller watcher");
 }
+
+/// Phones and TVs: nothing to watch (see the module notes).
+#[cfg(mobile)]
+pub fn watch(_app: AppHandle) {}
 
 /// Controllers connected right now; `None` if native detection isn't running.
 #[tauri::command]

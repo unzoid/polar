@@ -1,6 +1,6 @@
 # Supabase storage: compact schema and encoding
 
-What Polar stores in its Supabase project, how much each row costs, and the compact layout that
+What Polarity stores in its Supabase project, how much each row costs, and the compact layout that
 replaces today's tables. Goal 5: everything going into Supabase as small as it can be, within the
 free plan's 500 MB database ([supabase.com/pricing](https://supabase.com/pricing)).
 
@@ -90,7 +90,7 @@ passphrase; D keeps them readable as today.
 
 ## 3. Layout (F): only the user's own data
 
-The owner's rule (goal, 2026-11-05): no show information in Polar's database. Names, posters,
+The owner's rule (goal, 2026-11-05): no show information in Polarity's database. Names, posters,
 backgrounds, episode titles and every other fact about a show or film come from the metadata
 sources, never from Supabase. An account holds which titles, where the user stopped, when, and
 their settings and profiles.

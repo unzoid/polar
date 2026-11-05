@@ -14,9 +14,11 @@ test uses a real account, key or add-on, and none needs a secret.
 | Rust unit and integration | `#[cfg(test)]` in each crate, `crates/addon/tests`, `src-tauri/src/downloads.rs` | `cargo test --workspace` | `rust` (Linux, Windows, macOS) |
 | End to end, web build | `e2e/*.spec.ts` (Playwright) | `bun run e2e` | `e2e-web` |
 | End to end, real app | `e2e/app/smoke.ts` (tauri-driver) | `bunx tauri build --debug --no-bundle`, then `bun run e2e:app` | `e2e-app` (nightly, `master`) |
+| Android emulator smoke | `e2e/android/smoke.sh` (adb: install, start, 30 s alive, Back, no crash) | `bun run tauri android build --debug --apk --target x86_64`, an emulator running, then `e2e/android/smoke.sh <apk>` | `e2e-app` job `android` (logcat and screenshots kept as `android-emulator-smoke`) |
 
-Also on every push: `bun run build` (which type-checks), `cargo fmt --all --check` and
-`cargo clippy --workspace --all-targets -- -D warnings`. Before a pull request run at least
+Also on every push: `bun run build` (which type-checks), `cargo fmt --all --check`,
+`cargo clippy --workspace --all-targets -- -D warnings`, and the Android app built as a debug APK
+for the emulator and for phones (job `android`; the APK is kept for 14 days as `android-debug-apk`). Before a pull request run at least
 `bun run typecheck`, `bun run test` and `cargo test --workspace`.
 
 ## Unit tests (TypeScript)
@@ -85,7 +87,9 @@ add-ons, sources and search instead. Look at a new screen with both before it sh
 of its own (no test framework): start without an account, turn Skip intros on, add a title
 through the command bridge, quit with the window's Close button, start again and find both still
 there (the store on disk and the web view's storage). Ending the WebDriver session instead kills
-the app before it writes what is still pending at exit. It needs `cargo install tauri-driver --locked` and the platform's
+the app before it writes what is still pending at exit. If the click doesn't end the app, the
+script clicks the button from the page, then closes the window through the bridge, and warns which
+one did (on Linux it watches the app's process, not the window). It needs `cargo install tauri-driver --locked` and the platform's
 driver: `webkit2gtk-driver` on Linux (`xvfb-run -a bun run e2e:app` without a display), an
 msedgedriver of the WebView2 version on Windows. macOS has no driver for its web view. On Linux
 the app's data goes to a fresh folder; on Windows it can't be moved, so the script runs there only

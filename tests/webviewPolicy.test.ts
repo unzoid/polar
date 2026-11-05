@@ -44,6 +44,11 @@ test("connect-src has no catch-all schemes or loopback ports", () => {
 });
 
 test("the web view can't open URLs or reveal files by itself", () => {
-  const cap = JSON.parse(readFileSync(join(ROOT, "src-tauri", "capabilities", "default.json"), "utf8"));
-  expect(cap.permissions.filter((p: string) => p.startsWith("opener:") || p.startsWith("fs:") || p.startsWith("shell:"))).toEqual([]);
+  const dir = join(ROOT, "src-tauri", "capabilities");
+  const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+  expect(files.length).toBeGreaterThan(0);
+  for (const file of files) {
+    const cap = JSON.parse(readFileSync(join(dir, file), "utf8"));
+    expect(cap.permissions.filter((p: string) => p.startsWith("opener:") || p.startsWith("fs:") || p.startsWith("shell:"))).toEqual([]);
+  }
 });

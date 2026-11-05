@@ -7,7 +7,7 @@ import { App } from "./App";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { queryClient } from "./lib/net";
 import { AccountProvider } from "./lib/account";
-import { mirrorFormFactor } from "./lib/ui";
+import { installKeepFieldInView, mirrorFormFactor } from "./lib/ui";
 import { inShell, os } from "./lib/platform";
 
 // Inter with weight + optical-size axes: large titles get the Display cut automatically.
@@ -46,6 +46,8 @@ import { installGamepad } from "./tv/gamepad";
 document.documentElement.dataset.os = os === "windows" ? "windows" : os === "macos" ? "mac" : "other";
 // Phone, tablet or desktop, and touch: the shell and target sizes follow (lib/platform/formFactor.ts).
 mirrorFormFactor(document.documentElement);
+// Phones and tablets: the on-screen keyboard never covers the field it types into.
+installKeepFieldInView();
 
 const root = createRoot(document.getElementById("root")!);
 

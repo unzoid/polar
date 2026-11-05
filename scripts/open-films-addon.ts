@@ -6,7 +6,7 @@
  *
  *   bun scripts/open-films-addon.ts [--port 7878] [--file tt1254207=/path/to/big_buck_bunny.mov]
  *
- * Then in Polar: Settings → Add-ons → add http://127.0.0.1:7878/manifest.json,
+ * Then in Polarity: Settings → Add-ons → add http://127.0.0.1:7878/manifest.json,
  * search for the film and play it. Sintel and Tears of Steel stream straight
  * from download.blender.org; Big Buck Bunny is only published zipped, so it
  * plays from a local file passed with --file (any of the three can be).

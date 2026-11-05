@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { detectOs } from "../src/lib/platform/device";
+import { detectOs, detectTvDevice } from "../src/lib/platform/device";
 
 test("detectOs reads the webview's navigator", () => {
   expect(detectOs({ platform: "Win32", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" })).toBe("windows");
@@ -10,4 +10,20 @@ test("detectOs reads the webview's navigator", () => {
   // iPadOS asks for the desktop site: it says Mac, but has a touch screen.
   expect(detectOs({ platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 5 })).toBe("ios");
   expect(detectOs({ userAgent: "" })).toBe("linux");
+});
+
+test("detectTvDevice asks Android's polarDevice bridge and never throws", () => {
+  expect(detectTvDevice(undefined)).toBe(false);
+  expect(detectTvDevice({})).toBe(false);
+  expect(detectTvDevice({ polarDevice: { isTv: () => true } })).toBe(true);
+  expect(detectTvDevice({ polarDevice: { isTv: () => false } })).toBe(false);
+  expect(
+    detectTvDevice({
+      polarDevice: {
+        isTv: () => {
+          throw new Error("bridge gone");
+        },
+      },
+    }),
+  ).toBe(false);
 });
