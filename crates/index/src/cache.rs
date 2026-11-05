@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 /// Small TTL cache. Metadata changes slowly; the point is that revisiting a
@@ -17,13 +17,33 @@ impl<K: Eq + Hash + Clone, V: Clone> TtlCache<K, V> {
     }
 
     pub fn get(&self, key: &K) -> Option<V> {
-        let entries = self.entries.lock().unwrap();
+        let entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
         let (at, value) = entries.get(key)?;
         (at.elapsed() < self.ttl).then(|| value.clone())
     }
 
+    /// The live entry for `key`, or `make()` stored as it. One lock for both,
+    /// so callers racing on a miss share the value one of them made.
+    pub fn get_or_insert_with(&self, key: K, make: impl FnOnce() -> V) -> V {
+        let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((at, value)) = entries.get(&key) {
+            if at.elapsed() < self.ttl {
+                return value.clone();
+            }
+        }
+        let value = make();
+        self.make_room(&mut entries);
+        entries.insert(key, (Instant::now(), value.clone()));
+        value
+    }
+
     pub fn insert(&self, key: K, value: V) {
-        let mut entries = self.entries.lock().unwrap();
+        let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+        self.make_room(&mut entries);
+        entries.insert(key, (Instant::now(), value));
+    }
+
+    fn make_room(&self, entries: &mut HashMap<K, (Instant, V)>) {
         if entries.len() >= self.capacity {
             // Drop expired entries first, then the oldest if still full.
             let ttl = self.ttl;
@@ -34,6 +54,5 @@ impl<K: Eq + Hash + Clone, V: Clone> TtlCache<K, V> {
                 }
             }
         }
-        entries.insert(key, (Instant::now(), value));
     }
 }

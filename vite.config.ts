@@ -1,10 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 
 // Tauri expects a fixed dev port and must see Rust compile errors in the terminal.
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react()],
   clearScreen: false,
   server: {
     port: 1420,

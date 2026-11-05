@@ -1,4 +1,4 @@
-import { getPrefs, setPrefs, usePrefs } from "../prefs";
+import { getPrefs, setPrefs, usePrefs } from "../settings/prefs";
 
 /** What the Anime page can show, top to bottom, in desktop and TV mode. Each can be turned off in Settings → Anime. */
 export const ANIME_SHELVES = [

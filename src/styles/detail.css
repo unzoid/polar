@@ -100,7 +100,7 @@
   box-shadow: none;
   transition:
     transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std);
 }
 .btn.detail-trailer-btn svg {
   filter: drop-shadow(0 1px 5px rgb(0 0 0 / 0.45));
@@ -110,7 +110,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .btn.detail-trailer-btn:hover {
-    background: rgb(255 255 255 / 0.14);
+    background: var(--fill-4);
   }
 }
 .detail-hero-main,
@@ -131,9 +131,10 @@
   flex-direction: column;
   gap: 1rem;
 }
-/* One entrance when the page opens: three groups, 40ms apart. */
+/* One entrance when the page opens: three groups, 40ms apart. Shorter than
+   the other reveals: a title page opens many times a day. */
 .detail-hero-main > * {
-  animation: rise var(--dur-reveal) var(--ease-reveal) both;
+  animation: rise 300ms var(--ease-reveal) both;
 }
 .detail-hero-main > :nth-child(n + 2):nth-child(-n + 4) {
   animation-delay: var(--stagger);
@@ -162,10 +163,17 @@
   object-fit: contain;
   object-position: left bottom;
   margin-bottom: 0.75rem;
-  filter: drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 2px 18px var(--scrim-1));
 }
 .detail-title {
   margin: 0 0 0.25rem;
+  /* A very long name stops at three lines (the whole of it is the tooltip), so Play stays on screen. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .detail-description,
 .detail-facts {
@@ -177,6 +185,18 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+/* Still loading (anime pages, re-test N4): lines at the text's height, and Play shows its spinner
+   at full strength rather than looking disabled. */
+.detail-description-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  padding-block: 0.3em;
+}
+.detail-play[aria-busy="true"] {
+  opacity: 1;
+  cursor: progress;
 }
 .detail-facts {
   display: flex;
@@ -198,7 +218,7 @@
   display: inline-flex;
   flex: none;
   border-radius: var(--r-pill);
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
 }
 @media (hover: hover) and (pointer: fine) {
   .rating-link:hover {
@@ -221,7 +241,7 @@
   stroke: var(--good);
   /* Draw in once on open; it reads the score as it fills. Kept inside the
      UI budget since a detail page opens many times a day. */
-  animation: ring-fill 300ms var(--ease-out) 60ms both;
+  animation: ring-fill var(--dur-slow) var(--ease-out) 60ms both;
 }
 .rating-ring[data-tone="mid"] .rating-ring-arc {
   stroke: #f2c94c;
@@ -231,7 +251,7 @@
 }
 /* Settings → Browsing → Colour-code IMDb ratings, off: IMDb yellow whatever the score. */
 .app[data-rating-colors="false"] .rating-ring .rating-ring-arc {
-  stroke: #f5c518;
+  stroke: var(--brand-imdb);
 }
 @keyframes ring-fill {
   from {
@@ -240,7 +260,7 @@
 }
 .rating-ring-value {
   position: relative;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text);
@@ -327,6 +347,16 @@
 .seasons-tabs > .segmented {
   width: max-content;
 }
+.seasons-tabs:has(.seasons-loading) {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.seasons-loading {
+  flex: none;
+  color: var(--text-3);
+  animation: fade-in var(--dur-base) var(--ease-out);
+}
 /* Sharing the bar with the tools (no episode ranges): the bar gives the edges. */
 .seasons-bar > .seasons-tabs {
   flex: 1;
@@ -334,7 +364,7 @@
   padding: 4px 0;
   margin: 0;
 }
-.segmented[data-variant="large"] .segmented-item[aria-selected="false"] {
+.segmented[data-variant="large"] .segmented-item[aria-checked="false"] {
   color: rgb(245 245 247 / 0.55);
 }
 /* Roomier tabs. */
@@ -361,7 +391,7 @@
   align-items: center;
   gap: 0.3125rem;
   font-weight: 600;
-  text-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
+  text-shadow: 0 1px 6px var(--scrim-2);
 }
 .episode-card .progress-track {
   left: auto;
@@ -386,12 +416,19 @@
   position: absolute;
   top: 10px;
   left: 10px;
+  max-width: calc(100% - 20px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 3px 8px;
   border-radius: var(--r-pill);
   background: rgb(250 204 21 / 0.92);
   color: #1a1400;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+.episode-watched[data-animate="true"] {
+  animation: icon-swap 200ms var(--ease-out);
 }
 .episode-watched ~ .episode-tag {
   left: 40px;
@@ -434,7 +471,7 @@
   height: 36px;
   opacity: 0;
   transition:
-    opacity var(--dur-fast) ease,
+    opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .episode-card:focus-within .episode-sources {
@@ -445,17 +482,18 @@
     opacity: 1;
   }
 }
-/* Download sits beside Sources and shows on hover the same way - except once
-   an episode is coming down or here, when its ring or check stays in view. */
+/* Download sits beside Sources, always in view (test report 1, item 18: shown
+   only on hover nobody found it, and touch and TV have no hover); dimmed until
+   the card is pointed at or focused, or while it's coming down or here. */
 .episode-download {
   position: absolute;
   top: 10px;
   right: 54px;
   width: 36px;
   height: 36px;
-  opacity: 0;
+  opacity: 0.8;
   transition:
-    opacity var(--dur-fast) ease,
+    opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .episode-card:focus-within .episode-download,
@@ -504,10 +542,10 @@
   gap: 1.25rem;
   padding: 0.75rem 4rem 0.75rem 0.25rem;
   border-radius: var(--r-lg);
-  transition: background-color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) var(--ease-std);
 }
 .episode-card[data-layout="list"][data-up-next="true"] .episode-card-main {
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
 }
 .episode-card[data-layout="list"] .card-frame {
   grid-area: still;
@@ -525,12 +563,12 @@
   color: var(--text-2);
 }
 .episode-card[data-layout="list"] .episode-card-title {
-  font-size: 1rem;
+  font-size: var(--fs-lg);
 }
 .episode-card[data-layout="list"] .episode-runtime {
   left: 8px;
   bottom: 6px;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
 }
 .episode-card[data-layout="list"] .progress-track {
   bottom: 11px;
@@ -569,104 +607,17 @@
 .about h2 {
   margin: 0 0 1rem;
 }
-/* No boxes: the same open layout as the episode list, sections divided by
-   hairlines — the description on the left, the facts beside it, cast below. */
-.about-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: 1.75rem 4rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--hairline);
-}
-.about-description {
-  margin: 0;
-  max-width: 62ch;
-  font-size: 1.0625rem;
-  line-height: 1.6;
-  color: var(--text-2);
-}
-.about-label {
-  margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-3);
-}
-.about-info {
-  margin: 0;
-  align-self: start;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem 2rem;
-}
-.about-info dd {
-  margin: 0.25rem 0 0;
-  font-weight: 500;
-}
-/* Nothing to say about it: the facts take the full width. */
-.about-grid > .about-info:first-child {
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(4, minmax(0, max-content));
-  gap: 1.25rem 4rem;
-}
-.about-cast {
-  grid-column: 1 / -1;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--hairline);
-}
-.cast-list {
-  list-style: none;
-  margin: 1rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem 2rem;
-}
-.cast-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 500;
-}
-.cast-avatar {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 0.1);
-  color: var(--text-2);
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-}
-@media (max-width: 900px) {
-  .about-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* --- The trailer behind the art (BackdropTrailer.tsx): sized to cover the
-       window like the art does, a little oversized so YouTube's edges and
-       corner marks fall outside. Fades in only once it's really playing. */
+/* --- The trailer behind the art (BackdropTrailer.tsx): a video file covering
+       the window like the art does. Fades in only once it's really playing. */
 .backdrop-trailer {
   position: absolute;
   inset: 0;
   container-type: size;
   opacity: 0;
-  transition: opacity 1s ease;
+  transition: opacity 1s var(--ease-std);
 }
 .backdrop-trailer[data-visible="true"] {
   opacity: 1;
-}
-.backdrop-trailer iframe {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: max(100cqw, 177.78cqh);
-  height: max(100cqh, 56.25cqw);
-  border: 0;
-  transform: translate(-50%, -50%) scale(1.18);
-  pointer-events: none;
 }
 .backdrop-trailer video {
   position: absolute;
@@ -675,16 +626,12 @@
   height: 100%;
   object-fit: cover;
   pointer-events: none;
+  transition: transform 400ms var(--ease-in-out);
 }
 .detail-mute {
-  animation: fade-in var(--dur-base) ease;
+  animation: fade-in var(--dur-base) var(--ease-std);
 }
 
-/* --- Episodes | Details, for shows. */
-.detail-tabs {
-  position: relative;
-  padding: 0 var(--gutter) 1.5rem var(--content-start);
-}
 /* Under the episodes, on the same page (no tabs between them). */
 .about-series {
   padding-top: 2.5rem;
@@ -705,7 +652,7 @@
 }
 .details-label {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-3);
 }
@@ -729,7 +676,7 @@
 .details-story {
   margin: 0.5rem 0 0;
   max-width: 62ch;
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
   line-height: 1.6;
   color: var(--text-2);
 }
@@ -757,56 +704,71 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-/* Links out: neutral glass pills; only the site's logo carries its colour, softened. */
-.details-link {
-  --site: rgb(255 255 255);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4375rem;
-  height: 2rem;
-  padding: 0 0.625rem 0 0.6875rem;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--site) 5%, rgb(255 255 255 / 0.05));
-  backdrop-filter: blur(12px);
-  color: var(--text);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-fast) ease,
-    transform var(--dur-press) var(--ease-out);
-}
-.details-link svg {
-  flex: none;
-  color: color-mix(in srgb, var(--site) 70%, white);
-}
-.details-link .details-link-out {
-  color: var(--text-3);
-}
-.details-link[data-site="imdb"] {
-  --site: #f5c518;
-}
-.details-link[data-site="rt"] {
-  --site: #fa320a;
-}
-.details-link[data-site="letterboxd"] {
-  --site: #00e054;
-}
-.details-link[data-site="trakt"] {
-  --site: #c53be0;
-}
-.details-link[data-site="tmdb"] {
-  --site: #01b4e4;
-}
-@media (hover: hover) and (pointer: fine) {
-  .details-link:hover {
-    background: color-mix(in srgb, var(--site) 9%, rgb(255 255 255 / 0.09));
-  }
-}
 @media (max-width: 900px) {
   .details-columns {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Narrow screens: the hero text takes the width, and a listed episode's number
+   moves above its title so the text keeps room beside the still. */
+@media (max-width: 600px) {
+  /* The credits go under the title block instead of squeezing beside it. */
+  .detail-hero {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 1.25rem;
+  }
+  .detail-credits {
+    max-width: none;
+  }
+  .detail-hero-main {
+    width: 100%;
+  }
+  /* Play takes the row and the round buttons sit under it: side by side, the
+     last one (Download) ran off a phone's edge. */
+  .detail-actions {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+  .detail-play {
+    flex: 1 0 100%;
+  }
+  .episode-card[data-layout="list"] .episode-card-main {
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    grid-template-areas:
+      "still num"
+      "still text";
+    align-items: start;
+    column-gap: 0.75rem;
+    row-gap: 0.125rem;
+    padding-right: 3.25rem;
+  }
+  .episode-number {
+    justify-self: start;
+    font-size: var(--fs-base);
+  }
+}
+/* The smallest phones (320–400px): a listed episode's still goes above its
+   text (beside it the text had about 100px), and the season picker's pill
+   shrinks and ellipsizes rather than being cut to "Season 2". */
+@media (max-width: 400px) {
+  .episode-card[data-layout="list"] .episode-card-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "still"
+      "num"
+      "text";
+  }
+  .seasons-picker .select-trigger[data-size="large"] {
+    max-width: 100%;
+    font-size: 1.25rem;
+  }
+  .seasons-picker .select-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -836,7 +798,7 @@
   height: 96px;
   margin-bottom: 0.5rem;
   overflow: hidden;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: rgb(255 255 255 / 0.08);
   color: var(--text-2);
   font-weight: 650;
@@ -848,16 +810,22 @@
   object-position: center 20%;
 }
 .person-name {
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 600;
   line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .person-role {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.3;
   color: var(--text-3);
 }
@@ -874,11 +842,11 @@
   min-width: 128px;
   padding: 0.875rem 1.125rem;
   border-radius: var(--r-md);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .score-card-label {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 650;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -890,11 +858,11 @@
   letter-spacing: -0.02em;
 }
 .score-card-note {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .score-card[data-tone="fresh"] .score-card-value {
-  color: #fa320a;
+  color: var(--brand-rt);
 }
 .score-card[data-tone="rotten"] .score-card-value {
   color: #0ac855;
@@ -909,7 +877,7 @@
   color: #ff4d4d;
 }
 .score-card[data-kind="lb"] .score-card-value {
-  color: #00e054;
+  color: var(--brand-letterboxd);
 }
 
 /* …and as small chips beside the rating in the hero. */

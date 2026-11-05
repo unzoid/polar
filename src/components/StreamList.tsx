@@ -1,9 +1,13 @@
-import { AlertCircle, Check, Instant } from "./icons";
+import { AlertCircle, Check } from "./icons";
 import { useRouter } from "../lib/router";
-import { useSettings, useStreams } from "../lib/queries";
-import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/sources";
+import { openSettings, type PageId } from "../lib/settings";
+import { useSettings, useStreams } from "../lib/net";
+import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/playback";
 import type { ContentType, RankedStream } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
+import { Button } from "./ui/Button";
+import { errorMessage } from "../lib/errors";
+import { Skeleton } from "./ui/Skeleton";
 
 /**
  * Sources for one video, with the filters on top (add-on, resolution,
@@ -25,6 +29,8 @@ export function StreamList({
   tv?: boolean;
 }) {
   const { tab } = useRouter();
+  // Desktop settings are the overlay over this page; TV has its own settings screen.
+  const showSettings = (page: PageId) => (tv ? tab({ name: "settings", page }) : openSettings(page));
   const { data, isLoading, isError, error } = useStreams(type, videoId);
   const { data: settings } = useSettings();
   const f = useSourceFilters(data?.streams, settings);
@@ -33,12 +39,12 @@ export function StreamList({
     return (
       <div className="stream-list">
         {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="stream-row skeleton" style={{ height: 64 }} />
+          <Skeleton key={i} className="stream-row" height={64} />
         ))}
       </div>
     );
   }
-  if (isError) return <p className="t-body muted">Couldn't load sources: {String(error)}</p>;
+  if (isError) return <p className="t-body muted">Couldn't load sources: {errorMessage(error)}</p>;
   if (!data) return null;
 
   const hidden = data.hidden ?? 0;
@@ -53,13 +59,13 @@ export function StreamList({
               : "No sources found."}
         </p>
         {hidden ? (
-          <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "sources" })}>
+          <Button variant="glass" onClick={() => showSettings("sources")}>
             Source Filters
-          </button>
+          </Button>
         ) : (
-          <button className="btn btn-glass" onClick={() => tab({ name: "settings", page: "addons" })}>
+          <Button variant="glass" onClick={() => showSettings("addons")}>
             Manage Add-ons
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -78,9 +84,9 @@ export function StreamList({
       {!shown.length && (
         <div className="stream-empty">
           <p className="t-body muted">No sources match these filters.</p>
-          <button className="btn btn-glass" onClick={f.clear}>
+          <Button variant="glass" onClick={f.clear}>
             Clear Filters
-          </button>
+          </Button>
         </div>
       )}
 
@@ -142,7 +148,7 @@ function StreamRow({
       title={s.stream.title ?? s.stream.description}
     >
       <span className="stream-lead" aria-hidden>
-        {current ? <Check size={16} strokeWidth={2.5} /> : s.quality.cached ? <Instant size={15} fill="currentColor" strokeWidth={0} /> : null}
+        {current ? <Check size={16} strokeWidth={2.5} /> : null}
       </span>
       <span className="stream-text">
         <span className="stream-main">
@@ -155,7 +161,7 @@ function StreamRow({
           {s.quality.lowQualitySource && <span className="badge badge-bad">CAM</span>}
         </span>
         <span className="stream-sub t-caption">
-          {current ? "Playing · " : s.quality.cached ? "Instant · " : ""}
+          {current ? "Playing · " : ""}
           {row.detail}
         </span>
       </span>
@@ -166,5 +172,5 @@ function StreamRow({
 
 export function streamKey(s: RankedStream | { stream: RankedStream["stream"] }) {
   const st = s.stream;
-  return st.content_id ? `${st.content_id}:${st.fileIdx ?? 0}` : (st.url ?? st.ytId ?? "");
+  return st.url ?? st.ytId ?? "";
 }

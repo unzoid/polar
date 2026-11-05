@@ -3,8 +3,10 @@
  * this interface (via `./index.ts`); swapping Supabase for a self-hosted
  * server, PocketBase, etc. means writing one new file like `./supabase.ts`.
  */
+import type { AnimeLink } from "../library/identity";
 import type { Progress, SyncLibraryItem } from "../types";
-import type { AvatarId } from "./avatars";
+import { count, isRecord, str } from "../parse";
+import { normalizeAvatar, type AvatarId } from "./avatars";
 
 export interface AccountUser {
   id: string;
@@ -20,11 +22,20 @@ export interface Profile {
 
 export type ProfileInput = Pick<Profile, "name" | "avatar">;
 
+/** A profile row or this device's cached copy; `undefined` without an id (critique M9). */
+export function readProfile(v: unknown): Profile | undefined {
+  const id = isRecord(v) ? str(v.id) : undefined;
+  if (!isRecord(v) || !id) return;
+  return { id, name: str(v.name) ?? "", avatar: normalizeAvatar(str(v.avatar) ?? ""), position: count(v.position) ?? 0 };
+}
+
 export type AccountErrorCode =
   | "invalid_email"
   | "invalid_code"
   | "rate_limited"
   | "profile_limit"
+  | "playlist_limit"
+  | "settings_too_large"
   | "not_set_up"
   | "network"
   | "unknown";
@@ -42,8 +53,16 @@ export class AccountError extends Error {
 export interface PulledChanges {
   library: SyncLibraryItem[];
   progress: Progress[];
+  /** `null`: the server can't store anime links yet (an older schema); library and progress still sync. */
+  links: AnimeLink[] | null;
   /** Opaque cursor; hand it back to the next `pull`. */
   cursor: string | null;
+}
+
+export interface SyncChanges {
+  library: SyncLibraryItem[];
+  progress: Progress[];
+  links: AnimeLink[];
 }
 
 export interface RemotePlaylist {
@@ -126,13 +145,18 @@ export interface AccountBackend {
 
   sync: {
     pull(profileId: string, cursor: string | null): Promise<PulledChanges>;
-    push(profileId: string, changes: { library: SyncLibraryItem[]; progress: Progress[] }): Promise<void>;
+    /** Resolves to whether the links were stored (`false`: the server has no place for them yet). */
+    push(profileId: string, changes: SyncChanges): Promise<{ links: boolean }>;
   };
 
-  /** The profile's preferences as one small document, last write wins. */
+  /** The profile's preferences as one small document (settingsSync.ts merges it per key). */
   settings: {
     get(profileId: string): Promise<RemoteSettings | null>;
-    put(profileId: string, settings: RemoteSettings): Promise<void>;
+    /**
+     * Resolves to the `updatedAt` the server stored (it may move a time from the future back), or
+     * `null` when it kept a newer document and took nothing (critique H2).
+     */
+    put(profileId: string, settings: RemoteSettings): Promise<number | null>;
   };
 
   /** Whole playlists, last write wins per playlist; titles travel packed (playlistCodec). */

@@ -1,38 +1,91 @@
 mod commands;
 mod controllers;
 mod downloads;
-mod fillers;
 mod imdb;
 mod introdb;
+mod locks;
+mod logging;
 mod player;
 mod ratings;
 mod seekr;
 mod store;
 mod streamcheck;
 mod sync;
+mod trailer_proxy;
 mod trailers;
 
 use std::sync::{Arc, Mutex, RwLock};
 
 use polar_addon::AddonClient;
 use polar_index::{IndexConfig, Indexer};
+use polar_library::saver::{write_atomic, Saver};
 use tauri::Manager;
+
+use crate::locks::{Locked, ReadWrite};
 
 pub struct AppState {
     /// Swapped wholesale when the TMDB key changes.
     pub indexer: RwLock<Arc<Indexer>>,
     pub addons: AddonClient,
-    pub store: Mutex<store::Store>,
+    /// Subtitle URLs the addons listed: the only ones `subtitle_vtt` fetches.
+    pub subtitle_urls: polar_addon::offered::Offered,
+    /// Change it through [`AppState::persist`], which gets it written.
+    pub store: Arc<Mutex<store::Store>>,
+    /// Writes `store` to disk in the background.
+    pub saver: Saver,
     pub seekr: seekr::Seekr,
     pub mpv: player::Mpv,
     pub introdb: introdb::IntroDb,
     pub ratings: ratings::RatingsClient,
+    /// Filler and recap episodes, cached in the app's cache folder.
+    pub fillers: polar_anime::Fillers,
+    /// Anime id mappings for when ani.zip is down, in the same folder.
+    pub anime_lists: polar_anime::AnimeLists,
 }
 
 impl AppState {
     pub fn indexer(&self) -> Arc<Indexer> {
-        self.indexer.read().unwrap().clone()
+        self.indexer.reading().clone()
     }
+
+    /// Changes the store and has it written within [`SAVE_DELAY`]. The change
+    /// stays in memory either way; the error says it may not reach the disk
+    /// (read-only session, or the last write failed).
+    pub fn persist(&self, f: impl FnOnce(&mut store::Data)) -> commands::Result<()> {
+        let problem = {
+            let mut store = self.store.locked();
+            f(&mut store.data);
+            store.problem().map(str::to_owned)
+        };
+        if let Some(problem) = problem {
+            return Err(commands::CmdError::Save(format!("could not save: not saved: {problem}")));
+        }
+        self.saver.mark();
+        match self.saver.error() {
+            Some(e) => Err(commands::CmdError::Save(format!("could not save: {e}"))),
+            None => Ok(()),
+        }
+    }
+}
+
+/// How long changes gather before `polar.json` is written: the player saves
+/// progress every 5 s, so at most one write each time.
+const SAVE_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// The background writer for `store`: encodes under the lock (no disk I/O
+/// there), writes outside it.
+fn store_saver(store: Arc<Mutex<store::Store>>) -> Saver {
+    Saver::spawn(SAVE_DELAY, move || {
+        let (path, bytes) = {
+            // A panic elsewhere mid-change still leaves data worth keeping.
+            let store = store.locked();
+            (store.path().to_owned(), store.encode()?)
+        };
+        write_atomic(&path, &bytes).map_err(|e| {
+            tracing::warn!("{} wasn't saved: {e}", path.display());
+            e.to_string()
+        })
+    })
 }
 
 pub fn index_config(settings: &store::Settings) -> IndexConfig {
@@ -65,26 +118,36 @@ const BUNDLED_ADDONS: &[&str] = &["https://opensubtitles-v3.strem.io/manifest.js
 async fn install_bundled_addons(app: tauri::AppHandle) {
     let state = app.state::<AppState>();
     let pending: Vec<&str> = {
-        let store = state.store.lock().unwrap();
+        let store = state.store.locked();
         BUNDLED_ADDONS.iter().copied().filter(|url| !store.data.bundled_addons.iter().any(|u| u == url)).collect()
     };
     for url in pending {
-        let Ok(manifest) = state.addons.manifest(url).await else { continue };
-        let mut store = state.store.lock().unwrap();
-        let data = &mut store.data;
-        if !data.addons.iter().any(|a| a.manifest.id == manifest.id) {
-            data.addons.push(store::InstalledAddon { manifest_url: url.into(), manifest });
+        let manifest = match state.addons.manifest(url).await {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::info!("bundled add-on not installed yet, next launch tries again: {e}");
+                continue;
+            }
+        };
+        let saved = state.persist(|data| {
+            if !data.addons.iter().any(|a| a.manifest.id == manifest.id) {
+                data.addons.push(store::InstalledAddon { manifest_url: url.into(), manifest });
+            }
+            data.bundled_addons.push(url.into());
+        });
+        if let Err(e) = saved {
+            tracing::warn!("bundled add-on not saved: {e}");
         }
-        data.bundled_addons.push(url.into());
-        let _ = store.save();
     }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    trailer_proxy::register(tauri::Builder::default())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            logging::init(&app.path().app_log_dir()?, app.path().home_dir().ok().as_deref());
+            tracing::info!("Polarity {} starting", app.package_info().version);
             #[cfg(desktop)]
             {
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
@@ -93,17 +156,22 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             let path = dir.join("polar.json");
             migrate_legacy_store(&dir, &path);
-            downloads::manage(app.handle(), &dir);
-            let store = store::Store::load(path);
-            let indexer = Indexer::new(index_config(&store.data.settings));
+            downloads::manage(app.handle(), &dir)?;
+            let store = Arc::new(Mutex::new(store::Store::load(path)));
+            let cache = app.path().app_cache_dir()?;
+            let indexer = Indexer::new(index_config(&store.locked().data.settings));
             app.manage(AppState {
                 indexer: RwLock::new(Arc::new(indexer)),
                 addons: AddonClient::new(),
-                store: Mutex::new(store),
+                subtitle_urls: Default::default(),
+                saver: store_saver(store.clone()),
+                store,
                 seekr: seekr::Seekr::default(),
                 mpv: player::Mpv::default(),
                 introdb: introdb::IntroDb::default(),
                 ratings: ratings::RatingsClient::default(),
+                fillers: polar_anime::Fillers::new(cache.clone()),
+                anime_lists: polar_anime::AnimeLists::new(cache),
             });
             app.manage(controllers::Controllers::default());
             controllers::watch(app.handle().clone());
@@ -112,6 +180,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::store_problem,
             commands::catalog,
             commands::recommend,
             commands::search,
@@ -134,11 +203,17 @@ pub fn run() {
             commands::progress_save_many,
             commands::continue_watching,
             commands::watch_history,
+            commands::link_anime,
+            commands::anime_links,
             commands::settings_get,
             commands::settings_set,
             commands::settings_reset,
+            commands::settings_defaults,
             commands::open_external,
-            commands::anime_filler,
+            commands::anime_episode_flags,
+            commands::anime_ids,
+            commands::anime_cache,
+            commands::anime_cache_clear,
             commands::trailer,
             downloads::downloads_list,
             downloads::download_start,
@@ -153,8 +228,11 @@ pub fn run() {
             sync::sync_changes,
             sync::sync_mark_pushed,
             sync::sync_apply,
+            sync::space_untitled,
+            sync::space_fill_display,
             player::mpv_available,
             player::mpv_load,
+            streamcheck::stream_probe,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,
@@ -164,9 +242,11 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building polar")
         .run(|app, event| {
-            // Never leave an orphaned mpv behind.
+            // Never leave an orphaned mpv behind, nor a change unwritten.
             if let tauri::RunEvent::Exit = event {
-                app.state::<AppState>().mpv.kill();
+                let state = app.state::<AppState>();
+                state.mpv.kill();
+                state.saver.flush();
             }
         });
 }

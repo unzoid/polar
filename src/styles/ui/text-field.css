@@ -1,0 +1,47 @@
+/* TextField (components/ui/TextField.tsx). Inputs match the dropdown fields (T3 Code style): compact, a quiet border,
+   blue only while focused. */
+.text-field {
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-sm);
+  background: var(--fill-1);
+  font-size: var(--fs-md);
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+  transition: border-color var(--dur-fast) var(--ease-std);
+}
+.text-field::placeholder {
+  color: var(--text-3);
+}
+.text-field:focus {
+  border-color: var(--accent);
+}
+
+/* block: the account screens' field (after Linear's): full width, 44px, a quiet border and a soft ring on focus. */
+.text-field.text-field-block {
+  flex: none;
+  width: 100%;
+  max-width: none;
+  height: 2.75rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--hairline);
+  background: rgb(255 255 255 / 0.02);
+  color: #f7f8f8;
+  text-align: left;
+  transition:
+    border-color 150ms var(--ease-std),
+    box-shadow 150ms var(--ease-std);
+}
+.text-field.text-field-block::placeholder {
+  color: #62666d;
+  opacity: 1;
+}
+.text-field.text-field-block:focus {
+  border-color: rgb(255 255 255 / 0.22);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.05);
+}

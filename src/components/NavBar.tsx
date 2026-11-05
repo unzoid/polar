@@ -1,20 +1,21 @@
 import logo from "../assets/polarity-white.png";
-import { Menu } from "@base-ui/react/menu";
 import { ChevronDown, ChevronLeft, Close, Search, Speed, Tv } from "./icons";
-import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../lib/recentSearches";
+import { addRecentSearch, clearRecentSearches, FOCUS_SEARCH_EVENT, setSearchText, useRecentSearches, useSearchText } from "../lib/catalog";
 import { setTvMode } from "../tv/tvMode";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
-import { usePrefs } from "../lib/prefs";
+import { usePrefs } from "../lib/settings";
+import { useHandFocus } from "../lib/ui";
 import { MOD_LABEL } from "../lib/platform";
-import { useSettings } from "../lib/queries";
-import { FOCUS_SEARCH_EVENT, setSearchText, useSearchText } from "../lib/searchQuery";
+import { useSettings } from "../lib/net";
 import { WindowControls } from "./WindowControls";
 import { ProfileMenu } from "./ProfileMenu";
 import { UpdatePill } from "./Updates";
-import { useParty } from "../lib/party/party";
+import { useParty } from "../lib/party";
 import { PartyBadge } from "./party/PartyUI";
+import { Chip } from "./ui/Chip";
+import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "./ui/Menu";
 
 const LINKS: { route: TabRoute; label: string }[] = [
   { route: { name: "home" }, label: "Home" },
@@ -42,6 +43,9 @@ export function NavBar() {
   const isActive = (r: TabRoute) => JSON.stringify(r) === JSON.stringify(active);
   // Search results are closed by clearing the field, not with Back.
   const canGoBack = stack.length > 1 && current.name !== "search";
+  // Back to a top-level page with focus on Back: it hides, so focus moves off it first (test report 1, item 25).
+  const backButton = useRef<HTMLButtonElement>(null);
+  useHandFocus(backButton, !canGoBack);
   const scrolled = useActivePageScrolled(stack.length);
   const { data: settings } = useSettings();
   const { animeEnabled, showTvButton } = usePrefs();
@@ -58,12 +62,13 @@ export function NavBar() {
       </div>
       {/* Always takes its place, so the brand and tabs never shift when it appears. */}
       <button
+        ref={backButton}
         className="navbar-icon navbar-back pressable"
         data-shown={canGoBack}
         onClick={back}
         aria-label="Back"
         title="Back (Esc)"
-        aria-hidden={!canGoBack}
+        inert={!canGoBack}
         tabIndex={canGoBack ? 0 : -1}
         disabled={!canGoBack}
       >
@@ -141,13 +146,13 @@ function NavLinks({ links, isActive, open }: { links: typeof LINKS; isActive: (r
           tabIndex={i >= fit ? -1 : undefined}
           aria-current={isActive(l.route) ? "page" : undefined}
           onPointerDown={(e) => e.button === 0 && open(l.route)} // respond on press
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && open(l.route)}
+          onClick={(e) => e.detail === 0 && open(l.route)} // keyboard and screen readers (detail 0)
         >
           {l.label}
         </button>
       ))}
-      <Menu.Root modal={false}>
-        <Menu.Trigger
+      <MenuRoot modal={false}>
+        <MenuTrigger
           ref={more}
           className="navbar-link navbar-more"
           data-overflow={rest.length ? undefined : true}
@@ -155,19 +160,15 @@ function NavLinks({ links, isActive, open }: { links: typeof LINKS; isActive: (r
         >
           {rest.find((l) => isActive(l.route))?.label ?? "More"}
           <ChevronDown size={14} />
-        </Menu.Trigger>
-        <Menu.Portal>
-          <Menu.Positioner sideOffset={8} align="start" className="select-positioner">
-            <Menu.Popup className="profile-menu">
-              {rest.map((l) => (
-                <Menu.Item key={l.label} className="profile-menu-item" onClick={() => open(l.route)}>
-                  {l.label}
-                </Menu.Item>
-              ))}
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      </Menu.Root>
+        </MenuTrigger>
+        <MenuPopup look="roomy" sideOffset={8} align="start">
+          {rest.map((l) => (
+            <MenuItem key={l.label} onClick={() => open(l.route)}>
+              {l.label}
+            </MenuItem>
+          ))}
+        </MenuPopup>
+      </MenuRoot>
     </nav>
   );
 }
@@ -304,9 +305,9 @@ function SearchSuggestions({ pick, under }: { pick: (text: string) => void; unde
   const r = under.getBoundingClientRect();
   const chips = (list: string[]) =>
     list.map((g) => (
-      <button key={g} className="genre-chip" tabIndex={-1} onClick={() => pick(g)}>
+      <Chip key={g} tabIndex={-1} onClick={() => pick(g)}>
         {g}
-      </button>
+      </Chip>
     ));
   return createPortal(
     // Keeps focus in the field, so it doesn't blur (and close) on the way.

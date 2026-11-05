@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import { cardMenu } from "../components/CardMenu";
 import { Img } from "../components/Img";
-import { byDay, dayLabel, useCalendar, type CalendarEntry } from "../lib/calendar";
+import { byDay, dayLabel, useCalendar, type CalendarEntry } from "../lib/catalog";
 import { useRouter } from "../lib/router";
-import { episodeEntry } from "../lib/watched";
+import { episodeEntry } from "../lib/library";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Skeleton } from "../components/ui/Skeleton";
 
 /**
  * Episodes of your shows by the day they air (Settings → Browsing → Show the
@@ -23,18 +25,18 @@ export function Calendar() {
         </div>
       </header>
       {showCount === 0 && !loading && (
-        <p className="empty calendar-empty t-body muted">Add shows to your library, or start watching one, and their new episodes show up here.</p>
+        <EmptyState className="calendar-empty">Add shows to your library, or start watching one, and their new episodes show up here.</EmptyState>
       )}
       {showCount > 0 && !loading && !days.length && (
-        <p className="empty calendar-empty t-body muted">Nothing aired in the last week, and nothing's scheduled yet for your shows.</p>
+        <EmptyState className="calendar-empty">Nothing aired in the last week, and nothing's scheduled yet for your shows.</EmptyState>
       )}
       {loading && !days.length && (
         <div className="calendar">
           {Array.from({ length: 3 }, (_, i) => (
             <div key={i} className="calendar-day">
-              <span className="skeleton skeleton-line" style={{ width: 120 }} />
+              <Skeleton shape="line" width={120} />
               <div className="calendar-items">
-                <div className="calendar-item skeleton" style={{ height: 96 }} />
+                <Skeleton className="calendar-item" height={96} />
               </div>
             </div>
           ))}
@@ -63,6 +65,8 @@ export function Calendar() {
   );
 }
 
+const aired = (v: { released?: string }) => !!v.released && Date.parse(v.released) <= Date.now();
+
 function CalendarItem({ entry: { show, video } }: { entry: CalendarEntry }) {
   const { navigate } = useRouter();
   return (
@@ -72,7 +76,8 @@ function CalendarItem({ entry: { show, video } }: { entry: CalendarEntry }) {
       {...cardMenu(show, episodeEntry(show, video), { episode: true })}
     >
       <span className="calendar-art">
-        <Img src={video.thumbnail ?? show.background ?? show.poster} alt="" />
+        {/* An episode still to air has no still yet (its link 404s): the show's art, and that too when a still fails. */}
+        <Img src={aired(video) ? video.thumbnail : undefined} fallbacks={[show.background, show.poster]} alt="" />
       </span>
       <span className="calendar-text">
         <span className="calendar-show">{show.name}</span>

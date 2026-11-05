@@ -64,13 +64,13 @@ export function Segmented<T extends string | number>({
   };
 
   return (
-    <div className="segmented" data-variant={variant} role="tablist" aria-label={label} ref={list} onKeyDown={onKeyDown}>
+    <div className="segmented" data-variant={variant} role="radiogroup" aria-label={label} ref={list} onKeyDown={onKeyDown}>
       {options.map((o) => (
         <button
           key={o.id}
-          role="tab"
+          role="radio"
           data-id={o.id}
-          aria-selected={o.id === value}
+          aria-checked={o.id === value}
           tabIndex={o.id === value ? 0 : -1}
           className="segmented-item t-callout"
           onPointerDown={() => select(o.id)} // respond on press

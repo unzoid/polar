@@ -1,0 +1,13 @@
+import { expect, test } from "bun:test";
+import { detectOs } from "../src/lib/platform/device";
+
+test("detectOs reads the webview's navigator", () => {
+  expect(detectOs({ platform: "Win32", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" })).toBe("windows");
+  expect(detectOs({ platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" })).toBe("macos");
+  expect(detectOs({ platform: "Linux x86_64", userAgent: "Mozilla/5.0 (X11; Linux x86_64)" })).toBe("linux");
+  expect(detectOs({ platform: "Linux armv8l", userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8)" })).toBe("android");
+  expect(detectOs({ platform: "iPhone", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" })).toBe("ios");
+  // iPadOS asks for the desktop site: it says Mac, but has a touch screen.
+  expect(detectOs({ platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 5 })).toBe("ios");
+  expect(detectOs({ userAgent: "" })).toBe("linux");
+});

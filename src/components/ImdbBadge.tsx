@@ -1,10 +1,10 @@
+import { scoreTone } from "../lib/ui";
 import { Star } from "./icons";
 
 /** The IMDb mark with the score beside it, the score tinted by band (green ≥ 7, amber ≥ 5, red below). */
 export function ImdbBadge({ value }: { value: number }) {
-  const tone = value >= 7 ? "good" : value >= 5 ? "mid" : "low";
   return (
-    <span className="imdb-badge" data-tone={tone} role="img" aria-label={`IMDb rating ${value.toFixed(1)} out of 10`}>
+    <span className="imdb-badge" data-tone={scoreTone(value)} role="img" aria-label={`IMDb rating ${value.toFixed(1)} out of 10`}>
       <span className="imdb-badge-logo">IMDb</span>
       <span className="imdb-badge-score tabular">{value.toFixed(1)}</span>
     </span>
@@ -27,7 +27,7 @@ export function CardRating({ rating, placement = "below" }: { rating?: string; p
       {score > 0 && (
         <span
           className={placement === "poster" ? "card-score card-score-art tabular" : "card-score tabular"}
-          data-tone={score >= 7 ? "good" : score >= 5 ? "mid" : "low"}
+          data-tone={scoreTone(score)}
           role="img"
           aria-label={`IMDb rating ${score.toFixed(1)} out of 10`}
           title="IMDb rating"

@@ -6,11 +6,25 @@ use crate::types::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AddonError {
+    /// Without the URL: an addon's URL can carry the user's token (critique M1).
     #[error("network: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(reqwest::Error),
     #[error("addon returned an unexpected payload: {0}")]
     Decode(String),
 }
+
+impl From<reqwest::Error> for AddonError {
+    fn from(e: reqwest::Error) -> Self {
+        Self::Http(e.without_url())
+    }
+}
+
+/// Largest addon JSON answer read. A long series' meta (a thousand episodes
+/// with descriptions and stills) is a few MB; anything far past that is not
+/// an answer worth holding in memory (critique M13).
+pub const JSON_MAX: usize = 16 << 20;
+/// Largest file `fetch_bytes` reads (subtitles run to a few hundred KB).
+pub const FILE_MAX: usize = 10 << 20;
 
 /// Talks to any Stremio-protocol addon over HTTP.
 #[derive(Clone)]
@@ -81,17 +95,35 @@ impl AddonClient {
 
     /// Raw bytes of a file (subtitles), with the client's timeouts.
     pub async fn fetch_bytes(&self, url: &str) -> Result<Vec<u8>, AddonError> {
-        Ok(self.http.get(url).send().await?.error_for_status()?.bytes().await?.to_vec())
+        read_capped(self.http.get(url).send().await?.error_for_status()?, FILE_MAX).await
     }
 
     async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<T, AddonError> {
-        let bytes = self.http.get(url).send().await?.error_for_status()?.bytes().await?;
+        let bytes = read_capped(self.http.get(url).send().await?.error_for_status()?, JSON_MAX).await?;
         serde_json::from_slice(&bytes).map_err(|e| AddonError::Decode(e.to_string()))
     }
 }
 
+/// The body, refused once it passes `max` bytes (whatever `Content-Length` says).
+pub async fn read_capped(mut res: reqwest::Response, max: usize) -> Result<Vec<u8>, AddonError> {
+    let too_big = || AddonError::Decode(format!("answer larger than {} MB", max >> 20));
+    if res.content_length().is_some_and(|n| n > max as u64) {
+        return Err(too_big());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = res.chunk().await? {
+        if body.len() + chunk.len() > max {
+            return Err(too_big());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
 pub fn resource_url(base: &str, resource: &str, ty: &str, id: &str, extra: &[(&str, &str)]) -> String {
     let base = AddonClient::base_url(base);
+    // Both come from add-ons and the UI: encoded, so neither can add path segments or a query (L13).
+    let ty = urlencoding::encode(ty);
     let id = urlencoding::encode(id);
     if extra.is_empty() {
         format!("{base}/{resource}/{ty}/{id}.json")
@@ -200,6 +232,7 @@ impl RawMeta {
             cast: rest.cast,
             director: rest.director,
             trailer_yt_id: rest.trailer,
+            trailer_source: None,
             videos,
             people: rest.people,
             details: rest.details,
@@ -295,6 +328,47 @@ impl RawVideo {
 mod tests {
     use super::*;
 
+    /// Answers one request on 127.0.0.1 with `body`, chunked so no length is announced.
+    fn serve_once(body: Vec<u8>) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut sock, _) = listener.accept().unwrap();
+            let _ = sock.read(&mut [0u8; 4096]);
+            let _ = sock.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n");
+            for part in body.chunks(64 << 10) {
+                let _ = sock.write_all(format!("{:x}\r\n", part.len()).as_bytes());
+                let _ = sock.write_all(part);
+                let _ = sock.write_all(b"\r\n");
+            }
+            let _ = sock.write_all(b"0\r\n\r\n");
+        });
+        base
+    }
+
+    fn block<F: std::future::Future>(f: F) -> F::Output {
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(f)
+    }
+
+    #[test]
+    fn bodies_past_the_cap_are_refused_and_smaller_ones_read() {
+        let client = AddonClient::new();
+        let big = serve_once(vec![b'a'; FILE_MAX + 1]);
+        let err = block(client.fetch_bytes(&format!("{big}/sub.srt"))).unwrap_err();
+        assert!(err.to_string().contains("larger than 10 MB"), "{err}");
+        let small = serve_once(b"1\n00:00:01,000 --> 00:00:02,000\nhi\n".to_vec());
+        assert_eq!(block(client.fetch_bytes(&format!("{small}/sub.srt"))).unwrap().len(), 35);
+    }
+
+    #[test]
+    fn network_errors_leave_the_url_out() {
+        let client = AddonClient::new();
+        // Nothing listens on port 9 here; the token in the path must not reach the message.
+        let err = block(client.fetch_bytes("http://127.0.0.1:9/secret-token/sub.srt")).unwrap_err();
+        assert!(!err.to_string().contains("secret-token"), "{err}");
+    }
+
     #[test]
     fn builds_urls() {
         assert_eq!(
@@ -305,6 +379,8 @@ mod tests {
             resource_url("https://a.io", "catalog", "movie", "top", &[("search", "sandglass 2")]),
             "https://a.io/catalog/movie/top/search=sandglass%202.json"
         );
+        // A type can't add path segments or a query either.
+        assert_eq!(resource_url("https://a.io", "meta", "../x?y", "tt1", &[]), "https://a.io/meta/..%2Fx%3Fy/tt1.json");
     }
 
     #[test]

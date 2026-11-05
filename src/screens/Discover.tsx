@@ -1,11 +1,14 @@
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { PosterCard, PosterSkeleton } from "../components/PosterCard";
+import { useState } from "react";
+import { PosterCard } from "../components/PosterCard";
+import { PosterGrid } from "../components/title/PosterGrid";
 import { Segmented } from "../components/Segmented";
 import { Dropdown } from "../components/Dropdown";
 import { api } from "../lib/api";
-import { BROWSE_GENRES } from "../lib/genres";
+import { BROWSE_GENRES } from "../lib/catalog";
 import type { ContentType } from "../lib/types";
+import { EmptyState } from "../components/ui/EmptyState";
+import { keys } from "../lib/net";
 
 const CATALOGS = [
   { id: "trending", label: "Trending" },
@@ -19,12 +22,11 @@ const CATALOGS = [
 export function Discover({ type }: { type: ContentType }) {
   const [catalog, setCatalog] = useState("trending");
   const [picked, setGenre] = useState<string>();
-  const sentinel = useRef<HTMLDivElement>(null);
   // Movies and Series share this screen: a genre from one may not exist in the other.
   const genre = picked && BROWSE_GENRES[type].includes(picked) ? picked : undefined;
 
   const query = useInfiniteQuery({
-    queryKey: ["discover", type, catalog, genre ?? ""],
+    queryKey: keys.discover(type, catalog, genre),
     queryFn: ({ pageParam }) => api.catalog(type, catalog, pageParam, genre),
     initialPageParam: 0,
     getNextPageParam: (last, pages) => (last.length ? pages.flat().length : undefined),
@@ -32,18 +34,6 @@ export function Discover({ type }: { type: ContentType }) {
     // collapsing to skeletons and back, which jolts the page each time.
     placeholderData: keepPreviousData,
   });
-
-  // Load the next page well before the user hits the bottom.
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([e]) => e.isIntersecting && query.hasNextPage && !query.isFetchingNextPage && query.fetchNextPage(),
-      { rootMargin: "1200px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [query]);
 
   // Dedupe across pages — upstream catalogs occasionally repeat items.
   const seen = new Set<string>();
@@ -63,15 +53,12 @@ export function Discover({ type }: { type: ContentType }) {
           <Segmented options={CATALOGS} value={catalog} onChange={setCatalog} label="Catalog" />
         </div>
       </header>
-      <div className="poster-grid discover-grid" data-stale={query.isPlaceholderData}>
+      <PosterGrid pager={query} stale={query.isPlaceholderData}>
         {items.map((item) => (
           <PosterCard key={item.id} item={item} />
         ))}
-        {(query.isLoading || query.isFetchingNextPage) &&
-          Array.from({ length: 12 }, (_, i) => <PosterSkeleton key={`s${i}`} />)}
-      </div>
-      {query.isError && <p className="empty t-body muted">Couldn't load this catalog. Check your connection.</p>}
-      <div ref={sentinel} />
+      </PosterGrid>
+      {query.isError && <EmptyState>Couldn't load this catalog. Check your connection.</EmptyState>}
     </div>
   );
 }

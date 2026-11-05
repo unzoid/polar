@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import { useAccount } from "../../lib/account/AccountProvider";
-import { leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty } from "../../lib/party/party";
+import { useAccount } from "../../lib/account";
+import { leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty } from "../../lib/party";
 import { useRouter } from "../../lib/router";
 import { Dialog } from "@base-ui/react/dialog";
 import { Close, WatchParty } from "../icons";
+import { iconButtonClass } from "../ui/Button";
 import { JoinForm, PartyNotes } from "./PartyUI";
 import { useTvMode } from "../../tv/tvMode";
 
@@ -64,7 +65,7 @@ export function PartyHost() {
             <Dialog.Title className="party-dialog-title">Join a Watch Party</Dialog.Title>
             <Dialog.Description className="party-dialog-text">Enter the code a friend shared with you.</Dialog.Description>
             {profile && <JoinForm me={profile} onJoined={() => setJoinPartyOpen(false)} />}
-            <Dialog.Close className="party-dialog-close pressable" aria-label="Close">
+            <Dialog.Close className={iconButtonClass("party")} aria-label="Close">
               <Close size={18} />
             </Dialog.Close>
           </Dialog.Popup>

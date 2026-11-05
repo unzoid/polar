@@ -1,11 +1,15 @@
-//! Everything the user owns — settings, installed addons, library, watch
-//! progress — in one JSON file in the app data dir. Small, human-readable,
-//! trivially backed up. Swap for SQLite once sync lands.
+//! Everything the user owns — settings, installed addons, and one space
+//! (library, watch progress, anime links; see `polar_library`) per profile —
+//! in one JSON file in the app data dir. Small, readable, trivially backed
+//! up. Commands change it in memory; `polar_library::saver` writes it a
+//! moment later off the UI thread (`AppState::persist`), and on exit.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use polar_addon::Manifest;
+use polar_library::opened::{self, Opened};
+pub use polar_library::{LibraryItem, Progress, Space};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,9 +17,6 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     pub tmdb_key: Option<String>,
     pub language: String,
-    /// A Stremio-compatible bridge that turns p2ps into HTTP
-    /// (`{server}/{content_id}/{fileIdx}`). Bridge until the built-in engine lands.
-    pub bridge: String,
     /// Auto-play the next episode when one ends.
     pub autoplay_next: bool,
     /// Seekr (seekr.tv) API key for seek-bar thumbnails. Optional feature.
@@ -181,7 +182,6 @@ impl Default for Settings {
         Self {
             tmdb_key: None,
             language: "en-US".into(),
-            bridge: "http://127.0.0.1:11470".into(),
             autoplay_next: true,
             seekr_key: None,
             seek_previews: true,
@@ -270,77 +270,18 @@ pub struct InstalledAddon {
     pub manifest: Manifest,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryItem {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub ty: String,
-    pub name: String,
-    pub poster: Option<String>,
-    pub added_at: u64,
-}
-
-/// Progress for one playable video (a movie id, or `tt…:s:e`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Progress {
-    pub meta_id: String,
-    pub video_id: String,
-    #[serde(rename = "type")]
-    pub ty: String,
-    pub name: String,
-    pub background: Option<String>,
-    pub poster: Option<String>,
-    pub season: Option<u32>,
-    pub episode: Option<u32>,
-    pub episode_title: Option<String>,
-    /// The source that was playing, so resume uses the same file (and timings).
-    #[serde(default)]
-    pub stream: Option<polar_addon::Stream>,
-    /// Seconds.
-    pub position: f64,
-    pub duration: f64,
-    pub updated_at: u64,
-}
-
-impl Progress {
-    pub fn fraction(&self) -> f64 {
-        if self.duration > 0.0 {
-            (self.position / self.duration).clamp(0.0, 1.0)
-        } else {
-            0.0
-        }
-    }
-
-    /// Past the watched threshold (Settings → Playback), e.g. 0.92.
-    pub fn finished(&self, threshold: f64) -> bool {
-        self.fraction() >= threshold
-    }
-}
-
 /// The space used when nobody is signed in.
 pub const LOCAL_SPACE: &str = "local";
 
-/// One person's library and watch history: the signed-out "local" space, or
-/// one per account profile (keyed by profile id). Each is a full offline
-/// copy; sync only moves changes between it and the server.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct Space {
-    pub library: HashMap<String, LibraryItem>,
-    /// Removed library items → when (ms), so removals sync too.
-    pub removed: HashMap<String, u64>,
-    pub progress: HashMap<String, Progress>,
-    /// Local clock (ms) of the last successful push.
-    pub pushed_at: u64,
-    /// Server cursor of the last pull (opaque to Rust).
-    pub pulled_at: Option<String>,
-}
+/// Layout of `polar.json`, bumped when a change needs old files read
+/// differently. 0 = files from before the field existed.
+pub const VERSION: u32 = 1;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Data {
+    /// [`VERSION`] of the build that last wrote the file.
+    pub version: u32,
     pub settings: Settings,
     pub addons: Vec<InstalledAddon>,
     /// Bundled addons already installed once (manifest URLs). Removing one
@@ -366,6 +307,7 @@ impl Data {
     }
 
     pub(crate) fn migrate(&mut self) {
+        self.version = VERSION;
         if self.active_space.is_empty() {
             self.active_space = LOCAL_SPACE.into();
         }
@@ -380,34 +322,69 @@ impl Data {
 pub struct Store {
     path: PathBuf,
     pub data: Data,
+    /// Why the file couldn't be read at start-up: while set, nothing is saved
+    /// over it (critique C1) and the app says so (`store_problem`).
+    problem: Option<String>,
 }
 
 impl Store {
     pub fn load(path: PathBuf) -> Self {
-        let mut data: Data = match std::fs::read(&path) {
-            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|e| {
-                // Starting fresh would overwrite the user's library, history,
-                // addons and settings on the next save. Keep the unreadable
-                // file next to it so nothing is lost for good.
+        let (mut data, problem) = match opened::open::<Data>(std::fs::read(&path)) {
+            Opened::Data(data) if data.version > VERSION => {
+                // A newer Polar wrote this: what this build doesn't know
+                // would be dropped on the next save, so keep its file aside.
+                let backup = path.with_extension(format!("v{}-{}.json", data.version, now()));
+                tracing::warn!("{} is from a newer version; keeping it as {}", path.display(), backup.display());
+                match std::fs::copy(&path, &backup) {
+                    Ok(_) => (data, None),
+                    Err(copy) => (
+                        data,
+                        Some(format!("{} is from a newer Polarity and couldn't be backed up ({copy})", path.display())),
+                    ),
+                }
+            }
+            Opened::Data(data) => (data, None),
+            Opened::Fresh => (Data::default(), None),
+            Opened::Corrupt(e) => {
+                // Starting fresh overwrites the library, history, addons and
+                // settings on the next save, so the unreadable file is kept
+                // next to it first; without that copy nothing is saved.
                 let backup = path.with_extension(format!("corrupt-{}.json", now()));
-                eprintln!("polar: {} is unreadable ({e}); kept as {}", path.display(), backup.display());
-                let _ = std::fs::copy(&path, backup);
-                Data::default()
-            }),
-            Err(_) => Data::default(),
+                tracing::error!("{} is unreadable ({e}); keeping it as {}", path.display(), backup.display());
+                match std::fs::copy(&path, &backup) {
+                    Ok(_) => (Data::default(), None),
+                    Err(copy) => (
+                        Data::default(),
+                        Some(format!("{} is damaged and couldn't be backed up ({copy})", path.display())),
+                    ),
+                }
+            }
+            Opened::Unreadable(e) => {
+                tracing::error!("can't read {} ({e}); not saving over it", path.display());
+                (Data::default(), Some(format!("{} couldn't be read ({e})", path.display())))
+            }
         };
         data.migrate();
-        Self { path, data }
+        Self { path, data, problem }
     }
 
-    /// Write via a temp file + rename so a crash never leaves half a file.
-    pub fn save(&self) -> std::io::Result<()> {
-        if let Some(dir) = self.path.parent() {
-            std::fs::create_dir_all(dir)?;
+    /// Set when the file couldn't be read at start-up: changes this session aren't saved.
+    pub fn problem(&self) -> Option<&str> {
+        self.problem.as_deref()
+    }
+
+    /// Where the file lives.
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
+    /// The file's contents as they should be now. Compact: the file is
+    /// rewritten whole, and indenting only made that bigger.
+    pub fn encode(&self) -> Result<Vec<u8>, String> {
+        if let Some(problem) = &self.problem {
+            return Err(format!("not saved: {problem}"));
         }
-        let tmp = self.path.with_extension("json.tmp");
-        std::fs::write(&tmp, serde_json::to_vec_pretty(&self.data)?)?;
-        std::fs::rename(tmp, &self.path)
+        serde_json::to_vec(&self.data).map_err(|e| e.to_string())
     }
 }
 

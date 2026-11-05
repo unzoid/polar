@@ -2,8 +2,8 @@ import { useRef } from "react";
 import { useJoinParty } from "../components/party/PartyUI";
 import { BusyLabel } from "../components/BusyLabel";
 import { WatchParty } from "../components/icons";
-import { useAccount } from "../lib/account/AccountProvider";
-import { CODE_LENGTH, setJoinPartyOpen } from "../lib/party/party";
+import { useAccount } from "../lib/account";
+import { CODE_LENGTH, setJoinPartyOpen } from "../lib/party";
 import { useBack, useFocusTrap } from "./shell";
 import { TvKeyboard } from "./TvKeyboard";
 

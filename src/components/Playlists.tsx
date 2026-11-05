@@ -1,17 +1,11 @@
-import { Popover } from "@base-ui/react/popover";
-import { useState, type FormEvent } from "react";
-import { useMeta } from "../lib/queries";
-import {
-  addToPlaylist,
-  createPlaylist,
-  removeFromPlaylist,
-  usePlaylists,
-  type Playlist,
-  type PlaylistItem,
-} from "../lib/playlists";
+import { useMeta } from "../lib/net";
+import type { Playlist, PlaylistItem } from "../lib/library";
 import type { MetaPreview } from "../lib/types";
-import { Check, Plus, PlaylistIcon } from "./icons";
+import { PlaylistIcon } from "./icons";
 import { Img } from "./Img";
+import { PlaylistChecklist, usePlaylistChecklist } from "./title/PlaylistChecklist";
+import { buttonClass } from "./ui/Button";
+import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
 
 /**
  * A playlist title as something a card can draw. Titles added here carry
@@ -27,86 +21,22 @@ export function usePlaylistItem(item: PlaylistItem): MetaPreview | undefined {
 
 /** Detail page button: tick the playlists a title belongs in, or start a new one. */
 export function PlaylistButton({ item }: { item: MetaPreview }) {
-  const playlists = usePlaylists();
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const inAny = playlists.some((p) => p.items.some((i) => i.id === item.id));
-
-  const create = (e: FormEvent) => {
-    e.preventDefault();
-    createPlaylist(name, item);
-    setName("");
-    setCreating(false);
-  };
-
+  const { inAny } = usePlaylistChecklist(item);
   return (
-    <Popover.Root
-      onOpenChange={(open) => {
-        if (!open) {
-          setCreating(false);
-          setName("");
-        }
-      }}
-    >
-      <Popover.Trigger
-        className="btn btn-glass btn-icon"
+    <PopoverRoot>
+      <PopoverTrigger
+        className={buttonClass("glass", true)}
         aria-label="Add to playlist"
         title="Add to playlist"
         data-active={inAny || undefined}
       >
         <PlaylistIcon size={20} />
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Positioner sideOffset={8} align="start" className="select-positioner">
-          <Popover.Popup className="playlist-menu">
-            <p className="playlist-menu-title">Save to playlist</p>
-            {playlists.length > 0 && (
-              <div className="playlist-menu-list">
-                {playlists.map((p) => {
-                  const has = p.items.some((i) => i.id === item.id);
-                  return (
-                    <button
-                      key={p.id}
-                      className="playlist-menu-item"
-                      role="menuitemcheckbox"
-                      aria-checked={has}
-                      onClick={() => (has ? removeFromPlaylist(p.id, item.id) : addToPlaylist(p.id, item))}
-                    >
-                      <span className="playlist-menu-check">{has && <Check size={14} strokeWidth={2.5} />}</span>
-                      <span className="playlist-menu-name">{p.name}</span>
-                      <span className="playlist-menu-count tabular">{p.items.length}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {creating ? (
-              <form className="playlist-menu-form" onSubmit={create}>
-                <input
-                  className="settings-input"
-                  autoFocus
-                  maxLength={60}
-                  placeholder="Playlist name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setCreating(false))}
-                />
-                <button className="btn btn-primary" disabled={!name.trim()}>
-                  Create
-                </button>
-              </form>
-            ) : (
-              <button className="playlist-menu-item playlist-menu-new" onClick={() => setCreating(true)}>
-                <span className="playlist-menu-check">
-                  <Plus size={15} strokeWidth={2.25} />
-                </span>
-                New Playlist
-              </button>
-            )}
-          </Popover.Popup>
-        </Popover.Positioner>
-      </Popover.Portal>
-    </Popover.Root>
+      </PopoverTrigger>
+      <PopoverPopup sideOffset={8} align="start" className="playlist-menu">
+        <p className="playlist-menu-title">Save to playlist</p>
+        <PlaylistChecklist item={item} look="popover" />
+      </PopoverPopup>
+    </PopoverRoot>
   );
 }
 

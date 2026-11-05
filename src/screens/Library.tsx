@@ -6,27 +6,31 @@ import { Bookmark, ChevronLeft, ChevronRight, Close, Download, PlaylistIcon, Pla
 import { Img } from "../components/Img";
 import { PlaylistTile, usePlaylistItem } from "../components/Playlists";
 import { PosterCard } from "../components/PosterCard";
+import { Card } from "../components/title/Card";
 import { Row } from "../components/Row";
 import { StillPlaceholder } from "../components/StillPlaceholder";
-import { downloadFraction, localStream, useAllLeaving, useDownloads, useLeaving, type Download as DownloadRecord } from "../lib/downloads";
+import { downloadFraction, localStream, useAllLeaving, useDownloads, useLeaving, type Download as DownloadRecord } from "../lib/library";
 import { TitleLogo } from "../components/TitleLogo";
-import { episodeCode } from "../lib/format";
+import { episodeCode, formatBytes } from "../lib/format";
 import {
   createPlaylist,
+  MAX_PLAYLISTS,
   deletePlaylist,
   removeFromPlaylist,
   renamePlaylist,
   usePlaylists,
   type PlaylistItem,
-} from "../lib/playlists";
-import { useLibrary, useWatchHistory } from "../lib/queries";
-import { useRouter } from "../lib/router";
-import { progressFraction, progressItem } from "../lib/shelves";
-import { formatBytes } from "../lib/sources";
+} from "../lib/library";
+import { useLibrary, useWatchHistory } from "../lib/net";
+import { useRouter, type Route } from "../lib/router";
+import { progressFraction, progressItem } from "../lib/catalog";
 import type { ContentType } from "../lib/types";
+import { buttonClass } from "../components/ui/Button";
+import { EmptyState } from "../components/ui/EmptyState";
+import { PosterGrid } from "../components/title/PosterGrid";
 
-type Collection = "saved" | "watched" | "playlists" | "downloads";
-type Open = { view: Collection } | { view: "playlist"; id: string; fresh: boolean } | null;
+type Collection = Extract<Route, { name: "library-collection" }>["view"];
+type Open = { view: Collection } | { view: "playlist"; id: string; fresh: boolean };
 type Kind = "all" | ContentType;
 type Sort = "recent" | "title";
 
@@ -45,35 +49,62 @@ const SORTS: { value: Sort; label: string }[] = [
  * Your titles, nothing suggested. Laid out like Apple Music's library: the
  * collections up top as big tiles (Saved, Playlists, Downloads, Watched),
  * each with its count, then a shelf of the latest from each. A tile or "See
- * All" opens the whole collection; a playlist opens from there.
+ * All" opens the whole collection (route `library-collection`); a playlist
+ * opens from there (route `playlist`), so Esc and Back step out one page at a time.
  */
 export function Library() {
-  const [open, setOpen] = useState<Open>(null);
-  const back = () => setOpen(null);
+  const open = useOpen();
   return (
     <div className="scroll">
-      {!open && <Overview onOpen={setOpen} />}
-      {open?.view === "saved" && (
+      <Overview onOpen={open} />
+    </div>
+  );
+}
+
+/** Library's sub-pages go on the navigation stack, like Anime's. */
+function useOpen() {
+  const { navigate } = useRouter();
+  return (o: Open) => navigate(o.view === "playlist" ? { name: "playlist", id: o.id, fresh: o.fresh } : { name: "library-collection", view: o.view });
+}
+
+/** One collection in full. */
+export function LibraryCollection({ view }: { view: Collection }) {
+  const { back } = useRouter();
+  const open = useOpen();
+  return (
+    <div className="scroll">
+      {view === "saved" && (
         <CollectionPage title="Saved" onBack={back} filters>
           {(kind, sort) => <Saved kind={kind} sort={sort} />}
         </CollectionPage>
       )}
-      {open?.view === "watched" && (
+      {view === "watched" && (
         <CollectionPage title="Watched" onBack={back} filters>
           {(kind, sort) => <WatchedGrid kind={kind} sort={sort} />}
         </CollectionPage>
       )}
-      {open?.view === "playlists" && (
+      {view === "playlists" && (
         <CollectionPage title="Playlists" onBack={back}>
-          {() => <Playlists onOpen={(id, fresh = false) => setOpen({ view: "playlist", id, fresh })} />}
+          {() => <Playlists onOpen={(id, fresh = false) => open({ view: "playlist", id, fresh })} />}
         </CollectionPage>
       )}
-      {open?.view === "downloads" && (
+      {view === "downloads" && (
         <CollectionPage title="Downloads" onBack={back}>
           {() => <Downloads />}
         </CollectionPage>
       )}
-      {open?.view === "playlist" && <PlaylistView id={open.id} fresh={open.fresh} onClose={() => setOpen({ view: "playlists" })} />}
+    </div>
+  );
+}
+
+/** One playlist; its back button names the page it came from. */
+export function LibraryPlaylist({ id, fresh }: { id: string; fresh: boolean }) {
+  const { back, stack } = useRouter();
+  // Where it was opened from (pages pushed on top later don't change it).
+  const [backLabel] = useState(() => (stack[stack.length - 2]?.route.name === "library-collection" ? "Playlists" : "Library"));
+  return (
+    <div className="scroll">
+      <PlaylistView id={id} fresh={fresh} onClose={back} backLabel={backLabel} />
     </div>
   );
 }
@@ -132,7 +163,7 @@ function Overview({ onOpen }: { onOpen: (o: Open) => void }) {
         />
       </div>
 
-      {nothing && <p className="empty t-body muted">Titles you save, download, watch or put in a playlist gather here.</p>}
+      {nothing && <EmptyState>Titles you save, download, watch or put in a playlist gather here.</EmptyState>}
 
       <div className="rows library-rows">
         {dl.length > 0 && (
@@ -189,25 +220,22 @@ function CollectionTile({ icon, title, detail, art, onOpen }: { icon: ReactNode;
 function DownloadCard({ d, onOpen }: { d: DownloadRecord; onOpen: () => void }) {
   const play = usePlayDownload();
   const leaving = useLeaving(d.id);
-  const art = d.thumbnail ?? d.background ?? d.poster;
   return (
-    <button
-      className="card card-landscape download-card"
+    <Card
+      shape="landscape"
+      className="download-card"
+      art={d.thumbnail ?? d.background ?? d.poster}
+      fallback={<StillPlaceholder />}
+      title={d.name}
+      detail={downloadLine(d)}
       data-leaving={leaving || undefined}
       onClick={() => (d.state === "done" ? play(d) : onOpen())}
     >
-      <div className="card-frame">
-        {art ? <Img src={art} alt="" className="card-img" /> : <StillPlaceholder />}
-        <div className="card-art-scrim" />
-        <span className="download-card-state" data-state={d.state}>
-          {d.state === "done" ? <Play size={14} fill="currentColor" /> : <DownloadGlyph d={d} size={18} />}
-        </span>
-      </div>
-      <div className="card-caption">
-        <span className="card-title t-callout">{d.name}</span>
-        <span className="t-caption faint tabular">{downloadLine(d)}</span>
-      </div>
-    </button>
+      <div className="card-art-scrim" />
+      <span className="download-card-state" data-state={d.state}>
+        {d.state === "done" ? <Play size={14} fill="currentColor" /> : <DownloadGlyph d={d} size={18} />}
+      </span>
+    </Card>
   );
 }
 
@@ -275,15 +303,15 @@ function arrange<T extends { type: ContentType; name: string }>(items: T[] | und
 function Saved({ kind, sort }: { kind: Kind; sort: Sort }) {
   const { data } = useLibrary();
   const items = useMemo(() => arrange(data, kind, sort), [data, kind, sort]);
-  if (data?.length === 0) return <p className="empty t-body muted">Titles you save with + on their page appear here.</p>;
+  if (data?.length === 0) return <EmptyState>Titles you save with + on their page appear here.</EmptyState>;
   return (
     <>
-      {items?.length === 0 && <p className="empty t-body muted">Nothing here yet.</p>}
-      <div className="poster-grid">
+      {items?.length === 0 && <EmptyState>Nothing here yet.</EmptyState>}
+      <PosterGrid>
         {items?.map((item) => (
           <PosterCard key={item.id} item={item} />
         ))}
-      </div>
+      </PosterGrid>
     </>
   );
 }
@@ -291,15 +319,15 @@ function Saved({ kind, sort }: { kind: Kind; sort: Sort }) {
 function WatchedGrid({ kind, sort }: { kind: Kind; sort: Sort }) {
   const { data } = useWatchHistory();
   const items = useMemo(() => arrange(data, kind, sort), [data, kind, sort]);
-  if (data?.length === 0) return <p className="empty t-body muted">Movies and shows you watch appear here.</p>;
+  if (data?.length === 0) return <EmptyState>Movies and shows you watch appear here.</EmptyState>;
   return (
     <>
-      {items?.length === 0 && <p className="empty t-body muted">Nothing here yet.</p>}
-      <div className="poster-grid">
+      {items?.length === 0 && <EmptyState>Nothing here yet.</EmptyState>}
+      <PosterGrid>
         {items?.map((p) => (
           <PosterCard key={p.metaId} item={progressItem(p)} progress={progressFraction(p)} entry={p} />
         ))}
-      </div>
+      </PosterGrid>
     </>
   );
 }
@@ -321,9 +349,9 @@ function Downloads() {
 
   if (data?.length === 0) {
     return (
-      <p className="empty t-body muted">
+      <EmptyState>
         Download a movie or an episode with <Download size={15} className="inline-icon" /> on its page to watch it without a connection.
-      </p>
+      </EmptyState>
     );
   }
   return (
@@ -405,7 +433,7 @@ function DownloadRow({ d, series, play }: { d: DownloadRecord; series: boolean; 
                         ? { id: d.id, title: d.episodeTitle ?? "", season: d.season ?? 0, episode: d.episode ?? 0, thumbnail: d.thumbnail }
                         : undefined
                     }
-                    className="download-row-action btn btn-icon quiet-btn"
+                    className={buttonClass("plain", true, "download-row-action quiet-btn")}
                     size={18}
                   />
         </div>
@@ -423,22 +451,24 @@ function Playlists({ onOpen }: { onOpen: (id: string, isNew?: boolean) => void }
       {playlists.length === 0 && (
         <p className="library-hint t-body muted">Group titles into playlists from their page, or start one here.</p>
       )}
-      <div className="poster-grid">
+      <PosterGrid>
         {playlists.map((p) => (
           <PlaylistTile key={p.id} playlist={p} onOpen={() => onOpen(p.id)} />
         ))}
-        <button className="card card-poster playlist-tile" onClick={() => onOpen(createPlaylist("New Playlist").id, true)}>
-          <div className="card-frame playlist-new">
-            <Plus size={28} />
-            <span className="t-callout">New Playlist</span>
-          </div>
-        </button>
-      </div>
+        {playlists.length < MAX_PLAYLISTS && (
+          <button className="card card-poster playlist-tile" onClick={() => onOpen(createPlaylist("New Playlist")!.id, true)}>
+            <div className="card-frame playlist-new">
+              <Plus size={28} />
+              <span className="t-callout">New Playlist</span>
+            </div>
+          </button>
+        )}
+      </PosterGrid>
     </>
   );
 }
 
-function PlaylistView({ id, fresh, onClose }: { id: string; fresh: boolean; onClose: () => void }) {
+function PlaylistView({ id, fresh, onClose, backLabel }: { id: string; fresh: boolean; onClose: () => void; backLabel: string }) {
   const playlist = usePlaylists().find((p) => p.id === id);
   if (!playlist) return null;
   const n = playlist.items.length;
@@ -448,7 +478,7 @@ function PlaylistView({ id, fresh, onClose }: { id: string; fresh: boolean; onCl
       <div className="playlist-view-head">
         <button className="playlist-back t-callout" onClick={onClose}>
           <ChevronLeft size={16} strokeWidth={2.25} />
-          Playlists
+          {backLabel}
         </button>
         <div className="playlist-view-title">
           <input
@@ -480,14 +510,16 @@ function PlaylistView({ id, fresh, onClose }: { id: string; fresh: boolean; onCl
           <ConfirmDeleteButton label="playlist" onConfirm={() => (deletePlaylist(id), onClose())} />
         </div>
       </div>
-      {n === 0 ? (
-        <p className="empty t-body muted">Add titles with the playlist button on their page.</p>
+      {playlist.packed ? (
+        <EmptyState>Made with a newer version of Polarity. Update Polarity to see its titles.</EmptyState>
+      ) : n === 0 ? (
+        <EmptyState>Add titles with the playlist button on their page.</EmptyState>
       ) : (
-        <div className="poster-grid">
+        <PosterGrid>
           {playlist.items.map((item) => (
             <PlaylistEntry key={item.id} playlistId={id} item={item} />
           ))}
-        </div>
+        </PosterGrid>
       )}
     </div>
   );

@@ -1,0 +1,20 @@
+{
+  "CacheInfo": ["bytes","path"],
+  "CmdError": ["code","message"],
+  "Cue": ["endMs","h","sheet","startMs","w","x","y"],
+  "Download": ["addedAt","background","episode","episodeTitle","error","file","headers","id","logo","metaId","name","poster","quality","received","season","state","thumbnail","total","type","url"],
+  "InstalledAddon": ["manifest","manifestUrl"],
+  "LocalChanges": ["library","links","progress","pulledAt"],
+  "Playable.external": ["kind","url"],
+  "Playable.unsupported": ["kind","reason"],
+  "Playable.url": ["kind","url"],
+  "PreviewTrack": ["cues","sourceDurationMs"],
+  "Ratings": ["audience","awards","imdb","imdbVotes","letterboxd","metacritic","rated","rottenTomatoes","trakt"],
+  "SearchResults": ["movies","series"],
+  "Segments": ["intro","outro","postCredits","recap"],
+  "Settings": ["accentColor","audioLanguage","autoPickSource","autoSkip","autoSkipRecaps","autoplayCountdown","autoplayNext","cardRatingPosition","cardSize","clickAction","controlsHideSecs","episodeLayout","excludeKeywords","heroAutoplay","hideCam","hideEpisodeDescriptions","hideEpisodeThumbs","language","maxEpisodeSizeGb","maxMovieSizeGb","maxResolution","mdblistKey","metadataSource","nextUpTiming","omdbKey","playbackSpeed","preferScreenResolution","ratingColors","reduceMotion","rememberSpeed","resumePlayback","resumeRewind","seekPreviews","seekStep","seekrKey","showCalendar","showCardDetails","showCardRatings","showCardTitles","showContinueWatching","sourceAutoTags","sourceFiltersHide","sourceSort","startFullscreen","startPage","stillWatchingAfter","subtitleLanguage","subtitleMode","subtitleStyle","theme","timeDisplay","tmdbKey","trailerAutoplay","trailerSound","uiFont","watchedThreshold","wheelAction"],
+  "Span": ["end","start"],
+  "StreamsResult": ["failed","hidden","streams"],
+  "SubtitleOption": ["addon","id","lang","url"],
+  "SubtitleStyle": ["background","color","font","opacity","outline","outlineColor","raise","size"]
+}

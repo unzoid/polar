@@ -21,8 +21,13 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow: hidden;
+  -webkit-user-select: none; /* WebKit (iOS, macOS) still needs the prefix */
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+/* A long press on a poster or a button opens the app's own menu, not iOS's image preview. */
+:root[data-touch="true"] :is(button, a, img) {
+  -webkit-touch-callout: none;
 }
 /* Windows draws web fonts unhinted with grayscale anti-aliasing, so light text
    on a dark background comes out thin and soft. A little more weight evens it
@@ -93,7 +98,7 @@ button:disabled {
   cursor: default;
 }
 /* Anything you can click shows the hand, like the web. */
-:is(a[href], summary, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="tab"], [role="switch"], [role="slider"], select, input:is([type="checkbox"], [type="radio"], [type="range"], [type="color"]), label:has(> input:is([type="checkbox"], [type="radio"]))):not(:disabled, [aria-disabled="true"]) {
+:is(a[href], summary, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="tab"], [role="radio"], [role="switch"], [role="slider"], select, input:is([type="checkbox"], [type="radio"], [type="range"], [type="color"]), label:has(> input:is([type="checkbox"], [type="radio"]))):not(:disabled, [aria-disabled="true"]) {
   cursor: pointer;
 }
 
@@ -151,26 +156,26 @@ input {
   font-weight: 650;
 }
 .t-headline {
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   line-height: 1.3;
   letter-spacing: -0.006em;
   font-weight: 600;
 }
 .t-body {
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
   line-height: 1.55;
 }
 .t-callout {
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   line-height: 1.45;
 }
 .t-caption {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.35;
   letter-spacing: 0.006em;
 }
 .t-micro {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   line-height: 1.3;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -194,75 +199,6 @@ input {
   transform: scale(0.97);
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  height: 46px;
-  padding: 0 1.5rem;
-  border-radius: var(--r-pill);
-  font-weight: 600;
-  font-size: 1rem;
-  letter-spacing: -0.008em;
-  white-space: nowrap;
-  flex: none;
-  transition:
-    transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-fast) ease;
-}
-.btn:active {
-  transform: scale(0.97);
-}
-.btn:disabled {
-  opacity: 0.5;
-}
-.btn svg {
-  flex: none;
-}
-/* Primary: the light pill ("▶ Resume S2, E3"). One per screen. */
-.btn-primary {
-  background: var(--pill-light);
-  color: var(--text-on-light);
-  padding-left: 1.25rem;
-}
-/* Secondary: glass. Round when it holds a single icon. */
-.btn-glass {
-  background: var(--glass-control);
-  backdrop-filter: var(--blur-control);
-  box-shadow: var(--glass-highlight);
-}
-/* Icon-only buttons: just the glyph at rest — no fill, no blur, no edge. A faint
-   circle appears on hover/press. The glyph gets a soft shadow so it stays
-   legible over artwork. (Doubled selector beats .btn-glass regardless of order.) */
-.btn.btn-icon {
-  width: 46px;
-  padding: 0;
-  background: transparent;
-  backdrop-filter: none;
-  box-shadow: none;
-  transition:
-    transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-fast) ease;
-}
-.btn.btn-icon svg {
-  filter: drop-shadow(0 1px 5px rgb(0 0 0 / 0.45));
-}
-.btn.btn-icon:active {
-  background: rgb(255 255 255 / 0.16);
-}
-@media (hover: hover) and (pointer: fine) {
-  .btn-primary:hover {
-    background: #ffffff;
-  }
-  .btn-glass:hover {
-    background: var(--glass-control-hover);
-  }
-  .btn.btn-icon:hover {
-    background: rgb(255 255 255 / 0.14);
-  }
-}
-
 /* --- State icons (Plus ↔ Check): the new glyph grows in through a slight
        blur, so the toggle registers as one change rather than a cut. Only on
        change, never on mount (see SwapIcon.tsx). */
@@ -281,7 +217,8 @@ input {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .icon-swap[data-animate="true"] {
+  .icon-swap[data-animate="true"],
+  .episode-watched[data-animate="true"] {
     animation-name: fade-in;
   }
 }
@@ -289,7 +226,7 @@ input {
 /* --- Images fade in once decoded instead of popping. */
 .img-fade {
   opacity: 0;
-  transition: opacity var(--dur-base) ease;
+  transition: opacity var(--dur-base) var(--ease-std);
 }
 .img-fade[data-loaded="true"] {
   opacity: 1;
@@ -298,27 +235,12 @@ input {
    silhouette, keeping the soft shadow the logos carry. Element + attribute
    outranks each logo class's own filter. */
 img[data-logo-tone="dark"] {
-  filter: brightness(0) invert(1) drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
-}
-
-/* --- Skeletons: a slow shimmer is the one constant motion we allow. */
-.skeleton {
-  background: linear-gradient(100deg, var(--surface-1) 40%, var(--surface-2) 50%, var(--surface-1) 60%) 0 0 / 300% 100%;
-  animation: shimmer 1.6s linear infinite;
-}
-@keyframes shimmer {
-  to {
-    background-position: -150% 0;
-  }
+  filter: brightness(0) invert(1) drop-shadow(0 2px 18px var(--scrim-1));
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pressable:active,
-  .btn:active {
+  .pressable:active {
     transform: none;
-  }
-  .skeleton {
-    animation: none;
   }
 }
 @keyframes fade-in {
@@ -346,7 +268,7 @@ img[data-logo-tone="dark"] {
   left: -10%;
   width: 24%;
   height: 8%;
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   background: currentColor;
   animation: spinner-fade 1.2s linear infinite;
 }
@@ -382,18 +304,18 @@ img[data-logo-tone="dark"] {
   flex: none;
   min-height: 2rem;
   padding: 0 0.5rem 0 0.625rem;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--hairline-strong);
   background: rgb(255 255 255 / 0.035);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 1px 0 var(--fill-2),
     0 1px 2px rgb(0 0 0 / 0.05);
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) var(--ease-std);
 }
 /* The season picker: drawn as the selected season tab (light pill, dark text)
    with a chevron, so many-season shows look like the few-season ones. */
@@ -454,7 +376,7 @@ img[data-logo-tone="dark"] {
 }
 /* Rendered in a portal; lift it above the full-window player and its overlays. */
 .select-positioner {
-  z-index: 1000;
+  z-index: var(--z-dropdown);
   user-select: none;
 }
 /* T3 Code's popover: solid, a hairline border with a 1px top highlight, a soft
@@ -462,11 +384,11 @@ img[data-logo-tone="dark"] {
 .select-popup {
   min-width: var(--anchor-width);
   border-radius: 10px;
-  border: 1px solid rgb(255 255 255 / 0.1);
+  border: 1px solid var(--fill-3);
   background: #121212;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.05),
-    0 12px 32px -12px rgb(0 0 0 / 0.7);
+    0 12px 32px -12px var(--scrim-3);
   font-family: var(--font);
   color: var(--text);
   outline: none;
@@ -488,8 +410,8 @@ img[data-logo-tone="dark"] {
   gap: 0.5rem;
   min-height: 1.75rem;
   padding: 0.125rem 0.5rem;
-  border-radius: 6px;
-  font-size: 0.875rem;
+  border-radius: var(--r-xs);
+  font-size: var(--fs-md);
   cursor: pointer;
   outline: none;
 }
@@ -501,12 +423,12 @@ img[data-logo-tone="dark"] {
   min-width: max(var(--anchor-width), 14rem);
   border: none;
   border-radius: 1.25rem;
-  background: rgb(38 38 38 / 0.82);
-  -webkit-backdrop-filter: blur(40px) saturate(160%);
-  backdrop-filter: blur(40px) saturate(160%);
+  background: var(--surface-popover);
+  -webkit-backdrop-filter: var(--blur-popover);
+  backdrop-filter: var(--blur-popover);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.08),
-    0 1.5rem 3.5rem -1rem rgb(0 0 0 / 0.7);
+    0 1.5rem 3.5rem -1rem var(--scrim-3);
   transform-origin: var(--transform-origin);
   transition:
     opacity 200ms var(--ease-out),
@@ -530,12 +452,12 @@ img[data-logo-tone="dark"] {
   padding: 0 1rem;
   /* Concentric with the panel: its radius minus the list's padding. */
   border-radius: calc(1.25rem - 0.5rem);
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
   font-weight: 600;
   color: var(--text-2);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
     box-shadow 200ms var(--ease-out);
 }
 .select-popup[data-size="large"] .select-item[data-selected] {
@@ -547,7 +469,7 @@ img[data-logo-tone="dark"] {
   color: var(--text-on-light);
   /* No lift here (unlike TV): a scaled row would break the concentric
      corners and crowd the panel's edge at the top and bottom of the list. */
-  box-shadow: 0 0.5rem 1.25rem -0.5rem rgb(0 0 0 / 0.5);
+  box-shadow: 0 0.5rem 1.25rem -0.5rem var(--scrim-2);
 }
 @media (prefers-reduced-motion: reduce) {
   .select-popup[data-size="large"] {
@@ -568,58 +490,4 @@ img[data-logo-tone="dark"] {
   display: grid;
   flex: none;
   opacity: 0.85;
-}
-
-/* The page's small pills (the cast's Show button, AnimeDetail): a genre to
-   browse by, Anime's nav strip, the search suggestions. */
-.genre-chip {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  height: 32px;
-  padding: 0 0.875rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: rgb(255 255 255 / 0.04);
-  color: var(--text-2);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: background-color 150ms ease, color 150ms ease;
-}
-.genre-chip[aria-pressed="true"] {
-  background: var(--text);
-  color: var(--text-on-light);
-}
-@media (hover: hover) and (pointer: fine) {
-  .genre-chip:not([aria-pressed="true"]):hover {
-    background: rgb(255 255 255 / 0.1);
-    color: var(--text);
-  }
-}
-/* A search field in the same pill (AnimeDetail's episode search). */
-.pill-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: 32px;
-  padding: 0 0.875rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  background: rgb(255 255 255 / 0.04);
-  color: var(--text-3);
-  cursor: text;
-}
-.pill-search:focus-within {
-  border-color: var(--hairline-strong);
-}
-.pill-search input {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: 0;
-  outline: none;
-  color: var(--text);
-  font-size: 0.8125rem;
 }

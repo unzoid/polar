@@ -1,4 +1,4 @@
-//! Turn free-text stream rows ("addon\n4k HDR", "💾 12.4 GB 👤 213") into
+//! Turn free-text stream rows ("Addon\n4k HDR", "Movie.2160p.WEB-DL 💾 12.4 GB") into
 //! structured quality and a score, so the UI can show *one* good default and a
 //! tidy grouped list instead of a wall of emoji.
 
@@ -18,20 +18,17 @@ pub struct StreamQuality {
     pub dolby_vision: bool,
     pub codec: Option<&'static str>,
     pub size_bytes: Option<u64>,
-    pub sources: Option<u32>,
-    /// service-cached (instant start) — usually marked `[RD+]`, `[AD+]`, `⚡`.
-    pub cached: bool,
     /// CAM / telesync rips.
     pub low_quality_source: bool,
-    /// Plays over plain HTTP (no p2p engine needed).
+    /// A link the player can open as is.
     pub direct: bool,
     /// Audio languages the row mentions (ISO 639-1, plus "multi"), from flags
     /// and words like "ITA" or "LATINO". Empty when it says nothing.
     pub languages: Vec<&'static str>,
     /// Release details worth filtering on: "Remux", "Atmos", "HDR10+", "10-bit"…
     pub tags: Vec<&'static str>,
-    /// Who made or carried the file: the release group ("SubsPlease", "FLUX",
-    /// "site"), else the site the add-on found it on ("site").
+    /// Who made the file: the group named in the release ("[Group] Show - 01",
+    /// "Movie.2024.1080p.WEB-DL-GROUP").
     pub source: Option<String>,
 }
 
@@ -49,11 +46,8 @@ pub struct RankedStream {
 static RES: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(2160p|4k|uhd|1440p|1080p|720p|576p|480p)\b").unwrap());
 static SIZE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)(\d+(?:[.,]\d+)?)\s?(TB|GB|MB)\b").unwrap());
-static sources: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"👤\s?(\d+)").unwrap());
 static HDR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bHDR(10\+?)?\b").unwrap());
 static DV: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(DV|DoVi|Dolby\s?Vision)\b").unwrap());
-static CACHED: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)(\[(RD|AD|PM|TB|DL|ED|OC)\+\]|⚡|instant)").unwrap());
 static CAM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(CAM|CAMRIP|HDCAM|TS|TELESYNC|HDTS|TC)\b").unwrap());
 
 pub fn parse_quality(stream: &Stream) -> StreamQuality {
@@ -100,8 +94,6 @@ pub fn parse_quality(stream: &Stream) -> StreamQuality {
         dolby_vision: DV.is_match(&text),
         codec,
         size_bytes,
-        sources: sources.captures(&text).and_then(|c| c[1].parse().ok()),
-        cached: CACHED.is_match(&text),
         low_quality_source: CAM.is_match(&text),
         direct: stream.url.is_some(),
         languages: languages(&text),
@@ -110,17 +102,12 @@ pub fn parse_quality(stream: &Stream) -> StreamQuality {
     }
 }
 
-/// "[SubsPlease] Show - 01 (1080p).mkv": anime groups lead in brackets.
+/// "[Group] Show - 01 (1080p).mkv": anime groups lead in brackets.
 static GROUP_LEAD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[([^\]\[]{2,24})\]").unwrap());
-/// "Movie.2024.1080p.WEB-DL.H.264-FLUX[rartv].mkv": scene groups trail a dash.
+/// "Movie.2024.1080p.WEB-DL.H.264-GROUP[tag].mkv": other groups trail a dash.
 static GROUP_TAIL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"-([A-Za-z0-9][A-Za-z0-9_]{1,19})(?:\s*\[[^\]]*\])*(?:\.(?:mkv|mp4|avi|ts|m2ts|webm))?\s*$").unwrap()
 });
-/// site writes its name as a tag instead: "Movie (2024) [1080p] [site.MX]".
-static site: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\[site(?:\.\w+)?\]|\bYIFY\b").unwrap());
-/// addon and friends: "👤 213 💾 12.4 GB ⚙️ site".
-/// Run on what follows the ⚙ (its emoji variation selector first).
-static SITE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\x{FE0F}?\s*([^\n👤💾⚙🌐]+)").unwrap());
 /// Dash-words that end release names without being a group.
 const NOT_GROUPS: &[&str] =
     &["DL", "RIP", "WEB", "HD", "SDR", "HDR", "X264", "X265", "H264", "H265", "AAC", "DDP", "AC3", "DTS"];
@@ -132,30 +119,15 @@ fn release_source(stream: &Stream) -> Option<String> {
         .flatten()
         .find_map(|t| t.lines().next().map(str::trim).filter(|l| !l.is_empty()))
         .unwrap_or_default();
-    let group = GROUP_LEAD
+    GROUP_LEAD
         .captures(release)
         .map(|c| c[1].trim().to_string())
         .filter(|g| !g.chars().all(|c| c.is_ascii_digit() || c == 'p'))
-        .or_else(|| site.is_match(release).then(|| "site".to_string()))
         .or_else(|| {
             GROUP_TAIL.captures(release).map(|c| c[1].to_string()).filter(|g| {
                 !NOT_GROUPS.contains(&g.to_ascii_uppercase().as_str()) && !g.chars().all(|c| c.is_ascii_digit())
             })
-        });
-    group.or_else(|| {
-        let text = [&stream.title, &stream.description]
-            .into_iter()
-            .flatten()
-            .map(String::as_str)
-            .collect::<Vec<_>>()
-            .join("\n");
-        text.contains('⚙')
-            .then(|| text.split('⚙').nth(1))
-            .flatten()
-            .and_then(|rest| SITE.captures(rest))
-            .map(|c| c[1].trim().to_string())
-            .filter(|s| !s.is_empty())
-    })
+        })
 }
 
 /// Release tags, in the order they're shown.
@@ -327,14 +299,8 @@ pub fn score(q: &StreamQuality) -> f32 {
         Some(_) => 10.0,
         None => 15.0,
     };
-    if q.cached {
-        s += 30.0; // instant start beats everything except watchability
-    }
     if q.direct {
         s += 10.0;
-    }
-    if let Some(sources) = q.sources {
-        s += (sources as f32 + 1.0).log10() * 6.0;
     }
     if q.hdr || q.dolby_vision {
         s += 2.0;
@@ -435,8 +401,9 @@ impl StreamFilter {
     }
 }
 
-/// Rank streams from many addons, best first. Duplicates (same info hash +
-/// file, or same URL) collapse to the highest scoring copy.
+/// Rank streams from many addons, best first. Duplicates (same URL, or the same
+/// add-on, name and title) collapse to the highest scoring copy. Streams with nothing playable (no URL and no
+/// YouTube id) are dropped.
 pub fn rank_streams(streams: impl IntoIterator<Item = (String, Stream)>) -> Vec<RankedStream> {
     rank_streams_filtered(streams, &StreamFilter::default()).0
 }
@@ -449,7 +416,7 @@ pub fn rank_streams_filtered(
 ) -> (Vec<RankedStream>, usize) {
     let mut ranked: Vec<RankedStream> = streams
         .into_iter()
-        .filter(|(_, s)| s.url.is_some() || s.content_id.is_some() || s.yt_id.is_some())
+        .filter(|(_, s)| s.url.is_some() || s.yt_id.is_some())
         .map(|(addon, stream)| {
             let quality = parse_quality(&stream);
             RankedStream { score: score(&quality), label: label(&quality), quality, addon, stream }
@@ -459,12 +426,15 @@ pub fn rank_streams_filtered(
 
     let mut seen = std::collections::HashSet::new();
     ranked.retain(|r| {
-        let key = match (&r.stream.content_id, &r.stream.url) {
-            (Some(h), _) => format!("{}:{}", h.to_ascii_lowercase(), r.stream.file_idx.unwrap_or(0)),
-            (None, Some(u)) => u.clone(),
-            _ => return true,
-        };
-        seen.insert(key)
+        let Some(url) = &r.stream.url else { return true };
+        seen.insert(url.clone())
+    });
+    // The same file from the same add-on under another link (asked by two ids for one episode):
+    // its row would read the same twice. Only rows that say what the file is (a title) count.
+    let mut rows = std::collections::HashSet::new();
+    ranked.retain(|r| {
+        let Some(title) = r.stream.title.as_deref().or(r.stream.description.as_deref()) else { return true };
+        rows.insert((r.addon.clone(), r.stream.name.clone(), title.to_owned()))
     });
     // Filter after de-duplicating, so the hidden count is of distinct sources.
     let before = ranked.len();
@@ -481,40 +451,47 @@ mod tests {
         Stream {
             name: Some(name.into()),
             title: Some(title.into()),
-            content_id: Some("abc".into()),
+            url: Some(format!("https://example.com/{title}")),
             ..Default::default()
         }
     }
 
     #[test]
-    fn finds_who_made_the_file() {
-        let src = |title: &str| parse_quality(&stream("addon\n1080p", title)).source;
-        assert_eq!(
-            src("[SubsPlease] Kurogane Rite - 47 (1080p) [A1B2C3D4].mkv\n👤 300 💾 1.4 GB ⚙️ site").as_deref(),
-            Some("SubsPlease")
-        );
-        assert_eq!(
-            src("Movie.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX\n👤 40 💾 6 GB ⚙️ site").as_deref(),
-            Some("FLUX")
-        );
-        assert_eq!(src("Movie.2024.2160p.BluRay.x265-SPARKS[rartv]\n👤 9 ⚙️ site").as_deref(), Some("SPARKS"));
-        assert_eq!(src("Movie (2024) [1080p] [WEBRip] [5.1] [site.MX]\n👤 900 💾 2 GB ⚙️ site").as_deref(), Some("site"));
-        // No group in the name: the site it came from.
-        assert_eq!(src("Show S01E01 1080p WEB-DL\n👤 12 💾 1 GB ⚙️ site").as_deref(), Some("site"));
-        // "-DL" ends WEB-DL, it isn't a group; nothing else to go on.
-        assert_eq!(src("Show.S01E01.1080p.WEB-DL"), None);
+    fn the_same_file_under_two_links_is_listed_once() {
+        // An add-on asked by two ids for one episode answers twice, each with its own link.
+        let a = stream("Addon\n1080p", "Show.S01E01.1080p.WEB\n💾 1.0 GB");
+        let mut b = a.clone();
+        b.url = Some("https://example.com/other-link".into());
+        let mut other_file = a.clone();
+        other_file.url = Some("https://example.com/third".into());
+        other_file.title = Some("Show.S01E01.1080p.WEB\n💾 1.1 GB".into());
+        let mut from_b = a.clone();
+        from_b.url = Some("https://example.org/b".into());
+        let ranked =
+            rank_streams([("a".into(), a.clone()), ("a".into(), b), ("a".into(), other_file), ("b".into(), from_b)]);
+        // One per add-on and file: the second add-on's copy and the other size stay.
+        let urls: Vec<_> = ranked.iter().filter_map(|r| r.stream.url.as_deref()).collect();
+        assert_eq!(urls.len(), 3, "{urls:?}");
+        assert!(urls.contains(&"https://example.org/b") && urls.contains(&"https://example.com/third"));
     }
 
     #[test]
-    fn parses_addon_style_rows() {
-        let q = parse_quality(&stream(
-            "[RD+] addon\n4k HDR",
-            "Show.S01E01.2160p.WEB-DL.DV.HDR.H265\n👤 213 💾 12.4 GB ⚙️ site",
-        ));
+    fn finds_who_made_the_file() {
+        let src = |title: &str| parse_quality(&stream("Addon\n1080p", title)).source;
+        assert_eq!(src("[Studio] Show - 47 (1080p) [A1B2C3D4].mkv\n💾 1.4 GB").as_deref(), Some("Studio"));
+        assert_eq!(src("Movie.2024.1080p.WEB-DL.DDP5.1.H.264-ACME\n💾 6 GB").as_deref(), Some("ACME"));
+        assert_eq!(src("Movie.2024.2160p.BluRay.x265-ACME[tag]").as_deref(), Some("ACME"));
+        // "-DL" ends WEB-DL, it isn't a group; nothing else to go on.
+        assert_eq!(src("Show.S01E01.1080p.WEB-DL"), None);
+        assert_eq!(src("Show S01E01 1080p WEB-DL\n💾 1 GB"), None);
+    }
+
+    #[test]
+    fn parses_emoji_style_rows() {
+        let q = parse_quality(&stream("Addon\n4k HDR", "Show.S01E01.2160p.WEB-DL.DV.HDR.H265\n💾 12.4 GB"));
         assert_eq!(q.resolution, Some(2160));
-        assert!(q.hdr && q.dolby_vision && q.cached);
+        assert!(q.hdr && q.dolby_vision && q.direct);
         assert_eq!(q.codec, Some("HEVC"));
-        assert_eq!(q.sources, Some(213));
         assert_eq!(q.size_bytes, Some(12_400_000_000));
         assert_eq!(label(&q), "4K · Dolby Vision · HEVC · 12.4 GB");
     }
@@ -522,49 +499,46 @@ mod tests {
     #[test]
     fn finds_languages_and_tags() {
         let q = parse_quality(&stream(
-            "addon 4k",
-            "Movie.2024.2160p.BluRay.REMUX.HDR10+.TrueHD.Atmos.7.1.MULTi\n👤 40 💾 60 GB 🇮🇹 / 🇬🇧",
+            "Addon 4k",
+            "Movie.2024.2160p.BluRay.REMUX.HDR10+.TrueHD.Atmos.7.1.MULTi\n💾 60 GB 🇮🇹 / 🇬🇧",
         ));
         assert_eq!(q.languages, vec!["it", "en", "multi"]);
         assert!(q.tags.contains(&"Remux") && q.tags.contains(&"Atmos") && q.tags.contains(&"HDR10+"));
         assert!(q.tags.contains(&"7.1") && q.tags.contains(&"BluRay"));
 
         // A language in the title isn't the audio's.
-        let q = parse_quality(&stream("addon 1080p", "The.Italian.Job.2003.1080p.WEB-DL.x264"));
+        let q = parse_quality(&stream("Addon 1080p", "The.Italian.Job.2003.1080p.WEB-DL.x264"));
         assert!(q.languages.is_empty());
         assert_eq!(q.tags, vec!["WEB-DL"]);
-        let q = parse_quality(&stream("addon 1080p", "Film.2019.ITALIAN.1080p.WEBRip"));
+        let q = parse_quality(&stream("Addon 1080p", "Film.2019.ITALIAN.1080p.WEBRip"));
         assert_eq!(q.languages, vec!["it"]);
     }
 
     #[test]
     fn multi_subs_isnt_multi_audio() {
-        let langs = |title: &str| parse_quality(&stream("addon\n1080p", title)).languages;
+        let langs = |title: &str| parse_quality(&stream("Addon\n1080p", title)).languages;
         // Japanese audio with many subtitle tracks: no audio language named
         // (the app counts unlabelled anime as Japanese).
         for title in [
-            "[Judas] Kurogane Rite S01 [1080p][HEVC x265 10bit][Multi-Subs]\n👤 120 💾 9 GB ⚙️ site",
-            "[ASW] Elsewind - 12 [1080p HEVC x265 10Bit][AAC] (Multi Subs)\n👤 80 💾 400 MB ⚙️ site",
-            "Paleblade.HNAW.S02E01.1080p.WEB.H264.MULTi.SUBS-GROUP\n👤 30 💾 1.4 GB ⚙️ site",
-            "[Erai-raws] Tontonmaru - 01 [1080p][Multiple Subtitle][ENG][POR-BR]\n👤 300 💾 1.4 GB",
+            "[Studio] Kurogane Rite S01 [1080p][HEVC x265 10bit][Multi-Subs]\n💾 9 GB",
+            "[Studio] Elsewind - 12 [1080p HEVC x265 10Bit][AAC] (Multi Subs)\n💾 400 MB",
+            "Paleblade.HNAW.S02E01.1080p.WEB.H264.MULTi.SUBS-GROUP\n💾 1.4 GB",
+            "[Studio] Tontonmaru - 01 [1080p][Multiple Subtitle][ENG][POR-BR]\n💾 1.4 GB",
         ] {
             assert!(!langs(title).contains(&"multi"), "{title}: {:?}", langs(title));
         }
         // Real multi-language audio still is.
-        assert_eq!(
-            langs("[Anime Time] Ember Hunter [Dual Audio][1080p][HEVC 10bit x265][AAC][Multi Sub]"),
-            vec!["multi"]
-        );
+        assert_eq!(langs("[Studio] Ember Hunter [Dual Audio][1080p][HEVC 10bit x265][AAC][Multi Sub]"), vec!["multi"]);
         assert_eq!(langs("Movie.2024.1080p.BluRay.MULTi.AUDIO.x264"), vec!["multi"]);
         assert_eq!(langs("Movie.2024.2160p.REMUX.MULTi\n🇮🇹 / 🇬🇧"), vec!["it", "en", "multi"]);
     }
 
     #[test]
     fn a_dub_without_a_language_is_english() {
-        let langs = |title: &str| parse_quality(&stream("addon\n1080p", title)).languages;
-        assert_eq!(langs("[SubsPlus+] Elsewind - 01 (NF WEB 1080p AVC AAC) [English Dub]"), vec!["en"]);
-        assert_eq!(langs("Paleblade Hundred-Night Ash War S01E01 1080p WEB H264 (Dub)\n👤 40 💾 1.2 GB"), vec!["en"]);
-        assert_eq!(langs("One.Piece.1089.1080p.WEB.x264-Dubbed\n👤 50 💾 1.4 GB ⚙️ site"), vec!["en"]);
+        let langs = |title: &str| parse_quality(&stream("Addon\n1080p", title)).languages;
+        assert_eq!(langs("[Studio] Elsewind - 01 (NF WEB 1080p AVC AAC) [English Dub]"), vec!["en"]);
+        assert_eq!(langs("Paleblade Hundred-Night Ash War S01E01 1080p WEB H264 (Dub)\n💾 1.2 GB"), vec!["en"]);
+        assert_eq!(langs("One.Piece.1089.1080p.WEB.x264-Dubbed\n💾 1.4 GB"), vec!["en"]);
         assert_eq!(langs("[Dual Audio] Kurogane Rite S01 Dubs 1080p"), vec!["multi", "en"]);
         // A dub that names its language is that language only.
         assert_eq!(langs("Kazeori Arashi-hen 001 [Hindi Dub] 720p"), vec!["hi"]);
@@ -573,17 +547,14 @@ mod tests {
         assert_eq!(langs("Kurogane Rite 01 1080p Dublado"), vec!["pt"]);
         assert!(langs("Dubai Bling S01E01 1080p WEB").is_empty());
         // Subbed releases still say nothing (and count as Japanese in the app).
-        assert!(langs("[SubsPlease] Kurogane Rite - 47 (1080p) [A1B2C3D4].mkv\n👤 300 💾 1.4 GB ⚙️ site").is_empty());
+        assert!(langs("[Studio] Kurogane Rite - 47 (1080p) [A1B2C3D4].mkv\n💾 1.4 GB").is_empty());
     }
 
     #[test]
     fn cams_sink_to_the_bottom() {
         let ranked = rank_streams([
-            ("a".into(), stream("addon 1080p", "Movie.2024.HDCAM.x264 👤 900")),
-            (
-                "a".into(),
-                Stream { content_id: Some("def".into()), ..stream("addon 720p", "Movie.2024.720p.WEB 👤 12") },
-            ),
+            ("a".into(), stream("Addon 1080p", "Movie.2024.HDCAM.x264")),
+            ("a".into(), stream("Addon 720p", "Movie.2024.720p.WEB")),
         ]);
         assert!(ranked[0].label.starts_with("720p"));
     }
@@ -592,16 +563,10 @@ mod tests {
     fn filters_hide_and_count() {
         let all = || {
             vec![
-                (
-                    "a".to_string(),
-                    Stream { content_id: Some("1".into()), ..stream("T 4k", "Movie.2160p.HC.x265 💾 30 GB") },
-                ),
-                (
-                    "a".to_string(),
-                    Stream { content_id: Some("2".into()), ..stream("T 1080p", "Movie.1080p.WEB 💾 4 GB") },
-                ),
-                ("a".to_string(), Stream { content_id: Some("3".into()), ..stream("T 720p", "Movie.HDCAM.720p") }),
-                ("a".to_string(), Stream { content_id: Some("4".into()), ..stream("Direct", "Movie") }),
+                ("a".to_string(), stream("T 4k", "Movie.2160p.HC.x265 💾 30 GB")),
+                ("a".to_string(), stream("T 1080p", "Movie.1080p.WEB 💾 4 GB")),
+                ("a".to_string(), stream("T 720p", "Movie.HDCAM.720p")),
+                ("a".to_string(), stream("Direct", "Movie")),
             ]
         };
         let (kept, hidden) =

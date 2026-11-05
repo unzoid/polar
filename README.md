@@ -52,7 +52,11 @@ Big cards, a clock, and everything reachable with a controller or the arrow keys
 
 Subtitles, audio, sources and episodes sit in the bottom bar.
 
+<!-- Player screenshot goes here: take it with an open film, as docs/screenshots.md says, then
+uncomment these two lines and fill in the credit for the film you used.
 ![Player](readme-images/player.png)
+<sub>Sintel © copyright Blender Foundation | durian.blender.org, CC BY 3.0</sub>
+-->
 
 ## Getting started
 
@@ -73,6 +77,36 @@ bun run index
 
 1. Open Settings and add a Stremio addon URL.
 2. Optionally add a TMDB API key. 
+
+Settings, keys and add-on URLs are kept in `polar.json` in the app's data folder. On Linux and macOS
+only your user account can read it, and Windows keeps app data per user, but it isn't encrypted:
+other programs running as you can read your keys. Polar doesn't use the system keychain, which
+behaves differently on every system. Signed in to an account, your settings sync but keys and add-on
+URLs stay on each device, unless you turn on Settings → Account → Sync API keys and addons, which
+sends them encrypted with a passphrase you type on each device.
+
+When something goes wrong, `polar.log` says what: `%LOCALAPPDATA%\app.getpolar.desktop\logs` on Windows,
+`~/Library/Logs/app.getpolar.desktop` on macOS, `~/.local/share/app.getpolar.desktop/logs` on Linux. It
+names hosts and reasons, never keys, links or what you watch, and stays under about 2 MB.
+
+## Contributing
+
+How the code is put together, and where each feature above lives: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The interface's components and conventions: [docs/ui-components.md](docs/ui-components.md). What could only be
+read, not run, before release, and how to check it: [docs/unverified.md](docs/unverified.md). Checks to run before
+a pull request: `bun run typecheck`, `bun run test`, and `cargo test --workspace`; CI runs these and the Playwright
+tests (`bun run e2e`) on every push, and a smoke test of the built app nightly. How to run and add each kind of test:
+[docs/testing.md](docs/testing.md).
+
+What the project won't accept, and the rules coding agents follow: [CONTRIBUTING.md](CONTRIBUTING.md),
+[AGENTS.md](AGENTS.md).
+
+Screenshots and recordings for the README use openly licensed films only: [docs/screenshots.md](docs/screenshots.md)
+explains how to play one in Polar and how to credit it.
+
+## Licence
+
+MIT, see [LICENSE](LICENSE). Bundled fonts, avatars and mpv keep their own licences: [docs/licensing.md](docs/licensing.md).
 
 ## Built with
 

@@ -1,13 +1,14 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
-import { usePrefs } from "../../lib/prefs";
+import { call } from "../../lib/platform";
+import { usePrefs } from "../../lib/settings";
+import { warnFailed } from "../../lib/errors";
 import type { MpvMedia } from "./mpvMedia";
 
 /**
  * This machine's sound and picture options (Settings → Subtitles & Audio,
  * → Advanced) applied to mpv: on load, when the audio track changes, and
  * whenever one of them is switched. Rust turns them into fixed mpv values
- * (player.rs `Tune`).
+ * (polar_player `Tune`).
  */
 export function useMpvTune(mpv: MpvMedia | null) {
   const { dialogueBoost, volumeLeveling, hwdec, deband, autocrop, buffer } = usePrefs();
@@ -18,9 +19,9 @@ export function useMpvTune(mpv: MpvMedia | null) {
       // Folding down only helps (and only makes sense) with a centre channel.
       const track = mpv.tracks.find((t) => t.type === "audio" && t.id === mpv.aid);
       const surround = (track?.["demux-channel-count"] ?? 0) > 2;
-      void invoke("mpv_tune", {
+      void call("mpv_tune", {
         tune: { dialogueBoost: dialogueBoost && surround, volumeLeveling, hwdec, deband, autocrop, buffer },
-      }).catch(() => {});
+      }).catch(warnFailed("mpv_tune"));
     };
     apply();
     mpv.addEventListener("loadedmetadata", apply);

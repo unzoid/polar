@@ -1,0 +1,254 @@
+/* Chips and badges (components/ui/Chip.tsx, docs/ui-components.md U15).
+   Moved here from base, detail, sheet, player and anime.css in that order;
+   chip.css is imported right after button.css. No rule in the files in
+   between matches these elements, so the cascade is unchanged. Screens keep
+   their layout and size tweaks (.search-suggest, .srcf-popover,
+   .sub-settings, .srcf-active, .tv). */
+
+/* The page's small pills (the cast's Show button, AnimeDetail): a genre to
+   browse by, Anime's nav strip, the search suggestions. */
+.genre-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 32px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--fill-1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 150ms var(--ease-std), color 150ms var(--ease-std);
+}
+.genre-chip[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--text-on-light);
+}
+@media (hover: hover) and (pointer: fine) {
+  .genre-chip:not([aria-pressed="true"]):hover {
+    background: var(--fill-3);
+    color: var(--text);
+  }
+}
+/* Links out: neutral glass pills; only the site's logo carries its colour, softened. */
+.details-link {
+  --site: rgb(255 255 255);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: 2rem;
+  padding: 0 0.625rem 0 0.6875rem;
+  border: 1px solid var(--fill-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--site) 5%, rgb(255 255 255 / 0.05));
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease-std),
+    transform var(--dur-press) var(--ease-out);
+}
+.details-link svg {
+  flex: none;
+  color: color-mix(in srgb, var(--site) 70%, white);
+}
+.details-link .details-link-out {
+  color: var(--text-3);
+}
+.details-link[data-site="imdb"] {
+  --site: var(--brand-imdb);
+}
+.details-link[data-site="rt"] {
+  --site: var(--brand-rt);
+}
+.details-link[data-site="letterboxd"] {
+  --site: var(--brand-letterboxd);
+}
+.details-link[data-site="trakt"] {
+  --site: #c53be0;
+}
+.details-link[data-site="tmdb"] {
+  --site: #01b4e4;
+}
+@media (hover: hover) and (pointer: fine) {
+  .details-link:hover {
+    background: color-mix(in srgb, var(--site) 9%, rgb(255 255 255 / 0.09));
+  }
+}
+.srcf-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 28px;
+  padding: 0 0.625rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px var(--fill-2);
+  transition:
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
+}
+/* On: the accent, shaded like a switch that's on. */
+.srcf-tag[aria-pressed="true"] {
+  background: linear-gradient(180deg, var(--accent-hi) 0%, var(--accent) 100%);
+  color: var(--accent-fg, #fff);
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 50%, var(--scrim-2)),
+    inset 0 1px 1px rgb(255 255 255 / 0.35),
+    inset 0 -1px 2px color-mix(in srgb, var(--accent) 30%, rgb(0 0 0 / 0.2));
+}
+@media (hover: hover) and (pointer: fine) {
+  .srcf-tag:not([aria-pressed="true"]):hover {
+    background: var(--fill-4);
+    color: var(--text);
+  }
+}
+/* --- Toggle chip (ToggleChip in Chip.tsx). On: the accent fill grows in under the
+       label (opacity + a slight scale, from a ::before so the gradient can
+       fade at all) and a check slides open in front of it (a 0fr → 1fr grid
+       column, so the label moves over smoothly). Off is quicker than on.
+       Press gives a little, as every button does. */
+.srcf-tag.toggle-chip {
+  position: relative;
+  isolation: isolate;
+  gap: 0;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    color 200ms var(--ease-out);
+}
+.srcf-tag.toggle-chip[aria-pressed="true"] {
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px var(--fill-2);
+}
+.srcf-tag.toggle-chip:active {
+  transform: scale(0.96);
+}
+.toggle-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--accent-hi) 0%, var(--accent) 100%);
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 50%, var(--scrim-2)),
+    inset 0 1px 1px rgb(255 255 255 / 0.35),
+    inset 0 -1px 2px color-mix(in srgb, var(--accent) 30%, rgb(0 0 0 / 0.2));
+  opacity: 0;
+  transform: scale(0.9);
+  transition:
+    opacity 150ms var(--ease-out),
+    transform 150ms var(--ease-out);
+}
+.toggle-chip[aria-pressed="true"]::before {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--dur-base);
+}
+.toggle-chip-check {
+  display: grid;
+  grid-template-columns: 0fr;
+  transition: grid-template-columns 150ms var(--ease-out);
+}
+.toggle-chip[aria-pressed="true"] .toggle-chip-check {
+  grid-template-columns: 1fr;
+  transition-duration: var(--dur-base);
+}
+/* On TV the remote toggles it: the check is there at once, and a row of chips
+   doesn't reflow over 150 ms (it animates a grid track, which is layout). */
+.tv .toggle-chip-check {
+  transition: none;
+}
+.toggle-chip-check > span {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+.toggle-chip-check svg {
+  flex: none;
+  margin-right: 0.375rem;
+  opacity: 0;
+  transform: scale(0.5);
+  filter: blur(2px);
+  transition:
+    opacity 120ms var(--ease-out),
+    transform 150ms var(--ease-out),
+    filter 150ms var(--ease-out);
+}
+.toggle-chip[aria-pressed="true"] .toggle-chip-check svg {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition-duration: var(--dur-base);
+  transition-delay: 40ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toggle-chip::before,
+  .toggle-chip-check svg {
+    transform: none !important;
+    filter: none !important;
+  }
+  .toggle-chip-check,
+  .toggle-chip[aria-pressed="true"] .toggle-chip-check {
+    transition: none;
+  }
+}
+.source-chip {
+  height: 30px;
+  padding: 0 0.75rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: rgb(255 255 255 / 0.08);
+  transition:
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
+    transform var(--dur-press) var(--ease-out);
+}
+.source-chip[aria-pressed="true"] {
+  background: var(--pill-light);
+  color: var(--text-on-light);
+}
+@media (hover: hover) and (pointer: fine) {
+  .source-chip:not([aria-pressed="true"]):hover {
+    background: var(--fill-4);
+    color: var(--text);
+  }
+}
+.anime-ranking {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--fill-1);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.anime-ranking strong {
+  color: var(--text);
+}
+.anime-tag {
+  padding: 0.3rem 0.625rem;
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+  font-size: var(--fs-sm);
+  font-weight: 550;
+}
+.anime-tag span {
+  margin-left: 0.25rem;
+  color: var(--text-3);
+}
+.anime-tag[data-spoiler="true"] {
+  background: rgb(239 68 68 / 0.12);
+  color: #fca5a5;
+}

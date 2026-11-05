@@ -3,10 +3,17 @@
 //!
 //! * [`types`] — canonical shapes the app works with.
 //! * [`client`] — fetches remote addons and normalises their (loose) JSON.
+//! * [`numbering`] — TMDB episodes renumbered onto IMDb's, by air date.
+//! * [`probe`] — checks a stream link before the player opens it, step by step.
 //! * [`rank`] — parses stream titles into structured quality info and scores them,
 //!   so the player can pick the best source without the user reading 40 rows.
 
 pub mod client;
+#[cfg(test)]
+mod contract;
+pub mod numbering;
+pub mod offered;
+pub mod probe;
 pub mod rank;
 pub mod subs;
 pub mod types;

@@ -1,6 +1,6 @@
 -- Per-profile preferences (player, subtitles, interface, shortcuts, addons)
 -- as one small JSON document, last write wins like everything else.
--- Device-only things (bridge, volume, TV sounds) stay local.
+-- Device-only things (volume, TV sounds) stay local.
 create table public.profile_settings (
   profile_id uuid primary key references public.profiles(id) on delete cascade,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,

@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
+use crate::locks::Locked;
+
 const API: &str = "https://api.introdb.app/segments";
 /// Community data changes slowly; an hour keeps replays and rewatches free.
 const TTL: Duration = Duration::from_secs(60 * 60);
@@ -71,7 +73,7 @@ impl Default for IntroDb {
 impl IntroDb {
     /// `video_id` is a movie `tt…` or an episode `tt…:season:episode`.
     pub async fn segments(&self, video_id: &str) -> Result<Segments, String> {
-        if let Some((at, hit)) = self.cache.lock().unwrap().get(video_id) {
+        if let Some((at, hit)) = self.cache.locked().get(video_id) {
             if at.elapsed() < TTL {
                 return Ok(hit.clone());
             }
@@ -104,7 +106,7 @@ impl IntroDb {
             // Rate limited or down: report, but don't cache, so it's retried next time.
             return Err(format!("IntroDB returned {}", res.status()));
         };
-        self.cache.lock().unwrap().insert(video_id.to_owned(), (Instant::now(), segments.clone()));
+        self.cache.locked().insert(video_id.to_owned(), (Instant::now(), segments.clone()));
         Ok(segments)
     }
 }

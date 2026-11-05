@@ -1,0 +1,4 @@
+/* EmptyState (components/ui/EmptyState.tsx): on the content's left edge, well clear of what's above. */
+.empty-state {
+  padding: 3rem var(--gutter) 3rem var(--content-start);
+}

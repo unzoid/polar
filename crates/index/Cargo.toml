@@ -23,7 +23,7 @@ urlencoding.workspace = true
 
 axum = { version = "0.8", optional = true }
 tower-http = { version = "0.6", features = ["cors"], optional = true }
-tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"], optional = true }
 
 [[bin]]
 name = "polar-index"

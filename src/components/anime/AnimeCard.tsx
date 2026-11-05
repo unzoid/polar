@@ -1,14 +1,26 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
-import { fetchAnime, type AnimeCard as Card } from "../../lib/anime/anilist";
-import { cardFacts, countdown, FORMAT_LABEL, isMature, untilAiring, useAnimeScore, useAnimeTitle } from "../../lib/anime/format";
-import { usePrefs } from "../../lib/prefs";
+import {
+  type AnimeCard as Media,
+  aniZipQuery,
+  cardFacts,
+  countdown,
+  fetchAnime,
+  FORMAT_LABEL,
+  isMature,
+  landscapeArt,
+  untilAiring,
+  useAnimeScore,
+  useAnimeTitle,
+  useListedImdb,
+} from "../../lib/anime";
+import { usePrefs } from "../../lib/settings";
 import { useRouter } from "../../lib/router";
-import { aniZipQuery } from "../../lib/anime/anizip";
 import { menuPoint, openCardMenu } from "../CardMenu";
 import { api } from "../../lib/api";
-import { Img } from "../Img";
+import { useCardIntent } from "../../lib/ui";
+import { ArtTitle, Card } from "../title/Card";
 import { Star, Warning } from "../icons";
+import { keys } from "../../lib/net";
 
 /**
  * Settings → Browsing → Mature content, "blur": the art behind dark frosted
@@ -24,11 +36,14 @@ function MatureCover() {
   );
 }
 
+/** How long the pointer or focus rests on a card before its page is fetched. */
+const INTENT_DELAY = 150;
+
 /** Click and right-click for an anime: its page, and the shared title menu. */
 export function useAnimeHandlers() {
   const { navigate } = useRouter();
   const qc = useQueryClient();
-  return (item: Card) => ({
+  return (item: Media) => ({
     onClick: () => navigate({ name: "anime-detail", id: item.id, preview: item }),
     // The menu works on the IMDb title ani.zip links the show to (that's what
     // the library, playlists and watch history key on).
@@ -50,19 +65,13 @@ export function useAnimeHandlers() {
 }
 
 /** Opens an anime's page, warming its data once the pointer rests on the card. */
-export function useOpenAnime(item: Card) {
+export function useOpenAnime(item: Media) {
   const qc = useQueryClient();
-  const timer = useRef<number>(undefined);
-  return {
-    ...useAnimeHandlers()(item),
-    onPointerEnter: () => {
-      timer.current = window.setTimeout(
-        () => qc.prefetchQuery({ queryKey: ["anime", "media", item.id], queryFn: () => fetchAnime(item.id), staleTime: 30 * 60_000 }),
-        150,
-      );
-    },
-    onPointerLeave: () => window.clearTimeout(timer.current),
-  };
+  const intent = useCardIntent(
+    () => void qc.prefetchQuery({ queryKey: keys.anime.media(item.id), queryFn: () => fetchAnime(item.id), staleTime: 30 * 60_000 }),
+    INTENT_DELAY,
+  );
+  return { ...useAnimeHandlers()(item), ...intent };
 }
 
 /**
@@ -71,7 +80,7 @@ export function useOpenAnime(item: Card) {
  * episode lands. `label` replaces the caption's facts (a relation type,
  * "Episode 5 · 18:30").
  */
-export function AnimeCard({ item, label }: { item: Card; label?: string }) {
+export function AnimeCard({ item, label }: { item: Media; label?: string }) {
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
   const prefs = usePrefs();
@@ -84,58 +93,57 @@ export function AnimeCard({ item, label }: { item: Card; label?: string }) {
   const readOn = item.idMal ? `https://myanimelist.net/manga/${item.idMal}` : `https://anilist.co/manga/${item.id}`;
 
   return (
-    <button
-      className="card card-poster anime-card"
-      {...(isAnime ? open : { onClick: () => void api.openExternal(readOn), title: "Open on MyAnimeList" })}
+    <Card
+      shape="poster"
+      className="anime-card"
+      frameClass="anime-card-frame"
+      art={item.coverImage.extraLarge ?? item.coverImage.large ?? undefined}
+      title={title}
+      // On air: when the next episode lands, in place of the usual facts.
+      detail={
+        label ??
+        (next
+          ? [item.format && FORMAT_LABEL[item.format], `Ep ${next.episode} in ${countdown(untilAiring(next.airingAt))}`].filter(Boolean).join(" · ")
+          : cardFacts(item))
+      }
+      {...(isAnime ? open : { onClick: () => void api.openExternal(readOn), hint: "Open on MyAnimeList" })}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >
-      <div className="card-frame anime-card-frame">
-        <Img src={item.coverImage.extraLarge ?? item.coverImage.large ?? undefined} alt="" className="card-img" />
-        {prefs.matureContent === "blur" && isMature(item) && <MatureCover />}
-        {!isAnime && <span className="card-kind-badge">{item.format === "NOVEL" ? "Novel" : "Manga"}</span>}
-        {score && (
-          <span className="card-score card-score-art anime-card-score tabular" title="AniList score">
-            <Star size={11} />
-            {score}
-          </span>
-        )}
-      </div>
-      <div className="card-caption">
-        <span className="card-title t-callout">{title}</span>
-        {/* On air: when the next episode lands, in place of the usual facts. */}
-        <span className="t-caption faint tabular">
-          {label ??
-            (next
-              ? [item.format && FORMAT_LABEL[item.format], `Ep ${next.episode} in ${countdown(untilAiring(next.airingAt))}`].filter(Boolean).join(" · ")
-              : cardFacts(item))}
+      {prefs.matureContent === "blur" && isMature(item) && <MatureCover />}
+      {!isAnime && <span className="card-kind-badge">{item.format === "NOVEL" ? "Novel" : "Manga"}</span>}
+      {score && (
+        <span className="card-score card-score-art anime-card-score tabular" title="AniList score">
+          <Star size={11} />
+          {score}
         </span>
-      </div>
-    </button>
+      )}
+    </Card>
   );
 }
 
 /** The widescreen card, for the shelves Home draws that way: the banner with the title over it. */
-export function AnimeLandscapeCard({ item, label }: { item: Card; label?: string }) {
+export function AnimeLandscapeCard({ item, label }: { item: Media; label?: string }) {
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
   const { matureContent } = usePrefs();
+  // Wide art first (re-test N5); nothing until the id lists answer, so the picture doesn't change once drawn.
+  const imdb = useListedImdb(item.id);
+  const [art, ...artFallbacks] = imdb === undefined ? [] : landscapeArt({ imdb, bannerImage: item.bannerImage, cover: item.coverImage.extraLarge });
   if (matureContent === "hide" && isMature(item)) return null;
   return (
-    <button
-      className="card card-landscape anime-card"
+    <Card
+      shape="landscape"
+      className="anime-card"
+      frameClass="anime-card-frame"
+      art={art}
+      artFallbacks={artFallbacks}
+      title={title}
+      detail={label ?? cardFacts(item)}
       {...open}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >
-      <div className="card-frame anime-card-frame">
-        <Img src={item.bannerImage ?? item.coverImage.extraLarge ?? undefined} alt="" className="card-img" />
-        <div className="card-art-scrim" />
-        <span className="card-art-title t-title2">{title}</span>
-        {matureContent === "blur" && isMature(item) && <MatureCover />}
-      </div>
-      <div className="card-caption">
-        <span className="card-title t-callout">{title}</span>
-        <span className="t-caption faint tabular">{label ?? cardFacts(item)}</span>
-      </div>
-    </button>
+      <ArtTitle name={title} />
+      {matureContent === "blur" && isMature(item) && <MatureCover />}
+    </Card>
   );
 }

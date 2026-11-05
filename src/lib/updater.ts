@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from "react";
-import { getVersion } from "@tauri-apps/api/app";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { getPrefs } from "./prefs";
+import { appUpdates, type FoundUpdate } from "./platform/updates";
+import { inShell } from "./platform/bridge";
+import { isRecord, str, storedJson } from "./parse";
+import { errorMessage } from "./errors";
+import { getPrefs } from "./settings/prefs";
 
 /**
  * App updates, from the signed `latest.json` on the newest GitHub release.
@@ -22,12 +23,11 @@ export type UpdateState =
   | { phase: "installing"; version: string }
   | { phase: "error"; message: string };
 
-const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 const RELEASES = "https://github.com/unzoid/polar/releases";
 export const releaseUrl = (version?: string) => (version ? `${RELEASES}/tag/v${version}` : RELEASES);
 
 let state: UpdateState = { phase: "idle" };
-let update: Update | null = null;
+let update: FoundUpdate | null = null;
 /** The toast was closed for this version; the navbar pill stays. */
 let dismissed: string | null = null;
 const listeners = new Set<() => void>();
@@ -49,19 +49,19 @@ export function dismissUpdate() {
 }
 
 export async function checkForUpdates({ quiet = false } = {}) {
-  if (!isTauri) return;
+  if (!inShell || !appUpdates.canUpdate) return;
   // Already found one: nothing newer is worth interrupting a download for.
   if (state.phase === "checking" || state.phase === "downloading" || state.phase === "ready" || state.phase === "installing") return;
   if (!quiet) set({ phase: "checking" });
   try {
-    const found = await check();
+    const found = await appUpdates.check();
     if (!found) {
       update = null;
       set({ phase: "current", checkedAt: Date.now() });
       return;
     }
     update = found;
-    const info = { version: found.version, notes: found.body ?? "" };
+    const info = { version: found.version, notes: found.notes };
     set({ phase: "available", ...info });
     if (getPrefs().autoDownloadUpdates) void downloadUpdate();
   } catch (e) {
@@ -73,16 +73,10 @@ export async function checkForUpdates({ quiet = false } = {}) {
 export async function downloadUpdate() {
   if (!update || state.phase !== "available") return;
   const { version, notes } = state;
-  let total = 0;
-  let got = 0;
   set({ phase: "downloading", version, notes, progress: null });
   try {
-    await update.download((e) => {
-      if (e.event === "Started") total = e.data.contentLength ?? 0;
-      else if (e.event === "Progress") {
-        got += e.data.chunkLength;
-        if (total) set({ phase: "downloading", version, notes, progress: Math.min(1, got / total) });
-      }
+    await update.download((got, total) => {
+      if (total) set({ phase: "downloading", version, notes, progress: Math.min(1, got / total) });
     });
     set({ phase: "ready", version, notes });
   } catch (e) {
@@ -98,14 +92,14 @@ export async function installUpdate() {
   set({ phase: "installing", version });
   try {
     await update.install();
-    await relaunch();
+    await appUpdates.relaunch();
   } catch (e) {
     set({ phase: "error", message: describe(e) });
   }
 }
 
 function describe(e: unknown) {
-  const s = String(e);
+  const s = errorMessage(e);
   if (/network|dns|connect|timed out|offline/i.test(s)) return "Couldn't reach the update server. Check your connection.";
   return s;
 }
@@ -113,7 +107,7 @@ function describe(e: unknown) {
 let started = false;
 /** Called once from the app root. */
 export function startUpdateChecks() {
-  if (started || !isTauri) return;
+  if (started || !inShell || !appUpdates.canUpdate) return;
   started = true;
   window.setTimeout(() => void checkForUpdates({ quiet: true }), 5_000);
   window.setInterval(() => void checkForUpdates({ quiet: true }), 6 * 60 * 60 * 1000);
@@ -138,23 +132,24 @@ export type WhatsNew = { version: string; previous: string; notes: string };
  * there's nothing "new" to someone who has never seen the app.
  */
 export async function takeWhatsNew(): Promise<WhatsNew | null> {
-  if (!isTauri) return null;
-  const version = await getVersion();
+  if (!inShell) return null;
+  const version = await appUpdates.version();
   const previous = localStorage.getItem(LAST_VERSION);
   localStorage.setItem(LAST_VERSION, version);
   if (!previous || compareVersions(version, previous) <= 0) return null;
 
   let notes = "";
-  try {
-    const saved = JSON.parse(localStorage.getItem(PENDING_NOTES) ?? "null") as { version: string; notes: string } | null;
-    if (saved?.version === version) notes = saved.notes;
-  } catch {}
+  const saved = storedJson(localStorage, PENDING_NOTES);
+  if (isRecord(saved) && saved.version === version) notes = str(saved.notes) ?? "";
   localStorage.removeItem(PENDING_NOTES);
   // Installed by hand: ask GitHub for the release's notes.
   if (!notes) {
     try {
       const res = await fetch(`https://api.github.com/repos/unzoid/polar/releases/tags/v${version}`);
-      if (res.ok) notes = releaseNotesSection(((await res.json()) as { body?: string }).body ?? "");
+      if (res.ok) {
+        const release: unknown = await res.json();
+        notes = releaseNotesSection((isRecord(release) && str(release.body)) || "");
+      }
     } catch {}
   }
   return { version, previous, notes };
@@ -176,4 +171,4 @@ export function compareVersions(a: string, b: string) {
   return 0;
 }
 
-export const appVersion = () => (isTauri ? getVersion() : Promise.resolve("dev"));
+export const appVersion = () => (inShell ? appUpdates.version() : Promise.resolve("dev"));

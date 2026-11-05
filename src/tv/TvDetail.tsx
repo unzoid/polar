@@ -1,25 +1,27 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { NameList } from "../components/title/NameList";
 import { Check, Edit, Episodes, Play, PlaylistIcon, Plus, Reset, Sources } from "../components/icons";
 import { useBackdropTrailer } from "../components/BackdropTrailer";
-import { TitleDetails } from "../components/TitleDetails";
+import { TitleDetails } from "../components/title/TitleDetails";
 import { Info } from "../components/icons";
-import { addToPlaylist, createPlaylist, removeFromPlaylist, renamePlaylist, usePlaylists } from "../lib/playlists";
-import { TitleLogo } from "../components/TitleLogo";
-import { ProgressBar } from "../components/PosterCard";
+import { episodeState, progressMap, renamePlaylist, seasonsOf, upNext, usePlaylists, watchedFraction } from "../lib/library";
+import { usePlaylistChecklist } from "../components/title/PlaylistChecklist";
+import { TitleHeading } from "../components/title/TitleHeading";
+import { ProgressBar } from "../components/title/Card";
 import { Still } from "../components/StillPlaceholder";
-import { stillFor } from "../lib/anime/stills";
+import { stillFor } from "../lib/anime";
 import { StreamList } from "../components/StreamList";
-import { progressMap, seasonsOf, upNext } from "../lib/episodes";
-import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel } from "../lib/format";
-import { usePlayTarget } from "../lib/playTarget";
-import { useLibrary, useMeta, useProgress, useSettings, useStreams, useToggleLibrary } from "../lib/queries";
-import { useRouter } from "../lib/router";
-import { watchedFraction } from "../lib/watched";
+import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel, shortRuntime } from "../lib/format";
+import { usePlayTarget, useTitlePlayback } from "../lib/playback";
+import { useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "../lib/net";
 import type { ContentType, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 import { useBack, useFocusTrap, usePageActive } from "./shell";
 import { reveal } from "./spatial";
+import { glideScroll, glideTarget } from "./follow";
 import { TvKeyboard } from "./TvKeyboard";
 import { Facts, TvBackdrop, titleFacts } from "./TvStage";
+import { Skeleton } from "../components/ui/Skeleton";
+import { EmptyState } from "../components/ui/EmptyState";
 
 type Panel =
   | { kind: "episodes" }
@@ -38,29 +40,27 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
   const { data: meta, isError } = useMeta(type, id);
   const shown: MetaPreview | undefined = meta ?? preview;
   const active = usePageActive();
-  const { navigate } = useRouter();
   const [panels, setPanels] = useState<Panel[]>([]);
   const push = (p: Panel) => setPanels((ps) => [...ps, p]);
   const pop = () => setPanels((ps) => ps.slice(0, -1));
   useBack(active && panels.length > 0, pop);
 
-  const { data: settings } = useSettings();
-  const autoPick = settings?.autoPickSource ?? true;
   // The trailer behind the art, while nothing's open over the page.
-  const trailer = useBackdropTrailer(id, meta?.trailerYtId, { active: active && panels.length === 0 });
+  const trailer = useBackdropTrailer(id, { active: active && panels.length === 0 });
 
   /** Play now, or (auto-pick off, nothing to resume) choose a source first. */
-  const play = (videoId: string, subtitle: string, opts: { stream?: RankedStream; resumable?: boolean } = {}) => {
-    if (!opts.stream && !autoPick && !opts.resumable) return push({ kind: "sources", videoId, subtitle });
+  const playback = useTitlePlayback(
+    (req) => push({ kind: "sources", videoId: req.videoId, subtitle: req.subtitle ?? "" }),
     // Coming back from the player returns to the episode list, not a source picker.
-    setPanels((ps) => ps.filter((p) => p.kind !== "sources"));
-    navigate({ name: "player", type, metaId: id, videoId, stream: opts.stream?.stream });
-  };
+    () => setPanels((ps) => ps.filter((p) => p.kind !== "sources")),
+  );
+  const play = (videoId: string, subtitle: string, opts: { stream?: RankedStream; resumable?: boolean } = {}) =>
+    playback({ type, metaId: id, videoId, subtitle, resumable: opts.resumable }, opts.stream);
 
   if (!shown) {
     return isError ? (
       <div className="tv-note">
-        <p className="tv-empty">Couldn't load this title.</p>
+        <EmptyState variant="tv">Couldn't load this title.</EmptyState>
       </div>
     ) : (
       <div className="tv-detail" />
@@ -73,11 +73,7 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
         {trailer.node}
       </TvBackdrop>
       <div className="tv-detail-body">
-        {shown.logo ? (
-          <TitleLogo src={shown.logo} alt={shown.name} className="tv-detail-logo" loading="eager" />
-        ) : (
-          <h1 className="tv-detail-title">{shown.name}</h1>
-        )}
+        <TitleHeading name={shown.name} logo={shown.logo} look="tv-detail" />
         <Facts facts={titleFacts(shown, [formatRuntime(meta?.runtime)])} />
         {shown.description && <p className="tv-detail-description">{shown.description}</p>}
         <Credits meta={meta} />
@@ -86,7 +82,7 @@ export function TvDetail({ type, id, preview }: { type: ContentType; id: string;
           <Actions item={shown} meta={meta} play={play} push={push} />
         ) : (
           <div className="tv-actions" aria-hidden>
-            <span className="tv-pill tv-pill-skeleton skeleton" />
+            <Skeleton as="span" className="tv-pill tv-pill-skeleton" />
           </div>
         )}
       </div>
@@ -141,7 +137,7 @@ function Actions({
   const { data: library } = useLibrary();
   const toggle = useToggleLibrary();
   const inLibrary = library?.some((l) => l.id === item.id);
-  const inPlaylist = usePlaylists().some((p) => p.items.some((i) => i.id === item.id));
+  const inPlaylist = usePlaylistChecklist(item).inAny;
   const subtitle = item.type === "series" && next?.video ? episodeLine(next.video) : item.name;
   // Warm the sources for Play while the page is read.
   useStreams(item.type, videoId);
@@ -177,14 +173,6 @@ function Actions({
   );
 }
 
-/** "New Playlist", or "New Playlist 2" and so on if that's taken. */
-function freshName(taken: string[]) {
-  const names = new Set(taken);
-  let n = 1;
-  while (names.has(n === 1 ? "New Playlist" : `New Playlist ${n}`)) n++;
-  return n === 1 ? "New Playlist" : `New Playlist ${n}`;
-}
-
 /**
  * Tick the playlists a title belongs in. Right of each row is Rename; New
  * Playlist asks for a name on the on-screen keyboard and puts the title in.
@@ -200,7 +188,7 @@ export function PlaylistsPanel({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref);
-  const playlists = usePlaylists();
+  const { rows, toggle, full } = usePlaylistChecklist(item);
   return (
     <div className="tv-panel tv-sources tv-playlists" ref={ref} data-nav-scope role="dialog" aria-label="Add to playlist">
       <header className="tv-sources-head">
@@ -208,39 +196,38 @@ export function PlaylistsPanel({
         <p className="tv-sources-sub">{item.name}</p>
       </header>
       <div className="tv-scroll tv-sources-list tv-playlist-list" data-nav-scroll="center" data-nav-memory>
-        {playlists.map((p, i) => {
-          const has = p.items.some((x) => x.id === item.id);
-          return (
-            <div key={p.id} className="tv-playlist-line">
-              <button
-                className="tv-playlist-row"
-                role="menuitemcheckbox"
-                aria-checked={has}
-                data-nav-default={i === 0 || undefined}
-                onClick={() => (has ? removeFromPlaylist(p.id, item.id) : addToPlaylist(p.id, item))}
-              >
-                <span className="tv-playlist-check">{has && <Check size={22} />}</span>
-                <span className="tv-playlist-name">{p.name}</span>
-                <span className="tv-playlist-count tabular">
-                  {p.items.length} {p.items.length === 1 ? "title" : "titles"}
-                </span>
-              </button>
-              <button className="tv-playlist-rename" aria-label={`Rename ${p.name}`} onClick={() => onRename(p.id)}>
-                <Edit size={30} />
-              </button>
-            </div>
-          );
-        })}
-        <button
-          className="tv-playlist-row tv-playlist-new"
-          data-nav-default={playlists.length === 0 || undefined}
-          onClick={onNew}
-        >
-          <span className="tv-playlist-check">
-            <Plus size={22} />
-          </span>
-          <span className="tv-playlist-name">New Playlist</span>
-        </button>
+        {rows.map((row, i) => (
+          <div key={row.id} className="tv-playlist-line">
+            <button
+              className="tv-playlist-row"
+              role="menuitemcheckbox"
+              aria-checked={row.has}
+              data-nav-default={i === 0 || undefined}
+              onClick={() => toggle(row)}
+            >
+              <span className="tv-playlist-check">{row.has && <Check size={22} />}</span>
+              <span className="tv-playlist-name">{row.name}</span>
+              <span className="tv-playlist-count tabular">
+                {row.count} {row.count === 1 ? "title" : "titles"}
+              </span>
+            </button>
+            <button className="tv-playlist-rename" aria-label={`Rename ${row.name}`} onClick={() => onRename(row.id)}>
+              <Edit size={30} />
+            </button>
+          </div>
+        ))}
+        {!full && (
+          <button
+            className="tv-playlist-row tv-playlist-new"
+            data-nav-default={rows.length === 0 || undefined}
+            onClick={onNew}
+          >
+            <span className="tv-playlist-check">
+              <Plus size={22} />
+            </span>
+            <span className="tv-playlist-name">New Playlist</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -264,6 +251,7 @@ export function NamePanel({
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref);
   const playlists = usePlaylists();
+  const { create } = usePlaylistChecklist(item);
   const editing = playlistId ? playlists.find((p) => p.id === playlistId) : undefined;
   const [text, setText] = useState(editing?.name ?? "");
 
@@ -272,7 +260,7 @@ export function NamePanel({
     if (editing) {
       if (name && name !== editing.name) renamePlaylist(editing.id, name);
     } else {
-      createPlaylist(name || freshName(playlists.map((p) => p.name)), item);
+      create(name);
     }
     onDone();
   };
@@ -322,21 +310,18 @@ function Credits({ meta }: { meta?: Meta }) {
       {meta.cast?.length ? (
         <div>
           <dt>Starring</dt>
-          <dd>{meta.cast.slice(0, 3).join(", ")}</dd>
+          <dd><NameList names={meta.cast.slice(0, 3)} /></dd>
         </div>
       ) : null}
       {meta.director?.length ? (
         <div>
           <dt>{meta.type === "series" ? "Created by" : "Director"}</dt>
-          <dd>{meta.director.slice(0, 2).join(", ")}</dd>
+          <dd><NameList names={meta.director.slice(0, 2)} /></dd>
         </div>
       ) : null}
     </dl>
   );
 }
-
-/** "49 min" → "49m" */
-const shortRuntime = (r?: string) => r?.replace(/\s*min$/, "m");
 
 /**
  * Seasons down the left, that season's episodes down the right, opening on
@@ -380,7 +365,7 @@ function EpisodesPanel({
   return (
     <div className="tv-panel tv-episodes" ref={ref} data-nav-scope role="dialog" aria-label="Episodes">
       <aside className="tv-episodes-side">
-        {meta.logo ? <TitleLogo src={meta.logo} alt={meta.name} className="tv-panel-logo" /> : <h2 className="tv-panel-title">{meta.name}</h2>}
+        <TitleHeading name={meta.name} logo={meta.logo} look="tv-panel" />
         <div className="tv-seasons" ref={seasonList} data-nav-scroll="center" data-nav-memory data-nav-prefer-entry>
           {seasons.map((s) => (
             <button
@@ -400,13 +385,11 @@ function EpisodesPanel({
       <div className="tv-scroll tv-episodes-list" ref={list} data-nav-scroll="center" data-nav-memory>
         {episodes.map((v) => {
           const p = map.get(v.id);
-          const fraction = p?.duration ? p.position / p.duration : 0;
-          const watched = fraction >= watchedFraction();
-          const released = isReleased(v);
+          const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
           const isEntry = v.id === entryId;
           const status = !released
             ? `Coming ${formatDate(v.released)}`
-            : fraction > 0 && !watched && p
+            : inProgress && p
               ? formatRemaining(p.position, p.duration)
               : [shortRuntime(meta.runtime), formatDate(v.released)].filter(Boolean).join(" · ");
           return (
@@ -421,7 +404,7 @@ function EpisodesPanel({
               >
                 <span className="tv-episode-still">
                   <Still src={stillFor(v.id) ?? v.thumbnail} />
-                  {fraction > 0 && !watched && <ProgressBar fraction={fraction} />}
+                  {inProgress && <ProgressBar fraction={fraction} />}
                   {watched && (
                     <span className="tv-episode-watched" aria-label="Watched">
                       <Check size={18} />
@@ -473,7 +456,8 @@ function DetailsPanel({ meta }: { meta: Meta }) {
           const down = e.key === "ArrowDown";
           if (down ? el.scrollTop + el.clientHeight >= el.scrollHeight - 4 : el.scrollTop <= 0) return;
           e.preventDefault();
-          el.scrollBy({ top: (down ? 1 : -1) * el.clientHeight * 0.4, behavior: "smooth" });
+          // One glide that a held key keeps steering, not a smooth scroll restarted per press.
+          glideScroll(el, "y", (glideTarget(el, "y") ?? el.scrollTop) + (down ? 1 : -1) * el.clientHeight * 0.4);
         }}
       >
         <TitleDetails meta={meta} links={false} />

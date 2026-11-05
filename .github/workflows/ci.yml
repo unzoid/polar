@@ -2,22 +2,22 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A new push to a PR replaces its running checks; every commit on master
-# keeps its own run.
+# A new push to a branch or PR replaces its running checks; every commit on
+# master keeps its own run.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   frontend:
-    name: Frontend (typecheck + build)
+    name: Frontend (typecheck, tests, build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,14 +28,42 @@ jobs:
         with:
           bun-version: 1.4.4 # a new Bun release can't break --frozen-lockfile
       - run: bun install --frozen-lockfile
+      - run: bun run test
       - run: bun run build
+
+  # The web build in real browsers against the fake shell (playwright.config.ts):
+  # desktop in Chromium and WebKit, TV and phone sizes in Chromium.
+  e2e-web:
+    name: End to end (web build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit -p e2e
+      - run: bunx playwright install --with-deps chromium webkit
+      - run: bun run e2e
+      - name: Keep the report, traces and screenshots
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report
+          path: |
+            e2e/.report
+            e2e/.results
+          retention-days: 14
 
   rust:
     name: Rust tests (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -47,6 +75,15 @@ jobs:
           toolchain: stable
           components: clippy
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # Linux: the web view (WebKitGTK) and what tauri and gilrs link against.
+      # mpv runs as its own process there, so nothing of it is linked.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev libssl-dev libudev-dev
       # Debug builds (tests, clippy) don't embed the frontend, so no `dist` is
       # needed. On Windows tauri-build does need the bundled mpv files listed in
       # tauri.windows.conf.json; macOS loads an installed libmpv at runtime.

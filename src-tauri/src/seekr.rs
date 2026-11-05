@@ -14,7 +14,11 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::locks::Locked;
+
 const API: &str = "https://api.seekr.tv";
+/// Largest thumbnail index read; a long film's is well under 1 MB.
+const VTT_MAX: usize = 4 << 20;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,7 +78,7 @@ impl Seekr {
     /// `video_id` is a movie `tt…` or an episode `tt…:season:episode`.
     pub async fn track(&self, key: &str, video_id: &str, duration_ms: u64) -> Result<Option<PreviewTrack>, String> {
         let cache_key = format!("{video_id}@{}", duration_ms / 1000);
-        if let Some(hit) = self.cache.lock().unwrap().get(&cache_key) {
+        if let Some(hit) = self.cache.locked().get(&cache_key) {
             return Ok(hit.clone());
         }
 
@@ -102,17 +106,19 @@ impl Seekr {
             s if s.is_success() => {
                 let lookup: Lookup = res.json().await.map_err(|e| e.to_string())?;
                 // Signed URL: deliberately no API key on this request.
-                let vtt = self
+                // `st=1` added as a query parameter, whatever the signed URL already carries (L17).
+                let mut vtt = reqwest::Url::parse(&lookup.vtt_url).map_err(|e| e.to_string())?;
+                vtt.query_pairs_mut().append_pair("st", "1");
+                let res = self
                     .http
-                    .get(format!("{}&st=1", lookup.vtt_url))
+                    .get(vtt)
                     .send()
                     .await
                     .and_then(|r| r.error_for_status())
-                    .map_err(|e| e.to_string())?
-                    .text()
-                    .await
-                    .map_err(|e| e.to_string())?;
-                let cues = parse_vtt(&vtt);
+                    .map_err(|e| e.without_url().to_string())?;
+                // The URL is Seekr's to give, so its answer is capped like an addon's.
+                let vtt = polar_addon::client::read_capped(res, VTT_MAX).await.map_err(|e| e.to_string())?;
+                let cues = parse_vtt(&String::from_utf8_lossy(&vtt));
                 (!cues.is_empty()).then_some(PreviewTrack { cues, source_duration_ms: lookup.source_duration_ms })
             }
             reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
@@ -120,7 +126,7 @@ impl Seekr {
             }
             _ => None, // 404 etc.: this title simply has no previews
         };
-        self.cache.lock().unwrap().insert(cache_key, track.clone());
+        self.cache.locked().insert(cache_key, track.clone());
         Ok(track)
     }
 

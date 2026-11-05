@@ -1,38 +1,46 @@
-import { useEffect } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getPrefs, usePrefs } from "./lib/prefs";
+import { actionFor, getPrefs, isSettingsOpen, openSettings, uiFontOf, usePrefs, useSettingsOverlay } from "./lib/settings";
 import type { Settings as SettingsT } from "./lib/types";
 import { NavBar } from "./components/NavBar";
-import { PlayerLayer, usePlayerLayer } from "./components/PlayerLayer";
-import { useSettings } from "./lib/queries";
-import { uiFontOf } from "./lib/fonts";
+import { PlayerLayer, preloadPlayer, usePlayerLayer } from "./components/PlayerLayer";
+import { useSettings } from "./lib/net";
 import { rootTab, RouterProvider, useRouter, type Route } from "./lib/router";
-import { focusSearch } from "./lib/searchQuery";
+import { focusSearch } from "./lib/catalog";
 import { Home } from "./screens/Home";
 import { Discover } from "./screens/Discover";
-import { Library } from "./screens/Library";
+import { Library, LibraryCollection, LibraryPlaylist } from "./screens/Library";
 import { Calendar } from "./screens/Calendar";
 import { Search } from "./screens/Search";
-import { Settings } from "./screens/Settings";
 import { Detail } from "./screens/Detail";
 import { Anime, AnimeBrowse, AnimeSchedule } from "./screens/Anime";
-import { AnimeDetail } from "./screens/AnimeDetail";
-import { AuthScreen } from "./screens/account/AuthScreen";
-import { OnboardingScreen } from "./screens/account/OnboardingScreen";
-import { ProfilesScreen } from "./screens/account/ProfilesScreen";
-import { useAccount } from "./lib/account/AccountProvider";
-import { TvApp } from "./tv/TvApp";
+import { useAccount } from "./lib/account";
 import { ControllerToast } from "./tv/TvChrome";
 import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
-import { actionFor } from "./lib/keybinds";
-import { SettingsOverlay } from "./components/SettingsOverlay";
+import { lazyNamed, usePageFocus } from "./lib/ui";
 import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
-import { isSettingsOpen } from "./lib/settingsOverlay";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
+import { appWindow } from "./lib/platform";
 import { PartyHost } from "./components/party/PartyHost";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import { SignOutDialog } from "./components/SignOutDialog";
+import { StoreProblemToast } from "./components/StoreProblemToast";
+import { Skeleton } from "./components/ui/Skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { titlePageQuery } from "./lib/anime";
+import type { ContentType, MetaPreview } from "./lib/types";
+
+// Chunks of their own, loaded the first time they're drawn: most sessions never
+// see the sign-in screens, TV mode, Settings or an anime page (the player is in
+// PlayerLayer, preloaded once the app is idle).
+const AnimeDetail = lazyNamed(() => import("./screens/AnimeDetail"), "AnimeDetail");
+const AuthScreen = lazyNamed(() => import("./screens/account/AuthScreen"), "AuthScreen");
+const OnboardingScreen = lazyNamed(() => import("./screens/account/OnboardingScreen"), "OnboardingScreen");
+const ProfilesScreen = lazyNamed(() => import("./screens/account/ProfilesScreen"), "ProfilesScreen");
+const TvApp = lazyNamed(() => import("./tv/TvApp"), "TvApp");
+const SettingsOverlay = lazyNamed(() => import("./components/SettingsOverlay"), "SettingsOverlay");
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -42,18 +50,26 @@ function Screen({ route }: { route: Route }) {
       return <Discover type={route.type} />;
     case "library":
       return <Library />;
+    case "library-collection":
+      return <LibraryCollection view={route.view} />;
+    case "playlist":
+      return <LibraryPlaylist id={route.id} fresh={!!route.fresh} />;
     case "calendar":
       return <Calendar />;
     case "search":
       return <Search />;
     case "settings":
-      return <Settings initialPage={route.page} />;
+      return <SettingsRoute page={route.page} />;
     case "detail":
-      return <Detail type={route.type} id={route.id} preview={route.preview} />;
+      return <TitleRoute type={route.type} id={route.id} preview={route.preview} />;
     case "anime":
       return <Anime />;
     case "anime-detail":
-      return <AnimeDetail id={route.id} preview={route.preview} />;
+      return (
+        <Suspense fallback={null}>
+          <AnimeDetail id={route.id} preview={route.preview} />
+        </Suspense>
+      );
     case "anime-schedule":
       return <AnimeSchedule />;
     case "anime-browse":
@@ -63,24 +79,85 @@ function Screen({ route }: { route: Route }) {
   }
 }
 
-/** Sign-in and profile picking come before the app itself. */
+/**
+ * A title's one page (test report 1, item 1): an anime reached by any of its ids opens on its anime
+ * page, and which page it is is settled before either renders: a skeleton until then, never one
+ * page swapped for the other.
+ */
+function TitleRoute({ type, id, preview }: { type: ContentType; id: string; preview?: MetaPreview }) {
+  const { data: page } = useQuery(titlePageQuery(type, id, preview));
+  const loading = <Skeleton className="detail-loading" />;
+  if (!page) return loading;
+  if (page.kind === "anime")
+    return (
+      <Suspense fallback={loading}>
+        <AnimeDetail id={page.anilist} />
+      </Suspense>
+    );
+  return <Detail type={type} id={id} preview={preview} />;
+}
+
+/**
+ * Desktop settings are an overlay, not a screen. The settings route only comes from TV (switching to desktop on
+ * TV's settings screen): open the overlay on that page and step off the route.
+ */
+function SettingsRoute({ page }: { page?: string }) {
+  const { stack, back, tab } = useRouter();
+  const done = useRef(false); // StrictMode runs the effect twice; leave the route once
+  useEffect(() => {
+    if (done.current) return;
+    done.current = true;
+    openSettings(page);
+    if (stack.length > 1) back();
+    else tab({ name: "home" });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
+/**
+ * Sign-in and profile picking come before the app itself; sign-out may stop to ask over any of them.
+ * Settings → Appearance → "Reduce motion" covers all of it, the account screens included.
+ */
 export function App() {
+  const reduce = useSettings().data?.reduceMotion;
+  return (
+    <MotionConfig reducedMotion={reduce === "on" ? "always" : reduce === "off" ? "never" : "user"}>
+      <Gate />
+      <SignOutDialog />
+    </MotionConfig>
+  );
+}
+
+function Gate() {
   const { status, profile, profilesView } = useAccount();
   const { data: settings, isFetched } = useSettings();
+  const shell = <div className="account-shell" />;
   switch (status) {
     case "loading":
-      return <div className="account-shell" />;
+      return shell;
     case "signed-out":
-      return <AuthScreen />;
+      return (
+        <Suspense fallback={shell}>
+          <AuthScreen />
+        </Suspense>
+      );
     case "onboarding":
-      return <OnboardingScreen />;
+      return (
+        <Suspense fallback={shell}>
+          <OnboardingScreen />
+        </Suspense>
+      );
     case "profiles":
-      return <ProfilesScreen initial={profilesView} />;
+      return (
+        <Suspense fallback={shell}>
+          <ProfilesScreen initial={profilesView} />
+        </Suspense>
+      );
     case "guest":
     case "ready":
       // Each profile starts on its start page with its own navigation. Wait
       // for settings (a local read) so it doesn't open on Home and then jump.
-      if (!isFetched) return <div className="account-shell" />;
+      if (!isFetched) return shell;
       return (
         <RouterProvider key={profile?.id ?? "guest"} initial={[startRoute(settings?.startPage)]}>
           <MainApp />
@@ -133,14 +210,12 @@ function MainApp() {
   }, [inAnime, animeEnabled, tab]);
 
   useEffect(() => {
-    void getCurrentWebview()
-      .setZoom(uiScale > 0 ? uiScale : 1)
-      .catch(() => {});
+    void appWindow.setZoom(uiScale > 0 ? uiScale : 1).catch(() => {});
   }, [uiScale]);
-  const reduce = settings?.reduceMotion;
 
   // Look for a new version shortly after launch, then every few hours (TV mode too).
   useEffect(() => startUpdateChecks(), []);
+  useEffect(() => preloadPlayer(), []);
 
   // The webview's own right-click menu (Save image as, Copy image link…) has no
   // place in the app. Titles open their own options instead (CardMenu); text
@@ -170,10 +245,16 @@ function MainApp() {
   }, []);
 
   return (
-    <MotionConfig reducedMotion={reduce === "on" ? "always" : reduce === "off" ? "never" : "user"}>
-      {tv ? <TvApp /> : <DesktopApp />}
+    <>
+      {tv ? (
+        <Suspense fallback={null}>
+          <TvApp />
+        </Suspense>
+      ) : (
+        <DesktopApp />
+      )}
       <PartyHost />
-    </MotionConfig>
+    </>
   );
 }
 
@@ -200,12 +281,13 @@ function DesktopApp() {
   const pages = stack.filter((e) => e.route.name !== "player");
   const topPage = pages[pages.length - 1];
   const { data: settings } = useSettings();
+  usePageFocus(playing || !topPage ? undefined : String(topPage.key));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (playing || isSettingsOpen()) return; // the player / settings overlay owns the keyboard
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
-      if (e.key === "Escape" && !typing) back();
+      if (e.key === "Escape" && !typing && !e.defaultPrevented) back();
       // Modified shortcuts (Ctrl+K) work while typing too; plain keys ("/") would just type.
       if (actionFor(e, "app") === "search" && (!typing || e.ctrlKey || e.metaKey || e.altKey)) {
         e.preventDefault();
@@ -231,12 +313,15 @@ function DesktopApp() {
         {pages.map((entry) => (
           <section
             key={entry.key}
-            className={entry.route.name === "detail" ? "page page-pushed" : "page"}
+            className={entry.route.name === "detail" || entry.route.name === "anime-detail" ? "page page-pushed" : "page"}
             data-active={entry === topPage && !playing}
-            aria-hidden={entry !== topPage || !!playing}
+            data-under-player={(entry === topPage && !!player) || undefined}
+            data-page-key={entry.key}
             inert={entry !== topPage || !!playing}
           >
-            <Screen route={entry.route} />
+            <ErrorBoundary where={`page ${entry.route.name}`}>
+              <Screen route={entry.route} />
+            </ErrorBoundary>
           </section>
         ))}
         <ControllerToast tv={false} />
@@ -244,9 +329,24 @@ function DesktopApp() {
       </main>
       <WhatsNewSheet />
       <PlayerLayer player={player} leaving={leaving} />
-      <SettingsOverlay />
+      <LazySettingsOverlay />
+      {/* After Settings: it reports changes made there too, so it must never be under it or inert with the page. */}
+      <StoreProblemToast tv={false} />
       {!playing && <CardMenuHost />}
       <TrailerHost />
     </div>
+  );
+}
+
+/** The Settings window, loaded the first time it opens, then kept (it animates its own closing). */
+function LazySettingsOverlay() {
+  const { open } = useSettingsOverlay();
+  const [opened, setOpened] = useState(open);
+  if (open && !opened) setOpened(true);
+  if (!opened) return null;
+  return (
+    <Suspense fallback={null}>
+      <SettingsOverlay />
+    </Suspense>
   );
 }

@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
 import { TitleLogo } from "../components/TitleLogo";
-import { ProgressBar } from "../components/PosterCard";
+import { ProgressBar, useCardArt } from "../components/title/Card";
 import { episodeCode, formatRemaining } from "../lib/format";
-import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/queries";
+import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/net";
 import { useRouter } from "../lib/router";
-import type { Shape, Shelf } from "../lib/shelves";
+import { useCardIntent } from "../lib/ui";
+import type { Shape, Shelf } from "../lib/catalog";
 import type { MetaPreview, Progress } from "../lib/types";
 import { StageProvider, TvStage, useStage, useStageSeed } from "./TvStage";
 import { isMenuKey, openCardMenu } from "./TvCardMenu";
+import { refocusNear } from "./spatial";
+import { Skeleton } from "../components/ui/Skeleton";
 
 /** Resting on a card this long means interest: fetch its page ahead. Longer than desktop — a held D-pad passes every card. */
 const INTENT_MS = 450;
@@ -46,16 +49,18 @@ export function TvCard({
   const stage = useStage();
   const seedStage = useStageSeed();
   const el = useRef<HTMLButtonElement>(null);
-  const timer = useRef<number>(undefined);
+  const intent = useCardIntent(() => {
+    if (!localOnly) prefetchMeta(item.type, item.id);
+    preloadImage(item.background);
+  }, INTENT_MS);
   // Show on the stage until something is focused, if this is the page's first title.
   useEffect(() => {
     if (el.current) seedStage({ item, kicker }, el.current);
     // Again once a placeholder title (a playlist entry still loading) fills in, or better art arrives.
   }, [item.id, item.name, item.background]);
-  // Art that won't load falls back to the title, not an empty frame.
-  const [broken, setBroken] = useState(false);
+  // Art that won't load falls back to the title, not an empty frame; better art arriving gets a fresh try.
   const preferred = shape === "poster" ? (item.poster ?? item.background) : (item.background ?? item.poster);
-  const art = broken ? undefined : preferred;
+  const { shown: art, onError: onArtError } = useCardArt(preferred);
   const open = onOpen ?? (() => navigate({ name: "detail", type: item.type, id: item.id, preview: item }));
 
   return (
@@ -68,13 +73,10 @@ export function TvCard({
       onFocus={() => {
         stage({ item, kicker });
         onFocusChange?.(true);
-        timer.current = window.setTimeout(() => {
-          if (!localOnly) prefetchMeta(item.type, item.id);
-          preloadImage(item.background);
-        }, INTENT_MS);
+        intent.onFocus();
       }}
       onBlur={() => {
-        window.clearTimeout(timer.current);
+        intent.onBlur();
         onFocusChange?.(false);
       }}
       // Options: X / Square on a controller (sent as the Menu key), the Menu key, or a right-click.
@@ -92,7 +94,7 @@ export function TvCard({
     >
       <span className="tv-card-frame">
         {art ? (
-          <Img src={art} alt="" className="tv-card-img" onError={() => setBroken(true)} />
+          <Img src={art} alt="" className="tv-card-img" onError={onArtError} />
         ) : (
           <span className="tv-card-fallback">{item.name}</span>
         )}
@@ -123,14 +125,32 @@ export function TvRail({ title, children }: { title?: string; children: ReactNod
   );
 }
 
+/**
+ * A shelf still loading. Its first card can take focus, so moving down stops here instead of
+ * jumping over it (test report 1, item 20); when the cards arrive, focus moves onto them.
+ */
 export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; shape: Shape; count?: number }) {
+  const first = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(
+    () => () => {
+      const el = first.current;
+      if (el && document.activeElement === el) refocusNear(el.getBoundingClientRect());
+    },
+    [],
+  );
   return (
     <TvRail title={title}>
-      {Array.from({ length: count }, (_, i) => (
-        <span key={i} className="tv-card tv-card-skeleton" data-shape={shape} aria-hidden>
-          <span className="tv-card-frame skeleton" />
-        </span>
-      ))}
+      {Array.from({ length: count }, (_, i) =>
+        i === 0 ? (
+          <span key={i} ref={first} className="tv-card tv-card-skeleton" data-shape={shape} tabIndex={0} role="img" aria-label="Loading" data-nav-loading>
+            <Skeleton as="span" className="tv-card-frame" />
+          </span>
+        ) : (
+          <span key={i} className="tv-card tv-card-skeleton" data-shape={shape} aria-hidden>
+            <Skeleton as="span" className="tv-card-frame" />
+          </span>
+        ),
+      )}
     </TvRail>
   );
 }
@@ -150,7 +170,7 @@ export function TvItemsRail({ title, items, shape }: { title: string; items?: Me
 /** With fewer fresh titles than this, a shelf shows its full list, repeats and all. */
 const MIN_FRESH = 6;
 
-/** A day's shelf (lib/shelves.ts), fetched once it's close to the focused row. */
+/** A day's shelf (lib/catalog/shelves.ts), fetched once it's close to the focused row. */
 export function TvShelfRail({ shelf, enabled, exclude }: { shelf: Shelf; enabled: boolean; exclude: Set<string> }) {
   const isCatalog = shelf.kind === "catalog";
   const catalog = useCatalog(shelf.type, isCatalog ? shelf.id : "", isCatalog ? shelf.genre : undefined, enabled && isCatalog);

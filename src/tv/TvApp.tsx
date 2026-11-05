@@ -13,12 +13,13 @@ import {
   landingIn,
   move,
   ownsArrows,
-  runBack,
 } from "./spatial";
+import { dismissTop, onDismissed } from "../lib/ui";
 import { Desktop } from "../components/icons";
-import { actionFor, shortcutText } from "../lib/keybinds";
+import { actionFor, shortcutText } from "../lib/settings";
 import { playSound } from "./sounds";
-import { useSettings } from "../lib/queries";
+import { markHeldMove } from "./held";
+import { useSettings } from "../lib/net";
 import { setTvMode } from "./tvMode";
 import { ControllerToast, TvHints, TvMenu, TvNav, sameTab, useTvTabs } from "./TvChrome";
 import { TvCardMenuHost, useCardMenuOpen } from "./TvCardMenu";
@@ -27,7 +28,9 @@ import { TvDetail } from "./TvDetail";
 import { TvCalendar, TvDiscover, TvHome, TvLibrary, TvSearch } from "./TvScreens";
 import { TvSettings } from "./TvSettings";
 import { TvJoinParty } from "./TvJoinParty";
-import { useJoinPartyOpen } from "../lib/party/party";
+import { useJoinPartyOpen } from "../lib/party";
+import { ErrorBoundary } from "../components/ui/ErrorBoundary";
+import { StoreProblemToast } from "../components/StoreProblemToast";
 
 function TvScreen({ route }: { route: Route }) {
   switch (route.name) {
@@ -36,13 +39,16 @@ function TvScreen({ route }: { route: Route }) {
     case "discover":
       return <TvDiscover type={route.type} />;
     case "library":
+    // Collections and playlists are desktop pages; switching modes on one lands here.
+    case "library-collection":
+    case "playlist":
       return <TvLibrary />;
     case "calendar":
       return <TvCalendar />;
     case "search":
       return <TvSearch />;
     case "settings":
-      return <TvSettings />;
+      return <TvSettings page={route.page} />;
     case "detail":
       return <TvDetail type={route.type} id={route.id} preview={route.preview} />;
     case "player":
@@ -91,7 +97,6 @@ export function TvApp() {
   }, []);
 
   const goBack = useCallback(() => {
-    if (runBack()) return;
     if (stack.length > 1) return back();
     if (activeTab.name !== "home") return tab({ name: "home" });
     setMenuOpen(true);
@@ -100,12 +105,15 @@ export function TvApp() {
   // Arrows move focus; Esc / Backspace / B go back. The player owns the keyboard while it's up.
   useEffect(() => {
     if (playing) return;
+    // An open panel, menu or sheet closes first: Escape does that before it gets here, the other keys below.
+    const offDismissed = onDismissed(() => playSound("back"));
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const dir = KEY_DIRS[e.key];
       if (dir) {
         if (ownsArrows(e.target)) return;
         e.preventDefault(); // never let the browser scroll on its own
+        if (e.repeat) markHeldMove();
         playSound(move(dir) ? "move" : "edge");
         return;
       }
@@ -116,6 +124,7 @@ export function TvApp() {
       }
       if (e.key === "Escape" || e.key === "GoBack" || e.key === "BrowserBack" || (e.key === "Backspace" && !typing)) {
         e.preventDefault();
+        if (dismissTop()) return;
         playSound("back");
         goBack();
         return;
@@ -126,7 +135,10 @@ export function TvApp() {
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      offDismissed();
+      window.removeEventListener("keydown", onKey);
+    };
   }, [playing, goBack, tab]);
 
   // Controller-only shortcuts: shoulders switch sections, Y searches, Menu opens the menu.
@@ -214,11 +226,13 @@ export function TvApp() {
               data-nav-memory
               data-nav-home={(isTop && !playing) || undefined}
               data-active={isTop && !playing}
-              aria-hidden={!isTop || !!playing}
+              data-under-player={(isTop && !!player) || undefined}
               inert={!isTop || !!playing}
             >
               <PageActive.Provider value={isTop && !playing && !menuOpen && !cardMenuOpen}>
-                <TvScreen route={entry.route} />
+                <ErrorBoundary where={`tv page ${entry.route.name}`} variant="tv">
+                  <TvScreen route={entry.route} />
+                </ErrorBoundary>
               </PageActive.Provider>
             </section>
           );
@@ -237,6 +251,7 @@ export function TvApp() {
           </button>
         )}
         <ControllerToast tv />
+        <StoreProblemToast tv />
       </main>
       <PlayerLayer player={player} leaving={leaving} />
     </div>

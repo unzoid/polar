@@ -9,44 +9,20 @@
  *   positions are extrapolated to "now" without trusting anyone's system time.
  * - The host (first to have joined) holds the room while anyone is loading or
  *   buffering, and answers newcomers. Leaving hands the role to the next.
- * - Stream URLs never leave the device (service links carry API keys): only a
- *   hint — the p2p hash and release name — so others pick the same file
- *   from their own add-ons.
+ * - Stream URLs never leave the device (add-on links can carry API keys):
+ *   only a hint — the release name — so others pick the same file from their
+ *   own add-ons.
  * - Leaving the player isn't leaving the room: a member who's browsing is
  *   "away" (not waited for), and whatever anyone puts on next brings them back.
  */
 import { useSyncExternalStore } from "react";
 import { backend, type PartyLink, type PartyPresence } from "../account";
 import { formatTime } from "../format";
+import { parseMessage, roundTrip, takesOver, type PartyMedia, type StreamHint, type Timeline } from "./messages";
 import { partyChime } from "./sounds";
-import type { ContentType, Stream } from "../types";
+import type { Stream } from "../types";
 
-export interface StreamHint {
-  hash?: string;
-  release?: string;
-}
-
-export interface PartyMedia {
-  type: ContentType;
-  metaId: string;
-  videoId: string;
-  /** "S1:E5 · Title", for "Sam put on …". */
-  label?: string;
-  hint?: StreamHint;
-}
-
-interface Timeline {
-  v: number;
-  by: string;
-  media: PartyMedia;
-  /** Someone pressed pause. */
-  paused: boolean;
-  /** The host is holding for someone loading or buffering. */
-  held: boolean;
-  position: number;
-  /** The sender's one-way latency estimate, seconds. */
-  lag: number;
-}
+export type { PartyMedia, StreamHint } from "./messages";
 
 export interface Playback extends Timeline {
   /** performance.now() at which `position` was current here. */
@@ -87,7 +63,12 @@ let state: PartyState | null = null;
 let link: PartyLink | null = null;
 let self: Member | null = null;
 let rtts: number[] = [];
+/** The connection's intervals; cleared on leave. */
 let timers: number[] = [];
+/** One-off timeouts (join deadline, notes), each gone from here once it has run. */
+const pending = new Set<number>();
+/** Joined, and not yet placed after everyone already in the room (see `presence`). */
+let placeInLine = false;
 const waitingSince = new Map<string, number>();
 let pendingJoin: { resolve: () => void; reject: (e: Error) => void } | null = null;
 let noteId = 0;
@@ -95,6 +76,14 @@ let presenceSeen = false;
 
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
+
+function later(fn: () => void, ms: number) {
+  const t = window.setTimeout(() => {
+    pending.delete(t);
+    fn();
+  }, ms);
+  pending.add(t);
+}
 
 function update(patch: Partial<PartyState>) {
   if (!state) return;
@@ -130,16 +119,13 @@ export function partyPosition(videoId: string) {
 /** What others need to find the same file, without the URL itself. */
 export function streamHint(s?: Stream): StreamHint | undefined {
   if (!s) return undefined;
-  const hash = (s.content_id ?? s.url?.match(/\b[a-f0-9]{40}\b/i)?.[0])?.toLowerCase();
   const release = (s.title ?? s.description ?? "").split("\n")[0].trim() || undefined;
-  return hash || release ? { hash, release } : undefined;
+  return release ? { release } : undefined;
 }
 
 export function sameFile(s: Stream, hint: StreamHint) {
   const h = streamHint(s);
-  if (!h) return false;
-  if (hint.hash && h.hash) return hint.hash === h.hash;
-  return !!hint.release && hint.release.toLowerCase() === h.release?.toLowerCase();
+  return !!h && !!hint.release && hint.release.toLowerCase() === h.release?.toLowerCase();
 }
 
 export function normalizeCode(input: string) {
@@ -177,14 +163,18 @@ export function joinParty(input: string, me: Pick<Member, "name" | "avatar">) {
   state = { code, status: "connecting", me: self.id, hostId: null, members: [self], playback: null, notes: [] };
   const joined = new Promise<void>((resolve, reject) => (pendingJoin = { resolve, reject }));
   connect(code);
-  timers.push(window.setTimeout(() => failJoin("There's no watch party with that code."), JOIN_TIMEOUT_MS));
+  placeInLine = true;
+  later(() => failJoin("There's no watch party with that code."), JOIN_TIMEOUT_MS);
   emit();
   return joined;
 }
 
 export function leaveParty() {
-  timers.forEach((t) => window.clearTimeout(t));
+  timers.forEach((t) => window.clearInterval(t));
   timers = [];
+  pending.forEach((t) => window.clearTimeout(t));
+  pending.clear();
+  placeInLine = false;
   link?.close();
   link = null;
   self = null;
@@ -312,22 +302,26 @@ function sendTimeline() {
   link?.send({ t: "state", from: self.id, tl: { ...tl, position: expectedPosition(p), lag: myLag() } });
 }
 
-function receive(msg: Record<string, unknown>) {
+function receive(raw: Record<string, unknown>) {
   if (!state || !self) return;
-  const from = msg.from as string;
+  const msg = parseMessage(raw);
+  if (!msg) return;
+  const from = msg.from;
   switch (msg.t) {
-    case "ping":
-      if (from === self.id) rtts = [...rtts.slice(-4), performance.now() - (msg.sent as number)];
+    case "ping": {
+      const rtt = from === self.id ? roundTrip(msg.sent, performance.now()) : undefined;
+      if (rtt !== undefined) rtts = [...rtts.slice(-4), rtt];
       return;
+    }
     case "hello":
       // Whoever has the timeline answers; ties resolve themselves (same version).
       if (from !== self.id) sendTimeline();
       return;
     case "state": {
       if (from === self.id) return; // applied when it was made
-      const tl = msg.tl as Timeline;
+      const tl = msg.tl;
       const cur = state.playback;
-      if (cur && (tl.v < cur.v || (tl.v === cur.v && tl.by < cur.by))) return;
+      if (!takesOver(cur, tl, presenceSeen ? state.members : null, state.hostId)) return;
       const next: Playback = { ...tl, at: performance.now() - (tl.lag + myLag()) * 1000 };
       if (cur && (tl.v !== cur.v || tl.by !== cur.by)) describe(cur, next);
       update({ playback: next });
@@ -343,6 +337,18 @@ function receive(msg: Record<string, unknown>) {
 
 function presence(list: Member[]) {
   if (!state || !self) return;
+  // Who hosts next goes by `joinedAt`. Each member's clock sets its own, and clocks
+  // differ, so on joining take the place after everyone already there instead.
+  if (placeInLine) {
+    placeInLine = false;
+    const last = Math.max(0, ...list.filter((m) => m.id !== self!.id).map((m) => m.joinedAt));
+    if (self.joinedAt <= last) {
+      self = { ...self, joinedAt: last + 1 };
+      link?.track(self);
+      const me = self;
+      list = list.map((m) => (m.id === me.id ? me : m));
+    }
+  }
   const members = [...list].sort((a, b) => a.joinedAt - b.joinedAt || a.id.localeCompare(b.id));
   const before = new Set(state.members.map((m) => m.id));
   const after = new Set(members.map((m) => m.id));
@@ -388,7 +394,5 @@ function note(who: Member | null, text: string) {
   if (!state) return;
   const n = { id: ++noteId, who, text };
   update({ notes: [...state.notes.slice(-2), n] });
-  timers.push(
-    window.setTimeout(() => state && update({ notes: state.notes.filter((x) => x.id !== n.id) }), NOTE_MS),
-  );
+  later(() => state && update({ notes: state.notes.filter((x) => x.id !== n.id) }), NOTE_MS);
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState, type ImgHTMLAttributes } from "react";
-import { Img } from "./Img";
+import { useEffect, useState } from "react";
+import { Img, type ImgProps } from "./Img";
 
 /**
  * A title treatment (logo) that stays readable on dark art. Some logos are
@@ -9,7 +9,7 @@ import { Img } from "./Img";
  * so the visible <img> never depends on it; if the host doesn't allow it,
  * the logo is simply shown as is.
  */
-export function TitleLogo(props: ImgHTMLAttributes<HTMLImageElement> & { src?: string }) {
+export function TitleLogo(props: ImgProps & { src?: string }) {
   const dark = useDarkLogo(props.src);
   return <Img {...props} data-logo-tone={dark ? "dark" : undefined} />;
 }
@@ -31,12 +31,31 @@ function useDarkLogo(src?: string) {
       tones.set(src, isDark);
       if (live) setDark(isDark);
     };
-    img.src = src;
+    // A host that won't allow it answers the same every time: don't ask again on every page.
+    img.onerror = () => tones.set(src, false);
+    img.src = toneUrl(src);
     return () => {
       live = false;
     };
   }, [src]);
   return dark;
+}
+
+/**
+ * Where to fetch a logo for measuring (test report 1, item 24). metahub's `images.` host redirects to
+ * `live.` without allowing CORS, so it goes to `live.` directly. And the URL differs from the visible
+ * logo's: TMDB allows CORS only to requests that carry an Origin and doesn't say it varies by it, so a
+ * cached answer to the plain <img> would fail this request.
+ */
+export function toneUrl(src: string): string {
+  try {
+    const u = new URL(src);
+    if (u.hostname === "images.metahub.space") u.hostname = "live.metahub.space";
+    u.searchParams.set("tone", "1");
+    return u.toString();
+  } catch {
+    return src;
+  }
 }
 
 /** True when the visible pixels are, on average, dark. */

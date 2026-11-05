@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ArrowLeft,
   Captions,
@@ -7,7 +6,6 @@ import {
   Episodes,
   ExitFullscreen,
   Fullscreen,
-  Instant,
   Pause,
   Play,
   Settings as Cog,
@@ -18,14 +16,24 @@ import {
   VolumeMuted,
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
-import { ease } from "../lib/motion";
+import { ease, useFormFactor } from "../lib/ui";
+import { appWindow, isMac } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
 import { streamKey } from "../components/StreamList";
 import { SourceFilterBar } from "../components/SourceFilters";
-import { sourceRow, useSourceFilters } from "../lib/sources";
-import { isLocalFile } from "../lib/downloads";
+import {
+  autoplayStreak,
+  countAutoplay,
+  requestHeaders,
+  resetAutoplay,
+  sliderAmplitude,
+  sourceRow,
+  useResetAutoplayOnInput,
+  useSourceFilters,
+} from "../lib/playback";
+import { episodeState, isLocalFile, nextVideo, progressMap, seasonsOf, watchedFraction } from "../lib/library";
 import { WindowControls } from "../components/WindowControls";
 import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
@@ -41,47 +49,40 @@ import {
   forgetAssOverride,
   subtitleCueVars,
 } from "../components/player/SubtitleSettings";
-import { MpvMedia, type MediaLike } from "../components/player/mpvMedia";
-import { usePrefs } from "../lib/prefs";
-import { actionFor, withShortcut } from "../lib/keybinds";
+import { MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
+import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
+import { usePrefs, withShortcut } from "../lib/settings";
 import { api } from "../lib/api";
-import { sync } from "../lib/account/sync";
-import { nextVideo, progressMap, seasonsOf } from "../lib/episodes";
-import { episodeCode, formatDate, formatRemaining, formatTime, isReleased, seasonLabel } from "../lib/format";
-import { keys, prefetchStreams, queryClient, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/queries";
+import { useAccount } from "../lib/account";
+import { episodeCode, formatDate, formatRemaining, formatTime, seasonLabel } from "../lib/format";
+import { keys, prefetchStreams, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/net";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, Stream, Video } from "../lib/types";
-import { isFiller } from "../lib/anime/filler";
-import { isMac } from "../lib/platform";
-import { watchedFraction } from "../lib/watched";
+import { playContext, stillFor } from "../lib/anime";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
-import { useAccount } from "../lib/account/AccountProvider";
-import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party/party";
+import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { WatchParty } from "../components/icons";
-import { stillFor } from "../lib/anime/stills";
+import { Button, IconButton } from "../components/ui/Button";
+import { errorMessage, storeLocal } from "../lib/errors";
+import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
+import { PlayerStatus } from "../components/player/PlayerStatus";
+import { PlayerClock, TIME_DISPLAYS } from "../components/player/PlayerClock";
+import { useMediaTime } from "../components/player/useMediaTime";
+import { usePlayerChrome } from "../components/player/usePlayerChrome";
+import { usePlayerKeyboard } from "../components/player/usePlayerKeyboard";
+import { useProgressSaver } from "../components/player/useProgressSaver";
 
-const win = getCurrentWindow();
-const SAVE_EVERY = 5000;
+const win = appWindow;
 /** In a watch party, how long a source gets to start before the next one is tried. */
 const PARTY_START_MS = 20_000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-/** How long the player layer takes to fade back to the page (matches player.css). */
-export const PLAYER_EXIT_MS = 260;
 /** With "Up next" set to the very end, it appears this many seconds before. */
 const NEXT_UP_AT_END = 12;
 
-/**
- * Episodes autoplayed in a row with nobody touching anything, for "Still
- * watching?". Module-level: each episode is a fresh Player.
- */
-let autoplayStreak = 0;
-
-const TIME_DISPLAYS = ["remaining", "elapsed", "endsAt"] as const;
-const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
 export function Player({
   type,
@@ -104,9 +105,10 @@ export function Player({
   const pad = usePadGlyph(tv);
   const { data: meta } = useMeta(type, metaId);
   const { data: settings } = useSettings();
-  // Engine: embedded mpv when installed (plays HEVC/MKV, AC3/DTS audio, every
+  const { touch } = useFormFactor();
+  // Engine: embedded mpv when installed (plays every codec, AC3/DTS audio, every
   // subtitle format), else the WebView's own <video>.
-  const engineQuery = useQuery({ queryKey: ["mpv"], queryFn: api.mpvAvailable, staleTime: Infinity });
+  const engineQuery = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
   const engine: "mpv" | "html" | null = engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
   const mpv = useMemo(() => new MpvMedia(), []);
   // Watch party: signed-in profiles only. Joining the room's video, look for the file it's on.
@@ -117,30 +119,42 @@ export function Player({
     const p = getParty()?.playback;
     return p?.media.videoId === videoId ? p.media.hint : undefined;
   });
-  const source = useSource(type, metaId, videoId, stream, roomHint);
+  // What the loading screen lists as it happens (and copies for a bug report).
+  const { steps, add: logStep } = useStartLog();
+  useEffect(() => {
+    if (engine === "mpv") logStep("Player: mpv", "info", "player");
+    // What the built-in player can't do depends on the file's codecs and the machine, not on MKV (test report 1, item 23).
+    else if (engine === "html")
+      logStep("Player: built-in (mpv isn't installed, so some files may not play: AC3/DTS audio, HEVC where the system can't decode it)", "info", "player");
+  }, [engine, logStep]);
+  const source = useSource(type, metaId, videoId, stream, roomHint, logStep);
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const media: MediaLike | null = engine === "mpv" ? mpv : videoEl;
   const videoRef = useRef<MediaLike | null>(null);
   videoRef.current = media;
   const [paused, setPaused] = useState(true);
-  const [time, setTime] = useState({ current: 0, duration: 0 });
   const [buffering, setBuffering] = useState(true);
   // Until the first frame actually plays, the loading screen stays up.
   const [started, setStarted] = useState(false);
-  const [volume, setVolume] = useState(() => Number(localStorage.getItem("polar.volume") ?? 1));
+  const startedRef = useRef(false);
+  startedRef.current = started;
+  /** Why the link check turned the built-in player's source down (mpv reports its own). */
+  const linkError = useRef<string | null>(null);
+  const [volume, setVolume] = useState(savedVolume);
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, flashNotice] = useNotice();
   const [ended, setEnded] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
   const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | "party" | null>(null);
   const updateSettings = useUpdateSettings();
-  // Settings → Playback → "Remember playback speed".
-  const [rate, setRateState] = useState(() => (settings?.rememberSpeed && settings.playbackSpeed > 0 ? settings.playbackSpeed : 1));
+  // Settings → Playback → "Remember playback speed" (settings may arrive after the player opens).
+  const [picked, setPicked] = useState<number>();
+  const rate = picked ?? (settings?.rememberSpeed && settings.playbackSpeed > 0 ? settings.playbackSpeed : 1);
   const setRate = (r: number) => {
-    setRateState(r);
+    setPicked(r);
     if (settings?.rememberSpeed) updateSettings.mutate({ playbackSpeed: r });
   };
   const seekStep = settings?.seekStep ?? 10;
@@ -185,9 +199,9 @@ export function Player({
 
   // Optional seek-bar thumbnails (Seekr). Keyed to whole seconds of duration:
   // the API aligns cues to the length of the release being played.
-  const durationS = Math.round(time.duration || 0);
+  const durationS = useMediaTime(media, (t) => Math.round(t.duration));
   const { data: seekTrack } = useQuery({
-    queryKey: ["seekr", videoId, durationS],
+    queryKey: keys.seekr(videoId, durationS),
     queryFn: () => api.seekPreviews(videoId, durationS * 1000),
     enabled: !!settings?.seekPreviews && !!settings?.seekrKey && durationS > 0,
     staleTime: Infinity,
@@ -195,41 +209,13 @@ export function Player({
   });
 
   // --- Chrome visibility --------------------------------------------------
-  const [chrome, setChrome] = useState({ visible: true, instant: false });
-  const hideTimer = useRef<number>(undefined);
-  const overControls = useRef(false);
-  const poke = useCallback((instant = false) => {
-    // Called on every pointer move: keep the same object when nothing changed,
-    // or the whole player re-renders for each pixel the mouse travels.
-    setChrome((c) => (c.visible && c.instant === instant ? c : { visible: true, instant }));
-    window.clearTimeout(hideTimer.current);
-    hideTimer.current = window.setTimeout(() => {
-      if (!overControls.current) setChrome({ visible: false, instant: false });
-    }, hideAfter);
-  }, [hideAfter]);
-  // Leaving the window (alt-tab, another app, the cursor off the edge) hides it
-  // now: nothing is pointing at the controls any more, so don't wait out the timer.
-  useEffect(() => {
-    const hide = () => {
-      window.clearTimeout(hideTimer.current);
-      overControls.current = false;
-      setChrome({ visible: false, instant: false });
-    };
-    const onVisibility = () => document.hidden && hide();
-    const root = document.documentElement;
-    window.addEventListener("blur", hide);
-    document.addEventListener("visibilitychange", onVisibility);
-    root.addEventListener("mouseleave", hide);
-    const unlisten = win.onFocusChanged(({ payload: focused }) => !focused && hide());
-    return () => {
-      window.removeEventListener("blur", hide);
-      document.removeEventListener("visibilitychange", onVisibility);
-      root.removeEventListener("mouseleave", hide);
-      void unlisten.then((f) => f());
-    };
-  }, []);
+  const { chrome, poke, hide: hideChrome, overControls } = usePlayerChrome(hideAfter);
   const ready = source.state.status === "ready" && !error;
   const chromeVisible = chrome.visible || paused || !!options || !ready;
+  // Whether the controls showed when the press on the picture began: the
+  // player's own pointerdown shows them before the click, so a tap that should
+  // bring them back would otherwise hide them again at once.
+  const chromeAtPress = useRef(false);
 
   // --- Current / next episode ---------------------------------------------
   const current = meta?.videos.find((v) => v.id === videoId);
@@ -238,7 +224,7 @@ export function Player({
   const { next, skipped } = useMemo(() => {
     let n = meta && type === "series" ? nextVideo(meta, videoId) : undefined;
     const skipped: Video[] = [];
-    while (n && animeSkipFiller && isFiller(n.id) && meta) {
+    while (n && animeSkipFiller && playContext.isFiller(n.id) && meta) {
       skipped.push(n);
       n = nextVideo(meta, n.id);
     }
@@ -258,42 +244,7 @@ export function Player({
   };
 
   // --- Progress -------------------------------------------------------------
-  const lastSave = useRef(0);
-  const save = useCallback(() => {
-    const v = videoRef.current;
-    if (!v || !v.duration || !Number.isFinite(v.duration) || !meta || source.state.status !== "ready") return;
-    lastSave.current = Date.now();
-    const p: Progress = {
-      metaId,
-      videoId,
-      type,
-      name: meta.name,
-      background: meta.background,
-      poster: meta.poster,
-      season: current?.season,
-      episode: current?.episode,
-      episodeTitle: current?.title,
-      // A download plays from a file that may be deleted later: resuming
-      // from Continue Watching picks an online source instead.
-      stream: isLocalFile(source.state.stream?.url) ? undefined : source.state.stream,
-      position: v.currentTime,
-      duration: v.duration,
-      updatedAt: 0,
-    };
-    api.saveProgress(p).then(sync.schedule, () => {});
-  }, [meta, metaId, videoId, type, current, source.state]);
-
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  useEffect(
-    () => () => {
-      saveRef.current();
-      queryClient.invalidateQueries({ queryKey: keys.progress(metaId) });
-      queryClient.invalidateQueries({ queryKey: keys.continue });
-      queryClient.invalidateQueries({ queryKey: keys.history });
-    },
-    [metaId],
-  );
+  const { save, saveIfDue } = useProgressSaver({ media: videoRef, meta, type, metaId, videoId, current, state: source.state });
 
   // --- mpv lifecycle ----------------------------------------------------------
   useEffect(() => {
@@ -338,26 +289,61 @@ export function Player({
     resumed.current = false;
     setError(null);
     setBuffering(true);
-    v.volume = volume;
+    v.volume = sliderAmplitude(volume);
     if (v instanceof MpvMedia) {
       // Start at the resume point (or where the watch party is) directly: no
       // fetching the opening of a network stream only to seek away from it.
       const start = partyPosition(videoId) ?? resumePoint(source.resume);
       resumed.current = true;
-      v.load(source.state.url, start);
+      v.load(source.state.url, start, requestHeaders(source.state.stream));
     } else if (v instanceof HTMLVideoElement) {
-      v.src = source.state.url;
-      v.play().catch(() => setPaused(true));
+      const url = source.state.url;
+      const play = (src: string) => {
+        v.src = src;
+        v.play().catch(() => setPaused(true));
+      };
+      linkError.current = null;
+      if (isLocalFile(url)) return play(url);
+      // The same link check mpv_load runs, so this player gets the warmed link and the same steps.
+      let cancelled = false;
+      const id = nextProbeId();
+      const unlisten = listenProbe(id, (e) => logStep(...probeStep(e)));
+      api
+        .streamProbe(url, id, requestHeaders(source.state.stream))
+        .then(
+          (final) => !cancelled && play(final),
+          (e) => {
+            if (cancelled) return;
+            linkError.current = errorMessage(e);
+            logStep(errorMessage(e), "fail", "server");
+            v.dispatchEvent(new Event("error"));
+          },
+        )
+        .finally(() => void unlisten.then((f) => f()));
+      return () => {
+        cancelled = true;
+      };
     }
     // Volume is applied by its own effect; only a new source reloads.
   }, [source.state, media]);
 
+  // mpv's own steps (link check, opening, buffering) go to the log until the picture starts.
+  useEffect(() => {
+    if (!media) return;
+    const onStep = (e: Event) => {
+      const d = (e as CustomEvent<StepDetail>).detail;
+      if (!startedRef.current) logStep(d.text, d.tone, d.stage, d.key);
+    };
+    media.addEventListener("step", onStep);
+    return () => media.removeEventListener("step", onStep);
+  }, [media, logStep]);
+
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.volume = volume;
+    v.volume = sliderAmplitude(volume);
     v.muted = muted;
-    localStorage.setItem("polar.volume", String(volume));
+    storeLocal("polar.volume", String(volume));
   }, [volume, muted, media]);
 
   // A watch party plays at 1x for everyone (its sync nudges the rate itself).
@@ -372,9 +358,8 @@ export function Player({
   useEffect(() => {
     if (!inParty || started || source.state.status !== "ready") return;
     const t = window.setTimeout(() => {
-      if (!sourceNext()) return;
-      setNotice("That source was slow to start. Trying the next best one.");
-      window.setTimeout(() => setNotice(null), 3500);
+      logStep(`Not playing after ${PARTY_START_MS / 1000} s; the watch party is waiting`, "warn", "player");
+      if (sourceNext()) flashNotice("That source was slow to start. Trying the next best one.", 3500);
     }, PARTY_START_MS);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a new attempt is a new source.state
@@ -407,17 +392,7 @@ export function Player({
   }, [pauseOnMinimize]);
 
   // Any deliberate input means someone's still there ("Still watching?").
-  useEffect(() => {
-    const reset = () => (autoplayStreak = 0);
-    window.addEventListener("keydown", reset);
-    window.addEventListener("pointerdown", reset);
-    window.addEventListener("wheel", reset);
-    return () => {
-      window.removeEventListener("keydown", reset);
-      window.removeEventListener("pointerdown", reset);
-      window.removeEventListener("wheel", reset);
-    };
-  }, []);
+  useResetAutoplayOnInput();
 
   // --- Media events (identical for <video> and mpv) ---------------------------
   const handlers = {
@@ -430,9 +405,13 @@ export function Player({
       setPaused(true);
       save();
     },
-    waiting: () => setBuffering(true),
+    waiting: () => {
+      setBuffering(true);
+      if (!startedRef.current) logStep("Buffering", "info", "player", "buffer");
+    },
     playing: () => {
       setBuffering(false);
+      if (!startedRef.current) logStep("Playing", "ok", "player");
       setStarted(true);
     },
     canplay: () => setBuffering(false),
@@ -441,13 +420,15 @@ export function Player({
       const start = partyPosition(videoId) ?? resumePoint(source.resume);
       if (!resumed.current && start != null) v.currentTime = start;
       resumed.current = true;
-      setTime({ current: v.currentTime, duration: v.duration });
+      if (!startedRef.current) {
+        const length = Number.isFinite(v.duration) ? ` · ${formatTime(v.duration)} long` : " · live or unknown length";
+        logStep(`File opened${length}${start != null ? `, starting at ${formatTime(start)}` : ""}`, "ok", "player");
+      }
     },
+    // The time itself is read where it's shown (useMediaTime), not stored here.
     timeupdate: () => {
-      const v = videoRef.current!;
-      setTime({ current: v.currentTime, duration: v.duration || 0 });
-      if (!v.paused) setStarted(true);
-      if (Date.now() - lastSave.current > SAVE_EVERY && !v.paused) save();
+      if (!videoRef.current!.paused) setStarted(true);
+      saveIfDue();
     },
     ended: () => {
       setEnded(true);
@@ -458,15 +439,22 @@ export function Player({
       // would just start mpv again (and if it keeps exiting, loop through
       // every source).
       const exited = videoRef.current instanceof MpvMedia && videoRef.current.error?.playerExited;
+      const el = videoRef.current;
+      if (el instanceof HTMLVideoElement && el.error) {
+        const kinds = ["", "loading was stopped", "network error", "couldn't decode it", "format not supported"];
+        logStep(`Built-in player: ${kinds[el.error.code] ?? `error ${el.error.code}`}${el.error.message ? ` (${el.error.message})` : ""}`, "fail", "player");
+      }
       if (!exited && source.next()) {
-        setNotice("That source didn't load. Trying the next best one.");
-        window.setTimeout(() => setNotice(null), 3500);
+        logStep("Trying the next source", "warn");
+        flashNotice("That source didn't load. Trying the next best one.", 3500);
       } else {
         const v = videoRef.current;
         setError(
           v instanceof MpvMedia
             ? (v.error?.message ?? "This file couldn't be played.")
-            : isMac
+            : linkError.current
+              ? linkError.current
+              : isMac
               ? "This file's format needs mpv. Install it (brew install mpv) and Polarity will play it."
               : "This file's format needs mpv. Install mpv and Polarity will play it.",
         );
@@ -496,21 +484,20 @@ export function Player({
     if (v?.duration) v.currentTime = Math.min(v.duration - 1, Math.max(0, v.currentTime + delta));
   }, []);
 
+  const seekTo = useCallback((t: number) => {
+    if (videoRef.current) videoRef.current.currentTime = t;
+  }, []);
+
+  const onAutoSkipped = useCallback((label: string) => flashNotice(label, 2500), [flashNotice]);
   const { preferFileChapters } = usePrefs();
   const skip = useSkipSegments({
     videoId,
-    time: time.current,
     started,
     autoSkip: { intro: !!settings?.autoSkip, recap: settings?.autoSkipRecaps ?? !!settings?.autoSkip },
     media,
     preferFile: preferFileChapters,
-    seekTo: (t) => {
-      if (videoRef.current) videoRef.current.currentTime = t;
-    },
-    onAutoSkipped: (label) => {
-      setNotice(label);
-      window.setTimeout(() => setNotice(null), 2500);
-    },
+    seekTo,
+    onAutoSkipped,
   });
 
   const toggleFullscreen = useCallback(async () => {
@@ -546,28 +533,31 @@ export function Player({
   // Only fetched once the Sources picker is opened (and usually cached already).
   const streams = useStreams(type, options === "sources" ? videoId : undefined);
 
-  const episodeItems: OptionItem[] = (meta?.videos ?? [])
-    .filter((v) => v.season === shownSeason)
-    .map((v) => {
-      const p = progressById.get(v.id);
-      const fraction = p?.duration ? p.position / p.duration : 0;
-      const released = isReleased(v);
-      return {
-        id: v.id,
-        label: `${v.episode}. ${v.title}`,
-        detail: !released
-          ? `Coming ${formatDate(v.released)}`
-          : fraction > 0 && fraction < watchedFraction() && p
-            ? formatRemaining(p.position, p.duration)
-            : formatDate(v.released),
-        thumbnail: stillFor(v.id) ?? v.thumbnail ?? "",
-        progress: fraction < watchedFraction() ? fraction : undefined,
-        badge: fraction >= watchedFraction() ? { text: "Watched" } : undefined,
-        disabled: !released,
-      };
-    });
+  const episodeItems = useMemo<OptionItem[]>(
+    () =>
+      (meta?.videos ?? [])
+        .filter((v) => v.season === shownSeason)
+        .map((v) => {
+          const p = progressById.get(v.id);
+          const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
+          return {
+            id: v.id,
+            label: `${v.episode}. ${v.title}`,
+            detail: !released
+              ? `Coming ${formatDate(v.released)}`
+              : inProgress && p
+                ? formatRemaining(p.position, p.duration)
+                : formatDate(v.released),
+            thumbnail: stillFor(v.id) ?? v.thumbnail ?? "",
+            progress: watched ? undefined : fraction,
+            badge: watched ? { text: "Watched" } : undefined,
+            disabled: !released,
+          };
+        }),
+    [meta, shownSeason, progressById],
+  );
 
-  const rankedStreams = streams.data?.streams ?? [];
+  const rankedStreams = useMemo(() => streams.data?.streams ?? [], [streams.data]);
   const currentKey = source.state.status === "ready" ? streamKey(source.state) : undefined;
   // Filter (add-on, resolution, language, size, tags) and sort, as on the
   // title page. Ids stay the index into the ranked list, so selection works
@@ -575,148 +565,133 @@ export function Player({
   // through picking a source or moving to another episode (each rebuilds it).
   const sourceFilters = useSourceFilters(streams.data?.streams, settings, metaId);
   const hiddenSources = streams.data?.hidden ?? 0;
-  const sourceItems: OptionItem[] = sourceFilters.view.map(({ r, match }, n) => {
-    const row = sourceRow(r);
-    return {
-      id: String(rankedStreams.indexOf(r)),
-      label: n === 0 && match && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
-      // Filters that only order the list: what doesn't match follows under its own heading.
-      heading: n === sourceFilters.matched && !match ? "Other sources" : undefined,
-      detail: [row.size, row.detail].filter(Boolean).join(" · "),
-      badge: r.quality.lowQualitySource
-        ? { text: "CAM", tone: "bad" as const }
-        : r.quality.cached
-          ? { text: "Instant", tone: "good" as const, icon: <Instant size={14} fill="currentColor" strokeWidth={0} /> }
-          : undefined,
-    };
-  });
-  const currentSourceIndex = rankedStreams.findIndex((r) => streamKey(r) === currentKey);
+  const sourceItems = useMemo<OptionItem[]>(() => {
+    const rank = new Map(rankedStreams.map((r, i) => [r, i]));
+    return sourceFilters.view.map(({ r, match }, n) => {
+      const row = sourceRow(r);
+      return {
+        id: String(rank.get(r) ?? -1),
+        label: n === 0 && match && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
+        // Filters that only order the list: what doesn't match follows under its own heading.
+        heading: n === sourceFilters.matched && !match ? "Other sources" : undefined,
+        detail: [row.size, row.detail].filter(Boolean).join(" · "),
+        badge: r.quality.lowQualitySource ? { text: "CAM", tone: "bad" as const } : undefined,
+      };
+      });
+  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.sort]);
+  const currentSourceIndex = useMemo(() => rankedStreams.findIndex((r) => streamKey(r) === currentKey), [rankedStreams, currentKey]);
 
   // --- Keyboard: instant, never animated -------------------------------------
+  // A panel opened from a key (or a pad button) is there at once; a click keeps the frosted materialize.
+  const [optionsByKey, setOptionsByKey] = useState(false);
   useEffect(() => {
-    if (leaving) return; // the page underneath has the keyboard already
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
-      // A dropdown has the keyboard while it's focused or open (arrows, Space, Esc are its own).
-      if ((e.target as HTMLElement).closest?.("[aria-haspopup=listbox], [role=listbox], .srcf-popover")) return;
-      const handled = (() => {
-        // Shortcuts are rebindable (Settings → Controls); Esc always backs out.
-        switch (e.key === "Escape" ? "escape" : actionFor(e, "player")) {
-          case "playPause":
-            togglePlay();
+    if (!options) setOptionsByKey(false);
+  }, [options]);
+  const toggleOptions = (o: NonNullable<typeof options>) => {
+    setOptionsByKey(true);
+    setOptions((open) => (open === o ? null : o));
+  };
+  // The page underneath has the keyboard already while the player fades out.
+  usePlayerKeyboard(
+    !leaving,
+    (action) => {
+      switch (action) {
+        case "playPause":
+          togglePlay();
+          return true;
+        case "seekBack":
+          seekBy(-seekStep);
+          return true;
+        case "seekForward":
+          seekBy(seekStep);
+          return true;
+        case "volumeUp":
+          setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
+          setMuted(false);
+          return true;
+        case "volumeDown":
+          setVolume((v) => Math.max(0, +(v - 0.1).toFixed(2)));
+          return true;
+        case "mute":
+          setMuted((m) => !m);
+          return true;
+        case "fullscreen":
+          void toggleFullscreen();
+          return true;
+        case "skip":
+          skip.skipActive();
+          return true;
+        case "nextEpisode":
+          if (next) playVideo(next.id);
+          return true;
+        case "tracks":
+        case "sources":
+        case "speed":
+          toggleOptions(action);
+          return true;
+        case "episodes":
+          if (type !== "series") return false;
+          toggleOptions(action);
+          return true;
+        case "escape":
+          if (tv) {
+            void exit();
             return true;
-          case "seekBack":
-            seekBy(-seekStep);
-            return true;
-          case "seekForward":
-            seekBy(seekStep);
-            return true;
-          case "volumeUp":
-            setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
-            setMuted(false);
-            return true;
-          case "volumeDown":
-            setVolume((v) => Math.max(0, +(v - 0.1).toFixed(2)));
-            return true;
-          case "mute":
-            setMuted((m) => !m);
-            return true;
-          case "fullscreen":
-            void toggleFullscreen();
-            return true;
-          case "skip":
-            skip.skipActive();
-            return true;
-          case "nextEpisode":
-            if (next) playVideo(next.id);
-            return true;
-          case "tracks":
-            setOptions((o) => (o === "tracks" ? null : "tracks"));
-            return true;
-          case "episodes":
-            if (type !== "series") return false;
-            setOptions((o) => (o === "episodes" ? null : "episodes"));
-            return true;
-          case "sources":
-            setOptions((o) => (o === "sources" ? null : "sources"));
-            return true;
-          case "speed":
-            setOptions((o) => (o === "speed" ? null : "speed"));
-            return true;
-          case "escape":
-            if (tv) {
+          }
+          // Leave fullscreen first; a second Esc backs out of the player.
+          void win.isFullscreen().then((fs) => {
+            if (fs) {
+              void win.setFullscreen(false);
+              setFullscreen(false);
+            } else {
               void exit();
-              return true;
             }
-            // Leave fullscreen first; a second Esc backs out of the player.
-            void win.isFullscreen().then((fs) => {
-              if (fs) {
-                void win.setFullscreen(false);
-                setFullscreen(false);
-              } else {
-                void exit();
-              }
-            });
-            return true;
-        }
-        return false;
-      })();
-      if (handled) {
-        e.preventDefault();
-        poke(true);
+          });
+          return true;
       }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [leaving, togglePlay, seekBy, seekStep, toggleFullscreen, exit, next, playVideo, poke, skip, tv, type]);
+      return false;
+    },
+    () => poke(true),
+  );
 
   // Warm the next episode's sources well before the credits.
   const prefetchedNext = useRef(false);
+  const pastThreeQuarters = useMediaTime(media, (t) => t.duration > 0 && t.current / t.duration > 0.75);
   useEffect(() => {
-    if (next && !prefetchedNext.current && time.duration && time.current / time.duration > 0.75) {
+    if (next && !prefetchedNext.current && pastThreeQuarters) {
       prefetchedNext.current = true;
       prefetchStreams(type, next.id);
     }
-  }, [next, time, type]);
+  }, [next, pastThreeQuarters, type]);
 
   // Autoplay countdown once the episode ends, unless it's time to ask
   // whether anyone's still watching (Settings → Playback).
   const askAfter = settings?.stillWatchingAfter ?? 0;
-  const stillWatching = askAfter > 0 && autoplayStreak >= askAfter;
+  const stillWatching = askAfter > 0 && autoplayStreak() >= askAfter;
   const willAutoplay = !!settings?.autoplayNext && !stillWatching;
   useEffect(() => {
     if (!ended || !next || nextDismissed || !willAutoplay) return;
     const t = window.setTimeout(() => {
-      autoplayStreak += 1;
+      countAutoplay();
       playVideo(next.id);
     }, countdown * 1000);
     return () => window.clearTimeout(t);
   }, [ended, next, nextDismissed, willAutoplay, countdown, playVideo]);
 
-  const remaining = time.duration - time.current;
   // With IntroDB credit timings, "Up next" arrives exactly when the credits
   // roll (Netflix-style); without them, fall back to the last ~40s. Settings
   // can hold it back until the very end instead.
   const creditsStart = skip.segments?.outro?.start;
-  const inCredits =
-    creditsStart != null && time.current >= creditsStart && !skip.segments?.postCredits;
+  const postCredits = !!skip.segments?.postCredits;
   const atEnd = settings?.nextUpTiming === "end";
-  const showNextUp =
-    !!next &&
-    !nextDismissed &&
-    time.duration > 0 &&
-    (ended ||
-      (atEnd
-        ? remaining <= NEXT_UP_AT_END
-        : inCredits || (creditsStart == null && remaining <= Math.max(40, time.duration * 0.04))));
+  const nearEnd = useMediaTime(media, (t) => {
+    if (!(t.duration > 0)) return "unknown";
+    const remaining = t.duration - t.current;
+    const inCredits = creditsStart != null && t.current >= creditsStart && !postCredits;
+    return (atEnd ? remaining <= NEXT_UP_AT_END : inCredits || (creditsStart == null && remaining <= Math.max(40, t.duration * 0.04))) ? "yes" : "no";
+  });
+  const showNextUp = !!next && !nextDismissed && nearEnd !== "unknown" && (ended || nearEnd === "yes");
 
-  // The timeline clock (Settings → Playback; clicking it cycles).
-  const clockText =
-    timeDisplay === "elapsed"
-      ? `${formatTime(time.current)} / ${formatTime(time.duration)}`
-      : timeDisplay === "endsAt"
-        ? `Ends at ${clock.format(Date.now() + (remaining / (rate || 1)) * 1000)}`
-        : formatTime(remaining);
   const cycleClock = () =>
     updateSettings.mutate({ timeDisplay: TIME_DISPLAYS[(TIME_DISPLAYS.indexOf(timeDisplay) + 1) % TIME_DISPLAYS.length] });
 
@@ -730,6 +705,7 @@ export function Player({
       data-chrome={chromeVisible}
       data-instant={chrome.instant}
       data-options={!!options}
+      data-options-instant={optionsByKey}
       data-started={started}
       onPointerMove={() => poke()}
       onPointerDown={() => poke()}
@@ -738,17 +714,29 @@ export function Player({
         <video ref={setVideoEl} className="player-video" playsInline style={subtitleCueVars(subStyle)} />
       )}
       {/* Click target over either engine: tap to play/pause, double-click for
-          fullscreen, wheel for volume. */}
+          fullscreen (on touch, a side's double-tap seeks), wheel for volume. */}
       <div
         className="player-surface"
         // Respond immediately; double-click adds fullscreen on top. Settings
-        // can make a click only show/hide the controls instead.
+        // can make a click only show/hide the controls instead; a tap always
+        // does, as on every phone player (Play/Pause is in the controls).
+        onPointerDown={() => (chromeAtPress.current = chrome.visible)}
         onClick={() => {
-          if (settings?.clickAction !== "controls") return togglePlay();
-          if (chrome.visible) setChrome({ visible: false, instant: false });
+          if (!touch && settings?.clickAction !== "controls") return togglePlay();
+          if (chromeAtPress.current) hideChrome();
           else poke();
         }}
-        onDoubleClick={() => void toggleFullscreen()}
+        // A finger double-taps the left or right third to skip back or ahead, as phone players do;
+        // the middle (and a mouse anywhere) toggles fullscreen.
+        onDoubleClick={(e) => {
+          const third = e.currentTarget.clientWidth / 3;
+          const x = e.nativeEvent.offsetX;
+          if (touch && (x < third || x > third * 2)) {
+            seekBy((x < third ? -1 : 1) * seekStep);
+            return poke(true);
+          }
+          void toggleFullscreen();
+        }}
         onWheel={(e) => {
           const wheel = settings?.wheelAction ?? "volume";
           if (wheel === "none") return;
@@ -772,6 +760,8 @@ export function Player({
             logo={meta?.logo}
             name={meta?.name}
             background={meta?.background}
+            steps={steps}
+            backend={engine === "html" ? "built-in" : (engine ?? "not chosen yet")}
             onSources={() => setOptions("sources")}
           />
         )}
@@ -783,9 +773,9 @@ export function Player({
 
       {/* Top: back, what's playing, window-level controls. Drag lives here. */}
       <div className="player-top" data-tauri-drag-region>
-        <button className="player-icon pressable" onClick={() => void exit()} aria-label="Back" title="Back (Esc)">
+        <IconButton variant="player" onClick={() => void exit()} label="Back" title="Back (Esc)">
           <ArrowLeft size={26} />
-        </button>
+        </IconButton>
         <div className="player-heading" data-tauri-drag-region>
           <span className="player-heading-title">{heading}</span>
           {current && <span className="player-heading-show">{title}</span>}
@@ -793,9 +783,9 @@ export function Player({
         <div className="player-top-actions">
           {party && <PartyBadge party={party} onOpen={() => setOptions("party")} />}
           <div className="player-volume">
-            <button className="player-icon pressable" onClick={() => setMuted((m) => !m)} aria-label={muted ? "Unmute" : "Mute"} title={withShortcut("Mute", "mute")}>
+            <IconButton variant="player" onClick={() => setMuted((m) => !m)} label={muted ? "Unmute" : "Mute"} title={withShortcut("Mute", "mute")}>
               <VolumeIcon size={22} />
-            </button>
+            </IconButton>
             <input
               type="range"
               min={0}
@@ -811,9 +801,9 @@ export function Player({
             />
           </div>
           {!tv && (
-            <button className="player-icon pressable" onClick={() => void toggleFullscreen()} aria-label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
+            <IconButton variant="player" onClick={() => void toggleFullscreen()} label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
               {fullscreen ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
-            </button>
+            </IconButton>
           )}
         </div>
         {!fullscreen && !tv && <WindowControls />}
@@ -822,10 +812,10 @@ export function Player({
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
       {ready && started && (
         <div className="player-center">
-          <button className="player-transport pressable" onClick={() => seekBy(-seekStep)} aria-label={`Back ${seekStep} seconds`} title={withShortcut(`Back ${seekStep}s`, "seekBack")}>
+          <IconButton variant="transport" onClick={() => seekBy(-seekStep)} label={`Back ${seekStep} seconds`} title={withShortcut(`Back ${seekStep}s`, "seekBack")}>
             <SkipIcon direction="back" seconds={seekStep} size={56} />
-          </button>
-          <button className="player-transport player-transport-main pressable" onClick={togglePlay} aria-label={paused ? "Play" : "Pause"} title={withShortcut("Play/Pause", "playPause")}>
+          </IconButton>
+          <IconButton variant="transport" className="player-transport-main" onClick={togglePlay} label={paused ? "Play" : "Pause"} title={withShortcut("Play/Pause", "playPause")}>
             {buffering ? (
               <Spinner className="player-spinner" size={52} label="Buffering" />
             ) : paused ? (
@@ -833,10 +823,10 @@ export function Player({
             ) : (
               <Pause size={64} fill="currentColor" strokeWidth={0} />
             )}
-          </button>
-          <button className="player-transport pressable" onClick={() => seekBy(seekStep)} aria-label={`Forward ${seekStep} seconds`} title={withShortcut(`Forward ${seekStep}s`, "seekForward")}>
+          </IconButton>
+          <IconButton variant="transport" onClick={() => seekBy(seekStep)} label={`Forward ${seekStep} seconds`} title={withShortcut(`Forward ${seekStep}s`, "seekForward")}>
             <SkipIcon direction="forward" seconds={seekStep} size={56} />
-          </button>
+          </IconButton>
         </div>
       )}
 
@@ -847,22 +837,8 @@ export function Player({
         onPointerLeave={() => (overControls.current = false)}
       >
         <div className="player-timeline">
-          <Scrubber
-            media={media}
-            previews={seekTrack}
-            span={skip.segments?.intro}
-            onSeek={(t) => {
-              if (videoRef.current) videoRef.current.currentTime = t;
-            }}
-          />
-          <button
-            className="player-remaining tabular"
-            onClick={cycleClock}
-            title="Change what the clock shows"
-            aria-label={`${clockText}. Change what the clock shows`}
-          >
-            {clockText}
-          </button>
+          <Scrubber media={media} previews={seekTrack} span={skip.segments?.intro} onSeek={seekTo} />
+          <PlayerClock media={media} display={timeDisplay} rate={rate} onCycle={cycleClock} />
         </div>
         <div className="player-actions">
           {!party && (
@@ -923,15 +899,15 @@ export function Player({
             title: "Subtitles",
             size: subSettingsOpen ? "medium" : "narrow",
             header: (
-              <button
-                className="options-head-btn"
+              <IconButton
+                variant="panel"
                 aria-pressed={subSettingsOpen}
-                aria-label="Subtitle settings"
+                label="Subtitle settings"
                 title="Subtitle settings"
                 onClick={() => setSubSettingsOpen((v) => !v)}
               >
                 <Cog size={19} strokeWidth={2.1} />
-              </button>
+              </IconButton>
             ),
             content: subSettingsOpen ? (
               <SubtitleSettings
@@ -981,10 +957,11 @@ export function Player({
               )}
               <span className="next-up-title">{next.title}</span>
               <div className="next-up-actions">
-                <button
-                  className="btn btn-primary next-up-play"
+                <Button
+                  variant="primary"
+                  className="next-up-play"
                   onClick={() => {
-                    autoplayStreak = 0;
+                    resetAutoplay();
                     playVideo(next.id);
                   }}
                 >
@@ -992,10 +969,10 @@ export function Player({
                     <span className="next-up-countdown" style={{ animationDuration: `${countdown}s` }} />
                   )}
                   {pad("skipOrNext", "nextEpisode") ?? <Play size={16} fill="currentColor" />} {ended && stillWatching ? "Keep Watching" : "Play Now"}
-                </button>
-                <button className="btn btn-glass btn-icon next-up-dismiss" onClick={() => setNextDismissed(true)} aria-label="Dismiss">
+                </Button>
+                <IconButton variant="glass" className="next-up-dismiss" onClick={() => setNextDismissed(true)} label="Dismiss">
                   <Close size={16} />
-                </button>
+                </IconButton>
               </div>
             </div>
           </motion.div>
@@ -1077,81 +1054,6 @@ export function Player({
   );
 }
 
-/** How far the logo has filled in for each loading stage (0–100). */
-const FILL = { searching: 34, resolving: 66, starting: 92, done: 100 } as const;
-
-/**
- * Loading screen, Netflix-style: the title's logo (or name) sits greyed out
- * and fills with colour left to right as loading advances — finding a source,
- * connecting, buffering the first frames. Real stages, not a fake timer: each
- * one moves the fill further, and a slow creep within a stage shows life
- * while a slow server answers.
- */
-function PlayerStatus({
-  state,
-  error,
-  logo,
-  name,
-  background,
-  onSources,
-}: {
-  state: ReturnType<typeof useSource>["state"];
-  error: string | null;
-  logo?: string;
-  name?: string;
-  background?: string;
-  onSources: () => void;
-}) {
-  const failed = state.status === "failed" || !!error;
-
-  const stage = state.status === "searching" ? "searching" : state.status === "resolving" ? "resolving" : "starting";
-  const message = failed
-    ? (error ?? (state.status === "failed" ? state.reason : ""))
-    : stage === "searching"
-      ? "Finding the best source"
-      : stage === "resolving"
-        ? `Connecting${state.status === "resolving" && state.label ? ` · ${state.label}` : ""}`
-        : "Starting";
-
-  return (
-    <motion.div
-      className="player-status"
-      data-failed={failed}
-      exit={{ opacity: 0, transition: { duration: 0.4, ease: ease.out } }}
-    >
-      {background && <Img src={background} alt="" className="player-status-bg" />}
-      <div className="player-status-content">
-        <div className="load-mark" style={{ "--fill": `${failed ? 0 : FILL[stage]}%` } as React.CSSProperties}>
-          {logo ? (
-            <>
-              <img src={logo} alt={name ?? ""} className="load-mark-base" />
-              <img src={logo} alt="" aria-hidden className="load-mark-fill" />
-            </>
-          ) : (
-            <>
-              <span className="load-mark-base load-mark-text">{name}</span>
-              <span aria-hidden className="load-mark-fill load-mark-text">
-                {name}
-              </span>
-            </>
-          )}
-        </div>
-        <p key={message} className="player-status-message t-callout" role="status">
-          {message}
-        </p>
-        {failed && (
-          <div className="player-status-actions">
-            {/* Focused, so Enter (or a controller's A) picks it straight away. */}
-            <button className="btn btn-primary" onClick={onSources} autoFocus>
-              <Sources size={17} /> Choose Another Source
-            </button>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
 function ActionButton({
   icon,
   label,
@@ -1171,4 +1073,23 @@ function ActionButton({
       {glyph}
     </button>
   );
+}
+
+/** The volume last set, 0–1 (1 when none was, or it isn't a number). */
+function savedVolume() {
+  const v = Number(localStorage.getItem("polar.volume") ?? 1);
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+}
+
+/** A short message over the player (a source skipped, an intro skipped) that clears itself. */
+function useNotice() {
+  const [notice, setNotice] = useState<string | null>(null);
+  const timer = useRef<number>(undefined);
+  const flash = useCallback((text: string, ms: number) => {
+    window.clearTimeout(timer.current);
+    setNotice(text);
+    timer.current = window.setTimeout(() => setNotice(null), ms);
+  }, []);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return [notice, flash] as const;
 }

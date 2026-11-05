@@ -1,12 +1,13 @@
 import { useQueries } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AnimeCard, AnimeLandscapeCard, useAnimeHandlers, useOpenAnime } from "../components/anime/AnimeCard";
 import { Dropdown } from "../components/Dropdown";
-import { Calendar, Close, Filters, Grid, Play, Search } from "../components/icons";
+import { Calendar, Close, Filters, Grid, Play } from "../components/icons";
 import { Img } from "../components/Img";
-import { TitleLogo } from "../components/TitleLogo";
-import { CardSkeleton } from "../components/PosterCard";
-import { Row } from "../components/Row";
+import { TitleHeading } from "../components/title/TitleHeading";
+import { joinFacts } from "../lib/format";
+import { Shelf } from "../components/title/Shelf";
+import { PosterGrid } from "../components/title/PosterGrid";
 import { Sheet } from "../components/Sheet";
 import {
   ANIME_GENRES,
@@ -24,16 +25,30 @@ import {
   type MediaFormat,
   type MediaSeason,
   type MediaStatus,
-} from "../lib/anime/anilist";
-import { aniZipQuery } from "../lib/anime/anizip";
-import { oneFranchiseEach } from "../lib/anime/search";
-import { countdown, FORMAT_LABEL, SEASON_LABEL, STATUS_LABEL, untilAiring, useAnimeTitle } from "../lib/anime/format";
-import { animePreview } from "../lib/anime/preview";
-import { useShelfVisible, type AnimeShelfId } from "../lib/anime/shelves";
-import { usePrefs } from "../lib/prefs";
+} from "../lib/anime";
+import {
+  animePreview,
+  type AnimeShelfId,
+  aniZipQuery,
+  countdown,
+  FORMAT_LABEL,
+  oneFranchiseEach,
+  SEASON_LABEL,
+  STATUS_LABEL,
+  untilAiring,
+  useAnimeTitle,
+  useShelfVisible,
+} from "../lib/anime";
+import { useNearViewport } from "../lib/ui";
+import { usePrefs } from "../lib/settings";
 import { useRouter } from "../lib/router";
 import type { MetaPreview } from "../lib/types";
 import { HeroCarousel } from "./Home";
+import { Button } from "../components/ui/Button";
+import { Chip } from "../components/ui/Chip";
+import { SearchField } from "../components/ui/SearchField";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Skeleton } from "../components/ui/Skeleton";
 
 type Shape = "poster" | "landscape";
 
@@ -56,12 +71,9 @@ export function Anime() {
   if (isError && !data) {
     return (
       <div className="scroll anime">
-        <div className="empty t-body muted anime-unreachable">
-          AniList didn't answer. It limits how often it can be asked, so give it a minute.{" "}
-          <button className="settings-link" onClick={() => void refetch()}>
-            Try again
-          </button>
-        </div>
+        <EmptyState className="anime-unreachable" action={{ label: "Try again", onClick: () => void refetch() }}>
+          AniList didn't answer. It limits how often it can be asked, so give it a minute.
+        </EmptyState>
       </div>
     );
   }
@@ -82,15 +94,19 @@ export function Anime() {
   const genres = visible("genres");
   // Today's airings sit below the first shelves: a schedule, not a headline.
   const todayAt = Math.min(2, on.length);
+  const airing = today.slots?.map((s) => s.media);
   const todayRow = showToday && (
-    <Row key="today" title="Airing Today" shape="landscape">
-      {today.slots
-        ? forShape(today.slots.map((s) => s.media), "landscape").map((m) => {
-            const s = today.slots!.find((x) => x.media.id === m.id)!;
-            return <AnimeLandscapeCard key={s.id} item={m} label={slotLabel(s)} />;
-          })
-        : Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} shape="landscape" />)}
-    </Row>
+    <Shelf
+      key="today"
+      title="Airing Today"
+      shape="landscape"
+      items={airing && forShape(airing, "landscape")}
+      skeletons={6}
+      card={(m) => {
+        const s = today.slots!.find((x) => x.media.id === m.id)!;
+        return <AnimeLandscapeCard key={s.id} item={m} label={slotLabel(s)} />;
+      }}
+    />
   );
 
   return (
@@ -113,10 +129,7 @@ export function Anime() {
       )}
       <AnimeNav />
       <div className="rows home-rows">
-        {on.map((s, i) => [
-          i === todayAt && todayRow,
-          <Shelf key={s.id} title={s.title} shape={s.shape} items={s.items} label={s.label} />,
-        ])}
+        {on.map((s, i) => [i === todayAt && todayRow, <AnimeShelf key={s.id} title={s.title} shape={s.shape} items={s.items} label={s.label} />])}
         {todayAt === on.length && todayRow}
         {genres && ANIME_GENRES.map((g, i) => <GenreShelf key={g} genre={g} shape={i % 3 === 0 ? "landscape" : "poster"} />)}
       </div>
@@ -131,22 +144,22 @@ function AnimeNav() {
   const { navigate } = useRouter();
   return (
     <nav className="anime-nav" aria-label="Browse anime">
-      <button className="genre-chip anime-nav-main" onClick={() => navigate({ name: "anime-schedule" })}>
+      <Chip className="anime-nav-main" onClick={() => navigate({ name: "anime-schedule" })}>
         <Calendar size={15} /> Schedule
-      </button>
-      <button className="genre-chip anime-nav-main" onClick={() => navigate({ name: "anime-browse" })}>
+      </Chip>
+      <Chip className="anime-nav-main" onClick={() => navigate({ name: "anime-browse" })}>
         <Grid size={15} /> Browse All
-      </button>
+      </Chip>
       <span className="anime-nav-sep" aria-hidden />
       {ANIME_GENRES.map((g) => (
-        <button key={g} className="genre-chip" onClick={() => navigate({ name: "anime-browse", genre: g })}>
+        <Chip key={g} onClick={() => navigate({ name: "anime-browse", genre: g })}>
           {g}
-        </button>
+        </Chip>
       ))}
       {ANIME_TAGS.map((t) => (
-        <button key={t} className="genre-chip" onClick={() => navigate({ name: "anime-browse", tag: t })}>
+        <Chip key={t} onClick={() => navigate({ name: "anime-browse", tag: t })}>
           {t}
-        </button>
+        </Chip>
       ))}
     </nav>
   );
@@ -181,17 +194,15 @@ function AnimeHeroContent({ card, item }: { card: Card; item: MetaPreview }) {
   const next = animeCardCountdown ? card.nextAiringEpisode : undefined;
   return (
     <div className="hero-content">
-      {item.logo ? <TitleLogo src={item.logo} alt={item.name} className="hero-logo" loading="eager" /> : <h1 className="t-display hero-title">{item.name}</h1>}
+      <TitleHeading name={item.name} logo={item.logo} look="hero" />
       <p className="hero-kind t-callout tabular">
-        {[card.format && FORMAT_LABEL[card.format], ...(card.genres ?? []).slice(0, 2), next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`]
-          .filter(Boolean)
-          .join(" · ")}
+        {joinFacts([card.format && FORMAT_LABEL[card.format], ...(card.genres ?? []).slice(0, 2), next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`])}
       </p>
       <p className="hero-description t-body">{item.description}</p>
       <div className="hero-actions">
-        <button className="btn btn-primary" {...open}>
+        <Button variant="primary" {...open}>
           <Play size={18} fill="currentColor" /> Watch Now
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -215,7 +226,7 @@ function forShape(items: Card[], shape: Shape) {
   return banners.length >= 6 ? banners : items;
 }
 
-function Shelf({
+function AnimeShelf({
   title,
   shape,
   items,
@@ -230,30 +241,17 @@ function Shelf({
 }) {
   const C = shape === "landscape" ? AnimeLandscapeCard : AnimeCard;
   return (
-    <Row title={title} shape={shape} action={action}>
-      {items
-        ? forShape(items, shape).map((a) => <C key={a.id} item={a} label={label?.(a)} />)
-        : Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} shape={shape} />)}
-    </Row>
+    <Shelf title={title} shape={shape} action={action} items={items && forShape(items, shape)} card={(a) => <C key={a.id} item={a} label={label?.(a)} />} />
   );
 }
 
 /** Genre shelves below the fold only ask AniList once they're close. */
 function GenreShelf({ genre, shape, action }: { genre: string; shape: Shape; action?: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [near, setNear] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (near || !el) return;
-    // The page scrolls inside its own container, so that's the observer's root.
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setNear(true), { root: el.closest(".scroll"), rootMargin: "0px 0px 700px 0px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [near]);
+  const [ref, near] = useNearViewport<HTMLDivElement>();
   const { data } = useAnimeGenre(genre, near);
   return (
     <div ref={ref}>
-      <Shelf title={genre} shape={shape} items={data} action={action} />
+      <AnimeShelf title={genre} shape={shape} items={data} action={action} />
     </div>
   );
 }
@@ -317,23 +315,23 @@ function ScheduleView() {
 
   return (
     <div className="anime-schedule">
-      <div className="anime-days" role="tablist" aria-label="Day">
+      <div className="anime-days" role="radiogroup" aria-label="Day">
         {days.map((d, i) => (
-          <button key={i} role="tab" className="anime-day" aria-selected={i === day} onClick={() => setDay(i)}>
+          <button key={i} role="radio" className="anime-day" aria-checked={i === day} onClick={() => setDay(i)}>
             <span className="anime-day-name">{i === 1 ? "Today" : i === 0 ? "Yesterday" : i === 2 ? "Tomorrow" : d.toLocaleDateString(undefined, { weekday: "short" })}</span>
             <span className="anime-day-date tabular">{d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
           </button>
         ))}
       </div>
-      {isError && <p className="empty t-body muted">Couldn't load the schedule from AniList.</p>}
+      {isError && <EmptyState>Couldn't load the schedule from AniList.</EmptyState>}
       {isLoading && (
         <div className="anime-slots">
           {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="anime-slot skeleton" style={{ height: 88 }} />
+            <Skeleton key={i} className="anime-slot" height={88} />
           ))}
         </div>
       )}
-      {data && !slots.length && <p className="empty t-body muted">Nothing airs this day.</p>}
+      {data && !slots.length && <EmptyState>Nothing airs this day.</EmptyState>}
       <div className="anime-slots">
         {slots.map((s) => (
           <ScheduleSlot key={s.id} slot={s} />
@@ -401,22 +399,12 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
   }, [text]);
   const set = (patch: Partial<BrowseFilters>) => setF((f) => ({ ...f, ...patch }));
   const q = useAnimeBrowse(f);
-  const sentinel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el) return;
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && q.hasNextPage && !q.isFetchingNextPage && q.fetchNextPage(), {
-      rootMargin: "1200px",
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [q]);
 
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: thisYear + 2 - 1970 }, (_, i) => thisYear + 1 - i);
   const seen = new Set<number>();
   const listed = (q.data?.pages.flatMap((p) => p.media) ?? []).filter((m) => !seen.has(m.id) && seen.add(m.id));
-  const items = f.search ? oneFranchiseEach(listed) : listed;
+  const items = oneFranchiseEach(listed);
   const [panel, setPanel] = useState(false);
   // What's narrowing the list, each with a way to take it off again.
   type Active = { label: string; clear: Partial<BrowseFilters> };
@@ -432,23 +420,7 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
   return (
     <div className="anime-browse">
       <div className="anime-filters">
-        <label className="market-search anime-search">
-          <Search size={16} aria-hidden />
-          <input
-            type="search"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Search anime"
-            aria-label="Search anime"
-            spellCheck={false}
-            autoComplete="off"
-          />
-          {text && (
-            <button type="button" className="market-search-clear" aria-label="Clear search" onClick={() => setText("")}>
-              <Close size={14} strokeWidth={2.5} />
-            </button>
-          )}
-        </label>
+        <SearchField className="anime-search" value={text} onChange={setText} label="Search anime" placeholder="Search anime" />
         <button className="anime-filter-button pressable" aria-label="Filters" title="Filters" aria-expanded={panel} onClick={() => setPanel(true)}>
           <Filters size={18} />
           {active.length > 0 && <span className="anime-filter-count tabular">{active.length}</span>}
@@ -487,10 +459,10 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
       {active.length > 0 && (
         <div className="anime-active-filters">
           {active.map((a) => (
-            <button key={a.label} className="srcf-tag" aria-pressed onClick={() => set(a.clear)} aria-label={`Remove ${a.label}`}>
+            <Chip key={a.label} variant="tag" pressed onClick={() => set(a.clear)} aria-label={`Remove ${a.label}`}>
               {a.label}
               <Close size={11} strokeWidth={2.5} />
-            </button>
+            </Chip>
           ))}
           {active.length > 1 && (
             <button className="anime-row-link anime-clear" onClick={() => set(NO_FILTERS)}>
@@ -499,15 +471,13 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
           )}
         </div>
       )}
-      <div className="poster-grid">
+      <PosterGrid pager={q}>
         {items.map((a) => (
           <AnimeCard key={a.id} item={a} />
         ))}
-        {(q.isLoading || q.isFetchingNextPage) && Array.from({ length: 12 }, (_, i) => <CardSkeleton key={`s${i}`} />)}
-      </div>
-      {q.data && !items.length && <p className="empty t-body muted">Nothing matches. Try fewer filters.</p>}
-      {q.isError && <p className="empty t-body muted">AniList didn't answer. Try again in a minute.</p>}
-      <div ref={sentinel} />
+      </PosterGrid>
+      {q.data && !items.length && <EmptyState>Nothing matches. Try fewer filters.</EmptyState>}
+      {q.isError && <EmptyState>AniList didn't answer. Try again in a minute.</EmptyState>}
     </div>
   );
 }

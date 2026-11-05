@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/addon", "crates/index", "src-tauri"]
+members = ["crates/addon", "crates/anime", "crates/index", "crates/library", "crates/player", "src-tauri"]
 
 [workspace.package]
 version = "0.17.0"
@@ -9,14 +9,18 @@ license = "MIT"
 
 [workspace.dependencies]
 polar-addon = { path = "crates/addon" }
+polar-anime = { path = "crates/anime" }
 polar-index = { path = "crates/index" }
+polar-library = { path = "crates/library" }
+polar-player = { path = "crates/player" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", features = ["json", "gzip"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "gzip", "rustls-tls", "charset", "http2", "macos-system-configuration"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "net", "io-util", "fs"] }
 futures = "0.3"
 thiserror = "2"
 tracing = "0.1"
+tracing-subscriber = "0.3"
 urlencoding = "2"
 
 [profile.release]
