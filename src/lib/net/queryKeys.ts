@@ -55,6 +55,8 @@ export const keys = {
   anime: {
     home: ["anime", "home"] as const,
     genre: (genre: string) => ["anime", "genre", genre] as const,
+    /** A genre shelf's first few cards (lib/anime/anilist.ts useAnimeGenre). */
+    genreFirst: (genre: string) => ["anime", "genre-first", genre] as const,
     seasons: (anilistId: number | undefined) => ["anime", "seasons", anilistId] as const,
     /** An entry's IMDb id from the id lists on the device (landscape card art). */
     listedImdb: (anilistId: number) => ["anime", "listed-imdb", anilistId] as const,
