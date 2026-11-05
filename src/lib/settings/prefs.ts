@@ -1,3 +1,4 @@
+import { storeLocal } from "../errors";
 import { useSyncExternalStore } from "react";
 import { likeTemplate, storedJson } from "../parse";
 import { settingsChanged } from "./changes";
@@ -182,7 +183,7 @@ export const SYNCED_PREFS = [
 
 export function setPrefs(patch: Partial<Prefs>, { quiet = false } = {}) {
   prefs = { ...prefs, ...patch };
-  localStorage.setItem(STORAGE, JSON.stringify(prefs));
+  storeLocal(STORAGE, JSON.stringify(prefs));
   listeners.forEach((l) => l());
   if (!quiet && SYNCED_PREFS.some((k) => k in patch)) settingsChanged();
 }

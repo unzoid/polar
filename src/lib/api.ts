@@ -1,4 +1,5 @@
-import { call } from "./platform/bridge";
+import { call as native } from "./platform/bridge";
+import { noteSaveFailure } from "./errors";
 import { playContext } from "./anime/playContext";
 import { isKitsuId, kitsuMeta } from "./anime/kitsu";
 import type {
@@ -26,6 +27,13 @@ import type {
 } from "./types";
 import { settingsChanged } from "./settings/changes";
 import type { AnimeLink } from "./library/identity";
+
+/** A native command; a change it couldn't save is reported app-wide (errors.ts onSaveFailure) and still rejects. */
+const call = <T = unknown>(command: string, args?: Record<string, unknown>) =>
+  native<T>(command, args).catch((e: unknown) => {
+    noteSaveFailure(e);
+    throw e;
+  });
 
 /** Pass a result through, telling settings sync something it covers changed. */
 function changed<T>(value: T): T {

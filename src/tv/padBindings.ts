@@ -1,3 +1,4 @@
+import { storeLocal } from "../lib/errors";
 import { useSyncExternalStore } from "react";
 
 /**
@@ -109,7 +110,7 @@ const listeners = new Set<() => void>();
 
 function commit(next: PadBindings) {
   bindings = next;
-  localStorage.setItem(STORAGE, JSON.stringify(next));
+  storeLocal(STORAGE, JSON.stringify(next));
   listeners.forEach((l) => l());
 }
 

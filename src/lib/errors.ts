@@ -43,3 +43,39 @@ export function errorCode(e: unknown): string | undefined {
 
 /** A `.catch` for work that may fail without stopping anything, but shouldn't fail unseen: says what failed in the console. */
 export const warnFailed = (what: string) => (e: unknown) => console.warn(`${what} failed:`, errorMessage(e));
+
+// --- Save failures ----------------------------------------------------------
+// A change that couldn't be written must never fail unseen (test report 1, item 3): every
+// command goes through api.ts, which reports `save_failed` here, and so do writes to the
+// web view's own storage (storeLocal). The app shows one toast for them (SaveProblemToast).
+
+type SaveListener = (message: string) => void;
+const saveListeners = new Set<SaveListener>();
+
+/** Hear every failed save, with what went wrong; returns the function that stops listening. */
+export function onSaveFailure(listener: SaveListener): () => void {
+  saveListeners.add(listener);
+  return () => saveListeners.delete(listener);
+}
+
+/** What went wrong, without the "could not save:" / "not saved:" the native side wraps it in. */
+export const saveFailureText = (message: string) => message.replace(/^(could not save: )?(not saved: )?/i, "");
+
+/** Tells the listeners when `e` is a command's `save_failed`; other failures are left to the caller. */
+export function noteSaveFailure(e: unknown): void {
+  if (errorCode(e) !== "save_failed") return;
+  const message = saveFailureText(errorMessage(e));
+  saveListeners.forEach((l) => l(message));
+}
+
+/** `storage.setItem` that reports a full or refused store as a failed save instead of throwing; true when it was written. */
+export function storeLocal(key: string, value: string, storage: Pick<Storage, "setItem"> | undefined = globalThis.localStorage): boolean {
+  try {
+    storage?.setItem(key, value);
+    return true;
+  } catch (e) {
+    const message = errorMessage(e);
+    saveListeners.forEach((l) => l(message));
+    return false;
+  }
+}

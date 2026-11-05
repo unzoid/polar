@@ -11,6 +11,8 @@ export const keys = {
   catalog: (type: ContentType, id: string, genre = "") => ["catalog", type, id, genre] as const,
   catalogAll: ["catalog"] as const,
   meta: (type: ContentType, id: string) => ["meta", type, id] as const,
+  /** Which page a title opens on (lib/anime/titlePage.ts). */
+  titlePage: (type: ContentType, id: string) => ["title-page", type, id] as const,
   metaAll: ["meta"] as const,
   streams: (type: ContentType, videoId: string) => ["streams", type, videoId] as const,
   streamsAll: ["streams"] as const,

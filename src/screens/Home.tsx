@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { prefetchTitlePage } from "../lib/anime";
 import { AmbientWash } from "../components/AmbientWash";
 import { ChevronRight, Play } from "../components/icons";
 import { Img } from "../components/Img";
@@ -284,6 +285,8 @@ function ContinueRow() {
 function ContinueCard({ progress: p }: { progress: Progress }) {
   const { navigate } = useRouter();
   const openDetail = () => navigate({ name: "detail", type: p.type, id: p.metaId });
+  // Which page it opens on is known before the click (mostly a stored anime link: no network).
+  useEffect(() => prefetchTitlePage(p.type, p.metaId), [p.type, p.metaId]);
   const resume = () => navigate({ name: "player", type: p.type, metaId: p.metaId, videoId: p.videoId, stream: p.stream });
   const fraction = p.duration ? p.position / p.duration : 0;
   const meta = useQuery({ queryKey: keys.meta(p.type, p.metaId), queryFn: () => api.meta(p.type, p.metaId), staleTime: 60 * 60_000 });

@@ -1,3 +1,4 @@
+import { storeLocal } from "../errors";
 import { useSyncExternalStore } from "react";
 import type { RemotePlaylist } from "../account/backend";
 import { count, contentType, isRecord, listOf, str, storedJson, strings } from "../parse";
@@ -86,7 +87,7 @@ const listeners = new Set<() => void>();
 function publish(next: Space) {
   state = next;
   visible = next.playlists.filter((p) => !p.deleted).sort((a, b) => b.updatedAt - a.updatedAt);
-  localStorage.setItem(storageKey(spaceId), JSON.stringify(next));
+  storeLocal(storageKey(spaceId), JSON.stringify(next));
   listeners.forEach((l) => l());
 }
 publish(state);
@@ -121,7 +122,7 @@ export function importLocalPlaylists(into: string) {
   const target = into === spaceId ? state : load(into);
   const next = withImported(target, load(LOCAL).playlists);
   if (into === spaceId) publish(next);
-  else localStorage.setItem(storageKey(into), JSON.stringify(next));
+  else storeLocal(storageKey(into), JSON.stringify(next));
 }
 
 function withImported(target: Space, local: Playlist[]): Space {
@@ -233,7 +234,7 @@ export function markPlaylistsPushed(space: string, receipt: Map<string, number>)
     return !p || receipt.get(id) !== p.updatedAt;
   });
   if (space === spaceId) publish({ ...s, dirty: stillDirty });
-  else localStorage.setItem(storageKey(space), JSON.stringify({ ...s, dirty: stillDirty }));
+  else storeLocal(storageKey(space), JSON.stringify({ ...s, dirty: stillDirty }));
 }
 
 /** Playlists of `space` changed here and not yet on the server. */

@@ -18,3 +18,5 @@ export * from "./search";
 export * from "./seasonLabels";
 export * from "./shelves";
 export * from "./stills";
+export * from "./titlePage";
+export * from "./titlePageQuery";

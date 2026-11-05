@@ -66,7 +66,7 @@ import { usePartySync } from "../components/player/usePartySync";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
-import { errorMessage } from "../lib/errors";
+import { errorMessage, storeLocal } from "../lib/errors";
 import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
 import { PlayerStatus } from "../components/player/PlayerStatus";
 import { PlayerClock, TIME_DISPLAYS } from "../components/player/PlayerClock";
@@ -340,7 +340,7 @@ export function Player({
     if (!v) return;
     v.volume = volume;
     v.muted = muted;
-    localStorage.setItem("polar.volume", String(volume));
+    storeLocal("polar.volume", String(volume));
   }, [volume, muted, media]);
 
   // A watch party plays at 1x for everyone (its sync nudges the rate itself).

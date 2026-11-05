@@ -1,5 +1,6 @@
 import { useCardIntent } from "../lib/ui";
 import { prefetchMeta, preloadImage } from "../lib/net";
+import { prefetchTitlePage } from "../lib/anime";
 import { useRouter } from "../lib/router";
 import type { MetaPreview, Progress } from "../lib/types";
 import { cardMenu } from "./CardMenu";
@@ -9,8 +10,9 @@ import { ArtTitle, Card, ProgressBar } from "./title/Card";
 const INTENT_DELAY = 120;
 
 /** Prefetch detail + backdrop once the pointer rests on a title. */
-export function useIntent(item: Pick<MetaPreview, "type" | "id" | "background">) {
+export function useIntent(item: MetaPreview) {
   return useCardIntent(() => {
+    prefetchTitlePage(item.type, item.id, item);
     prefetchMeta(item.type, item.id);
     preloadImage(item.background);
   }, INTENT_DELAY);
