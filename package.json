@@ -11,6 +11,7 @@
     "test": "bun test --path-ignore-patterns='tests/dom/**' tests && bun run test:dom",
     "test:dom": "bun test --preload ./tests/dom/setup.ts tests/dom",
     "e2e": "playwright test",
+    "e2e:app": "bun e2e/app/smoke.ts",
     "tauri": "tauri",
     "app": "tauri dev",
     "index": "cargo run -p polar-index --features server"

@@ -46,6 +46,20 @@ cache on Windows, macOS, and the `desktop-webkit` end-to-end project (WebKit was
 the player test in it needs WebKit to play a WAV, which Playwright's `--with-deps` should give it).
 The first push shows these; a failing job prints its step and keeps the Playwright report.
 
+## App smoke test (`.github/workflows/e2e-app.yml`, T-040)
+
+Never run anywhere: it needs the built app, which can't link here. Checked here: the script
+type-checks (`bunx tsc -p e2e`), the workflow parses as YAML, its actions are pinned to the same
+commits as `ci.yml`, tauri-driver 2.1.0 is the newest release on crates.io and msedgedriver-tool is
+pinned to its newest commit (GitHub API, 2026-11-05). Unknown until it runs: whether WebKitWebDriver
+under `xvfb-run` and msedgedriver from that tool match the runners' web views, whether the app
+inherits the `XDG_*` folders through tauri-driver on Linux, and the selectors against the real
+first screen. To try it on a Linux desktop: `cargo install tauri-driver --locked`, install
+`webkit2gtk-driver`, `bunx tauri build --debug --no-bundle`, `bun run e2e:app`; it prints each step
+and the one it stopped at. In GitHub: Actions → App end to end → Run workflow.
+
+What CI checks, layer by layer: [testing.md](testing.md).
+
 ## Saving in the background (R4, H8/M4)
 
 `polar.json` is now written by a background thread about a second after a change,
