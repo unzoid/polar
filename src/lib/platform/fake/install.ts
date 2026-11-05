@@ -8,7 +8,8 @@ import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
  * browser (fake.html, `vite` dev server only; never in the app's build).
  * Answers every command from fixtures.ts and keeps changes in memory, so
  * the library, progress and settings behave until the page reloads. The
- * player has nothing to play: mpv is reported missing and sources fail.
+ * player is the built-in one (mpv is reported missing); sources link to
+ * media.example, which a browser test can answer with a file to play.
  */
 
 const library: LibraryItem[] = [...fx.library];
@@ -60,7 +61,8 @@ const commands: Record<string, (a: Args) => unknown> = {
   downloads_list: () => [],
   controllers_list: () => [],
   mpv_available: () => false,
-  resolve_stream: () => ({ kind: "unsupported", reason: "The fake shell plays nothing." }),
+  resolve_stream: (a) => ({ kind: "url", url: (a.stream as { url: string }).url }),
+  stream_probe: (a) => a.url,
   space_untitled: () => [],
   sync_changes: () => ({ library: [], progress: [], links: [], cursor: 0, pulledAt: null }),
   // Window, app and plugin calls: answered with nothing.
