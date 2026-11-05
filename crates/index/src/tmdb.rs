@@ -1,27 +1,60 @@
 //! Primary source: TMDB, normalised to IMDb-keyed addon types.
 //!
 //! TMDB list endpoints don't include IMDb ids, so each result is resolved via
-//! `external_ids` concurrently. Mappings never change and are cached for a day,
-//! so only the first view of a catalog pays for it.
+//! `external_ids`, a few at a time. Mappings never change and are cached for a
+//! day, so only the first view of a catalog pays for it. A catalog is one list
+//! read on page by page as `skip` grows ([`Run`]), so titles left out for
+//! lacking an IMDb id or repeated by a drifting list never shift later pages.
 
+use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::Duration;
 
-use futures::future::join_all;
+use futures::stream::{self, StreamExt, TryStreamExt};
 use polar_addon::{Meta, MetaDetails, MetaPreview, Person, Video};
 use serde::Deserialize;
 use serde_json::Value;
+use tokio::sync::{Mutex, Semaphore};
 
 use crate::cache::TtlCache;
-use crate::{curate, IndexError, Result};
+use crate::{curate, IndexError, Result, PAGE_SIZE};
 
 const API: &str = "https://api.themoviedb.org/3";
 const IMG: &str = "https://image.tmdb.org/t/p";
+/// Requests to TMDB in flight at once, across every shelf: Home opens about a
+/// dozen catalogs together, each needing 20 `external_ids` lookups.
+const IN_FLIGHT: usize = 12;
+/// Tries per request when TMDB answers 429 or a 5xx.
+const TRIES: u32 = 4;
+/// Longest wait between tries, whatever `Retry-After` asks for.
+const MAX_WAIT: Duration = Duration::from_secs(8);
+/// TMDB serves at most this many pages of a list.
+const LAST_PAGE: u32 = 500;
 
 pub struct Tmdb {
     http: reqwest::Client,
+    /// [`API`], or a local stand-in in tests.
+    api: String,
     key: String,
     language: String,
+    limit: Semaphore,
     imdb_ids: TtlCache<(char, u64), Option<String>>,
+    /// One growing list per catalog (type, id, genre), so a page asked for by
+    /// `skip` is a slice of the same sequence whatever the earlier pages held.
+    runs: TtlCache<String, Arc<Mutex<Run>>>,
+}
+
+type Query = Vec<(String, String)>;
+
+/// A catalog read page by page. Titles without an IMDb id are left out, so a
+/// TMDB page gives 20 or fewer; `skip` counts the titles kept, not pages.
+struct Run {
+    path: String,
+    query: Query,
+    next_page: u32,
+    done: bool,
+    items: Vec<MetaPreview>,
+    seen: HashSet<String>,
 }
 
 impl Tmdb {
@@ -32,92 +65,96 @@ impl Tmdb {
                 .timeout(Duration::from_secs(15))
                 .build()
                 .expect("http client"),
+            api: API.to_owned(),
             key: key.trim().to_owned(),
             language: language.unwrap_or_else(|| "en-US".into()),
+            limit: Semaphore::new(IN_FLIGHT),
             imdb_ids: TtlCache::new(Duration::from_secs(24 * 60 * 60), 20_000),
+            runs: TtlCache::new(Duration::from_secs(60 * 60), 256),
         }
     }
 
+    /// One TMDB request: at most [`IN_FLIGHT`] at a time, 429 and 5xx tried
+    /// again after `Retry-After` (or 1, 2, 4 s). Errors never carry the URL,
+    /// which holds a v3 key.
     async fn get<T: serde::de::DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<T> {
-        let mut req = self.http.get(format!("{API}{path}")).query(&[("language", self.language.as_str())]).query(query);
-        // v4 read tokens are JWTs; v3 keys are 32 hex chars.
-        req = if self.key.starts_with("eyJ") {
-            req.bearer_auth(&self.key)
-        } else {
-            req.query(&[("api_key", self.key.as_str())])
-        };
-        let res = req.send().await?;
-        if res.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(IndexError::NotFound);
+        let mut attempt = 0;
+        loop {
+            attempt += 1;
+            let res = {
+                let _permit = self.limit.acquire().await.map_err(|_| IndexError::Upstream("closed".into()))?;
+                let mut req = self
+                    .http
+                    .get(format!("{}{path}", self.api))
+                    .query(&[("language", self.language.as_str())])
+                    .query(query);
+                // v4 read tokens are JWTs; v3 keys are 32 hex chars.
+                req = if self.key.starts_with("eyJ") {
+                    req.bearer_auth(&self.key)
+                } else {
+                    req.query(&[("api_key", self.key.as_str())])
+                };
+                req.send().await?
+            };
+            let status = res.status();
+            if status == reqwest::StatusCode::NOT_FOUND {
+                return Err(IndexError::NotFound);
+            }
+            if (status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error()) && attempt < TRIES {
+                tokio::time::sleep(retry_wait(res.headers().get(reqwest::header::RETRY_AFTER), attempt)).await;
+                continue;
+            }
+            return Ok(res.error_for_status()?.json().await?);
         }
-        Ok(res.error_for_status()?.json().await?)
     }
 
-    pub async fn catalog(&self, ty: &str, id: &str, page: u32, genre: Option<&str>) -> Result<Vec<MetaPreview>> {
-        let kind = tmdb_kind(ty);
-        if matches!(id, "new" | "gems" | "classics") {
-            return self.discover(ty, id, page, genre).await;
+    /// `skip` titles in, up to [`PAGE_SIZE`] of them; fewer at the end of the
+    /// list, or when the page after them failed.
+    pub async fn catalog(&self, ty: &str, id: &str, skip: u32, genre: Option<&str>) -> Result<Vec<MetaPreview>> {
+        let key = format!("{ty}/{id}/{}", genre.unwrap_or(""));
+        let (path, query, first_page) = list_request(ty, id, genre)?;
+        let run = self.runs.get_or_insert_with(key, || {
+            Arc::new(Mutex::new(Run {
+                path,
+                query,
+                next_page: first_page,
+                done: false,
+                items: Vec::new(),
+                seen: HashSet::new(),
+            }))
+        });
+        // Held while reading on, so two asks for the same catalog fetch once.
+        let mut run = run.lock().await;
+        let want = skip as usize + PAGE_SIZE as usize;
+        while run.items.len() < want && !run.done {
+            let page = run.next_page.to_string();
+            let mut query: Vec<(&str, &str)> = run.query.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+            query.push(("page", &page));
+            // A failed page (or lookup in it) leaves the run where it was. What
+            // is already read past `skip` is still handed out: a short page,
+            // and the next ask (`skip` = titles so far) tries the page again.
+            let fetched = match self.get::<Paged>(&run.path, &query).await {
+                Ok(list) => {
+                    let last = list.results.is_empty() || run.next_page >= list.total_pages.min(LAST_PAGE);
+                    self.previews(ty, list.results).await.map(|p| (p, last))
+                }
+                Err(e) => Err(e),
+            };
+            let (previews, last) = match fetched {
+                Ok(page) => page,
+                Err(_) if run.items.len() > skip as usize => break,
+                Err(e) => return Err(e),
+            };
+            let run = &mut *run;
+            for p in previews {
+                if run.seen.insert(p.id.clone()) {
+                    run.items.push(p);
+                }
+            }
+            run.next_page += 1;
+            run.done = last;
         }
-        if let Some(name) = genre {
-            let genre_id = genre_id(ty, name).ok_or(IndexError::NotFound)?.to_string();
-            let page = page.to_string();
-            let (sort, min_votes) =
-                if id == "top_rated" { ("vote_average.desc", "300") } else { ("popularity.desc", "0") };
-            let list: Paged = self
-                .get(
-                    &format!("/discover/{kind}"),
-                    &[("with_genres", &genre_id), ("sort_by", sort), ("vote_count.gte", min_votes), ("page", &page)],
-                )
-                .await?;
-            return self.previews(ty, list.results).await;
-        }
-        let path = match id {
-            "trending" => format!("/trending/{kind}/week"),
-            "top_rated" => format!("/{kind}/top_rated"),
-            "popular" => format!("/{kind}/popular"),
-            _ => return Err(IndexError::NotFound),
-        };
-        let page = page.to_string();
-        let list: Paged = self.get(&path, &[("page", &page)]).await?;
-        self.previews(ty, list.results).await
-    }
-
-    /// The curated shelves, as `/discover` queries. Gems and classics start on
-    /// a page that rotates daily, so they don't open on the same titles.
-    async fn discover(&self, ty: &str, id: &str, page: u32, genre: Option<&str>) -> Result<Vec<MetaPreview>> {
-        let day = curate::today();
-        let date_field = if ty == "series" { "first_air_date" } else { "primary_release_date" };
-        let mut query: Vec<(String, String)> = match id {
-            "new" => vec![
-                (format!("{date_field}.gte"), curate::date(day.saturating_sub(240))),
-                (format!("{date_field}.lte"), curate::date(day)),
-                ("sort_by".into(), "popularity.desc".into()),
-                ("vote_count.gte".into(), "25".into()),
-            ],
-            "gems" => vec![
-                ("sort_by".into(), "vote_average.desc".into()),
-                ("vote_average.gte".into(), "7.3".into()),
-                ("vote_count.gte".into(), "150".into()),
-                ("vote_count.lte".into(), "2500".into()),
-            ],
-            _ => vec![
-                (format!("{date_field}.lte"), "2009-12-31".into()),
-                ("sort_by".into(), "vote_average.desc".into()),
-                ("vote_count.gte".into(), if ty == "series" { "400" } else { "1500" }.into()),
-            ],
-        };
-        let offset = match id {
-            "gems" => day % 4,
-            "classics" => day % 6,
-            _ => 0,
-        } as u32;
-        query.push(("page".into(), (page + offset).to_string()));
-        if let Some(name) = genre {
-            query.push(("with_genres".into(), genre_id(ty, name).ok_or(IndexError::NotFound)?.to_string()));
-        }
-        let query: Vec<(&str, &str)> = query.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let list: Paged = self.get(&format!("/discover/{}", tmdb_kind(ty)), &query).await?;
-        self.previews(ty, list.results).await
+        Ok(run.items.iter().skip(skip as usize).take(PAGE_SIZE as usize).cloned().collect())
     }
 
     /// TMDB's own "if you liked this" list, falling back to plain similarity.
@@ -144,13 +181,16 @@ impl Tmdb {
         self.previews(ty, list.results).await
     }
 
+    /// List results with their IMDb ids; titles TMDB has none for are left
+    /// out. Any lookup that fails fails the whole list, so a thinned list is
+    /// never cached.
     async fn previews(&self, ty: &str, items: Vec<Item>) -> Result<Vec<MetaPreview>> {
-        let resolved = join_all(items.iter().map(|item| self.imdb_id(ty, item.id))).await;
-        Ok(items
-            .into_iter()
-            .zip(resolved)
-            .filter_map(|(item, imdb)| Some(item.into_preview(ty, imdb.ok().flatten()?)))
-            .collect())
+        // By value, not `&Item`: a closure over a borrow makes the future not
+        // `Send` enough for axum (rust-lang/rust#64552).
+        let tmdb_ids: Vec<u64> = items.iter().map(|item| item.id).collect();
+        let ids: Vec<Option<String>> =
+            stream::iter(tmdb_ids).map(|id| self.imdb_id(ty, id)).buffered(IN_FLIGHT).try_collect().await?;
+        Ok(items.into_iter().zip(ids).filter_map(|(item, imdb)| Some(item.into_preview(ty, imdb?))).collect())
     }
 
     async fn imdb_id(&self, ty: &str, tmdb_id: u64) -> Result<Option<String>> {
@@ -196,7 +236,7 @@ impl Tmdb {
         });
 
         let mut videos = Vec::new();
-        for result in join_all(requests).await {
+        for result in futures::future::join_all(requests).await {
             let (chunk, value) = result?;
             for n in chunk {
                 let Some(eps) = value[format!("season/{n}")]["episodes"].as_array() else { continue };
@@ -221,6 +261,67 @@ impl Tmdb {
         videos.sort_by_key(|v| (v.season, v.episode));
         Ok(videos)
     }
+}
+
+/// The list endpoint behind a catalog, its query and the page to start on.
+/// The curated shelves are `/discover` queries; gems and classics start on a
+/// page that rotates daily, so they don't open on the same titles.
+fn list_request(ty: &str, id: &str, genre: Option<&str>) -> Result<(String, Query, u32)> {
+    let kind = tmdb_kind(ty);
+    let genre = genre.map(|name| genre_id(ty, name).ok_or(IndexError::NotFound)).transpose()?;
+    let pair = |k: &str, v: &str| (k.to_owned(), v.to_owned());
+    if matches!(id, "new" | "gems" | "classics") {
+        let day = curate::today();
+        let date_field = if ty == "series" { "first_air_date" } else { "primary_release_date" };
+        let mut query = match id {
+            "new" => vec![
+                pair(&format!("{date_field}.gte"), &curate::date(day.saturating_sub(240))),
+                pair(&format!("{date_field}.lte"), &curate::date(day)),
+                pair("sort_by", "popularity.desc"),
+                pair("vote_count.gte", "25"),
+            ],
+            "gems" => vec![
+                pair("sort_by", "vote_average.desc"),
+                pair("vote_average.gte", "7.3"),
+                pair("vote_count.gte", "150"),
+                pair("vote_count.lte", "2500"),
+            ],
+            _ => vec![
+                pair(&format!("{date_field}.lte"), "2009-12-31"),
+                pair("sort_by", "vote_average.desc"),
+                pair("vote_count.gte", if ty == "series" { "400" } else { "1500" }),
+            ],
+        };
+        let offset = match id {
+            "gems" => day % 4,
+            "classics" => day % 6,
+            _ => 0,
+        } as u32;
+        if let Some(g) = genre {
+            query.push(pair("with_genres", &g.to_string()));
+        }
+        return Ok((format!("/discover/{kind}"), query, 1 + offset));
+    }
+    if let Some(g) = genre {
+        let (sort, min_votes) = if id == "top_rated" { ("vote_average.desc", "300") } else { ("popularity.desc", "0") };
+        let query = vec![pair("with_genres", &g.to_string()), pair("sort_by", sort), pair("vote_count.gte", min_votes)];
+        return Ok((format!("/discover/{kind}"), query, 1));
+    }
+    let path = match id {
+        "trending" => format!("/trending/{kind}/week"),
+        "top_rated" => format!("/{kind}/top_rated"),
+        "popular" => format!("/{kind}/popular"),
+        _ => return Err(IndexError::NotFound),
+    };
+    Ok((path, Vec::new(), 1))
+}
+
+/// How long to wait before try `attempt + 1`: TMDB's `Retry-After` seconds
+/// when it sends them, else 1, 2, 4 s; never more than [`MAX_WAIT`].
+fn retry_wait(retry_after: Option<&reqwest::header::HeaderValue>, attempt: u32) -> Duration {
+    let asked = retry_after.and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse::<u64>().ok());
+    let wait = asked.map(Duration::from_secs).unwrap_or(Duration::from_secs(1 << (attempt - 1).min(3)));
+    wait.min(MAX_WAIT)
 }
 
 /// Cinemeta-style genre names → TMDB genre ids (movie and TV lists differ).
@@ -407,6 +508,12 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
 struct Paged {
     #[serde(default)]
     results: Vec<Item>,
+    #[serde(default = "one")]
+    total_pages: u32,
+}
+
+fn one() -> u32 {
+    1
 }
 
 #[derive(Deserialize)]
@@ -448,6 +555,129 @@ struct ExternalIds {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// A stand-in for TMDB on 127.0.0.1. `/movie/popular`: 3 pages of 20,
+    /// page 2 repeating two titles of page 1 (lists drift as popularity
+    /// moves), page 1 refused once with 429. `external_ids`: no IMDb id for
+    /// multiples of 5, a 500 every time for 305.
+    async fn fake_tmdb() -> (String, Arc<AtomicUsize>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let hits = Arc::new(AtomicUsize::new(0));
+        let counter = hits.clone();
+        tokio::spawn(async move {
+            let refused = Arc::new(AtomicUsize::new(0));
+            loop {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let (counter, refused) = (counter.clone(), refused.clone());
+                tokio::spawn(async move {
+                    let mut buf = vec![0; 4096];
+                    let n = sock.read(&mut buf).await.unwrap_or(0);
+                    let head = String::from_utf8_lossy(&buf[..n]);
+                    let target = head.split_whitespace().nth(1).unwrap_or("").to_owned();
+                    let (path, query) = target.split_once('?').unwrap_or((&target, ""));
+                    let page: u64 = query
+                        .split('&')
+                        .find_map(|kv| kv.strip_prefix("page="))
+                        .and_then(|p| p.parse().ok())
+                        .unwrap_or(1);
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    let (status, body) = if path == "/movie/popular" {
+                        if page == 1 && refused.fetch_add(1, Ordering::SeqCst) == 0 {
+                            ("429 Too Many Requests", String::new())
+                        } else {
+                            let mut ids: Vec<u64> = (0..20).map(|i| page * 100 + i).collect();
+                            if page == 2 {
+                                ids[0] = 101;
+                                ids[1] = 102;
+                            }
+                            let results: Vec<Value> =
+                                ids.iter().map(|id| json!({ "id": id, "title": format!("T{id}") })).collect();
+                            ("200 OK", json!({ "results": results, "total_pages": 3 }).to_string())
+                        }
+                    } else if let Some(id) = path.strip_prefix("/movie/").and_then(|p| p.strip_suffix("/external_ids"))
+                    {
+                        let id: u64 = id.parse().unwrap();
+                        match id {
+                            305 => ("500 Internal Server Error", String::new()),
+                            id if id % 5 == 0 => ("200 OK", json!({ "imdb_id": null }).to_string()),
+                            id => ("200 OK", json!({ "imdb_id": format!("tt{id}") }).to_string()),
+                        }
+                    } else {
+                        ("404 Not Found", String::new())
+                    };
+                    let answer = format!(
+                        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nRetry-After: 0\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = sock.write_all(answer.as_bytes()).await;
+                });
+            }
+        });
+        (base, hits)
+    }
+
+    fn local(api: String) -> Tmdb {
+        Tmdb { api, ..Tmdb::new("0123456789abcdef0123456789abcdef".into(), None) }
+    }
+
+    #[tokio::test]
+    async fn pages_by_titles_kept_without_repeats() {
+        let (api, _) = fake_tmdb().await;
+        let tmdb = local(api);
+        let ids = |list: Vec<MetaPreview>| list.into_iter().map(|m| m.id).collect::<Vec<_>>();
+
+        let first = ids(tmdb.catalog("movie", "popular", 0, None).await.unwrap());
+        assert_eq!(first.len(), PAGE_SIZE as usize);
+        // Page 1 keeps 16 (no id for 100, 105, 110, 115); the rest come from page 2.
+        assert_eq!(first[..3], ["tt101", "tt102", "tt103"]);
+        assert_eq!(first[16..], ["tt202", "tt203", "tt204", "tt206"]);
+
+        let second = ids(tmdb.catalog("movie", "popular", 20, None).await.unwrap());
+        assert_eq!(second[0], "tt207");
+        assert!(second.iter().all(|id| !first.contains(id)), "skip=20 repeats a title");
+        // Asking again gives the same slice, from the run already read.
+        assert_eq!(ids(tmdb.catalog("movie", "popular", 0, None).await.unwrap()), first);
+    }
+
+    #[tokio::test]
+    async fn a_failed_lookup_fails_the_page_and_keeps_the_run() {
+        let (api, hits) = fake_tmdb().await;
+        let tmdb = local(api);
+        // Pages 1 and 2 keep 31 titles; page 3 holds 305, which never resolves.
+        let err = tmdb.catalog("movie", "popular", 40, None).await.unwrap_err();
+        assert!(
+            matches!(err, IndexError::Upstream(ref m) if !m.contains("api_key") && !m.contains("0123456789abcdef")),
+            "{err}"
+        );
+        // Titles already read past `skip` come back as a short page, never a thinned one.
+        assert_eq!(tmdb.catalog("movie", "popular", 20, None).await.unwrap().len(), 11);
+        let before = hits.load(Ordering::SeqCst);
+        assert_eq!(tmdb.catalog("movie", "popular", 0, None).await.unwrap().len(), PAGE_SIZE as usize);
+        assert_eq!(hits.load(Ordering::SeqCst), before, "a page already read was asked for again");
+    }
+
+    #[test]
+    fn waits_as_asked_within_bounds() {
+        let h = |v: &str| reqwest::header::HeaderValue::from_str(v).unwrap();
+        assert_eq!(retry_wait(Some(&h("3")), 1), Duration::from_secs(3));
+        assert_eq!(retry_wait(Some(&h("120")), 1), MAX_WAIT);
+        assert_eq!(retry_wait(Some(&h("Wed, 21 Oct 2015 07:28:00 GMT")), 2), Duration::from_secs(2));
+        assert_eq!(retry_wait(None, 1), Duration::from_secs(1));
+        assert_eq!(retry_wait(None, 3), Duration::from_secs(4));
+    }
+
+    #[test]
+    fn rotating_shelves_start_on_todays_page() {
+        let (path, query, first) = list_request("series", "gems", Some("Drama")).unwrap();
+        assert_eq!(path, "/discover/tv");
+        assert_eq!(first as u64, 1 + curate::today() % 4);
+        assert!(query.contains(&("with_genres".into(), "18".into())));
+        assert!(matches!(list_request("movie", "popular", Some("Nope")), Err(IndexError::NotFound)));
+        assert_eq!(list_request("movie", "trending", None).unwrap().0, "/trending/movie/week");
+    }
 
     #[test]
     fn picks_official_trailer_then_trailer_then_teaser() {
