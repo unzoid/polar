@@ -303,13 +303,20 @@ export function fromLibraryRow(r: unknown): SyncLibraryItem | undefined {
   };
 }
 
+/** Watched past the start (crates/library space.rs `Progress::started`): what Continue Watching counts. */
+const STARTED_S = 30;
+
 /**
  * Progress as `progress` rows, one per title. Unless `everyEpisode`, a row holds only the title's
- * newest entry (what Continue Watching needs); other episodes stay on this device.
+ * newest entry watched past the start (what Continue Watching needs), so a few seconds of another
+ * episode never take the place of the one being watched (test report 1, item 4); a title with no
+ * such entry sends nothing. Other episodes stay on this device.
  */
 export function toProgressRows(profileId: string, progress: Progress[], everyEpisode: boolean) {
   const titles = new Map<string, Progress[]>();
-  for (const p of progress) titles.set(p.metaId, [...(titles.get(p.metaId) ?? []), p]);
+  for (const p of progress) {
+    if (everyEpisode || p.position > STARTED_S) titles.set(p.metaId, [...(titles.get(p.metaId) ?? []), p]);
+  }
   return [...titles].map(([metaId, list]) => {
     const newest = list.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
     const entries: ProgressEntry[] = (everyEpisode ? list : [newest]).map((p) => ({
