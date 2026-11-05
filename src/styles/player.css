@@ -218,6 +218,44 @@
   }
 }
 
+/* Phone: the title sits beside Back instead of over the middle, the volume is the
+   phone's own buttons (mute stays), and each action puts its label under its icon. */
+:root[data-form="phone"] .player-top {
+  gap: 0.5rem;
+  padding: calc(0.5rem + var(--safe-top)) 0 3rem 0.5rem;
+}
+:root[data-form="phone"] .player-heading {
+  position: static;
+  translate: none;
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  align-items: flex-start;
+  padding-top: 0.5rem;
+  text-align: left;
+}
+:root[data-form="phone"] .player-heading-title {
+  font-size: var(--fs-lg);
+}
+:root[data-form="phone"] .player-top-actions {
+  margin-left: 0;
+}
+:root[data-form="phone"] .player-volume input[type="range"] {
+  display: none;
+}
+:root[data-form="phone"] .player-actions {
+  padding-bottom: var(--safe-bottom);
+}
+:root[data-form="phone"] .player-action {
+  flex-direction: column;
+  gap: 0.25rem;
+  height: auto;
+  min-height: var(--hit);
+  padding: 0.25rem 0.5rem;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
 /* Volume: slider fill painted from a per-element custom property (one element,
    no descendants, so no inherited-variable recalculation cost). */
 .player-volume {
@@ -650,6 +688,8 @@
 }
 .player-status-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.625rem;
 }
 .player-notice {
