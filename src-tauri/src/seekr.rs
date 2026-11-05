@@ -106,9 +106,12 @@ impl Seekr {
             s if s.is_success() => {
                 let lookup: Lookup = res.json().await.map_err(|e| e.to_string())?;
                 // Signed URL: deliberately no API key on this request.
+                // `st=1` added as a query parameter, whatever the signed URL already carries (L17).
+                let mut vtt = reqwest::Url::parse(&lookup.vtt_url).map_err(|e| e.to_string())?;
+                vtt.query_pairs_mut().append_pair("st", "1");
                 let res = self
                     .http
-                    .get(format!("{}&st=1", lookup.vtt_url))
+                    .get(vtt)
                     .send()
                     .await
                     .and_then(|r| r.error_for_status())
