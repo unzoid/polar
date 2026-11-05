@@ -209,7 +209,7 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
 - Seen and fixed: every desktop screen (home, Series, Movies, Anime, Library, search, a show, a film, the
   player's start-up screen, the profile menu, every Settings page) at 1440×900 in dark and black; the same at
   390×844 as a phone; TV mode at 1920×1080 (home, each tab, a title, its Episodes, search, the menu, Settings,
-  the player). Fixes: c395bfb, aa68e5e (Settings on a phone), 314ea46, de8af47, e31623c.
+  the player), plus a library collection, the Calendar, a card's menu and the player's panels. Fixes: c395bfb, aa68e5e (Settings on a phone), 314ea46, de8af47, e31623c.
 - What Chromium can't stand in for:
   - The app's own windows. Chromium is close to WebView2 (Windows) but not to WebKitGTK (Linux) or WKWebView
     (macOS): look at `backdrop-filter` glass (navbar, menus, the TV menu), `field-sizing` in the Settings
@@ -221,6 +221,9 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
   - Playback: the player only showed its start-up screen with a failure; the playing controls, Up Next, skip
     buttons, subtitles and the options panels over a playing video were not seen.
   - Fonts: Segoe UI and the system fonts of each OS aren't on this machine.
+  - Account and Watch Party: the fake shell has no account, so sign-in, profiles, sync notices and the party
+    dialogs were not seen at any size. The library collections, Calendar (empty), card menus and the
+    player's Sources and Subtitles & Audio panels were.
   - TV on a TV: walked by arrow keys in the browser, not with a remote or a controller, and not at 4K or
     with overscan.
   - Phones: touch scrolling, the on-screen keyboard over Settings fields, notches and the home indicator
