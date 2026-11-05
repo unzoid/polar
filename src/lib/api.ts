@@ -95,6 +95,8 @@ export const api = {
 
   settings: () => invoke<Settings>("settings_get"),
   saveSettings: (settings: Settings) => invoke<Settings>("settings_set", { settings }).then(changed),
+  /** Every setting as it is until changed (settings sync sends only what differs). */
+  settingsDefaults: () => invoke<Settings>("settings_defaults"),
   /** Defaults again, keeping API keys and the metadata language. */
   resetSettings: () => invoke<Settings>("settings_reset").then(changed),
 

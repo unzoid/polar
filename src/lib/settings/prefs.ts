@@ -66,6 +66,11 @@ export interface Prefs {
    * title. Only worth turning on once the server runs supabase/optional/per_episode_progress.sql.
    */
   syncEpisodeHistory: boolean;
+  /**
+   * Sync API keys and add-on links sealed with a passphrase typed on each device (account/secrets.ts).
+   * Off: they stay on this device and a new device asks for them again.
+   */
+  syncSecrets: boolean;
 
   /** Ecchi anime (AniList's adult titles never show): as is, blurred, or left out. Synced. */
   matureContent: "show" | "blur" | "hide";
@@ -125,6 +130,7 @@ const DEFAULTS: Prefs = {
   autoDownloadUpdates: true,
   showTvButton: true,
   syncEpisodeHistory: false,
+  syncSecrets: false,
   matureContent: "show",
   animeEnabled: true,
   animeHiddenShelves: "",
@@ -182,6 +188,9 @@ export function setPrefs(patch: Partial<Prefs>, { quiet = false } = {}) {
 }
 
 export const resetPrefs = () => setPrefs(DEFAULTS);
+
+/** Every pref as it is until changed (settings sync sends only what differs). */
+export const PREF_DEFAULTS: Readonly<Prefs> = DEFAULTS;
 
 /** True once anything differs from the defaults. */
 export const prefsCustomized = (p: Prefs) => (Object.keys(DEFAULTS) as (keyof Prefs)[]).some((k) => p[k] !== DEFAULTS[k]);

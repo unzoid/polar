@@ -81,7 +81,9 @@ bun run index
 Settings, keys and add-on URLs are kept in `polar.json` in the app's data folder. On Linux and macOS
 only your user account can read it, and Windows keeps app data per user, but it isn't encrypted:
 other programs running as you can read your keys. Polar doesn't use the system keychain, which
-behaves differently on every system. Signed in to an account, they are synced with your other settings.
+behaves differently on every system. Signed in to an account, your settings sync but keys and add-on
+URLs stay on each device, unless you turn on Settings → Account → Sync API keys and addons, which
+sends them encrypted with a passphrase you type on each device.
 
 ## Contributing
 
