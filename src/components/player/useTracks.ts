@@ -304,7 +304,7 @@ export function useTracks(
   const subtitles: TrackOption[] = [
     { id: OFF, label: "Off" },
     ...embedded,
-    ...externalByLang.map((s) => ({ id: `ext:${s.lang}`, label: languageName(s.lang) ?? s.lang })),
+    ...externalByLang.map((s) => ({ id: `ext:${s.lang}`, label: languageName(s.lang) ?? (s.lang || "Unknown language") })),
   ];
 
   return {
