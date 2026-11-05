@@ -100,7 +100,9 @@ jobs:
       - name: Install the Android platform
         run: |
           sdk="$(sed -n 's/.*compileSdk = \([0-9]*\).*/\1/p' src-tauri/gen/android/app/build.gradle.kts)"
-          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-$sdk"
+          # From API 37 on, platform packages carry a minor version (platforms;android-37.0).
+          pkg="platforms;android-$sdk"; [ "$sdk" -ge 37 ] && pkg="$pkg.0"
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$pkg"
       # libmpv as ci.yml's android job last built it (not built here: without it the app plays
       # through the web view and the smoke test runs all the same).
       - name: Restore libmpv
