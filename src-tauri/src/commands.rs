@@ -161,28 +161,35 @@ pub async fn streams(
         .collect();
 
     let client = &state.addons;
-    let results = join_all(jobs.iter().map(|(a, id)| async {
-        let fetch = client.streams(&a.manifest_url, &ty, id);
+    let kind = ty.as_str();
+    let results = join_all(jobs.iter().map(|(a, id)| async move {
+        let fetch = client.streams(&a.manifest_url, kind, id);
         let res = tokio::time::timeout(ADDON_TIMEOUT, fetch).await;
-        (a.manifest.name.clone(), res)
+        (a, res)
     }))
     .await;
 
+    // Add-ons go by their manifest URL here: two may share a name (L22).
     let mut all = Vec::new();
-    let mut failed: Vec<String> = Vec::new();
-    let mut answered: Vec<String> = Vec::new();
-    for (name, res) in results {
+    let mut failed: Vec<&InstalledAddon> = Vec::new();
+    let mut answered = std::collections::HashSet::new();
+    for (a, res) in results {
         match res {
             Ok(Ok(streams)) => {
-                answered.push(name.clone());
-                all.extend(streams.into_iter().map(|s| (name.clone(), s)));
+                answered.insert(&a.manifest_url);
+                all.extend(streams.into_iter().map(|s| (a.manifest.name.clone(), s)));
             }
-            _ => failed.push(name),
+            _ => failed.push(a),
         }
     }
-    // An addon that answered for one of the ids isn't "failed" because it timed out on another.
-    failed.retain(|n| !answered.contains(n));
-    failed.dedup();
+    // An addon that answered for one of the ids isn't "failed" because it timed out on another,
+    // and one that failed for two ids is named once.
+    let mut named = std::collections::HashSet::new();
+    let failed: Vec<String> = failed
+        .into_iter()
+        .filter(|a| !answered.contains(&a.manifest_url) && named.insert(&a.manifest_url))
+        .map(|a| a.manifest.name.clone())
+        .collect();
     let filter = state.store.locked().data.settings.stream_filter(&ty);
     let (streams, hidden) = rank_streams_filtered(all, &filter);
     Ok(StreamsResult { streams, failed, hidden })
