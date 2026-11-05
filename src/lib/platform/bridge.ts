@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 /**
@@ -18,3 +18,12 @@ export type Unlisten = () => void;
 
 /** Hear a native event until the returned function is called. Resolves once listening. */
 export const on = <T>(event: string, handler: (payload: T) => void): Promise<Unlisten> => listen<T>(event, (e) => handler(e.payload));
+
+/**
+ * The address of `path` on one of the shell's own protocols (`trailer`: src-tauri/src/trailer_proxy.rs),
+ * written the way this platform's web view expects it; none outside the shell.
+ */
+export function shellUrl(protocol: string, path: string): string | null {
+  const internals = typeof window !== "undefined" ? (window as { __TAURI_INTERNALS__?: { convertFileSrc?: unknown } }).__TAURI_INTERNALS__ : undefined;
+  return typeof internals?.convertFileSrc === "function" ? convertFileSrc(path, protocol) : null;
+}

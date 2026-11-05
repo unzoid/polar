@@ -4,6 +4,7 @@ import {
   cleanDescription,
   countdown,
   FORMAT_LABEL,
+  heroLogo,
   SEASON_LABEL,
   STATUS_LABEL,
   untilAiring,
@@ -20,6 +21,7 @@ import { TitleActions } from "../title/TitleActions";
 import { TitleHeading } from "../title/TitleHeading";
 import { openTrailer } from "../Trailer";
 import { useAnimePlayback } from "./useAnimePlayback";
+import { Skeleton } from "../ui/Skeleton";
 
 /**
  * The top of an anime's page: its name (or logo), the facts line, the next
@@ -65,7 +67,9 @@ export function AnimeHero({
       : !pb.metaLoading && pb.metaId && !target && !pb.isMovie
         ? "No episodes to play yet"
         : undefined;
-  const nativeTitle = prefs.animeTitles === "native" ? item.title.romaji : item.title.native;
+  const shownLogo = heroLogo({ aniZipLogo: logo, metaId: pb.metaId, meta: pb.meta, metaLoading: pb.metaLoading });
+  // Under a logo of unknown language, the name the user reads; otherwise the other script.
+  const nativeTitle = shownLogo.logo && !shownLogo.readable ? name : prefs.animeTitles === "native" ? item.title.romaji : item.title.native;
   const score = useAnimeScore()(item.averageScore);
   const studio = anime?.studios.edges.find((e) => e.isMain && e.node.isAnimationStudio)?.node.name;
   const next = item.nextAiringEpisode;
@@ -74,8 +78,8 @@ export function AnimeHero({
   return (
     <section className="detail-hero anime-hero">
       <div className="detail-hero-main">
-        <TitleHeading name={name} logo={logo} look="detail" />
-        {nativeTitle && nativeTitle !== name && <p className="anime-native t-callout">{nativeTitle}</p>}
+        <TitleHeading name={name} logo={shownLogo.logo} look="detail" />
+        {nativeTitle && (nativeTitle !== name || (shownLogo.logo && !shownLogo.readable)) && <p className="anime-native t-callout">{nativeTitle}</p>}
         <p className="detail-facts anime-meta-line t-callout tabular">
           {score && (
             <span className="anime-score" title="AniList score">
@@ -99,7 +103,16 @@ export function AnimeHero({
           </p>
         )}
         {item.genres?.length ? <p className="anime-genres t-caption">{item.genres.join("  ·  ")}</p> : null}
-        {paragraphs[0] && <p className="detail-description t-callout">{paragraphs[0]}</p>}
+        {anime ? (
+          paragraphs[0] && <p className="detail-description t-callout">{paragraphs[0]}</p>
+        ) : (
+          // The entry's details are still coming: lines where its description goes (re-test N4).
+          <div className="detail-description detail-description-loading" aria-label="Loading">
+            <Skeleton shape="line" width="100%" />
+            <Skeleton shape="line" width="92%" />
+            <Skeleton shape="line" width="64%" />
+          </div>
+        )}
 
         <TitleActions
           request={request}
@@ -107,6 +120,7 @@ export function AnimeHero({
           label={label}
           resume={!!pb.next.resumeAt}
           playTitle={unavailable}
+          loading={!unavailable && (pb.loading || pb.metaLoading || !anime)}
           onTrailer={
             anime?.trailer?.site === "youtube"
               ? () => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id, ytFrom: "AniList" })

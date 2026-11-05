@@ -6,8 +6,10 @@
 //!   * [`tune`]: device-level picture and sound options as mpv settings.
 //!   * [`crop`]: which black bars to remove and the zoom that removes them.
 //!   * [`headers`]: which of an add-on's request headers playback sends.
+//!   * [`passthrough`]: the ranges and paths of the shell's `trailer` protocol.
 
 pub mod allow;
 pub mod crop;
 pub mod headers;
+pub mod passthrough;
 pub mod tune;

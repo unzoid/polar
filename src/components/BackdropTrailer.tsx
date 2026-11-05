@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useSettings } from "../lib/net";
 import { prefersReducedMotion } from "../lib/ui";
-import { type Bars, barsZoom, findBars, useFileTrailer } from "../lib/playback";
+import { type Bars, barsZoom, findBars, trailerPath, useFileTrailer } from "../lib/playback";
+import { shellUrl } from "../lib/platform";
+
+type Via = "app" | "cors" | "plain";
 
 /** How long a title's page shows its art before the trailer takes over. */
 const DELAY_MS = 4000;
@@ -34,8 +37,14 @@ export function useBackdropTrailer(imdbId: string | undefined, { active, paused 
   const [playing, setPlaying] = useState(false);
   const [ended, setEnded] = useState(false);
   const [muted, setMuted] = useState(!(settings?.trailerSound ?? false));
-  // Asked for with CORS first, so its frames can be looked at for bars; a host that won't allow it gets a plain request.
-  const [cors, setCors] = useState(true);
+  // How it's fetched, in the order tried: through the app's `trailer` protocol (frames readable
+  // whatever the host allows, re-test 16), from the host with CORS, then a plain request whose
+  // frames can't be read (fixed zoom).
+  const proxied = fileUrl ? shellUrl("trailer", trailerPath(fileUrl)) : null;
+  const [via, setVia] = useState<Via>(proxied ? "app" : "cors");
+  const cors = via !== "plain";
+  const src = via === "app" && proxied ? proxied : fileUrl;
+  const [measured, setMeasured] = useState<"bars" | "fallback">();
   const [zoom, setZoom] = useState<string>();
   const bars = useRef<Bars | null>(null);
 
@@ -44,8 +53,9 @@ export function useBackdropTrailer(imdbId: string | undefined, { active, paused 
     setEnded(false);
     setPlaying(false);
     setMounted(false);
-    setCors(true);
+    setVia(proxied ? "app" : "cors");
     setZoom(undefined);
+    setMeasured(undefined);
     bars.current = null;
   }, [fileUrl]);
 
@@ -77,11 +87,15 @@ export function useBackdropTrailer(imdbId: string | undefined, { active, paused 
 
   // Bars inside the picture (test report 1, item 16): measured on a few frames over the first
   // seconds, keeping the least seen on each side, so a dark shot never zooms in further. Frames that
-  // can't be read (no CORS) get a fixed zoom the page's gradients cover.
+  // can't be read (a plain request, outside the shell) get a fixed zoom the page's gradients cover.
   const measure = () => {
     const v = video.current;
     if (!v || !v.videoWidth) return;
-    if (!cors) return setZoom(`scale(${FALLBACK_ZOOM})`);
+    const fallback = () => {
+      setMeasured("fallback");
+      setZoom(`scale(${FALLBACK_ZOOM})`);
+    };
+    if (!cors) return fallback();
     const w = 160;
     const h = Math.max(1, Math.round((v.videoHeight / v.videoWidth) * w));
     const ctx = Object.assign(document.createElement("canvas"), { width: w, height: h }).getContext("2d", { willReadFrequently: true });
@@ -90,8 +104,9 @@ export function useBackdropTrailer(imdbId: string | undefined, { active, paused 
       ctx!.drawImage(v, 0, 0, w, h);
       found = findBars(ctx!.getImageData(0, 0, w, h).data, w, h);
     } catch {
-      return setZoom(`scale(${FALLBACK_ZOOM})`);
+      return fallback();
     }
+    setMeasured("bars");
     if (!found) return;
     const was = bars.current;
     const least = was ? { top: Math.min(was.top, found.top), bottom: Math.min(was.bottom, found.bottom), left: Math.min(was.left, found.left), right: Math.min(was.right, found.right) } : found;
@@ -110,7 +125,7 @@ export function useBackdropTrailer(imdbId: string | undefined, { active, paused 
     return () => window.clearInterval(t);
     // measure reads refs and state that only change with these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, playing, cors]);
+  }, [mounted, playing, via]);
 
   const finish = () => {
     setPlaying(false);
@@ -125,11 +140,12 @@ export function useBackdropTrailer(imdbId: string | undefined, { active, paused 
   const visible = mounted && playing && !paused;
   const node =
     mounted && fileUrl ? (
-      <div className="backdrop-trailer" data-visible={visible} aria-hidden>
+      // data-bars says which way the zoom was found (devtools): "bars" measured, "fallback" fixed.
+      <div className="backdrop-trailer" data-visible={visible} data-via={via} data-bars={measured} aria-hidden>
         <video
-          key={cors ? "cors" : "plain"}
+          key={via}
           ref={video}
-          src={fileUrl}
+          src={src}
           crossOrigin={cors ? "anonymous" : undefined}
           autoPlay
           muted={muted}
@@ -142,7 +158,7 @@ export function useBackdropTrailer(imdbId: string | undefined, { active, paused 
             setPlaying(true);
           }}
           onEnded={finish}
-          onError={() => (cors ? setCors(false) : setEnded(true))}
+          onError={() => (via === "app" ? setVia("cors") : via === "cors" ? setVia("plain") : setEnded(true))}
         />
       </div>
     ) : null;

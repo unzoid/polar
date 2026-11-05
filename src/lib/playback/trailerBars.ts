@@ -67,3 +67,6 @@ export function barsZoom(bars: Bars, videoAspect: number, boxAspect: number): { 
   const y = ((bars.bottom - bars.top) / 2) * dh * scale;
   return { scale, x, y };
 }
+
+/** A link as a path on the shell's `trailer` protocol: hex of its UTF-8 (polar_player::passthrough::to_hex). */
+export const trailerPath = (link: string) => [...new TextEncoder().encode(link)].map((b) => b.toString(16).padStart(2, "0")).join("");

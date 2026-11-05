@@ -7,9 +7,11 @@ import {
   fetchAnime,
   FORMAT_LABEL,
   isMature,
+  landscapeArt,
   untilAiring,
   useAnimeScore,
   useAnimeTitle,
+  useListedImdb,
 } from "../../lib/anime";
 import { usePrefs } from "../../lib/settings";
 import { useRouter } from "../../lib/router";
@@ -124,13 +126,17 @@ export function AnimeLandscapeCard({ item, label }: { item: Media; label?: strin
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
   const { matureContent } = usePrefs();
+  // Wide art first (re-test N5); nothing until the id lists answer, so the picture doesn't change once drawn.
+  const imdb = useListedImdb(item.id);
+  const [art, ...artFallbacks] = imdb === undefined ? [] : landscapeArt({ imdb, bannerImage: item.bannerImage, cover: item.coverImage.extraLarge });
   if (matureContent === "hide" && isMature(item)) return null;
   return (
     <Card
       shape="landscape"
       className="anime-card"
       frameClass="anime-card-frame"
-      art={item.bannerImage ?? item.coverImage.extraLarge ?? undefined}
+      art={art}
+      artFallbacks={artFallbacks}
       title={title}
       detail={label ?? cardFacts(item)}
       {...open}

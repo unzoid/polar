@@ -124,6 +124,32 @@ export function animeArt(
   };
 }
 
+/**
+ * The logo at the top of an anime's page (re-test N1). `aniZipLogo` is `animeArt`'s: set only for a
+ * franchise's first entry. ani.zip's logos carry no language (one show's is in Japanese script), so
+ * the linked IMDb title's logo comes first (the catalog's, English with a TMDB key); while that title
+ * loads, the name shows rather than a logo that may change. `readable` false: a logo of unknown
+ * language, so the page puts the name under it.
+ */
+export function heroLogo({
+  aniZipLogo,
+  metaId,
+  meta,
+  metaLoading,
+}: {
+  aniZipLogo: string | undefined;
+  metaId: string | undefined;
+  meta: { logo?: string | null } | undefined;
+  metaLoading: boolean;
+}): { logo: string | undefined; readable: boolean } {
+  if (!aniZipLogo) return { logo: undefined, readable: true };
+  if (metaId?.startsWith("tt")) {
+    if (metaLoading) return { logo: undefined, readable: true };
+    if (meta?.logo) return { logo: meta.logo, readable: true };
+  }
+  return { logo: aniZipLogo, readable: false };
+}
+
 /** The regular episodes (not specials), in order. */
 export function regularEpisodes(z: AniZip | null | undefined): AniZipEpisode[] {
   if (!z) return [];

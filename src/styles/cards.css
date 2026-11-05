@@ -722,6 +722,9 @@
   border-radius: var(--r-pill);
   background: rgb(255 255 255 / 0.28);
   overflow: hidden;
+  /* overflow + radius alone leaves a scaled (composited) fill square at its left end in some web
+     views (re-test N3); a clip path rounds both ends whatever the fill does. */
+  clip-path: inset(0 round var(--r-pill));
 }
 .progress-fill {
   height: 100%;

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { barsZoom, findBars } from "../src/lib/playback/trailerBars";
+import { barsZoom, findBars, trailerPath } from "../src/lib/playback/trailerBars";
 
 /** A w × h frame: grey picture inside black bars of the given sizes (pixels). */
 function frame(w: number, h: number, bars: { top?: number; bottom?: number; left?: number; right?: number }, picture = 128) {
@@ -33,4 +33,10 @@ test("bars inside a trailer are found and zoomed away (test report 1, item 16)",
 test("a dark frame isn't bars", () => {
   expect(findBars(frame(160, 90, {}, 10), 160, 90)).toBeNull();
   expect(findBars(frame(160, 90, { left: 50, right: 50 }), 160, 90)).toBeNull();
+});
+
+test("a trailer's path on the app's protocol is the hex the shell reads back (polar_player::passthrough)", () => {
+  const link = "https://video.example/a b/clip.mp4?Expires=1&Signature=x~y";
+  expect(trailerPath(link)).toBe(Buffer.from(link, "utf8").toString("hex"));
+  expect(trailerPath("é")).toBe("c3a9");
 });

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { prefersReducedMotion, upNextMove } from "../../lib/ui";
 import type { EpisodeLayout, MetaPreview, Progress, Video } from "../../lib/types";
 import { Row } from "../Row";
 import { EpisodeCard } from "./EpisodeCard";
@@ -36,14 +37,26 @@ export function EpisodeShelf({
 }) {
   const shelf = useRef<HTMLDivElement>(null);
 
-  // Jump (no animation) so "up next" is the first card in view.
+  // Up next is the first card in view: jumped to when the list is new, glided to (or left where it
+  // is, if in view) when only up next changed, as when the player closes (lib/ui/shelfScroll.ts).
+  const shown = useRef("");
+  const list = `${layout}|${episodes.length}|${episodes[0]?.id}|${episodes.at(-1)?.id}`;
   useLayoutEffect(() => {
     const scroller = shelf.current?.querySelector<HTMLElement>(".row-scroller");
     if (!scroller) return;
     const el = upNextId ? scroller.querySelector<HTMLElement>(`[data-video="${CSS.escape(upNextId)}"]`) : null;
     const pad = parseFloat(getComputedStyle(scroller).paddingLeft);
-    scroller.scrollLeft = el ? el.offsetLeft - pad : 0;
-  }, [episodes, upNextId, layout]);
+    const newList = shown.current !== list;
+    shown.current = list;
+    const move = upNextMove({
+      newList,
+      card: el && { left: el.offsetLeft, width: el.offsetWidth },
+      view: { left: scroller.scrollLeft + pad, width: scroller.clientWidth - 2 * pad },
+    });
+    const left = el ? el.offsetLeft - pad : 0;
+    if (move === "jump") scroller.scrollLeft = left;
+    else if (move === "smooth") scroller.scrollTo({ left, behavior: prefersReducedMotion() ? "instant" : "smooth" });
+  }, [list, upNextId]);
 
   const cards = episodes.map((v) => (
     <EpisodeCard
