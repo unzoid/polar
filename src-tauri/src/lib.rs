@@ -53,6 +53,17 @@ impl AppState {
     /// stays in memory either way; the error says it may not reach the disk
     /// (read-only session, or the last write failed).
     pub fn persist(&self, f: impl FnOnce(&mut store::Data)) -> commands::Result<()> {
+        self.change(f, false)
+    }
+
+    /// [`Self::persist`] for a change someone made (a setting, the library, an
+    /// add-on): written at once instead of within [`SAVE_DELAY`], so it isn't
+    /// lost if the app is ended right after. Progress and sync keep the delay.
+    pub fn persist_now(&self, f: impl FnOnce(&mut store::Data)) -> commands::Result<()> {
+        self.change(f, true)
+    }
+
+    fn change(&self, f: impl FnOnce(&mut store::Data), now: bool) -> commands::Result<()> {
         let problem = {
             let mut store = self.store.locked();
             f(&mut store.data);
@@ -61,7 +72,11 @@ impl AppState {
         if let Some(problem) = problem {
             return Err(commands::CmdError::Save(format!("could not save: not saved: {problem}")));
         }
-        self.saver.mark();
+        if now {
+            self.saver.mark_now();
+        } else {
+            self.saver.mark();
+        }
         match self.saver.error() {
             Some(e) => Err(commands::CmdError::Save(format!("could not save: {e}"))),
             None => Ok(()),

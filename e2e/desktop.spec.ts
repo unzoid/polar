@@ -8,6 +8,21 @@ test("home shows the hero, Continue Watching and rows", async ({ app }) => {
   await expect(app.getByText("32m left")).toBeVisible();
 });
 
+test("the featured carousel's active dot fills with a round end (#33)", async ({ app }) => {
+  const fill = app.locator(".hero-dot-fill");
+  await expect(fill).toHaveCount(1);
+  // Halfway through: a scaled fill would squash its rounded end flat, a rounded clip keeps it.
+  const style = await fill.evaluate((el) => {
+    const [a] = el.getAnimations();
+    a.pause();
+    a.currentTime = Number(a.effect!.getComputedTiming().duration) / 2;
+    const s = getComputedStyle(el);
+    return { transform: s.transform, clipPath: s.clipPath };
+  });
+  expect(style.transform).toBe("none");
+  expect(style.clipPath).toMatch(/^inset\(0px 50% 0px 0px round/);
+});
+
 test("each section opens", async ({ app }) => {
   const nav = app.getByRole("navigation", { name: "Primary" });
   for (const section of ["Series", "Movies", "Library"]) {

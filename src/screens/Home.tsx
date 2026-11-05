@@ -323,9 +323,10 @@ function LazyShelf({ shelf, eager, exclude }: { shelf: HomeShelf; eager: boolean
 function ContinueRow() {
   const { data } = useContinueWatching();
   const items = useMemo(() => data ?? [], [data]);
+  const order = useMemo(() => items.map((p) => p.videoId).join(" "), [items]);
   if (!items.length) return null;
   return (
-    <Row title="Continue Watching" shape="landscape">
+    <Row title="Continue Watching" shape="landscape" order={order}>
       {items.map((p) => (
         <ContinueCard key={p.videoId} progress={p} />
       ))}
