@@ -16,29 +16,24 @@
     0 0 0 1px var(--glass-edge),
     0 18px 40px -16px rgb(0 0 0 / 0.8);
   font-size: 0.9rem;
-  animation: toast-in 320ms var(--ease-out);
-}
-@keyframes toast-in {
-  from {
+  /* Rises from the edge it sits on. Transitions, not keyframes: a toast that
+     comes back while leaving (the same failure again) turns round where it is
+     instead of flashing from nothing. */
+  --toast-from: 12px;
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 320ms var(--ease-out);
+  @starting-style {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(var(--toast-from));
   }
 }
 /* Going away: the way in, backwards (Toast leaving). */
 .toast[data-leaving] {
-  animation: toast-out 220ms var(--ease-out) forwards;
+  opacity: 0;
+  transform: translateY(var(--toast-from));
+  transition-duration: 220ms;
   pointer-events: none;
-}
-@keyframes toast-out {
-  to {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-}
-@keyframes fade-out {
-  to {
-    opacity: 0;
-  }
 }
 /* Saved-data problems sit above every window, Settings included: they report what was just done there. */
 .toast.store-toast {
@@ -100,6 +95,7 @@
 .toast-tv {
   top: 1.5rem;
   bottom: auto;
+  --toast-from: -12px;
   z-index: var(--z-popover);
   padding: 0.6rem 1.5rem 0.6rem 1.25rem;
 }
@@ -108,10 +104,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toast {
-    animation-name: fade-in;
-  }
-  .toast[data-leaving] {
-    animation-name: fade-out;
+  .toast,
+  .toast-tv {
+    --toast-from: 0px;
   }
 }

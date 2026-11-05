@@ -63,9 +63,11 @@
   color: var(--text-2);
   transition: color var(--dur-fast) var(--ease-std), background-color var(--dur-fast) var(--ease-std);
 }
-.account-bar-link:hover {
-  color: var(--text);
-  background: rgb(255 255 255 / 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .account-bar-link:hover {
+    color: var(--text);
+    background: rgb(255 255 255 / 0.08);
+  }
 }
 .account-bar-link + .window-controls {
   margin-left: 0;
@@ -338,9 +340,11 @@
   transition: color var(--dur-fast) var(--ease-std), text-decoration-color var(--dur-fast) var(--ease-std);
   animation: none;
 }
-.account-shell:not([data-plain]) .auth-link:hover {
-  color: var(--text);
-  text-decoration-color: currentColor;
+@media (hover: hover) and (pointer: fine) {
+  .account-shell:not([data-plain]) .auth-link:hover {
+    color: var(--text);
+    text-decoration-color: currentColor;
+  }
 }
 .account-shell:not([data-plain]) .auth-error {
   align-items: flex-start;
@@ -787,8 +791,10 @@
   filter: blur(3px);
   transition: filter var(--dur-fast) var(--ease-std);
 }
-.profile-menu-head:hover .profile-menu-email {
-  filter: none;
+@media (hover: hover) and (pointer: fine) {
+  .profile-menu-head:hover .profile-menu-email {
+    filter: none;
+  }
 }
 
 /* Sign out with unsynced changes (components/SignOutDialog.tsx, in the party dialog's look). */

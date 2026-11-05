@@ -43,10 +43,46 @@
 }
 .sheet-body {
   flex: 1;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0 0.75rem 1rem;
   /* Soft scroll edge under the header instead of a divider line. */
   mask-image: linear-gradient(to bottom, transparent 0, black 14px);
+}
+/* The source filters wrap rather than run past the sheet's edge, where a touch
+   couldn't reach them (the sheet only pans vertically). */
+.sheet .srcf-bar {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+  max-width: 100%;
+}
+
+/* --- On a phone: a bottom sheet (Sheet.tsx), clear of the status bar, over the
+   home indicator with room for it, pulled down by its header. */
+.sheet[data-edge="bottom"] {
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  max-height: calc(100dvh - var(--safe-top) - 2.5rem);
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  padding-bottom: var(--safe-bottom);
+  touch-action: auto;
+}
+.sheet[data-edge="bottom"] .sheet-header {
+  position: relative;
+  padding-top: 1.5rem;
+  touch-action: none;
+}
+.sheet[data-edge="bottom"] .sheet-grabber {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  translate: -50% 0;
+  width: 36px;
+  height: 4px;
 }
 
 /* --- Stream list */

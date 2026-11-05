@@ -239,7 +239,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
-  animation: hero-content-in var(--dur-reveal) var(--ease-reveal);
+  /* Re-keyed on every settled focus move: a plain fade. The art's cross-fade is the motion here. */
+  animation: fade-in var(--dur-fast) var(--ease-out);
 }
 .tv-stage-logo {
   width: auto;
@@ -337,7 +338,7 @@
 }
 .tv-rail {
   padding-top: 0.5rem;
-  transition: opacity 260ms var(--ease-std);
+  transition: opacity var(--dur-fast) var(--ease-std);
 }
 /* Rows you're not on step back. */
 .tv-rails:focus-within .tv-rail:not(:focus-within),
@@ -394,7 +395,7 @@
   flex: none;
   width: var(--tv-card-w);
   border-radius: var(--tv-radius);
-  transition: transform 280ms var(--ease-out);
+  transition: transform var(--dur-base) var(--ease-out);
 }
 .tv-card[data-shape="poster"] {
   aspect-ratio: 2 / 3;
@@ -418,7 +419,21 @@
   overflow: hidden;
   background: var(--surface-2);
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.05);
-  transition: box-shadow 240ms var(--ease-out);
+}
+/* The lifted card's shadow, faded in on a layer of its own: transitioning the
+   frame's blurred box-shadow repainted two cards on every move. */
+.tv-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 1.4rem 2.6rem -1rem rgb(0 0 0 / 0.85);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+  pointer-events: none;
+}
+.tv-card:is(:focus, [data-menu-open])::before {
+  opacity: 1;
 }
 .tv-card-img {
   width: 100%;
@@ -443,8 +458,12 @@
 .tv-card:is(:focus, [data-menu-open])::after {
   opacity: 1;
 }
-.tv-card:is(:focus, [data-menu-open]) .tv-card-frame {
-  box-shadow: 0 1.4rem 2.6rem -1rem rgb(0 0 0 / 0.85);
+/* A held direction (tv/held.ts): focus moves faster than the lift and the ring
+   can finish, so they jump with it instead and the ring is always whole. */
+:root[data-nav-held] :is(.tv-card, .tv-rail, .tv-key, .tv-pill, .tv-nav-tab),
+:root[data-nav-held] .tv-card::before,
+:root[data-nav-held] .tv-card::after {
+  transition-duration: 0ms;
 }
 .tv-card-scrim {
   position: absolute;
@@ -694,9 +713,7 @@
   padding: 0 1.1rem;
   background: var(--fill-2);
   box-shadow: inset 0 0 0 1px var(--fill-1);
-  transition:
-    background-color var(--dur-fast) var(--ease-std),
-    box-shadow 240ms var(--ease-out);
+  transition: background-color var(--dur-fast) var(--ease-std);
 }
 .tv-genre-name {
   font-size: 1.05rem;
@@ -841,18 +858,8 @@
   padding: 9rem 0.5rem 8rem;
   scroll-padding: 8rem 0 7rem;
   mask-image: linear-gradient(to bottom, transparent 5rem, #000 8rem, #000 calc(100% - 5rem), transparent);
-  animation: tv-settings-list-in 260ms var(--ease-out);
-}
-@keyframes tv-settings-list-in {
-  from {
-    opacity: 0;
-    transform: translateX(1.5rem);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tv-settings-list {
-    animation-name: fade-in;
-  }
+  /* Opened from the remote, often: it fades in rather than slides. */
+  animation: fade-in var(--dur-fast) var(--ease-out);
 }
 .tv-settings-list > .tv-heading {
   margin-left: 1.25rem;
@@ -1580,7 +1587,7 @@
   background: rgb(18 18 18 / 0.94);
   backdrop-filter: blur(32px) saturate(140%);
   box-shadow: 1px 0 0 var(--hairline);
-  animation: tv-menu-in 320ms var(--ease-drawer);
+  animation: tv-menu-in 240ms var(--ease-drawer);
 }
 @keyframes tv-menu-in {
   from {
@@ -1862,12 +1869,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tv-main,
-  .tv-menu {
+  .tv-menu,
+  .tv-card-menu {
     animation-name: fade-in;
   }
-  .tv-card:focus,
-  .tv-rail-track .tv-card:focus ~ .tv-card,
-  .tv-rail-track .tv-card:has(~ .tv-card:focus),
+  .tv-card:is(:focus, [data-menu-open]),
+  .tv-rail-track .tv-card:is(:focus, [data-menu-open]) ~ .tv-card,
+  .tv-rail-track .tv-card:has(~ .tv-card:is(:focus, [data-menu-open])),
   .tv-pill:focus,
   .tv-key:focus,
   .tv-nav-tab:focus,

@@ -14,8 +14,14 @@ export function followStep(pos: number, target: number, dtMs: number): number {
   return Math.abs(target - next) < 0.5 ? target : next;
 }
 
-type Glide = { target: number; frame: number; last: number };
+/** `pos` is the glide's own position: read back, a scroll offset snapped to whole pixels could stop short of the target. */
+type Glide = { target: number; pos: number; frame: number; last: number };
 const glides = new WeakMap<HTMLElement, { x?: Glide; y?: Glide }>();
+
+/** Where `el`'s running glide on `axis` is heading, if one is running: a held key adds to that, not to where it is now. */
+export function glideTarget(el: HTMLElement, axis: "x" | "y"): number | undefined {
+  return glides.get(el)?.[axis]?.target;
+}
 
 /** Glides `el`'s scroll position on one axis to `target` (instant with reduced motion). */
 export function glideScroll(el: HTMLElement, axis: "x" | "y", target: number) {
@@ -35,16 +41,16 @@ export function glideScroll(el: HTMLElement, axis: "x" | "y", target: number) {
     running.target = to;
     return;
   }
-  const g: Glide = { target: to, frame: 0, last: performance.now() };
+  const g: Glide = { target: to, pos: el[prop], frame: 0, last: performance.now() };
   state[axis] = g;
   // Our own glide: the browser's smooth scroll would fight it.
   el.style.scrollBehavior = "auto";
   const step = (now: number) => {
     const dt = Math.min(64, now - g.last);
     g.last = now;
-    const pos = followStep(el[prop], g.target, dt);
-    el[prop] = pos;
-    if (pos === g.target || Math.abs(el[prop] - g.target) < 1) {
+    g.pos = followStep(g.pos, g.target, dt);
+    el[prop] = g.pos;
+    if (Math.abs(g.target - g.pos) < 1) {
       el[prop] = g.target;
       state[axis] = undefined;
       return;

@@ -33,20 +33,26 @@ export function useFoldSnap(scroller: RefObject<HTMLElement | null>, ready: bool
     if (!el) return;
     let lockedUntil = 0;
     let frame = 0;
+    /** Which way the running (or just landed) glide went: the lock holds only that way. */
+    let heading: boolean | null = null;
+    const navHeight = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 76;
+    let nav = navHeight();
 
     const fold = () => {
       const h = el.querySelector<HTMLElement>(hero);
       if (!h) return 0;
       // Where the page below the hero starts, just clear of the navigation bar.
-      const nav = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 76;
       const target = h.offsetTop + h.offsetHeight - nav - 8;
       return Math.max(0, Math.min(target, el.scrollHeight - el.clientHeight));
     };
 
     // Up to the hero (0) or down to the fold, which is measured again each frame. The wheel stays
-    // locked until it has landed and a moment after.
+    // locked until it has landed and a moment after, for the same way only: a turn the other way
+    // reverses the glide from where it is.
     const go = (down: boolean) => {
       cancelAnimationFrame(frame);
+      heading = down;
+      nav = navHeight();
       const to = () => (down ? fold() : 0);
       if (prefersReducedMotion()) {
         lockedUntil = performance.now() + LOCK_MS;
@@ -76,15 +82,18 @@ export function useFoldSnap(scroller: RefObject<HTMLElement | null>, ready: bool
       const y = el.scrollTop;
       if (e.deltaY > 0 && y < target - 4) {
         e.preventDefault();
-        if (now >= lockedUntil) go(true);
+        if (now >= lockedUntil || heading === false) go(true);
       } else if (e.deltaY < 0 && y > 0 && y <= target + 4) {
         e.preventDefault();
-        if (now >= lockedUntil) go(false);
+        if (now >= lockedUntil || heading === true) go(false);
       }
     };
 
     // Touch, keys or the scrollbar take over from a glide at once.
-    const stop = () => cancelAnimationFrame(frame);
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      heading = null;
+    };
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("pointerdown", stop);
     el.addEventListener("keydown", stop);

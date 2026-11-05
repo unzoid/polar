@@ -57,7 +57,7 @@ export function PlayerStatus({
     <motion.div
       className="player-status"
       data-failed={failed}
-      exit={{ opacity: 0, transition: { duration: 0.4, ease: ease.out } }}
+      exit={{ opacity: 0, transition: { duration: 0.26, ease: ease.out } }}
     >
       {background && <Img src={background} alt="" className="player-status-bg" />}
       <div className="player-status-content">

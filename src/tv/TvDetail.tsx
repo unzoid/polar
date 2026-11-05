@@ -16,6 +16,7 @@ import { useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "
 import type { ContentType, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 import { useBack, useFocusTrap, usePageActive } from "./shell";
 import { reveal } from "./spatial";
+import { glideScroll, glideTarget } from "./follow";
 import { TvKeyboard } from "./TvKeyboard";
 import { Facts, TvBackdrop, titleFacts } from "./TvStage";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -454,7 +455,8 @@ function DetailsPanel({ meta }: { meta: Meta }) {
           const down = e.key === "ArrowDown";
           if (down ? el.scrollTop + el.clientHeight >= el.scrollHeight - 4 : el.scrollTop <= 0) return;
           e.preventDefault();
-          el.scrollBy({ top: (down ? 1 : -1) * el.clientHeight * 0.4, behavior: "smooth" });
+          // One glide that a held key keeps steering, not a smooth scroll restarted per press.
+          glideScroll(el, "y", (glideTarget(el, "y") ?? el.scrollTop) + (down ? 1 : -1) * el.clientHeight * 0.4);
         }}
       >
         <TitleDetails meta={meta} links={false} />

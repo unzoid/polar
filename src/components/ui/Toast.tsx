@@ -11,7 +11,7 @@ export type ToastProps = Omit<HTMLAttributes<HTMLDivElement>, "className" | "chi
   lines?: boolean;
   /** `tv`: up top, clear of the hints bar, at TV size. */
   variant?: "tv";
-  /** Going away: plays the way out (toast-out); the caller removes it afterwards. */
+  /** Going away: plays the way out (toast.css data-leaving); the caller removes it afterwards. */
   leaving?: boolean;
   /** Extra classes for one toast's own touches (`update-toast`), not for restyling. */
   className?: string;

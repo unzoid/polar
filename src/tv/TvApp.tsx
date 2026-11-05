@@ -18,6 +18,7 @@ import { dismissTop, onDismissed } from "../lib/ui";
 import { Desktop } from "../components/icons";
 import { actionFor, shortcutText } from "../lib/settings";
 import { playSound } from "./sounds";
+import { markHeldMove } from "./held";
 import { useSettings } from "../lib/net";
 import { setTvMode } from "./tvMode";
 import { ControllerToast, TvHints, TvMenu, TvNav, sameTab, useTvTabs } from "./TvChrome";
@@ -112,6 +113,7 @@ export function TvApp() {
       if (dir) {
         if (ownsArrows(e.target)) return;
         e.preventDefault(); // never let the browser scroll on its own
+        if (e.repeat) markHeldMove();
         playSound(move(dir) ? "move" : "edge");
         return;
       }

@@ -30,8 +30,10 @@
   color: var(--text-3);
   touch-action: manipulation;
 }
-.search-field-clear:hover {
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .search-field-clear:hover {
+    color: var(--text);
+  }
 }
 
 /* Settings: a rounded box, the accent ring while typing. */
@@ -52,6 +54,7 @@
   height: 100%;
   padding: 0;
   font-size: var(--fs-md);
+  -webkit-user-select: text;
   user-select: text;
 }
 .search-field-box input::placeholder {

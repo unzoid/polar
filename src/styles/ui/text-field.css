@@ -11,6 +11,7 @@
   background: var(--fill-1);
   font-size: var(--fs-md);
   outline: none;
+  -webkit-user-select: text;
   user-select: text;
   transition: border-color var(--dur-fast) var(--ease-std);
 }

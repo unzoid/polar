@@ -18,7 +18,7 @@
   --t3-selected: var(--fill-2);
   --t3-primary: var(--accent);
   --t3-icon: color-mix(in srgb, var(--t3-muted-fg) 85%, var(--t3-card));
-  --t3-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --t3-ease: var(--ease-out);
 
   position: fixed;
   z-index: var(--z-modal);
@@ -68,8 +68,8 @@
 .t3s,
 .t3s-backdrop {
   transition:
-    opacity 0.16s cubic-bezier(0.23, 1, 0.32, 1),
-    transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 .t3s[data-starting-style] {
   opacity: 0;
@@ -114,13 +114,18 @@
   color: color-mix(in srgb, var(--t3-muted-fg) 80%, transparent);
   transition: background-color 120ms var(--ease-std);
 }
-.t3s-search:hover,
 .t3s-search:focus-within {
   background: var(--t3-hover);
+}
+@media (hover: hover) and (pointer: fine) {
+  .t3s-search:hover {
+    background: var(--t3-hover);
+  }
 }
 .t3s-search input {
   color: var(--t3-fg);
   font-weight: 500;
+  -webkit-user-select: text;
   user-select: text;
 }
 .t3s-search input::placeholder {
@@ -167,9 +172,11 @@
   color: var(--t3-muted-fg);
   cursor: pointer;
 }
-.t3s-search .search-field-clear:hover {
-  background: rgb(255 255 255 / 0.08);
-  color: var(--t3-fg);
+@media (hover: hover) and (pointer: fine) {
+  .t3s-search .search-field-clear:hover {
+    background: rgb(255 255 255 / 0.08);
+    color: var(--t3-fg);
+  }
 }
 
 /* Search results: one row per setting, its page underneath (T3 Code's command list). */
@@ -263,18 +270,27 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.t3s-nav-item:hover,
 .t3s-nav-item:active {
   background: var(--t3-hover);
   color: var(--t3-fg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .t3s-nav-item:hover {
+    background: var(--t3-hover);
+    color: var(--t3-fg);
+  }
 }
 .t3s-nav-item[data-active="true"] {
   background: var(--t3-selected);
   color: var(--t3-fg);
 }
-.t3s-nav-item:hover > svg,
 .t3s-nav-item[data-active="true"] > svg {
   color: var(--t3-fg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .t3s-nav-item:hover > svg {
+    color: var(--t3-fg);
+  }
 }
 .t3s-nav-item:focus-visible,
 .t3s-search:focus-within,
@@ -337,9 +353,11 @@
   color: var(--t3-muted-fg);
   cursor: pointer;
 }
-.t3s-ghost:not(:disabled):hover {
-  background: var(--t3-hover);
-  color: var(--t3-fg);
+@media (hover: hover) and (pointer: fine) {
+  .t3s-ghost:not(:disabled):hover {
+    background: var(--t3-hover);
+    color: var(--t3-fg);
+  }
 }
 .t3s-ghost:disabled {
   opacity: 0.64;
@@ -354,9 +372,11 @@
   color: var(--t3-muted-fg);
   cursor: pointer;
 }
-.t3s-icon-btn:hover {
-  background: var(--t3-hover);
-  color: var(--t3-fg);
+@media (hover: hover) and (pointer: fine) {
+  .t3s-icon-btn:hover {
+    background: var(--t3-hover);
+    color: var(--t3-fg);
+  }
 }
 
 /* --- Page -------------------------------------------------------------- */
@@ -423,8 +443,10 @@
 .t3s .settings-row-button .settings-row-value {
   margin-left: 1.25rem;
 }
-.t3s .settings-row-button:hover {
-  background: rgb(255 255 255 / 0.025);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .settings-row-button:hover {
+    background: rgb(255 255 255 / 0.025);
+  }
 }
 .t3s .settings-row-text {
   gap: 0.25rem;
@@ -495,8 +517,10 @@
   box-shadow: var(--t3-control-shade);
   font-weight: 400;
 }
-.t3s .select-trigger:hover {
-  background: var(--t3-control-hover);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .select-trigger:hover {
+    background: var(--t3-control-hover);
+  }
 }
 .t3s .select-trigger[data-popup-open],
 .t3s .select-trigger:focus-visible {
@@ -533,8 +557,10 @@
 .t3s .btn svg {
   opacity: 0.8;
 }
-.t3s .btn:not(:disabled):hover {
-  background: var(--t3-control-hover);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .btn:not(:disabled):hover {
+    background: var(--t3-control-hover);
+  }
 }
 .t3s .btn:active {
   transform: none;
@@ -555,14 +581,18 @@
   box-shadow: inset 0 1px 0 color-mix(in oklab, var(--t3-primary) 22%, transparent), 0 1px 2px rgb(0 0 0 / 0.05);
   color: color-mix(in oklab, var(--t3-primary) 35%, white);
 }
-.t3s .btn-primary:not(:disabled):hover {
-  background: color-mix(in oklab, var(--t3-primary) 24%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .btn-primary:not(:disabled):hover {
+    background: color-mix(in oklab, var(--t3-primary) 24%, transparent);
+  }
 }
 .t3s .btn-danger {
   color: #f87171;
 }
-.t3s .btn-danger:not(:disabled):hover {
-  background: rgb(248 113 113 / 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .btn-danger:not(:disabled):hover {
+    background: rgb(248 113 113 / 0.08);
+  }
 }
 
 /* T3's switch: 30×18 track, 14px thumb. Grey thumb when off, a dark one on blue when on. */
@@ -697,6 +727,16 @@
   .t3s .sub-setting-text {
     flex: 1 1 7rem;
   }
+}
+/* A phone in either orientation takes the whole screen, clear of the notch,
+   the camera cutout and the home indicator: in landscape it is wider than the
+   width query above and got a floating dialog 340px tall. */
+:root[data-form="phone"] .t3s {
+  width: 100vw;
+  height: 100dvh;
+  border: 0;
+  border-radius: 0;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
 @media (prefers-reduced-motion: reduce) {

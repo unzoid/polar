@@ -163,6 +163,11 @@
   grid-template-columns: 1fr;
   transition-duration: var(--dur-base);
 }
+/* On TV the remote toggles it: the check is there at once, and a row of chips
+   doesn't reflow over 150 ms (it animates a grid track, which is layout). */
+.tv .toggle-chip-check {
+  transition: none;
+}
 .toggle-chip-check > span {
   display: flex;
   min-width: 0;

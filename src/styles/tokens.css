@@ -140,6 +140,9 @@
   /* The notch / status bar and the home indicator, where the system draws over us. */
   --safe-top: 0px;
   --safe-bottom: 0px;
+  /* The camera cutout's side in landscape. */
+  --safe-left: 0px;
+  --safe-right: 0px;
   /* The smallest target a finger hits reliably (Apple 44pt, Material 48dp): 0 = no minimum. */
   --hit: 0px;
 }
@@ -147,12 +150,15 @@
 :root[data-form="tablet"] {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --nav-h: calc(76px + var(--safe-top));
 }
 :root[data-form="phone"] {
   --nav-h: calc(56px + var(--safe-top));
   --tabbar-h: calc(56px + var(--safe-bottom));
-  --gutter: 1rem;
+  /* In landscape the content stays clear of the camera cutout, on either side. */
+  --gutter: max(1rem, var(--safe-left), var(--safe-right));
   /* About three posters across a 390px screen, the rest peeking in. */
   --poster-w: calc(112px * var(--card-scale));
   --landscape-w: calc(232px * var(--card-scale));
@@ -161,6 +167,33 @@
 :root[data-touch="true"] {
   --hit: 44px;
   -webkit-tap-highlight-color: transparent;
+}
+/* A phone in landscape: the hero fits the screen between the bars instead of
+   running 480px tall into a 390px screen, and the tab bar slims down. */
+@media (orientation: landscape) {
+  :root[data-form="phone"] {
+    --tabbar-h: calc(44px + var(--safe-bottom));
+  }
+  :root[data-form="phone"] .hero {
+    --hero-h: max(240px, calc(100svh - var(--nav-h) - var(--tabbar-h) - 1.5rem));
+  }
+}
+/* iOS zooms into a field whose text is under 16px when it takes focus. */
+:root[data-touch="true"] :is(input, textarea, select) {
+  font-size: max(16px, 1em);
+}
+/* Reached with a finger: at least --hit, whatever the desktop size is. */
+:root[data-touch="true"] :is(.navbar-search-icon, .navbar-profile) {
+  min-width: var(--hit);
+  min-height: var(--hit);
+}
+:root[data-touch="true"] :is(.navbar-link, .player-remaining) {
+  min-height: var(--hit);
+}
+/* Feedback the moment a finger lands, where hover (gated to a mouse) gives none. */
+:root[data-touch="true"] :is(.navbar-link, .genre-chip, .srcf-tag, .source-chip, .segmented-item, .select-trigger):active {
+  transform: scale(0.97);
+  transition: transform var(--dur-press) var(--ease-out);
 }
 
 /* Settings → Appearance → Background: pure black, for OLED screens. */
@@ -180,6 +213,13 @@
   animation-iteration-count: 1 !important;
   transition-duration: 1ms !important;
   scroll-behavior: auto !important;
+}
+/* Except what says work is going on: the spinner's bars and the update dot only
+   fade (no movement), and stopped after one turn they read as stuck. */
+:root[data-reduce-motion="on"] .spinner-bar,
+:root[data-reduce-motion="on"] .navbar-update[data-busy] .navbar-update-dot {
+  animation-duration: 1.2s !important;
+  animation-iteration-count: infinite !important;
 }
 
 /* Settings → Browsing → Spoilers: unwatched episodes keep their stills and
