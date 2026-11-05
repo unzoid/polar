@@ -62,7 +62,7 @@ export function Row({
     <section className="row" data-shape={shape}>
       {(title || action) && (
         <header className="row-header">
-          {title && <h2 className="t-title2">{title}</h2>}
+          {title && <h2 className="t-title2 row-title" title={typeof title === "string" ? title : undefined}>{title}</h2>}
           {action}
         </header>
       )}

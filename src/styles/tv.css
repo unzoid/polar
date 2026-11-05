@@ -258,23 +258,42 @@
   font-weight: 750;
   letter-spacing: -0.026em;
   text-wrap: balance;
+  /* Bottom-anchored: a long name would climb under the navbar. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .tv-stage-kicker {
   margin: 0;
   font-size: var(--fs-lg);
   font-weight: 650;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .tv-facts {
-  margin: 0;
+  /* Every fact leads with its bullet, and the line's start is clipped off: a
+     line that wraps begins with a fact, not with "•". */
+  --tv-fact-gap: 1.6em;
+  margin: 0 0 0 calc(var(--tv-fact-gap) * -1);
+  clip-path: inset(-0.5em -0.5em -0.5em var(--tv-fact-gap));
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   font-size: 0.95rem;
   font-weight: 600;
 }
-.tv-facts > span + span::before {
+.tv-facts > span::before {
   content: "•";
-  margin: 0 0.55em;
+  display: inline-block;
+  width: var(--tv-fact-gap);
+  text-align: center;
   color: var(--text-3);
 }
 .imdb-badge {
@@ -509,6 +528,13 @@
   font-weight: 700;
   text-align: left;
   text-wrap: balance;
+  /* Two lines at most, clear of the chip at the top of the card. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .tv-card-fallback {
   position: absolute;
@@ -516,6 +542,8 @@
   display: grid;
   place-items: center;
   padding: 1rem;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   text-align: center;
   font-size: var(--fs-lg);
   font-weight: 650;
@@ -765,6 +793,13 @@
   font-weight: 750;
   letter-spacing: -0.026em;
   text-wrap: balance;
+  /* Vertically centred with the actions: a long name pushed both off the screen. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .tv-detail-description {
   margin: 0;

@@ -1,4 +1,5 @@
 import { LayoutList, LayoutRow, Volume, VolumeMuted } from "../components/icons";
+import { NameList } from "../components/title/NameList";
 import { useFoldSnap } from "../lib/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
@@ -155,12 +156,12 @@ function DetailHero({
         <dl className="detail-credits t-callout">
           {meta.cast?.length ? (
             <div>
-              <dt>Starring</dt> <dd>{meta.cast.slice(0, 3).join(", ")}</dd>
+              <dt>Starring</dt> <dd><NameList names={meta.cast.slice(0, 3)} /></dd>
             </div>
           ) : null}
           {meta.director?.length ? (
             <div>
-              <dt>{isSeries ? "Created by" : "Director"}</dt> <dd>{meta.director.slice(0, 2).join(", ")}</dd>
+              <dt>{isSeries ? "Created by" : "Director"}</dt> <dd><NameList names={meta.director.slice(0, 2)} /></dd>
             </div>
           ) : null}
         </dl>

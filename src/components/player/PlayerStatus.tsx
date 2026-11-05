@@ -12,6 +12,9 @@ import type { useSource } from "./useSource";
 /** How far the logo has filled in for each loading stage (0–100). */
 const FILL = { searching: 34, resolving: 66, starting: 92, done: 100 } as const;
 
+/** Past this many characters a name without a logo is set smaller, so its words fit whole on two lines. */
+const LONG_NAME = 24;
+
 /**
  * Loading screen, Netflix-style: the title's logo (or name) sits greyed out
  * and fills with colour left to right as loading advances — finding a source,
@@ -61,7 +64,11 @@ export function PlayerStatus({
     >
       {background && <Img src={background} alt="" className="player-status-bg" />}
       <div className="player-status-content">
-        <div className="load-mark" style={{ "--fill": `${failed ? 0 : FILL[stage]}%` } as React.CSSProperties}>
+        <div
+          className="load-mark"
+          data-long={!logo && (name?.length ?? 0) > LONG_NAME}
+          style={{ "--fill": `${failed ? 0 : FILL[stage]}%` } as React.CSSProperties}
+        >
           {logo ? (
             <>
               <img src={logo} alt={name ?? ""} className="load-mark-base" />

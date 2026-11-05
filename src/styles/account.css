@@ -790,6 +790,11 @@
 .profile-menu-email {
   filter: blur(3px);
   transition: filter var(--dur-fast) var(--ease-std);
+  overflow-wrap: anywhere;
+}
+/* On touch a press reveals it (hover is a mouse's). */
+.profile-menu-head:active .profile-menu-email {
+  filter: none;
 }
 @media (hover: hover) and (pointer: fine) {
   .profile-menu-head:hover .profile-menu-email {

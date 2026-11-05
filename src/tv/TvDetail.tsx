@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { NameList } from "../components/title/NameList";
 import { Check, Edit, Episodes, Play, PlaylistIcon, Plus, Reset, Sources } from "../components/icons";
 import { useBackdropTrailer } from "../components/BackdropTrailer";
 import { TitleDetails } from "../components/title/TitleDetails";
@@ -309,13 +310,13 @@ function Credits({ meta }: { meta?: Meta }) {
       {meta.cast?.length ? (
         <div>
           <dt>Starring</dt>
-          <dd>{meta.cast.slice(0, 3).join(", ")}</dd>
+          <dd><NameList names={meta.cast.slice(0, 3)} /></dd>
         </div>
       ) : null}
       {meta.director?.length ? (
         <div>
           <dt>{meta.type === "series" ? "Created by" : "Director"}</dt>
-          <dd>{meta.director.slice(0, 2).join(", ")}</dd>
+          <dd><NameList names={meta.director.slice(0, 2)} /></dd>
         </div>
       ) : null}
     </dl>
