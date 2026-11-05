@@ -44,6 +44,46 @@ two uuids, ~170 B of the two image URLs, ~40 B of name and episode title, ~40 B 
 three indexes (~110 B). The fixed overhead per row (header + key + index ≈ 70 B) is why packing
 episodes into one row per title wins more than shaving columns.
 
+### 2.1 Settings documents: keys and add-on links (I-007)
+
+`work/tmp/pgcheck/settings_size.ts` (PGlite, seeded random) builds one settings document per profile
+the way `src/lib/account/settingsSync.ts` does (every setting, synced prefs, changed shortcuts, add-on
+manifest URLs) for 5,000 invented users and stores them in today's `profile_settings` table (uuid key,
+`user_id` and its index, jsonb, two stamps), measured with `pg_total_relation_size` after `VACUUM`.
+
+The invented spread (not measured from real users):
+
+- Profiles per user: 1 (60%), 2 (25%), 3 (10%), 4-5 (5%): 8,017 profiles.
+- Keys per profile: TMDB 35% (70% a 32-character v3 key, 30% a ~250-character v4 token), OMDb 15%,
+  MDBList 10%, Seekr 5%.
+- Add-ons per profile: the bundled subtitles add-on, plus none (40%), 1-2 (30%), 3-5 (20%) or 6-11
+  (10%) more. Of those: 40% a plain public URL (~45 characters), 30% configured without anything
+  personal (options as base64 in the path, 170-450 characters), 30% carrying a personal token
+  (150-400 characters).
+- Option C: keys and all add-on URLs sealed in one AES-GCM blob (16 B salt, 12 B nonce, 16 B tag),
+  base64. Random bytes don't compress, so Postgres's own compression gains nothing on it.
+
+| Option | Per profile | 5,000 users | Share of 500 MB |
+|---|---|---|---|
+| D. Sync keys and add-on links as today | 2,571 B | 19.7 MiB | 4.1% |
+| C. Sync them encrypted with a passphrase | 2,972 B | 22.7 MiB | 4.8% |
+| B. Keys on the device; token-free add-on links synced | 2,429 B | 18.6 MiB | 3.9% |
+| A. Keys and add-on links on the device only | 2,134 B | 16.3 MiB | 3.4% |
+| A, and only the settings changed from their defaults | 703 B | 5.4 MiB | 1.1% |
+
+What this shows: keys and add-on links are a small part of the document (D to A saves 437 B a
+profile, 3.4 MiB per 5,000 users). Most of each document is the ~50 settings written out in full
+even when nobody changed them (about 1.4 KB). Sending only the settings a profile changed (here
+10% of them) shrinks the table by two thirds whichever of A-D is chosen. The catch: a setting left
+at its default follows the app's default if a later version changes it, which is what most people
+expect anyway.
+
+The choice between A-D is therefore about safety more than size: a key or a personal add-on link
+in the account is readable by anyone who gets into the account or the database (a leaked password,
+a Supabase dashboard login, a backup), and the keys are the user's own accounts at TMDB, OMDb,
+MDBList and Seekr. A and B keep them off the server; C keeps them on it but unreadable without the
+passphrase; D keeps them readable as today.
+
 ## 3. Proposed layout (D)
 
 ### 3.1 `progress`: one row per title
