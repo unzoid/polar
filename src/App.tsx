@@ -9,7 +9,7 @@ import { rootTab, RouterProvider, useRouter, type Route } from "./lib/router";
 import { focusSearch } from "./lib/catalog";
 import { Home } from "./screens/Home";
 import { Discover } from "./screens/Discover";
-import { Library } from "./screens/Library";
+import { Library, LibraryCollection, LibraryPlaylist } from "./screens/Library";
 import { Calendar } from "./screens/Calendar";
 import { Search } from "./screens/Search";
 import { Detail } from "./screens/Detail";
@@ -46,6 +46,10 @@ function Screen({ route }: { route: Route }) {
       return <Discover type={route.type} />;
     case "library":
       return <Library />;
+    case "library-collection":
+      return <LibraryCollection view={route.view} />;
+    case "playlist":
+      return <LibraryPlaylist id={route.id} fresh={!!route.fresh} />;
     case "calendar":
       return <Calendar />;
     case "search":
