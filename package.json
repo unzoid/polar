@@ -7,9 +7,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
     "test": "bun test --path-ignore-patterns='tests/dom/**' tests && bun run test:dom",
     "test:dom": "bun test --preload ./tests/dom/setup.ts tests/dom",
+    "e2e": "playwright test",
     "tauri": "tauri",
     "app": "tauri dev",
     "index": "cargo run -p polar-index --features server"
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.15",
+    "@playwright/test": "^1.64.1",
     "@tauri-apps/cli": "^2.12.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

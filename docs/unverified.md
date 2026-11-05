@@ -34,11 +34,17 @@ CI has never run: nothing here publishes to GitHub. Checked on the dev machine i
   checkout v7.0.1, setup-bun v2.2.0, rust-cache v2.9.3, cache v6.1.0, rust-toolchain `stable`.
 - The Linux packages the `rust` job installs exist under those names in Ubuntu 24.04, which
   `ubuntu-latest` is (runner-images README), and in 26.04 (packages.ubuntu.com).
+- The `e2e-web` job's tests (T-039, `bun run e2e`): all 12 pass in the desktop, phone and TV
+  projects, three runs in a row, but in the Chromium already unpacked here (`POLAR_E2E_CHROMIUM`),
+  not Playwright's own build: `playwright install` can't download here. upload-artifact v7.0.2's
+  pinned commit is that tag's (GitHub API, 2026-11-05).
 
 Not checked: the workflow file against GitHub's schema (`actionlint` could not be run here:
 `actionlint .github/workflows/ci.yml` on a desktop does it), and anything about the runners
 themselves: WebKitGTK linking on Ubuntu, `cargo test -p polar` anywhere, the bundled-mpv fetch and
-cache on Windows, macOS. The first push shows these; a failing job prints its step.
+cache on Windows, macOS, and the `desktop-webkit` end-to-end project (WebKit was never run here;
+the player test in it needs WebKit to play a WAV, which Playwright's `--with-deps` should give it).
+The first push shows these; a failing job prints its step and keeps the Playwright report.
 
 ## Saving in the background (R4, H8/M4)
 

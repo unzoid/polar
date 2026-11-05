@@ -89,7 +89,13 @@ no real account, key or add-on is used in CI.
 4. T-038 Component tests with a DOM (done): `tests/dom`, run apart from the other tests by
    `bun run test:dom` (part of `bun run test`) with happy-dom preloaded (`tests/dom/setup.ts`),
    so the plain unit tests keep a runtime without a DOM.
-5. T-039 Fake bridge + Playwright end-to-end on the web build.
+5. T-039 Fake bridge + Playwright end-to-end on the web build. Done: `e2e/` against the dev
+   server's `fake.html` (the fake shell already built for T-051), not `vite preview`, so the fake
+   never enters the app's build; every outside host refused, media.example answered with a silent
+   WAV made in the test (no film needed). Projects: desktop (Chromium, and WebKit in CI), phone
+   (Pixel 7), TV (keys only). Job `e2e-web` in CI. It found two bugs, both fixed: a tap on a phone
+   never brought the player's controls back, and Backspace / a remote's Back didn't leave the
+   player in TV mode.
 6. T-040 tauri-driver app smoke test (nightly).
 7. T-041 Docs: `docs/testing.md` (how to run each layer, how to add a test), README
    Contributing section, `docs/unverified.md` updated with what CI now checks.

@@ -209,6 +209,10 @@ export function Player({
   const { chrome, poke, hide: hideChrome, overControls } = usePlayerChrome(hideAfter);
   const ready = source.state.status === "ready" && !error;
   const chromeVisible = chrome.visible || paused || !!options || !ready;
+  // Whether the controls showed when the press on the picture began: the
+  // player's own pointerdown shows them before the click, so a tap that should
+  // bring them back would otherwise hide them again at once.
+  const chromeAtPress = useRef(false);
 
   // --- Current / next episode ---------------------------------------------
   const current = meta?.videos.find((v) => v.id === videoId);
@@ -704,9 +708,10 @@ export function Player({
         // Respond immediately; double-click adds fullscreen on top. Settings
         // can make a click only show/hide the controls instead; a tap always
         // does, as on every phone player (Play/Pause is in the controls).
+        onPointerDown={() => (chromeAtPress.current = chrome.visible)}
         onClick={() => {
           if (!touch && settings?.clickAction !== "controls") return togglePlay();
-          if (chrome.visible) hideChrome();
+          if (chromeAtPress.current) hideChrome();
           else poke();
         }}
         onDoubleClick={() => void toggleFullscreen()}
