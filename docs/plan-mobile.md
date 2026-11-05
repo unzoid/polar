@@ -13,8 +13,9 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 - Phone and tablet layouts (`formFactor.ts`, `data-form`/`data-touch`, bottom tab bar, safe
   areas, 44 px targets) and TV mode (`src/tv`, arrow keys, one Back stack).
 - Android project (`src-tauri/gen/android`, T-042): generated, built in CI as a debug APK.
+- Android player: libmpv (§2.3, T-044), built in CI; never run on a device yet.
 - Not built: the Xcode project, signing, a player better than `<video>` on
-  mobile, anything for tvOS.
+  iOS, anything for tvOS.
 
 ## 2. Android (phones and tablets) first
 
@@ -77,7 +78,9 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
    emulator smoke test `e2e/android/smoke.sh` in `e2e-app.yml`, not the whole e2e suite, which needs a
    WebDriver into the WebView).
 3. T-050 how libmpv and FFmpeg are built on Android and iOS (§7).
-4. T-044 Android libmpv engine.
+4. T-044 Android libmpv engine (built: `player/android.rs` loads libmpv from the APK and draws into a
+   `SurfaceView` behind the web view (`MainActivity.kt`), driven over the same IPC socket as on desktop;
+   `scripts/android-mpv.sh` builds it in CI with the sources archive; never run on a device yet).
 5. T-045 iOS project; unsigned build on the macOS runner.
 6. T-046 iOS libmpv engine and sandbox details.
 7. T-047 Android TV: manifest, banner, TV mode at start (built: a `polarDevice` JavaScript interface from

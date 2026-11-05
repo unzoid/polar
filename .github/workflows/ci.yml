@@ -110,10 +110,13 @@ jobs:
   # Android's throwaway debug key; release signing waits for the owner's key.
   # The runner image has the Android SDK and NDKs; the platform the project
   # compiles against is installed here in case the image lags behind it.
+  # libmpv and FFmpeg (scripts/android-mpv.sh, docs/plan-mobile.md §7) are
+  # built once and kept until the script, and so a pinned version, changes;
+  # the sources they're built from are kept with the APK.
   android:
     name: Android build (debug APK)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -138,6 +141,21 @@ jobs:
           sdk="$(sed -n 's/.*compileSdk = \([0-9]*\).*/\1/p' src-tauri/gen/android/app/build.gradle.kts)"
           # `yes` ends on SIGPIPE, which pipefail would count as a failure.
           (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-$sdk"
+      - name: Restore libmpv
+        id: libmpv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/libmpv/out
+          key: android-libmpv-${{ hashFiles('scripts/android-mpv.sh') }}
+      - name: Build libmpv
+        if: steps.libmpv.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf pkgconf libtool ninja-build gperf nasm
+          pipx install meson
+          scripts/android-mpv.sh "$RUNNER_TEMP/libmpv" arm64 x86_64
+      - name: Put libmpv in the app
+        run: cp -R "$RUNNER_TEMP/libmpv/out/jniLibs" "$RUNNER_TEMP/libmpv/out/assets" src-tauri/gen/android/app/src/main/
       - name: Build
         env:
           NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
@@ -147,6 +165,13 @@ jobs:
         with:
           name: android-debug-apk
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          retention-days: 14
+      - name: Keep libmpv's sources
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-mpv-sources
+          path: ${{ runner.temp }}/libmpv/out/polarity-android-mpv-sources.tar.xz
+          compression-level: 0
           retention-days: 14
 
   fmt:

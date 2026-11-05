@@ -101,6 +101,17 @@ jobs:
         run: |
           sdk="$(sed -n 's/.*compileSdk = \([0-9]*\).*/\1/p' src-tauri/gen/android/app/build.gradle.kts)"
           (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-$sdk"
+      # libmpv as ci.yml's android job last built it (not built here: without it the app plays
+      # through the web view and the smoke test runs all the same).
+      - name: Restore libmpv
+        id: libmpv
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/libmpv/out
+          key: android-libmpv-${{ hashFiles('scripts/android-mpv.sh') }}
+      - name: Put libmpv in the app
+        if: steps.libmpv.outputs.cache-hit == 'true'
+        run: cp -R "$RUNNER_TEMP/libmpv/out/jniLibs" "$RUNNER_TEMP/libmpv/out/assets" src-tauri/gen/android/app/src/main/
       - name: Build
         env:
           NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}

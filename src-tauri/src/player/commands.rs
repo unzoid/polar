@@ -21,15 +21,18 @@ use crate::locks::Locked;
 use crate::AppState;
 
 /// Whether mpv can be the player here: it must be installed and able to draw
-/// into our window, which only Windows (`--wid`) and macOS (libmpv) can do so
-/// far (see [`window_id`]). Elsewhere the player uses the webview's `<video>`.
+/// into our window, which only Windows (`--wid`), macOS and Android (libmpv in
+/// the app) can do so far (see [`window_id`]). Elsewhere the player uses the
+/// webview's `<video>`.
 #[tauri::command]
 pub fn mpv_available() -> bool {
     #[cfg(target_os = "macos")]
     return mpv_library().is_some();
     #[cfg(windows)]
     return mpv_binary().is_some();
-    #[cfg(not(any(windows, target_os = "macos")))]
+    #[cfg(target_os = "android")]
+    return super::android::available();
+    #[cfg(not(any(windows, target_os = "macos", target_os = "android")))]
     false
 }
 
@@ -103,7 +106,11 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
         mpv.request(json!(["set_property", "af", tune.audio_filters()])).await?;
     }
     if was.hwdec_mode() != tune.hwdec_mode() {
-        mpv.request(json!(["set_property", "hwdec", tune.hwdec_mode()])).await?;
+        #[cfg(target_os = "android")]
+        let mode = polar_player::tune::android_hwdec(tune.hwdec_mode());
+        #[cfg(not(target_os = "android"))]
+        let mode = tune.hwdec_mode();
+        mpv.request(json!(["set_property", "hwdec", mode])).await?;
     }
     if was.autocrop != tune.autocrop {
         if tune.autocrop {
