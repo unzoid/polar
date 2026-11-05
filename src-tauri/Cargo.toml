@@ -21,6 +21,7 @@ polar-addon.workspace = true
 polar-anime.workspace = true
 polar-index.workspace = true
 polar-library.workspace = true
+polar-player.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true
