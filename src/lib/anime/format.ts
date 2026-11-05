@@ -8,6 +8,18 @@ export function pickTitle(t: AnimeTitle, lang: "romaji" | "english" | "native") 
   return t.romaji ?? t.english ?? t.native ?? "";
 }
 
+/**
+ * The line under an anime page's heading. Under a logo (often English, sometimes in any script) it's
+ * the title from Settings, so English with English chosen, romaji when there's no English one; the
+ * native title is left out there. Under a text heading it's the title in the other script.
+ */
+export function heroSubtitle(t: AnimeTitle, lang: "romaji" | "english" | "native", logo: boolean): string | undefined {
+  const name = pickTitle(t, lang);
+  if (logo) return name || undefined;
+  const other = lang === "native" ? (t.romaji ?? t.english) : t.native;
+  return other && other !== name ? other : undefined;
+}
+
 export function useAnimeTitle() {
   const { animeTitles } = usePrefs();
   return (t: AnimeTitle) => pickTitle(t, animeTitles);
