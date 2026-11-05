@@ -96,6 +96,10 @@ no real account, key or add-on is used in CI.
    (Pixel 7), TV (keys only). Job `e2e-web` in CI. It found two bugs, both fixed: a tap on a phone
    never brought the player's controls back, and Backspace / a remote's Back didn't leave the
    player in TV mode.
-6. T-040 tauri-driver app smoke test (nightly).
-7. T-041 Docs: `docs/testing.md` (how to run each layer, how to add a test), README
+6. T-040 tauri-driver app smoke test (nightly). Done: `e2e/app/smoke.ts` with its own small
+   WebDriver client (no WebdriverIO, so no new dependency), workflow `e2e-app.yml` on Linux
+   (xvfb) and Windows, nightly, on `master` and by hand. It covers the shell opening, settings and
+   the Library surviving a restart; the player falling back to `<video>` is left out (it needs a
+   stream from an add-on, and the real ones aren't used in tests). Never run here (no WebKitGTK).
+7. T-041 Docs (done): `docs/testing.md` (how to run each layer, how to add a test), README
    Contributing section, `docs/unverified.md` updated with what CI now checks.
