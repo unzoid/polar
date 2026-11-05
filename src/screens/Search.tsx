@@ -3,7 +3,7 @@ import { useDeferredValue, useEffect, useState } from "react";
 import { AnimeCard } from "../components/anime/AnimeCard";
 import { PosterCard } from "../components/PosterCard";
 import { Shelf } from "../components/title/Shelf";
-import { type AnimeCard as Card, useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
+import { type AnimeCard as Card, retryTitle, useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
 import { api } from "../lib/api";
 import { addRecentSearch, BROWSE_GENRES, genreOf, useSearchText } from "../lib/catalog";
 import { usePrefs } from "../lib/settings";
@@ -32,9 +32,8 @@ export function Search() {
   const { data } = useSearch(deferred);
   const hasQuery = deferred.length > 1;
   const genre = hasQuery ? genreOf(deferred) : undefined;
-  // An animated show Cinemeta found (it forgives typos): what AniList is asked for when the typed words find nothing.
-  const animated = [...(data?.series ?? []), ...(data?.movies ?? [])].find((m) => m.genres?.some((g) => /^anim(e|ation)$/i.test(g)));
-  const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "", animated?.name);
+  // What the catalogs found (they forgive typos): what AniList is asked for when the typed words find nothing.
+  const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "", retryTitle(data?.series ?? [], data?.movies ?? []));
   const aliases = useAnimeAliases();
 
   if (text.trim().length < 2) return <div className="scroll search-page" />;

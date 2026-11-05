@@ -73,6 +73,13 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   expect(await clock(app)).toBe(paused);
 
   await app.getByRole("button", { name: "Sources", exact: true }).click();
+  // The source bar's controls never stick out past the list (re-test N9), at any width.
+  for (const width of [1440, 1100]) {
+    await app.setViewportSize({ width, height: 900 });
+    const filters = await app.locator(".srcf-filters").boundingBox();
+    const list = await app.locator(".options-column[data-size=wide] .options-list").boundingBox();
+    expect(filters!.x + filters!.width).toBeLessThanOrEqual(list!.x + list!.width);
+  }
   await app.keyboard.press("Escape");
   await app.keyboard.press("Escape");
   await expect(player).toHaveCount(0);

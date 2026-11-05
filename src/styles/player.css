@@ -1006,10 +1006,14 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 .options-head .srcf:not(.srcf-tv) {
   display: contents;
 }
-/* Beside the title while there's room for it; on a narrow window it drops
-   under the title and takes the column's whole width. */
+/* Beside the title while all of it fits there; otherwise it drops under the
+   title and takes the column's whole width, and if even that is too narrow its
+   controls wrap. Never wider than the list (re-test N9: Filters stuck out). */
 .options-head .srcf-bar {
-  flex: 1 1 26rem;
+  flex: 1 1 max-content;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+  max-width: 100%;
 }
 .options-head .srcf-active {
   flex-basis: 100%;

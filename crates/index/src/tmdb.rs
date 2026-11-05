@@ -353,6 +353,34 @@ fn genre_id(ty: &str, name: &str) -> Option<u32> {
     })
 }
 
+/// Cinemeta-style names [`genre_id`] knows, in the order a name is picked when ids are shared.
+const GENRE_NAMES: [&str; 18] = [
+    "Action",
+    "Adventure",
+    "Animation",
+    "Comedy",
+    "Crime",
+    "Documentary",
+    "Drama",
+    "Family",
+    "Fantasy",
+    "Sci-Fi",
+    "History",
+    "Horror",
+    "Music",
+    "Mystery",
+    "Romance",
+    "Thriller",
+    "War",
+    "Western",
+];
+
+/// TMDB genre id → its Cinemeta-style name, the reverse of [`genre_id`]: search results name their
+/// genres only by id, and the app tells animation by name (re-test 28: a typo search's retry).
+fn genre_name(ty: &str, id: u32) -> Option<&'static str> {
+    GENRE_NAMES.into_iter().find(|n| genre_id(ty, n) == Some(id))
+}
+
 fn tmdb_kind(ty: &str) -> &'static str {
     if ty == "series" {
         "tv"
@@ -527,6 +555,9 @@ struct Item {
     release_date: Option<String>,
     first_air_date: Option<String>,
     vote_average: Option<f64>,
+    /// Lists and searches name genres only by id.
+    #[serde(default)]
+    genre_ids: Vec<u32>,
 }
 
 impl Item {
@@ -541,7 +572,7 @@ impl Item {
             description: self.overview.filter(|o| !o.is_empty()),
             release_info: self.release_date.or(self.first_air_date).and_then(|d| d.get(..4).map(str::to_owned)),
             imdb_rating: self.vote_average.filter(|r| *r > 0.0).map(|r| format!("{r:.1}")),
-            genres: Vec::new(),
+            genres: self.genre_ids.iter().filter_map(|&g| genre_name(ty, g)).map(str::to_owned).collect(),
         }
     }
 }
@@ -675,6 +706,12 @@ mod tests {
         assert_eq!(path, "/discover/tv");
         assert_eq!(first as u64, 1 + curate::today() % 4);
         assert!(query.contains(&("with_genres".into(), "18".into())));
+        // Search results name genres by id only; animation must come through as a name.
+        assert_eq!(genre_name("series", 16), Some("Animation"));
+        assert_eq!(genre_name("movie", 16), Some("Animation"));
+        assert_eq!(genre_name("series", 10759), Some("Action"));
+        assert_eq!(genre_name("movie", 878), Some("Sci-Fi"));
+        assert_eq!(genre_name("movie", 1), None);
         assert!(matches!(list_request("movie", "popular", Some("Nope")), Err(IndexError::NotFound)));
         assert_eq!(list_request("movie", "trending", None).unwrap().0, "/trending/movie/week");
     }
@@ -694,5 +731,13 @@ mod tests {
         assert_eq!(pick_trailer(&vids[..1]), None);
         let vimeo = json!({ "site": "Vimeo", "key": "x", "type": "Trailer", "official": true });
         assert_eq!(pick_trailer(&[vimeo]), None);
+    }
+
+    #[test]
+    fn a_search_result_names_its_genres() {
+        let item: Item =
+            serde_json::from_value(json!({"id": 1, "name": "Made Up Toon", "genre_ids": [16, 10759, 1]})).unwrap();
+        let preview = item.into_preview("series", "tt0000001".into());
+        assert_eq!(preview.genres, ["Animation", "Action"]);
     }
 }
