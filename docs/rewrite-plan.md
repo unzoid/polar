@@ -144,7 +144,8 @@ Done in the same migration, so the server is changed once:
   (capped 8 s) or 1, 2, 4 s; a failed `external_ids` lookup fails its page instead of thinning it (titles
   already read are still handed out as a short page). Cinemeta pools are fetched once however many shelves
   ask (`OnceCell` per pool; a failure is not kept). Left: the tmdb→IMDb id map is still memory-only (needs a
-  cache folder passed in), and L14 in `src-tauri` (`imdb.rs` builds a client per call).
+  cache folder passed in). L14 done: every source keeps one client for the app's life (`imdb.rs` a
+  `OnceLock`); only the start-up probe builds one per check, for its own timeouts and hand-followed redirects.
 - **M1** Keys redacted from errors (the probe's redaction reused). **M13** body size caps.
   Addon half done: `AddonError::Http` drops the URL (an addon URL can hold a token); addon JSON capped at
   16 MB and `fetch_bytes` (subtitles) at 10 MB, refused mid-stream whatever `Content-Length` says (tested).
