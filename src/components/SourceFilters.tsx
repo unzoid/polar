@@ -203,7 +203,7 @@ function TvBar({ f, note }: { f: SourceFilters; note?: string }) {
   // Sort goes last on TV, under the filters it orders.
   const [sort, ...rest] = sections(f, true);
   return (
-    <div className="srcf srcf-tv" data-nav-memory>
+    <div className="srcf srcf-tv" data-nav-memory data-nav-group>
       {[...rest, sort].map((s) => (
         <ChipRow key={s.label} {...s} />
       ))}

@@ -26,6 +26,12 @@
   visibility: hidden;
   content-visibility: hidden;
 }
+/* The page the player returns to stays rendered (only not painted), so it's back in the
+   first frame: no black frame, no entrance played again (test report 1, item 6). */
+.page[data-under-player="true"],
+.tv-page[data-under-player="true"] {
+  content-visibility: visible;
+}
 .scroll {
   height: 100%;
   overflow-y: auto;

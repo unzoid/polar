@@ -934,12 +934,12 @@ html[data-player="mpv"] .main {
   opacity: 0;
   transition-duration: 260ms; /* PLAYER_EXIT_MS */
 }
-/* mpv's picture lives under the page, so fading the player alone wouldn't
-   reveal anything — the page has to fade in over the picture instead. */
+/* mpv's picture lives under the page, and mpv stops as the player goes, so a page
+   fading in over it would rise out of black: the page is simply there again, and the
+   player's controls fade off it (test report 1, item 6). */
 html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   visibility: visible;
   background: var(--bg);
-  animation: fade-in 260ms var(--ease-std);
 }
 .player-status {
   background: #000;
