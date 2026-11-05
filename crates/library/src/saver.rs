@@ -122,6 +122,16 @@ impl Saver {
         self.shared.changed.notify_all();
     }
 
+    /// The data changed in a way someone chose (a setting, the library): write it
+    /// now, without waiting out the delay, so quitting or a crash right after
+    /// doesn't lose it. Doesn't wait for the write.
+    pub fn mark_now(&self) {
+        let mut state = self.shared.lock();
+        state.marked += 1;
+        state.hurry = true;
+        self.shared.changed.notify_all();
+    }
+
     /// Writes what is pending now and waits for it.
     pub fn flush(&self) {
         let mut state = self.shared.lock();
@@ -185,6 +195,17 @@ mod tests {
         let start = Instant::now();
         saver.flush();
         assert!(start.elapsed() < Duration::from_secs(5));
+        assert_eq!(writes.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn mark_now_is_written_without_waiting_out_the_delay() {
+        let (saver, writes) = counting(Duration::from_secs(60));
+        saver.mark_now();
+        let until = Instant::now() + Duration::from_secs(5);
+        while writes.load(Ordering::SeqCst) == 0 && Instant::now() < until {
+            thread::sleep(Duration::from_millis(5));
+        }
         assert_eq!(writes.load(Ordering::SeqCst), 1);
     }
 
