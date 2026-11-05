@@ -6,6 +6,13 @@ import type { InstalledAddon, LibraryItem, Meta, MetaPreview, Progress, Settings
  * needs no network.
  */
 
+/**
+ * `fake.html?worst=1` (or localStorage `polar.fakeWorst` = "1"): the break-ui worst case,
+ * long, short, non-Latin and missing values everywhere. `?worst=empty`: zero of everything
+ * that can be zero (library, history, add-ons, sources, search results).
+ */
+export const WORST = new URLSearchParams(location.search).get("worst") ?? localStorage.getItem("polar.fakeWorst") ?? "";
+
 const HUES = [210, 12, 145, 280, 38, 330, 190, 95, 255, 0, 170, 60];
 
 function art(label: string, i: number, w: number, h: number): string {
@@ -66,12 +73,34 @@ const SERIES_NAMES = [
   "Highwire",
   "Orchard House",
 ];
+const W_LONG = "The Extraordinarily Long and Winding Chronicle of the Lighthouse Keeper's Seventh Daughter and Her Unfinished Correspondence";
+const W_NAMES = [W_LONG, "Q", "夜明けの図書館と七つの鍵", "حكايات البحر الأخير", "🦊 Ember Fox 🌙✨", "Donaudampfschifffahrtsgesellschaftskapitänswitwe", "Ngày Xửa Ngày Xưa Ở Bến Đò", "<b>Bold</b> &amp; Brave", "Untitled", "Jo"];
+const W_GENRES = ["Psychological Science-Fiction Thriller", "Historical Romantic Comedy-Drama", "Documentary", "Animation"];
+if (WORST) {
+  MOVIE_NAMES.splice(0, W_NAMES.length, ...W_NAMES);
+  SERIES_NAMES.splice(0, W_NAMES.length, ...W_NAMES.map((n, k) => (k === 0 ? `${n}: The Series` : n)));
+}
 const GENRES = ["Drama", "Comedy", "Sci-Fi", "Thriller", "Mystery", "Adventure", "Romance", "Animation", "Crime"];
 const BLURB =
   "When an old letter turns up in the wrong mailbox, three strangers set out across a flooded county to deliver it, " +
   "and find that the address it names no longer exists on any map.";
 
 function preview(type: "movie" | "series", name: string, i: number): MetaPreview {
+  const p = basePreview(type, name, i);
+  if (!WORST || i >= W_NAMES.length) return p;
+  // Each title misses something different; the first has everything at its longest.
+  if (i === 0) return { ...p, description: BLURB.repeat(14), genres: W_GENRES, imdbRating: "10.0", releaseInfo: type === "movie" ? "1895" : "1999–2087" };
+  if (i % 2 === 1) p.poster = undefined;
+  if (i % 3 === 1) p.background = undefined;
+  if (i % 3 === 2) p.releaseInfo = undefined;
+  if (i % 4 === 1) p.imdbRating = undefined;
+  if (i === 3) p.imdbRating = "1.0";
+  if (i % 4 === 2) p.description = undefined;
+  if (i === 5) p.genres = [];
+  return p;
+}
+
+function basePreview(type: "movie" | "series", name: string, i: number): MetaPreview {
   return {
     id: `tt${(type === "movie" ? 9100000 : 9200000) + i}`,
     type,
@@ -98,7 +127,30 @@ export function catalogPage(type: string, id: string, skip: number): MetaPreview
   return skip >= list.length * 2 ? [] : rotated.map((m) => ({ ...m }));
 }
 
+function worstEpisodes(p: MetaPreview, i: number): Video[] {
+  if (i % W_NAMES.length === 1) return []; // "Q": a series with no episodes at all
+  const out: Video[] = [];
+  // 40 seasons of 3, then a season numbered 2024 whose 400 episodes run up to 9999.
+  const seasons: [number, number[]][] = Array.from({ length: 40 }, (_, s) => [s + 1, [1, 2, 3]]);
+  seasons.push([2024, Array.from({ length: 400 }, (_, k) => 9600 + k)]);
+  for (const [season, eps] of seasons)
+    for (const episode of eps)
+      out.push({
+        id: `${p.id}:${season}:${episode}`,
+        title: episode % 3 === 0 ? `${W_LONG}, Part ${episode}` : episode % 3 === 1 ? "E" : "",
+        season,
+        episode,
+        released: episode % 2 ? undefined : "2087-12-31T23:30:00.000Z",
+        thumbnail: episode % 2 ? undefined : art(`${season}×${episode}`, i + episode, 400, 225),
+        overview: episode % 3 === 0 ? BLURB.repeat(6) : undefined,
+        rating: episode % 3 === 0 ? "10.0" : undefined,
+        tag: episode % 5 === 0 ? "Mixed Canon / Partial Filler" : undefined,
+      });
+  return out;
+}
+
 function episodes(p: MetaPreview, i: number): Video[] {
+  if (WORST) return worstEpisodes(p, i);
   const out: Video[] = [];
   for (let season = 1; season <= 3; season++)
     for (let episode = 1; episode <= (season === 3 ? 6 : 10); episode++)
@@ -116,6 +168,40 @@ function episodes(p: MetaPreview, i: number): Video[] {
 }
 
 export function meta(id: string): Meta | null {
+  const m = baseMeta(id);
+  if (!m || !WORST) return m;
+  const long = m.name.length > 60;
+  return {
+    ...m,
+    runtime: long ? "1284 min" : m.name === "Q" ? undefined : "1 min",
+    people: long
+      ? m.people?.map((p, k) => ({
+          name: k % 2 ? "Aleksandra Wiśniewska-Kowalczyk von Hohenberg-Eisenach" : "王秀英",
+          character: k % 2 ? "The Lighthouse Keeper's Seventh Daughter (voice, uncredited, archive footage)" : undefined,
+          photo: k % 3 ? undefined : p.photo,
+        }))
+      : [],
+    cast: long ? m.cast : [],
+    director: long ? ["Christopher Alexander Montgomery III", "Jo", "نور الهدى عبد الرحمن"] : [],
+    details: long
+      ? {
+          ...m.details,
+          tagline: BLURB,
+          status: "In Production (Post-Production Delayed Indefinitely)",
+          countries: ["United Kingdom of Great Britain and Northern Ireland", "Bosnia and Herzegovina", "Papua New Guinea", "Côte d'Ivoire", "Ireland", "Norway"],
+          languages: ["English", "日本語", "العربية", "Tiếng Việt", "Deutsch", "Kalaallisut"],
+          studios: ["Fernhill Pictures International Co-Production Consortium Limited", "Q"],
+          budget: 2_400_000_000,
+          revenue: 12_345_678_901,
+          seasons: 41,
+          episodes: 520,
+          votes: 12_345_678,
+        }
+      : { status: undefined },
+  };
+}
+
+function baseMeta(id: string): Meta | null {
   const i = all.findIndex((m) => m.id === id);
   if (i < 0) return null;
   const p = all[i];
@@ -155,7 +241,8 @@ export function meta(id: string): Meta | null {
 }
 
 const now = Date.now();
-export const library: LibraryItem[] = [...series.slice(0, 5), ...movies.slice(2, 9)].map((m, k) => ({
+const libraryTitles = WORST === "empty" ? [] : WORST ? [...series.slice(0, 10), ...movies.slice(0, 10)] : [...series.slice(0, 5), ...movies.slice(2, 9)];
+export const library: LibraryItem[] = libraryTitles.map((m, k) => ({
   id: m.id,
   type: m.type,
   name: m.name,
@@ -163,7 +250,8 @@ export const library: LibraryItem[] = [...series.slice(0, 5), ...movies.slice(2,
   addedAt: now - k * 86_400_000,
 }));
 
-export const progress: Progress[] = [series[1], movies[4], series[3], movies[0]].map((m, k) => ({
+const progressTitles = WORST === "empty" ? [] : WORST ? [series[0], movies[0], series[2], movies[3], series[4]] : [series[1], movies[4], series[3], movies[0]];
+export const progress: Progress[] = progressTitles.map((m, k) => ({
   metaId: m.id,
   videoId: m.type === "series" ? `${m.id}:2:${k + 3}` : m.id,
   type: m.type,
@@ -176,9 +264,26 @@ export const progress: Progress[] = [series[1], movies[4], series[3], movies[0]]
   position: 1200 + k * 600,
   duration: 3100,
   updatedAt: now - k * 3_600_000,
+  ...(WORST && { season: m.type === "series" ? 2024 : undefined, episode: m.type === "series" ? 9999 : undefined, episodeTitle: m.type === "series" ? `${W_LONG}, Part 9999` : undefined, position: [1, 359_999, 0, 5_000, 7_200][k], duration: [360_000, 360_000, 0, 4_000, 7_200][k] }),
 }));
 
-export const addons: InstalledAddon[] = [
+const W_ADDONS: InstalledAddon[] = [
+  {
+    manifestUrl: "https://addons.example/community-archive-of-restored-public-domain-cinema/configure/eyJsYW5ndWFnZXMiOlsiZW4iLCJqYSIsImFyIl19/manifest.json",
+    manifest: {
+      id: "org.example.community-archive-of-restored-public-domain-cinema",
+      version: "12.345.6789-beta.12",
+      name: "Community Archive of Restored Public-Domain Cinema (Volunteer Edition, EU West)",
+      description: BLURB.repeat(4),
+      types: ["movie", "series", "anime", "channel", "tv", "other"],
+      resources: ["catalog", "meta", "stream", "subtitles", "addon_catalog"],
+      behaviorHints: { configurable: true, configurationRequired: true },
+    },
+  },
+  { manifestUrl: "https://q.example/manifest.json", manifest: { id: "q", version: "0", name: "Q", types: [], resources: [], behaviorHints: null } },
+];
+
+export const addons: InstalledAddon[] = WORST === "empty" ? [] : WORST ? W_ADDONS : [
   {
     manifestUrl: "https://addons.example/films/manifest.json",
     manifest: {
@@ -204,7 +309,38 @@ export const addons: InstalledAddon[] = [
   },
 ];
 
+function worstStreams(): StreamsResult {
+  const big = "Community Archive of Restored Public-Domain Cinema (Volunteer Edition, EU West)";
+  const file = "The.Extraordinarily.Long.and.Winding.Chronicle.of.the.Lighthouse.Keepers.Seventh.Daughter.2087.2160p.WEB-DL.DV.HDR10Plus.Atmos.TrueHD.7.1.10bit.HEVC-ARCHIVEGROUP.mkv";
+  const rows: [string, number | undefined, number | undefined, string][] = [
+    [big, 4320, 187.4e9, `${file}\n${BLURB}`],
+    ["Q", undefined, undefined, ""],
+    [big, 2160, 1, "夜明けの図書館と七つの鍵 第9999話 「最終回」 [多言語字幕]"],
+    ["حكايات", 1080, 999_999_999_999, "حكايات البحر الأخير — النسخة الكاملة المرممة"],
+    ["🦊", 240, 0, "🦊🌙✨ multi-audio multi-subs 🎬"],
+    ...Array.from({ length: 35 }, (_, k): [string, number, number, string] => [k % 2 ? big : "Open Films", [2160, 1080, 720, 480][k % 4], (k + 1) * 1.1e9, `Source ${k + 6}`]),
+  ];
+  return {
+    streams: rows.map(([addon, resolution, sizeBytes, title], k) => ({
+      addon,
+      stream: { url: `https://media.example/${k}.mp4`, name: k === 1 ? "" : `${addon}\n${resolution ?? "?"}p`, title, description: k === 0 ? title : undefined },
+      quality: {
+        resolution, hdr: k === 0, dolbyVision: k === 0, sizeBytes, lowQualitySource: k === 4, direct: k !== 3,
+        languages: k === 0 ? ["en", "ja", "ar", "vi", "de", "fr", "es", "it", "ko", "zh", "ru", "pt", "hi", "multi"] : [],
+        tags: k === 0 ? ["Remux", "Atmos", "TrueHD 7.1", "HDR10+", "Dolby Vision Profile 8.1", "10-bit", "HEVC", "IMAX Enhanced"] : [],
+        source: k === 0 ? "ARCHIVEGROUP-RESTORATION-TEAM-INTERNATIONAL" : null,
+      },
+      score: 100 - k,
+      label: resolution ? `${resolution}p` : "",
+    })),
+    failed: [big, "Q", "حكايات"],
+    hidden: 1284,
+  };
+}
+
 export function streams(): StreamsResult {
+  if (WORST === "empty") return { streams: [], failed: [] };
+  if (WORST) return worstStreams();
   // Two add-ons and four picture sizes: the source bar shows all its controls (quality, add-on, Filters).
   const rows: [string, number, boolean, number, string][] = [
     ["Open Films", 2160, true, 14.2e9, "WEB-DL HDR10"],

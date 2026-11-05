@@ -73,6 +73,12 @@ a test fails).
 A new screen or feature in the fake shell needs its fixture data in `fake/fixtures.ts` and the
 command in `src/lib/platform/fake`; a test then finds things by role and name as a person would.
 
+**Worst-case data.** `fake.html?worst=1` (or `localStorage["polar.fakeWorst"] = "1"`) swaps the fixtures for
+the data that breaks layouts: a 117-character title, one-letter, Japanese, Arabic, emoji and HTML-looking names,
+missing art, years and ratings, 41 seasons and episode 9999, 1284-minute runtimes, 40 sources with huge, tiny
+and missing sizes and many tags, long add-on and cast names. `?worst=empty` empties the library, history,
+add-ons, sources and search instead. Look at a new screen with both before it ships.
+
 ## End to end, real app
 
 `e2e/app/smoke.ts` drives the debug build through `tauri-driver`, with a small WebDriver client

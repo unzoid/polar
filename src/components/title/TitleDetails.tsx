@@ -52,8 +52,9 @@ export function TitleDetails({ meta, links: showLinks = true }: { meta: Meta; li
       {people.length > 0 && (
         <DetailsSection label="Cast">
           <ul className="people">
-            {people.slice(0, 18).map((p) => (
-              <Cast key={`${p.name}/${p.character ?? ""}`} person={p} />
+            {people.slice(0, 18).map((p, i) => (
+              // The index too: the same person can be listed twice in one role.
+              <Cast key={`${p.name}/${p.character ?? ""}/${i}`} person={p} />
             ))}
           </ul>
         </DetailsSection>

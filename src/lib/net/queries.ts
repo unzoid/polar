@@ -8,6 +8,7 @@ import { groupBoost, preferredGroups } from "../anime/groups";
 import { isKitsuId } from "../anime/kitsu";
 import { usePrefs } from "../settings/prefs";
 import { keys } from "./queryKeys";
+import { searchMinLength } from "../catalog/searchQuery";
 import { queryClient } from "./queryClient";
 import type { ContentType, MetaPreview, Progress, Settings, StreamsResult } from "../types";
 
@@ -108,7 +109,7 @@ export const useSearch = (query: string) =>
   useQuery({
     queryKey: keys.search(query),
     queryFn: () => api.search(query),
-    enabled: query.trim().length > 1,
+    enabled: query.trim().length >= searchMinLength(query.trim()),
     placeholderData: (prev) => prev, // keep old results on screen while typing
   });
 

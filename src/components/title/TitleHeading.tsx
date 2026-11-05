@@ -18,5 +18,9 @@ export function TitleHeading({ name, logo, look }: { name: string; logo?: string
     return <TitleLogo src={logo} alt={name} className={`${look}-logo`} loading={panel ? undefined : "eager"} onFail={() => setFailed(logo)} />;
   if (panel) return <h2 className={`${look}-title`}>{name}</h2>;
   // The desktop layouts set the display type style; TV's own classes size theirs.
-  return <h1 className={look.startsWith("tv-") ? `${look}-title` : `t-display ${look}-title`}>{name}</h1>;
+  return (
+    <h1 className={look.startsWith("tv-") ? `${look}-title` : `t-display ${look}-title`} title={name}>
+      {name}
+    </h1>
+  );
 }

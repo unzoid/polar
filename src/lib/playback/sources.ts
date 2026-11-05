@@ -104,7 +104,8 @@ export function languagesShort(codes: string[] | undefined) {
  */
 export function sourceRow(r: RankedStream) {
   return {
-    title: r.label.replace(/ · [\d.]+ [MG]B$/, ""),
+    // A source the add-on says nothing about still gets a title, not an empty line.
+    title: r.label.replace(/ · [\d.]+ [MGT]B$/, "") || "Unknown quality",
     size: r.quality.sizeBytes ? formatBytes(r.quality.sizeBytes) : null,
     detail: [r.addon, r.quality.source, languagesShort(r.quality.languages)].filter(Boolean).join(" · "),
   };

@@ -347,6 +347,13 @@
 .row-header h2 {
   margin: 0;
 }
+/* One line: "Because you watched <a very long name>" ends in an ellipsis (the whole is the tooltip). */
+.row-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .row-viewport {
   position: relative;
 }
@@ -556,6 +563,9 @@
   padding: 1rem;
   text-align: center;
   color: var(--text-2);
+  /* One unbroken word (a long compound) breaks inside the card instead of running into the next. */
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .card-art-scrim {
   position: absolute;

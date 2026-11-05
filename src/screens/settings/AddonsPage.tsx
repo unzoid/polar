@@ -63,6 +63,11 @@ export function AddonsPage() {
           ))}
         </Card>
       )}
+      {addons && !addons.length && (
+        <Card title="Installed">
+          <p className="settings-card-pad settings-expand-text">No add-ons yet. Titles have no sources to play until you install one.</p>
+        </Card>
+      )}
       <Card
         title="Install from URL"
         footer="Looking for something to add? Browse the Marketplace."

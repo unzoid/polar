@@ -31,6 +31,14 @@
   cursor: grab;
 }
 .sheet-header h2,
+.sheet-header p:not(:only-child) {
+  /* The title's name under the heading: two lines at most. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
 .sheet-header p {
   margin: 0;
 }
@@ -139,11 +147,16 @@
 }
 .stream-main {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.375rem;
+  row-gap: 4px;
   min-width: 0;
 }
+/* The picture is the row's lead: many feature tags wrap under it rather than squeeze it to "4.". */
 .stream-title {
+  flex-shrink: 0;
+  max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

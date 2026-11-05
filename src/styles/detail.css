@@ -167,6 +167,13 @@
 }
 .detail-title {
   margin: 0 0 0.25rem;
+  /* A very long name stops at three lines (the whole of it is the tooltip), so Play stays on screen. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .detail-description,
 .detail-facts {
@@ -409,6 +416,10 @@
   position: absolute;
   top: 10px;
   left: 10px;
+  max-width: calc(100% - 20px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 3px 8px;
   border-radius: var(--r-pill);
   background: rgb(250 204 21 / 0.92);
@@ -735,6 +746,28 @@
     font-size: var(--fs-base);
   }
 }
+/* The smallest phones (320–400px): a listed episode's still goes above its
+   text (beside it the text had about 100px), and the season picker's pill
+   shrinks and ellipsizes rather than being cut to "Season 2". */
+@media (max-width: 400px) {
+  .episode-card[data-layout="list"] .episode-card-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "still"
+      "num"
+      "text";
+  }
+  .seasons-picker .select-trigger[data-size="large"] {
+    max-width: 100%;
+    font-size: 1.25rem;
+  }
+  .seasons-picker .select-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
 
 /* Cast: faces in a sideways strip. */
 .people {
@@ -777,6 +810,12 @@
   font-size: var(--fs-md);
   font-weight: 600;
   line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .person-role {
   display: -webkit-box;

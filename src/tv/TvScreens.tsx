@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Speed } from "../components/icons";
-import { addRecentSearch, byDay, clearRecentSearches, dayLabel, useCalendar, useRecentSearches } from "../lib/catalog";
+import { addRecentSearch, byDay, clearRecentSearches, dayLabel, searchMinLength, useCalendar, useRecentSearches } from "../lib/catalog";
 import { playSound } from "./sounds";
 import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/net";
 import {
@@ -201,7 +201,7 @@ export function TvSearch() {
     if (text) setGenre(null);
   }, [text]);
 
-  const searching = query.length > 1;
+  const searching = query.length >= searchMinLength(query);
   // Anime from AniList, as on desktop; a show that's anime shows once, as the anime.
   const { animeEnabled } = usePrefs();
   const anime = useAnimeResults(animeEnabled && searching ? query : "");
@@ -216,7 +216,7 @@ export function TvSearch() {
   const [submits, setSubmits] = useState(0);
   const runSearch = (q: string) => {
     q = q.trim().slice(0, MAX_QUERY);
-    if (q.length < 2) return false;
+    if (q.length < searchMinLength(q)) return false;
     setText(q);
     setQuery(q);
     addRecentSearch(q);

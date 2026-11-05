@@ -5,7 +5,7 @@ import { PosterCard } from "../components/PosterCard";
 import { Shelf } from "../components/title/Shelf";
 import { type AnimeCard as Card, retryTitle, useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
 import { api } from "../lib/api";
-import { addRecentSearch, BROWSE_GENRES, genreOf, useSearchText } from "../lib/catalog";
+import { addRecentSearch, BROWSE_GENRES, genreOf, searchMinLength, useSearchText } from "../lib/catalog";
 import { usePrefs } from "../lib/settings";
 import { keys, useSearch } from "../lib/net";
 import type { ContentType, MetaPreview } from "../lib/types";
@@ -30,13 +30,20 @@ export function Search() {
   }, [text]);
 
   const { data } = useSearch(deferred);
-  const hasQuery = deferred.length > 1;
+  const hasQuery = deferred.length >= searchMinLength(deferred);
   const genre = hasQuery ? genreOf(deferred) : undefined;
   // What the catalogs found (they forgive typos): what AniList is asked for when the typed words find nothing.
   const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "", retryTitle(data?.series ?? [], data?.movies ?? []));
   const aliases = useAnimeAliases();
 
-  if (text.trim().length < 2) return <div className="scroll search-page" />;
+  if (!text.trim()) return <div className="scroll search-page" />;
+  // One Latin letter matches half the catalog: ask for another rather than show an empty page.
+  if (text.trim().length < searchMinLength(text.trim()))
+    return (
+      <div className="scroll search-page">
+        <EmptyState>Type another letter to search.</EmptyState>
+      </div>
+    );
 
   // Titles without art are almost always stubs nobody's looking for.
   // An anime shows once, as the anime (AniList), not again as a series or movie.

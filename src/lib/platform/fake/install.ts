@@ -15,7 +15,9 @@ import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
 const library: LibraryItem[] = [...fx.library];
 const progress: Progress[] = [...fx.progress];
 // `fake.html?theme=black` and the like start with that setting changed.
-let settings: Settings = { ...fx.settings, ...Object.fromEntries(new URLSearchParams(location.search)) };
+const params = new URLSearchParams(location.search);
+params.delete("worst"); // fixtures.ts's worst-case switch, not a setting
+let settings: Settings = { ...fx.settings, ...Object.fromEntries(params) };
 
 type Args = Record<string, unknown>;
 
@@ -30,6 +32,7 @@ const commands: Record<string, (a: Args) => unknown> = {
   search: (a) => {
     const q = String(a.query).toLowerCase();
     const hit = (m: MetaPreview) => m.name.toLowerCase().includes(q);
+    if (fx.WORST === "empty") return { movies: [], series: [] };
     return { movies: fx.movies.filter(hit), series: fx.series.filter(hit) };
   },
   meta: (a) => fx.meta(String(a.id)) ?? Promise.reject({ code: "not_found", message: "not found" }),
@@ -37,7 +40,8 @@ const commands: Record<string, (a: Args) => unknown> = {
   subtitles: () => [],
   skip_segments: () => ({}),
   seek_previews: () => null,
-  ratings: () => ({ rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 }),
+  ratings: () =>
+    fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
   trailer: () => null,
   addons_list: () => fx.addons,
   library_list: () => library,
