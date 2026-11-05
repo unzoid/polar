@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { call } from "../platform/bridge";
 import { keys } from "../net/queryKeys";
+import type { AnimeLink } from "../library/identity";
+import type { MetaPreview } from "../types";
 
 /**
  * The pictures a widescreen anime card tries, in turn (re-test N5): the linked IMDb title's backdrop
@@ -26,4 +28,25 @@ export function useListedImdb(anilistId: number) {
     staleTime: Infinity,
     gcTime: 60 * 60_000,
   }).data;
+}
+
+/**
+ * The IMDb id a card links an AniList entry to (#34): the one its page found when it was opened (a stored
+ * link, docs/anime-identity.md), else the id lists' one, so an entry never opened has it too. Undefined
+ * until both have answered, so the art doesn't change once drawn; null when neither has one.
+ */
+export function linkedImdb(anilistId: number, listed: string | null | undefined, links: AnimeLink[] | undefined): string | null | undefined {
+  if (listed === undefined || links === undefined) return undefined;
+  const stored = links.find((l) => l.anilist === anilistId && l.canonical.startsWith("tt"))?.canonical;
+  return stored ?? listed;
+}
+
+/**
+ * A TV landscape card's preview with {@link landscapeArt} as its picture: the linked backdrop, then the
+ * preview's own (ani.zip's fanart or the banner), then the cover. No picture until the link is known.
+ */
+export function withLinkedArt(preview: MetaPreview, imdb: string | null | undefined): { item: MetaPreview; fallbacks: string[] } {
+  if (imdb === undefined) return { item: { ...preview, background: undefined }, fallbacks: [] };
+  const [background, ...fallbacks] = landscapeArt({ imdb, bannerImage: preview.background, cover: preview.poster });
+  return { item: { ...preview, background }, fallbacks };
 }
