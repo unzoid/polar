@@ -171,6 +171,19 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
    sealed with another passphrase and keeps its own; the first device's keys stay on the server.
 4. Sign out on a device that had its own keys and add-ons before signing in: they are back as they were.
 
+## Platform layer (T-030, docs/ARCHITECTURE.md)
+
+- Window, updates and native events now go through `src/lib/platform` (built and type-checked here, never run in
+  the shell). To check on a desktop: the window buttons (Windows) minimise, maximise and close; F in the player and
+  TV mode go fullscreen and back; Settings → Interface size still zooms; with a controller plugged in at launch the
+  "connected" toast shows; the player's loading screen lists its steps and Copy details says the right system
+  (Windows / macOS / Linux); Settings → About → Check for updates still answers.
+- Linux: `mpv_available` is now false there (mpv can't draw into a GTK window), so the player always says
+  "Player: built-in". Before, an mpv on PATH made it pick mpv and fail with "isn't supported on this system yet".
+  To check: on Linux with mpv installed, play anything that `<video>` can play (MP4/H.264).
+- Apple TV: docs/ARCHITECTURE.md §3 says tvOS has no web view and Tauri 2 doesn't target it (from Tauri's list of
+  supported platforms: Windows, macOS, Linux, Android, iOS). Check before planning cycle 3.
+
 ## Earlier items
 
 - Settings → About → Cache and Credits cards (TMDB logo 12 px under the notice): look only.

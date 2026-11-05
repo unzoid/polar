@@ -1,4 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
+import { on } from "../../lib/platform";
 import { useCallback, useRef, useState } from "react";
 import { describeProbe, redact, type ProbeEvent, type StartStage, type StartStep, type StepTone } from "../../lib/playback";
 
@@ -30,9 +30,9 @@ let probeIds = 0;
 export const nextProbeId = () => ++probeIds;
 
 /** The backend's link-check steps for probe `id` (`player://probe`), until unlistened. */
-export function listenProbe(id: number, on: (e: ProbeEvent) => void) {
-  return listen<{ id: number; event: ProbeEvent }>("player://probe", (e) => {
-    if (e.payload.id === id) on(e.payload.event);
+export function listenProbe(id: number, handler: (e: ProbeEvent) => void) {
+  return on<{ id: number; event: ProbeEvent }>("player://probe", (p) => {
+    if (p.id === id) handler(p.event);
   });
 }
 

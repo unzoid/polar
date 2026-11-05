@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { settingsChanged } from "./changes";
 import { isRecord, strings, storedJson } from "../parse";
-import { isMac, MOD } from "../ui/platform";
+import { isMac, MOD } from "../platform/device";
 
 /**
  * Keyboard shortcuts, rebindable in Settings → Controls. A binding is a combo

@@ -1,4 +1,4 @@
-import { isMac } from "../../lib/ui";
+import { isMac } from "../../lib/platform";
 import { OPEN_DYSLEXIC } from "../../lib/settings";
 import { Minus, Plus, Reset } from "../icons";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";

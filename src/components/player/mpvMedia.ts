@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { call, on } from "../../lib/platform";
 import type { StartStage, StepTone } from "../../lib/playback";
 import { listenProbe, nextProbeId, probeStep } from "./useStartLog";
 import { errorCode, errorMessage, warnFailed } from "../../lib/errors";
@@ -107,8 +106,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
    */
   attach(): Promise<() => void> {
     const p = Promise.all([
-      listen<{ name: string; data: unknown }>("mpv://property", (e) => this.onProperty(e.payload.name, e.payload.data)),
-      listen<{ event: string; reason?: string; file_error?: string }>("mpv://event", (e) => this.onEvent(e.payload)),
+      on<{ name: string; data: unknown }>("mpv://property", (p) => this.onProperty(p.name, p.data)),
+      on<{ event: string; reason?: string; file_error?: string }>("mpv://event", (p) => this.onEvent(p)),
     ]);
     this.listening = p.then(() => undefined);
     return p.then((fns) => () => fns.forEach((u) => u()));
@@ -116,7 +115,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
 
   /** Stop playback (mpv stays alive, idle, for the next title). */
   stop() {
-    this.enqueue(() => invoke("mpv_stop"));
+    this.enqueue(() => call("mpv_stop"));
   }
 
   private enqueue<T>(fn: () => Promise<T>) {
@@ -143,7 +142,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
       await this.listening; // never load before we can hear mpv's answers
       const unlisten = await listenProbe(probeId, (e) => this.step(...probeStep(e)));
       try {
-        await invoke("mpv_load", { url, start, probeId });
+        await call("mpv_load", { url, start, probeId });
       } finally {
         unlisten();
       }
@@ -162,10 +161,10 @@ export class MpvMedia extends EventTarget implements MediaLike {
   }
 
   command(...args: unknown[]) {
-    return invoke("mpv_command", { args });
+    return call("mpv_command", { args });
   }
   set(name: string, value: unknown) {
-    return invoke("mpv_set", { name, value }).catch(warnFailed(`mpv_set ${name}`));
+    return call("mpv_set", { name, value }).catch(warnFailed(`mpv_set ${name}`));
   }
 
   // --- HTMLVideoElement surface -------------------------------------------

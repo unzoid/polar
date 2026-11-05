@@ -6,9 +6,8 @@ import { MotionConfig } from "motion/react";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { queryClient } from "./lib/net";
-import { isTauri } from "./lib/api";
 import { AccountProvider } from "./lib/account";
-import { isMac } from "./lib/ui";
+import { inShell, os } from "./lib/platform";
 
 // Inter with weight + optical-size axes: large titles get the Display cut automatically.
 import "@fontsource-variable/inter/opsz.css";
@@ -43,11 +42,11 @@ import { installGamepad } from "./tv/gamepad";
 
 // Font rendering differs by OS; base.css tunes text weight for Windows.
 // "mac" also makes room for the traffic lights (shell.css).
-document.documentElement.dataset.os = navigator.userAgent.includes("Windows") ? "windows" : isMac ? "mac" : "other";
+document.documentElement.dataset.os = os === "windows" ? "windows" : os === "macos" ? "mac" : "other";
 
 const root = createRoot(document.getElementById("root")!);
 
-if (!isTauri) {
+if (!inShell) {
   root.render(
     <div className="not-tauri">
       <p className="t-title2">Polarity runs inside its desktop shell.</p>

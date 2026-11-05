@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
+import { call } from "../../lib/platform";
 import { usePrefs } from "../../lib/settings";
 import { warnFailed } from "../../lib/errors";
 import type { MpvMedia } from "./mpvMedia";
@@ -19,7 +19,7 @@ export function useMpvTune(mpv: MpvMedia | null) {
       // Folding down only helps (and only makes sense) with a centre channel.
       const track = mpv.tracks.find((t) => t.type === "audio" && t.id === mpv.aid);
       const surround = (track?.["demux-channel-count"] ?? 0) > 2;
-      void invoke("mpv_tune", {
+      void call("mpv_tune", {
         tune: { dialogueBoost: dialogueBoost && surround, volumeLeveling, hwdec, deband, autocrop, buffer },
       }).catch(warnFailed("mpv_tune"));
     };

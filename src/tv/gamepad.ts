@@ -1,6 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useSyncExternalStore } from "react";
+import { call, on } from "../lib/platform";
 import { type Action, getPrefs, keyEventFor, usePrefs } from "../lib/settings";
 import { getPadBindings, type PadButton } from "./padBindings";
 import { isTvMode, setTvMode } from "./tvMode";
@@ -129,18 +128,18 @@ let native: { id: number; name: string }[] | null = null;
 
 async function watchNative() {
   try {
-    await listen<{ id: number; name: string }>("controller-connected", ({ payload }) => {
+    await on<{ id: number; name: string }>("controller-connected", (payload) => {
       native = [...(native ?? []).filter((c) => c.id !== payload.id), payload];
       setFamily(familyOf(payload.name));
       announce("connected", payload.name, !connected);
       start(); // it may be usable already
     });
-    await listen<{ id: number; name: string }>("controller-disconnected", ({ payload }) => {
+    await on<{ id: number; name: string }>("controller-disconnected", (payload) => {
       native = (native ?? []).filter((c) => c.id !== payload.id);
       announce("disconnected", payload.name, false);
       start();
     });
-    const list = await invoke<{ id: number; name: string }[] | null>("controllers_list");
+    const list = await call<{ id: number; name: string }[] | null>("controllers_list");
     if (!list) return;
     native = list;
     // Already plugged in at launch: say so, since the browser won't until a button is pressed.

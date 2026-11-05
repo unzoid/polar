@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
+import { call } from "../platform/bridge";
 import type { Meta } from "../types";
 import { keys } from "../net/queryKeys";
 
@@ -18,7 +18,7 @@ export interface FileTrailer {
 export function useFileTrailer(imdbId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: keys.trailer(imdbId),
-    queryFn: () => invoke<FileTrailer | null>("trailer", { imdbId }).catch(() => null),
+    queryFn: () => call<FileTrailer | null>("trailer", { imdbId }).catch(() => null),
     enabled: enabled && !!imdbId?.startsWith("tt"),
     staleTime: 6 * 60 * 60_000,
     gcTime: 6 * 60 * 60_000,

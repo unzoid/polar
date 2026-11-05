@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { usePrefs } from "../lib/settings";
-import { MOD_LABEL } from "../lib/ui";
+import { MOD_LABEL } from "../lib/platform";
 import { useSettings } from "../lib/net";
 import { WindowControls } from "./WindowControls";
 import { ProfileMenu } from "./ProfileMenu";

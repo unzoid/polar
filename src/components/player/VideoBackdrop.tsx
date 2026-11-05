@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef } from "react";
+import { call } from "../../lib/platform";
 import { isMpv, type MediaLike } from "./mpvMedia";
 
 const W = 160;
@@ -35,7 +35,7 @@ export function VideoBackdrop({ media }: { media: MediaLike | null }) {
       let stopped = false;
       const snap = async () => {
         try {
-          const url = await invoke<string>("mpv_snapshot");
+          const url = await call<string>("mpv_snapshot");
           const img = new Image();
           img.onload = () => !stopped && paint(img);
           img.src = url;

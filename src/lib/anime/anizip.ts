@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
+import { call } from "../platform/bridge";
 import type { Video } from "../types";
 import { keys } from "../net/queryKeys";
 import { queryClient } from "../net/queryClient";
@@ -78,7 +78,7 @@ async function fetchAniZip(params: AniZipParams, signal?: AbortSignal): Promise<
 
 /** Fribb/anime-lists' ids in ani.zip's shape, or the original error if it has none. */
 async function fallback(key: string, value: string, error: unknown): Promise<AniZip | null> {
-  const mappings = await invoke<AniZip["mappings"] | null>("anime_ids", { key, value }).catch(() => null);
+  const mappings = await call<AniZip["mappings"] | null>("anime_ids", { key, value }).catch(() => null);
   if (!mappings) throw error;
   return { mappings, episodes: {} };
 }
