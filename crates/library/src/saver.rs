@@ -13,7 +13,7 @@
 //! On Linux and macOS the file is readable by its owner only: it holds API
 //! keys and add-on links (no keychain, the owner's choice I-008).
 
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, Write};
 use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
@@ -45,7 +45,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     // open a folder this way and flushes renames on its own.
     #[cfg(unix)]
     if let Some(dir) = path.parent() {
-        File::open(dir)?.sync_all()?;
+        fs::File::open(dir)?.sync_all()?;
     }
     Ok(())
 }
