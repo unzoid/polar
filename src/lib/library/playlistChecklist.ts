@@ -10,8 +10,9 @@ export interface PlaylistRow {
   has: boolean;
 }
 
+/** Playlists from a newer version (`packed`) can't take titles here, so they aren't offered. */
 export const playlistRows = (playlists: Playlist[], itemId: string): PlaylistRow[] =>
-  playlists.map((p) => ({ id: p.id, name: p.name, count: p.items.length, has: p.items.some((i) => i.id === itemId) }));
+  playlists.filter((p) => !p.packed).map((p) => ({ id: p.id, name: p.name, count: p.items.length, has: p.items.some((i) => i.id === itemId) }));
 
 export const inAnyPlaylist = (playlists: Playlist[], itemId: string) => playlists.some((p) => p.items.some((i) => i.id === itemId));
 

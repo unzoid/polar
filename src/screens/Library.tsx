@@ -14,6 +14,7 @@ import { TitleLogo } from "../components/TitleLogo";
 import { episodeCode, formatBytes } from "../lib/format";
 import {
   createPlaylist,
+  MAX_PLAYLISTS,
   deletePlaylist,
   removeFromPlaylist,
   renamePlaylist,
@@ -454,12 +455,14 @@ function Playlists({ onOpen }: { onOpen: (id: string, isNew?: boolean) => void }
         {playlists.map((p) => (
           <PlaylistTile key={p.id} playlist={p} onOpen={() => onOpen(p.id)} />
         ))}
-        <button className="card card-poster playlist-tile" onClick={() => onOpen(createPlaylist("New Playlist").id, true)}>
-          <div className="card-frame playlist-new">
-            <Plus size={28} />
-            <span className="t-callout">New Playlist</span>
-          </div>
-        </button>
+        {playlists.length < MAX_PLAYLISTS && (
+          <button className="card card-poster playlist-tile" onClick={() => onOpen(createPlaylist("New Playlist")!.id, true)}>
+            <div className="card-frame playlist-new">
+              <Plus size={28} />
+              <span className="t-callout">New Playlist</span>
+            </div>
+          </button>
+        )}
       </PosterGrid>
     </>
   );
@@ -507,7 +510,9 @@ function PlaylistView({ id, fresh, onClose, backLabel }: { id: string; fresh: bo
           <ConfirmDeleteButton label="playlist" onConfirm={() => (deletePlaylist(id), onClose())} />
         </div>
       </div>
-      {n === 0 ? (
+      {playlist.packed ? (
+        <EmptyState>Made with a newer version of Polar. Update Polar to see its titles.</EmptyState>
+      ) : n === 0 ? (
         <EmptyState>Add titles with the playlist button on their page.</EmptyState>
       ) : (
         <PosterGrid>

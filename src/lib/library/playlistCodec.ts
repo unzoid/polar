@@ -48,8 +48,12 @@ export function encodeItems(items: PlaylistRef[]): Uint8Array {
   return Uint8Array.from(out);
 }
 
-export function decodeItems(bytes: Uint8Array): PlaylistRef[] {
-  if (bytes[0] !== VERSION) return [];
+/**
+ * The titles, or `null` when the bytes are of a version this one doesn't know or don't decode in
+ * full (critique H5): then the caller keeps them as they came and never writes over them.
+ */
+export function decodeItems(bytes: Uint8Array): PlaylistRef[] | null {
+  if (bytes[0] !== VERSION) return null;
   const items: PlaylistRef[] = [];
   const text = new TextDecoder();
   let i = 1;
@@ -72,12 +76,13 @@ export function decodeItems(bytes: Uint8Array): PlaylistRef[] {
         items.push({ id: `tt${varint().toString().padStart(7, "0")}`, type });
       } else {
         const len = varint();
+        if (i + len > bytes.length) throw new Error("truncated playlist");
         items.push({ id: text.decode(bytes.subarray(i, i + len)), type });
         i += len;
       }
     }
   } catch {
-    // Keep what decoded cleanly.
+    return null;
   }
   return items;
 }

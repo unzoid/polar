@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { RemotePlaylist } from "../account/backend";
 import { count, contentType, isRecord, listOf, str, storedJson, strings } from "../parse";
-import { decodeItems, encodeItems, type PlaylistRef } from "./playlistCodec";
+import { decodeItems, encodeItems, fromHex, toHex, type PlaylistRef } from "./playlistCodec";
 import type { MetaPreview } from "../types";
 
 /**
@@ -22,6 +22,11 @@ export interface Playlist {
   items: PlaylistItem[];
   updatedAt: number;
   deleted?: boolean;
+  /**
+   * Titles from a newer version of Polar, as they came (Postgres hex): `items` is empty, the
+   * titles can't change here, and a rename sends these bytes back untouched (critique H5).
+   */
+  packed?: string;
 }
 
 export interface Space {
@@ -32,7 +37,10 @@ export interface Space {
 }
 
 export const MAX_PLAYLIST_ITEMS = 500;
+/** The account keeps up to 100 live playlists a profile (the server refuses more: `playlist_limit`). */
+export const MAX_PLAYLISTS = 100;
 const LOCAL = "local";
+const HEX = /^\\x([0-9a-f]{2})*$/i;
 const storageKey = (space: string) => `polar.playlists.${space}`;
 
 function load(space: string): Space {
@@ -52,7 +60,15 @@ function readPlaylist(v: unknown): Playlist | undefined {
   const id = str(v.id);
   if (!id) return;
   const items = listOf(v.items, readItem);
-  return { id, name: str(v.name) ?? "", items, updatedAt: count(v.updatedAt) ?? 0, ...(v.deleted === true && { deleted: true }) };
+  const packed = str(v.packed);
+  return {
+    id,
+    name: str(v.name) ?? "",
+    items,
+    updatedAt: count(v.updatedAt) ?? 0,
+    ...(v.deleted === true && { deleted: true }),
+    ...(packed && HEX.test(packed) && { items: [], packed }),
+  };
 }
 
 function readItem(v: unknown): PlaylistItem | undefined {
@@ -147,7 +163,9 @@ export function usePlaylists() {
 
 const toItem = (m: MetaPreview): PlaylistItem => ({ id: m.id, type: m.type, name: m.name, poster: m.poster });
 
-export function createPlaylist(name: string, first?: MetaPreview): Playlist {
+/** A new playlist; `null` when the profile already has MAX_PLAYLISTS. */
+export function createPlaylist(name: string, first?: MetaPreview): Playlist | null {
+  if (visible.length >= MAX_PLAYLISTS) return null;
   const playlist: Playlist = {
     id: crypto.randomUUID(),
     name: name.trim().slice(0, 60) || "Untitled Playlist",
@@ -163,22 +181,22 @@ export const renamePlaylist = (id: string, name: string) =>
   change(id, (p) => (name.trim() && name.trim() !== p.name ? { ...p, name: name.trim().slice(0, 60) } : null));
 
 /** Kept as a tombstone so the deletion reaches other devices. */
-export const deletePlaylist = (id: string) => change(id, (p) => ({ ...p, items: [], deleted: true }));
+export const deletePlaylist = (id: string) => change(id, ({ packed: _, ...p }) => ({ ...p, items: [], deleted: true }));
 
 export const addToPlaylist = (id: string, item: MetaPreview) =>
   change(id, (p) =>
-    p.items.some((i) => i.id === item.id) || p.items.length >= MAX_PLAYLIST_ITEMS
+    p.packed || p.items.some((i) => i.id === item.id) || p.items.length >= MAX_PLAYLIST_ITEMS
       ? null
       : { ...p, items: [...p.items, toItem(item)] },
   );
 
 export const removeFromPlaylist = (id: string, itemId: string) =>
-  change(id, (p) => ({ ...p, items: p.items.filter((i) => i.id !== itemId) }));
+  change(id, (p) => (p.packed ? null : { ...p, items: p.items.filter((i) => i.id !== itemId) }));
 
 /** Move a title within its playlist (drag or keyboard reorder). */
 export const moveInPlaylist = (id: string, from: number, to: number) =>
   change(id, (p) => {
-    if (from === to || to < 0 || to >= p.items.length) return null;
+    if (p.packed || from === to || to < 0 || to >= p.items.length) return null;
     const items = [...p.items];
     items.splice(to, 0, ...items.splice(from, 1));
     return { ...p, items };
@@ -197,7 +215,9 @@ export function playlistChanges(space = spaceId): { space: string; rows: RemoteP
   const s = spaceState(space);
   const rows = s.dirty.flatMap((id) => {
     const p = s.playlists.find((x) => x.id === id);
-    return p ? [{ id: p.id, name: p.name, items: encodeItems(p.items), deleted: !!p.deleted, updatedAt: p.updatedAt }] : [];
+    if (!p) return [];
+    const items = p.packed ? fromHex(p.packed) : encodeItems(p.items);
+    return [{ id: p.id, name: p.name, items, deleted: !!p.deleted, updatedAt: p.updatedAt }];
   });
   return { space, rows, receipt: new Map(rows.map((r) => [r.id, r.updatedAt])) };
 }
@@ -229,12 +249,14 @@ export function applyRemotePlaylists(space: string, remote: RemotePlaylist[], cu
     if (local && local.updatedAt >= r.updatedAt) continue;
     // Keep the artwork we already know for titles that are still there.
     const known = new Map(local?.items.map((i) => [i.id, i]));
+    const refs = r.deleted ? [] : decodeItems(r.items);
     byId.set(r.id, {
       id: r.id,
       name: r.name,
-      items: decodeItems(r.items).map((ref) => ({ ...known.get(ref.id), ...ref })),
+      items: refs?.map((ref) => ({ ...known.get(ref.id), ...ref })) ?? [],
       updatedAt: r.updatedAt,
       deleted: r.deleted || undefined,
+      ...(!refs && { packed: toHex(r.items) }),
     });
   }
   publish({ ...state, playlists: [...byId.values()], pulledAt: cursor });
