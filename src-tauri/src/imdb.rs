@@ -2,6 +2,7 @@
 //! 403 without the web client's name. Here: one title's fields by IMDb id.
 //! "Not known" is `None`, never an error.
 
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use serde::de::DeserializeOwned;
@@ -25,13 +26,7 @@ pub async fn title<T: DeserializeOwned>(query: &str, imdb_id: &str) -> Option<T>
     if !valid {
         return None;
     }
-    let http = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(10))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        .build()
-        .ok()?;
-    let resp: Resp<T> = http
+    let resp: Resp<T> = client()?
         .post(API)
         .header("x-imdb-client-name", "imdb-web-next-localized")
         .json(&json!({ "query": query, "variables": { "id": imdb_id } }))
@@ -42,4 +37,18 @@ pub async fn title<T: DeserializeOwned>(query: &str, imdb_id: &str) -> Option<T>
         .await
         .ok()?;
     resp.data?.title
+}
+
+/// One client for every lookup (connection reuse); `None` if TLS couldn't start.
+fn client() -> Option<&'static reqwest::Client> {
+    static HTTP: OnceLock<Option<reqwest::Client>> = OnceLock::new();
+    HTTP.get_or_init(|| {
+        reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(10))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+            .build()
+            .ok()
+    })
+    .as_ref()
 }
