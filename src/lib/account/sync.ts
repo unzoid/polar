@@ -9,7 +9,6 @@
  * again shortly after a failure.
  */
 import { api } from "../api";
-import type { AnimeLink } from "../library/identity";
 import { queryClient } from "../net/queries";
 import { onSettingsChange } from "../settings/changes";
 import { backend } from ".";
@@ -42,33 +41,6 @@ let others: string[] = [];
 
 const onWake = () => void run();
 
-/**
- * Profiles whose anime links are waiting for a server that has the
- * anime_links table (a schema older than this app): kept across restarts,
- * since a link already pushed locally is never offered again.
- */
-const UNSENT_KEY = "polar.animeLinksUnsent.v1";
-const linksUnsent = new Set<string>(readUnsent());
-
-function readUnsent(): string[] {
-  try {
-    const v: unknown = JSON.parse(localStorage.getItem(UNSENT_KEY) ?? "[]");
-    return Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function setLinksUnsent(space: string, unsent: boolean) {
-  if (linksUnsent.has(space) === unsent) return;
-  if (unsent) linksUnsent.add(space);
-  else linksUnsent.delete(space);
-  localStorage.setItem(UNSENT_KEY, JSON.stringify([...linksUnsent]));
-}
-
-/** A profile's copy is gone from this device: its links no longer wait for anything. */
-export const forgetLinksUnsent = (space: string) => setLinksUnsent(space, false);
-
 async function run(): Promise<void> {
   if (!active || !backend) return;
   if (running) {
@@ -78,34 +50,19 @@ async function run(): Promise<void> {
   const space = active;
   const isActive = () => space === active;
   running = (async () => {
-    try {
-      // Links the server couldn't take before go again in full once it can.
-      const allLinks = linksUnsent.has(space) ? await api.animeLinks() : undefined;
-      const { local } = await pushOne(space, allLinks);
-
-      const remote = await backend.sync.pull(space, local.pulledAt);
-      if (!isActive()) return; // switched profile mid-flight; its own run follows
-      const changed = await api.syncApply(space, { library: remote.library, progress: remote.progress, links: remote.links }, remote.cursor);
-      if (changed) refreshLocalViews();
-
-      const lists = playlistChanges();
-      if (lists.space === space) {
-        if (lists.rows.length) await backend.playlists.push(space, lists.rows);
-        markPlaylistsPushed(space, lists.receipt);
-        const pulled = await backend.playlists.pull(space, playlistsPulledAt(space));
-        applyRemotePlaylists(space, pulled.playlists, pulled.cursor);
-      }
-
-      if (isActive()) await syncSettings(space, backend, isActive);
-      failures = 0;
-      void fillNames(space, isActive);
-      // Profiles left with changes the last time they were used (switched away offline).
-      await pushEach(others.filter((s) => s !== active), (s) => pushOne(s));
-    } catch (e) {
-      console.warn("sync failed", e);
+    // Each kind on its own (critique H4): playlists the server refuses don't hold back settings.
+    const results = await Promise.allSettled([
+      step("library and history", () => syncSpace(space, isActive)),
+      step("playlists", () => syncPlaylists(space)),
+      step("settings", () => syncSettings(space, backend!, isActive)),
+    ]);
+    void fillNames(space, isActive);
+    // Profiles left with changes the last time they were used (switched away offline).
+    await pushEach(others.filter((s) => s !== active), pushOne);
+    if (results.some((r) => r.status === "rejected")) {
       // Try again soon, then less often; focus and reconnecting also retry.
       if (isActive()) later(RETRY_MS[Math.min(failures++, RETRY_MS.length - 1)]);
-    }
+    } else failures = 0;
   })().finally(() => {
     running = null;
     if (again) {
@@ -114,6 +71,34 @@ async function run(): Promise<void> {
     }
   });
   return running;
+}
+
+/** One part of a round; a failure is logged and makes the round try again later. */
+async function step(what: string, work: () => Promise<unknown>) {
+  try {
+    await work();
+  } catch (e) {
+    console.warn(`sync: ${what} failed`, e);
+    throw e;
+  }
+}
+
+/** Library, progress and anime links: push what changed here, then pull and merge. */
+async function syncSpace(space: string, isActive: () => boolean) {
+  const local = await pushOne(space);
+  const remote = await backend!.sync.pull(space, local.pulledAt);
+  if (!isActive()) return; // switched profile mid-flight; its own run follows
+  const changed = await api.syncApply(space, { library: remote.library, progress: remote.progress, links: remote.links }, remote.cursor);
+  if (changed) refreshLocalViews();
+}
+
+async function syncPlaylists(space: string) {
+  const lists = playlistChanges();
+  if (lists.space !== space) return;
+  if (lists.rows.length) await backend!.playlists.push(space, lists.rows);
+  markPlaylistsPushed(space, lists.receipt);
+  const pulled = await backend!.playlists.pull(space, playlistsPulledAt(space));
+  applyRemotePlaylists(space, pulled.playlists, pulled.cursor);
 }
 
 const displayDeps: DisplayDeps = { untitled: api.untitled, fill: api.fillDisplay, meta: api.meta };
@@ -140,12 +125,8 @@ const deps = (): PushDeps => ({
   markPushed: api.syncMarkPushed,
 });
 
-/** Push one space (no pull) and remember whether its links still wait for the server. */
-async function pushOne(space: string, allLinks?: AnimeLink[]) {
-  const result = await pushSpace(space, deps(), { allLinks, wasUnsent: linksUnsent.has(space) });
-  setLinksUnsent(space, result.linksUnsent);
-  return result;
-}
+/** Push one space (no pull). */
+const pushOne = (space: string) => pushSpace(space, deps());
 
 /** Push one profile's changed playlists (no pull), shown or not. */
 async function pushPlaylists(space: string) {
@@ -213,7 +194,7 @@ export const sync = {
     if (!backend) return 0;
     const all = (async () => {
       await sync.flush();
-      await pushEach(ids.filter((s) => s !== active), (s) => pushOne(s));
+      await pushEach(ids.filter((s) => s !== active), pushOne);
       await pushEach(ids, pushPlaylists);
     })();
     await Promise.race([all, new Promise((r) => setTimeout(r, ms))]);

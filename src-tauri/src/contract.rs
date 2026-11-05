@@ -78,7 +78,7 @@ fn field_names_match_contract() {
             headers: HashMap::from([("Referer".into(), "https://a.io".into())]),
         }),
     );
-    add("LocalChanges", keys(&LocalChanges { changes: Changes::default(), cursor: 1, pulled_at: s("2026-01-01") }));
+    add("LocalChanges", keys(&LocalChanges { changes: Changes::default(), pulled_at: s("2026-01-01") }));
     add("StreamsResult", keys(&StreamsResult { streams: vec![], failed: vec![], hidden: 0 }));
     add("Playable.url", keys(&Playable::Url { url: "https://a.io".into() }));
     add("Playable.external", keys(&Playable::External { url: "https://a.io".into() }));

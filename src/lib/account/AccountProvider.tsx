@@ -7,7 +7,7 @@ import { backend, type AccountUser, type Profile, type ProfileInput } from ".";
 import { forgetPlaylists, importLocalPlaylists } from "../library/playlists";
 import { clearRecentSearches } from "../catalog/recentSearches";
 import { forgetSettings, keepDeviceSettings, markDeviceSettings, restoreDeviceSettings, restoreSettings } from "./settingsSync";
-import { forgetLinksUnsent, refreshLocalViews, sync } from "./sync";
+import { refreshLocalViews, sync } from "./sync";
 
 /**
  *  - loading:    restoring the session
@@ -186,7 +186,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const forgetProfile = (id: string) => {
       forgetSettings(id);
       forgetPlaylists(id);
-      forgetLinksUnsent(id);
     };
     /**
      * Sign-out, deleted account: nothing of the account stays on the device (critique M12), and

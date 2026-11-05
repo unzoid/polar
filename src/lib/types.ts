@@ -204,8 +204,14 @@ export interface LocalChanges {
   progress: Progress[];
   /** Anime links changed since the last push (docs/anime-identity.md). */
   links: AnimeLink[];
-  cursor: number;
   pulledAt: string | null;
+}
+
+/** What reached the server, each record with the time it carried (`sync_mark_pushed`). */
+export interface Pushed {
+  library: [id: string, at: number][];
+  progress: [videoId: string, at: number][];
+  links: [anilist: number, at: number][];
 }
 
 export interface Manifest {

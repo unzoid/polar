@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::identity::AnimeLink;
-use crate::space::{LibraryItem, Progress, Space};
+use crate::space::{Dirty, LibraryItem, Progress, Space};
 
 /// A library record as it travels over sync: present or a removal.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,7 +58,86 @@ pub struct Changes {
     pub links: Vec<AnimeLink>,
 }
 
+/// What reached the server: each record's key and the time it carried, so a
+/// record changed again meanwhile stays unpushed.
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(default)]
+pub struct Pushed {
+    pub library: Vec<(String, u64)>,
+    pub progress: Vec<(String, u64)>,
+    pub links: Vec<(u32, u64)>,
+}
+
 impl Space {
+    /// What changed here and hasn't reached the server yet.
+    pub fn unpushed(&self) -> Changes {
+        let Some(dirty) = &self.dirty else { return self.changes_since(self.pushed_at) };
+        let library = dirty
+            .library
+            .iter()
+            .filter_map(|id| match (self.library.get(id), self.removed.get(id)) {
+                (Some(i), _) => Some(SyncLibraryItem::present(i)),
+                (None, Some(&at)) => Some(SyncLibraryItem::removal(id, at)),
+                (None, None) => None,
+            })
+            .collect();
+        let progress = dirty.progress.iter().filter_map(|v| self.progress.get(v)).cloned().collect();
+        let links = dirty.links.iter().filter_map(|a| self.links.get(a)).cloned().collect();
+        Changes { library, progress, links }
+    }
+
+    /// The set of unpushed records, worked out from `pushed_at` the first time
+    /// (stores written before it).
+    pub(crate) fn dirty_mut(&mut self) -> &mut Dirty {
+        if self.dirty.is_none() {
+            let c = self.changes_since(self.pushed_at);
+            self.dirty = Some(Dirty {
+                library: c.library.into_iter().map(|i| i.id).collect(),
+                progress: c.progress.into_iter().map(|p| p.video_id).collect(),
+                links: c.links.into_iter().map(|l| l.anilist).collect(),
+            });
+        }
+        self.dirty.get_or_insert_with(Dirty::default)
+    }
+
+    /// These reached the server: no longer unpushed, unless changed again since.
+    pub fn mark_pushed(&mut self, pushed: &Pushed) {
+        let library: Vec<_> = pushed
+            .library
+            .iter()
+            .filter(|(id, at)| {
+                let now = self.library.get(id).map(LibraryItem::changed_at).or_else(|| self.removed.get(id).copied());
+                now.is_none_or(|now| now == *at)
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        let progress: Vec<_> = pushed
+            .progress
+            .iter()
+            .filter(|(v, at)| self.progress.get(v).is_none_or(|p| p.updated_at == *at))
+            .map(|(v, _)| v.clone())
+            .collect();
+        let links: Vec<_> = pushed
+            .links
+            .iter()
+            .filter(|(a, at)| self.links.get(a).is_none_or(|l| l.updated_at == *at))
+            .map(|(a, _)| *a)
+            .collect();
+        let dirty = self.dirty_mut();
+        dirty.library.retain(|id| !library.contains(id));
+        dirty.progress.retain(|v| !progress.contains(v));
+        dirty.links.retain(|a| !links.contains(a));
+    }
+
+    /// Everything here still has to reach the server (copied in at first sign-in).
+    pub fn mark_all_unpushed(&mut self) {
+        self.dirty = Some(Dirty {
+            library: self.library.keys().chain(self.removed.keys()).cloned().collect(),
+            progress: self.progress.keys().cloned().collect(),
+            links: self.links.keys().copied().collect(),
+        });
+    }
+
     /// Everything changed locally at or after `since` (ms).
     pub fn changes_since(&self, since: u64) -> Changes {
         let mut library: Vec<_> =
@@ -84,6 +163,8 @@ impl Space {
     /// arriving under an alias land on their canonical id. Returns whether
     /// anything changed.
     pub fn merge(&mut self, changes: Changes) -> bool {
+        // Before anything pulled moves a time past `pushed_at` (stores from before `dirty`).
+        self.dirty_mut();
         let mut changed = false;
         let mut new_links = false;
         for link in changes.links {
@@ -265,11 +346,80 @@ mod tests {
         s.library.insert("kitsu:5".into(), item("kitsu:5", 10));
         s.pushed_at = 50;
         s.link_anime(link(1, "tt9", Some(5), 70));
-        let c = s.changes_since(s.pushed_at);
+        let c = s.unpushed();
         assert_eq!(c.links.len(), 1);
         let mut lib: Vec<_> = c.library.iter().map(|i| (i.id.as_str(), i.deleted, i.updated_at)).collect();
         lib.sort();
         assert_eq!(lib, [("kitsu:5", true, 70), ("tt9", false, 70)]);
+    }
+
+    fn pushed(c: &Changes) -> Pushed {
+        Pushed {
+            library: c.library.iter().map(|i| (i.id.clone(), i.updated_at)).collect(),
+            progress: c.progress.iter().map(|p| (p.video_id.clone(), p.updated_at)).collect(),
+            links: c.links.iter().map(|l| (l.anilist, l.updated_at)).collect(),
+        }
+    }
+
+    #[test]
+    fn pulled_rows_are_not_sent_back() {
+        let mut s = Space { dirty: Some(Dirty::default()), ..Space::default() };
+        pull(&mut s, vec![sync_item("a", 10, false)], vec![progress("tt1", "tt1", 20, 100.0)]);
+        let c = s.unpushed();
+        assert!(c.library.is_empty() && c.progress.is_empty());
+    }
+
+    #[test]
+    fn an_edit_made_during_a_push_stays_unpushed() {
+        let mut s = Space::default();
+        s.library_toggle(item("a", 0), 10);
+        s.progress_save(vec![progress("tt1", "tt1", 0, 100.0)], 10);
+        let sent = s.unpushed();
+        assert_eq!((sent.library.len(), sent.progress.len()), (1, 1));
+        // Watched further while the push was on its way.
+        s.progress_save(vec![progress("tt1", "tt1", 0, 200.0)], 11);
+        s.mark_pushed(&pushed(&sent));
+        let left = s.unpushed();
+        assert!(left.library.is_empty());
+        assert_eq!(left.progress.len(), 1);
+        assert_eq!(left.progress[0].position, 200.0);
+    }
+
+    #[test]
+    fn a_clock_that_steps_back_cannot_hide_an_edit() {
+        let mut s = Space::default();
+        s.progress_save(vec![progress("tt1", "tt1", 0, 100.0)], 1_000);
+        s.mark_pushed(&pushed(&s.unpushed()));
+        s.progress_save(vec![progress("tt2", "tt2", 0, 100.0)], 500);
+        assert_eq!(s.unpushed().progress.len(), 1);
+    }
+
+    #[test]
+    fn a_store_from_before_dirty_starts_from_its_push_time() {
+        let mut s = Space::default();
+        s.library.insert("old".into(), item("old", 10));
+        s.library.insert("new".into(), item("new", 60));
+        s.pushed_at = 50;
+        assert_eq!(s.unpushed().library.len(), 1);
+        // A pull newer than the push time isn't taken for a local edit.
+        pull(&mut s, vec![sync_item("pulled", 70, false)], vec![]);
+        let ids: Vec<_> = s.unpushed().library.into_iter().map(|i| i.id).collect();
+        assert_eq!(ids, ["new"]);
+    }
+
+    #[test]
+    fn removals_and_imports_are_unpushed() {
+        let mut s = Space::default();
+        s.library_toggle(item("a", 0), 10);
+        s.mark_pushed(&pushed(&s.unpushed()));
+        s.library_toggle(item("a", 0), 20);
+        let c = s.unpushed();
+        assert!(c.library[0].deleted && c.library[0].updated_at == 20);
+        s.library_toggle(item("b", 0), 30);
+        let mut profile = Space::default();
+        profile.import(&s);
+        profile.mark_all_unpushed();
+        assert_eq!(profile.unpushed().library.len(), 1);
     }
 
     #[test]

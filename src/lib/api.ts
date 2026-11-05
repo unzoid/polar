@@ -19,6 +19,7 @@ import type {
   SeekTrack,
   SkipSegments,
   LocalChanges,
+  Pushed,
   SyncLibraryItem,
   TitleDisplay,
   TitleRef,
@@ -89,7 +90,7 @@ export const api = {
   importLocalInto: (space: string) => call<void>("space_import_local", { space }),
   forgetSpace: (space: string | null) => call<void>("space_forget", { space }),
   syncChanges: (space: string) => call<LocalChanges>("sync_changes", { space }),
-  syncMarkPushed: (space: string, cursor: number) => call<void>("sync_mark_pushed", { space, cursor }),
+  syncMarkPushed: (space: string, pushed: Pushed) => call<void>("sync_mark_pushed", { space, pushed }),
   /** `links: null` leaves the links alone (the server has none to give). */
   syncApply: (space: string, remote: { library: SyncLibraryItem[]; progress: Progress[]; links: AnimeLink[] | null }, pulledAt: string | null) =>
     call<boolean>("sync_apply", { space, ...remote, pulledAt }),

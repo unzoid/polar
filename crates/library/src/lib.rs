@@ -23,5 +23,5 @@ pub mod sync;
 
 pub use display::{Display, Untitled};
 pub use identity::{Aliases, AnimeLink};
-pub use space::{LibraryItem, Progress, Space};
-pub use sync::{Changes, SyncLibraryItem};
+pub use space::{Dirty, LibraryItem, Progress, Space};
+pub use sync::{Changes, Pushed, SyncLibraryItem};
