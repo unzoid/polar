@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "polarity",
+  // The Worker only answers /api/*; Cloudflare serves the built pages in dist/
+  // directly (/download → /download/ → download/index.html).
+  "main": "server/worker.ts",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true }
+}
