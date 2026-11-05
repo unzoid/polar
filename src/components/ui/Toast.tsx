@@ -7,6 +7,8 @@ export type ToastProps = Omit<HTMLAttributes<HTMLDivElement>, "className" | "chi
   children: ReactNode;
   /** Buttons at the end. A text button takes `className="toast-action"`; icon buttons fit as they are. */
   actions?: ReactNode;
+  /** More than one line of text: a rounded box with room around it instead of a pill. */
+  lines?: boolean;
   /** `tv`: up top, clear of the hints bar, at TV size. */
   variant?: "tv";
   /** Extra classes for one toast's own touches (`update-toast`), not for restyling. */
@@ -18,8 +20,9 @@ export type ToastProps = Omit<HTMLAttributes<HTMLDivElement>, "className" | "chi
  * came or went, an update is ready. Announced politely (`role="status"`). The caller decides when it
  * shows and for how long. Styling in styles/ui/toast.css.
  */
-export function Toast({ icon, children, actions, variant, className, ...rest }: ToastProps) {
+export function Toast({ icon, children, actions, lines, variant, className, ...rest }: ToastProps) {
   let cls = variant === "tv" ? "toast toast-tv" : "toast";
+  if (lines) cls += " toast-lines";
   if (className) cls += ` ${className}`;
   return (
     <div className={cls} role="status" {...rest}>

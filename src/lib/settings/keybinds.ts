@@ -1,3 +1,4 @@
+import { storeLocal } from "../errors";
 import { useSyncExternalStore } from "react";
 import { settingsChanged } from "./changes";
 import { isRecord, strings, storedJson } from "../parse";
@@ -111,7 +112,7 @@ export const bindingOverrides = (): Partial<Record<Action, string[]>> =>
 
 function commit(next: Record<Action, string[]>, { quiet = false } = {}) {
   bindings = next;
-  localStorage.setItem(STORAGE, JSON.stringify(bindingOverrides()));
+  storeLocal(STORAGE, JSON.stringify(bindingOverrides()));
   listeners.forEach((l) => l());
   if (!quiet) settingsChanged();
 }

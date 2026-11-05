@@ -13,6 +13,7 @@
  * catches up with the server. The device's own settings (guest, signed out)
  * are kept aside while a profile has the store, and put back at sign-out.
  */
+import { storeLocal } from "../errors";
 import { api } from "../api";
 import { queryClient } from "../net/queries";
 import { applyBindingOverrides, bindingOverrides, DEFAULT_BINDINGS } from "../settings/keybinds";
@@ -43,7 +44,7 @@ function passphrase(space: string): string | null {
 
 /** Settings → Account: the passphrase for sealed keys and add-on links, kept on this device only. */
 export function setSecretsPassphrase(space: string, value: string | null) {
-  if (value) localStorage.setItem(passphraseKey(space), value);
+  if (value) storeLocal(passphraseKey(space), value);
   else localStorage.removeItem(passphraseKey(space));
 }
 export const hasSecretsPassphrase = (space: string) => !!localStorage.getItem(passphraseKey(space));
@@ -91,7 +92,7 @@ const knows = {
   keybinds: (k: string) => k in DEFAULT_BINDINGS,
   prefs: (k: string) => (SYNCED_PREFS as readonly string[]).includes(k),
 };
-const save = (space: string, s: Saved) => localStorage.setItem(storageKey(space), JSON.stringify(s));
+const save = (space: string, s: Saved) => storeLocal(storageKey(space), JSON.stringify(s));
 export const forgetSettings = (space: string) => {
   localStorage.removeItem(storageKey(space));
   localStorage.removeItem(passphraseKey(space));
@@ -212,7 +213,7 @@ const DEVICE = "local";
 
 /** Signed out or a guest: what's in the store now is the device's own. */
 export function markDeviceSettings() {
-  if (localStorage.getItem(OWNER_KEY) === null) localStorage.setItem(OWNER_KEY, DEVICE);
+  if (localStorage.getItem(OWNER_KEY) === null) storeLocal(OWNER_KEY, DEVICE);
 }
 
 /**
@@ -227,13 +228,13 @@ export async function keepDeviceSettings(space: string) {
     doc.secrets = await ownSecrets(await api.settings(), missing);
     save(DEVICE, { doc, at: 0, missing });
   }
-  localStorage.setItem(OWNER_KEY, space);
+  storeLocal(OWNER_KEY, space);
 }
 
 /** Signed out: the device's settings back as they were before a profile was entered. */
 export async function restoreDeviceSettings() {
   if (localStorage.getItem(OWNER_KEY) !== DEVICE) await restoreSettings(DEVICE);
-  localStorage.setItem(OWNER_KEY, DEVICE);
+  storeLocal(OWNER_KEY, DEVICE);
 }
 
 /**

@@ -16,37 +16,13 @@ import { Segmented } from "../components/Segmented";
 import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
 import { episodeCode, formatRuntime, joinFacts, seasonLabel } from "../lib/format";
 import { type PlayRequest, trailerFor, useFileTrailer, usePlayTarget } from "../lib/playback";
-import { keys, prefetchStreams, useMeta, useProgress, useSettings, useStreams } from "../lib/net";
-import { useRouter } from "../lib/router";
-import { useQuery } from "@tanstack/react-query";
-import { anilistForImdb } from "../lib/anime";
-import { usePrefs } from "../lib/settings";
+import { prefetchStreams, useMeta, useProgress, useSettings, useStreams } from "../lib/net";
 import type { ContentType, EpisodeLayout, Meta, MetaPreview, Video } from "../lib/types";
 import { IconButton } from "../components/ui/Button";
 import { TitleActions } from "../components/title/TitleActions";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { errorMessage } from "../lib/errors";
-
-/**
- * An anime reached by its IMDb id (Search, Library, Continue Watching) opens
- * on its AniList page instead, so the same show always looks the same.
- */
-function useAnimeRedirect(id: string, item: MetaPreview | undefined) {
-  const { animeEnabled } = usePrefs();
-  const { replace } = useRouter();
-  const animated = !!item?.genres?.some((g) => /^anim(e|ation)$/i.test(g));
-  const year = Number(item?.releaseInfo?.match(/\d{4}/)?.[0]) || undefined;
-  const { data: anilist } = useQuery({
-    queryKey: keys.anime.forImdb(id),
-    queryFn: () => anilistForImdb(id, { type: item!.type, name: item!.name, year }),
-    enabled: animeEnabled && animated && id.startsWith("tt"),
-    staleTime: Infinity,
-  });
-  useEffect(() => {
-    if (anilist) replace({ name: "anime-detail", id: anilist });
-  }, [anilist, replace]);
-}
 
 /**
  * Title page in the Apple TV layout: the art fills the window, the title
@@ -58,7 +34,6 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
   const { data: meta, isError, error } = useMeta(type, id);
   // Render instantly from the catalog preview; fill in when full meta arrives.
   const shown: MetaPreview | undefined = meta ?? preview;
-  useAnimeRedirect(id, shown);
 
   // The trailer behind the page: only while it's the page on top, and paused
   // once you've scrolled down to read or a sheet or the big trailer is open.

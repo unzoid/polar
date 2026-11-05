@@ -27,6 +27,10 @@ import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { StoreProblemToast } from "./components/StoreProblemToast";
+import { Skeleton } from "./components/ui/Skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { titlePageQuery } from "./lib/anime";
+import type { ContentType, MetaPreview } from "./lib/types";
 
 // Chunks of their own, loaded the first time they're drawn: most sessions never
 // see the sign-in screens, TV mode, Settings or an anime page (the player is in
@@ -57,7 +61,7 @@ function Screen({ route }: { route: Route }) {
     case "settings":
       return <SettingsRoute page={route.page} />;
     case "detail":
-      return <Detail type={route.type} id={route.id} preview={route.preview} />;
+      return <TitleRoute type={route.type} id={route.id} preview={route.preview} />;
     case "anime":
       return <Anime />;
     case "anime-detail":
@@ -73,6 +77,24 @@ function Screen({ route }: { route: Route }) {
     case "player":
       return null; // rendered as a full-window layer below
   }
+}
+
+/**
+ * A title's one page (test report 1, item 1): an anime reached by any of its ids opens on its anime
+ * page, and which page it is is settled before either renders: a skeleton until then, never one
+ * page swapped for the other.
+ */
+function TitleRoute({ type, id, preview }: { type: ContentType; id: string; preview?: MetaPreview }) {
+  const { data: page } = useQuery(titlePageQuery(type, id, preview));
+  const loading = <Skeleton className="detail-loading" />;
+  if (!page) return loading;
+  if (page.kind === "anime")
+    return (
+      <Suspense fallback={loading}>
+        <AnimeDetail id={page.anilist} />
+      </Suspense>
+    );
+  return <Detail type={type} id={id} preview={preview} />;
 }
 
 /**
@@ -290,7 +312,7 @@ function DesktopApp() {
         {pages.map((entry) => (
           <section
             key={entry.key}
-            className={entry.route.name === "detail" ? "page page-pushed" : "page"}
+            className={entry.route.name === "detail" || entry.route.name === "anime-detail" ? "page page-pushed" : "page"}
             data-active={entry === topPage && !playing}
             aria-hidden={entry !== topPage || !!playing}
             inert={entry !== topPage || !!playing}

@@ -56,8 +56,14 @@ mod tests {
 
     #[test]
     fn a_directory_in_its_place_is_unreadable() {
-        let dir = std::env::temp_dir();
-        assert!(matches!(open::<Doc>(std::fs::read(&dir)), Opened::Unreadable(_)));
+        // A directory named like the data file, read without a trailing separator: on
+        // Windows `temp_dir()` ends in `\`, and reading `D:\TEMP\` is NotFound, while the
+        // real case (`...\polar.json` a directory) is PermissionDenied.
+        let dir = std::env::temp_dir().join(format!("polar-opened-{}", std::process::id())).join("polar.json");
+        std::fs::create_dir_all(&dir).unwrap();
+        let read = std::fs::read(&dir);
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+        assert!(matches!(open::<Doc>(read), Opened::Unreadable(_)));
     }
 
     #[test]

@@ -1,3 +1,4 @@
+import { storeLocal } from "../errors";
 import { useSyncExternalStore } from "react";
 import { getPrefs } from "../settings/prefs";
 
@@ -17,7 +18,7 @@ const listeners = new Set<() => void>();
 
 function save(next: string[]) {
   recent = next;
-  localStorage.setItem(KEY, JSON.stringify(next));
+  storeLocal(KEY, JSON.stringify(next));
   listeners.forEach((l) => l());
 }
 

@@ -1,3 +1,4 @@
+import { storeLocal } from "../lib/errors";
 import { useSyncExternalStore } from "react";
 import { appWindow, inShell } from "../lib/platform";
 
@@ -38,7 +39,7 @@ if (inShell) {
 export function setTvMode(next: boolean) {
   if (next === on) return;
   on = next;
-  localStorage.setItem(KEY, next ? "1" : "0");
+  storeLocal(KEY, next ? "1" : "0");
   apply();
   if (inShell) void appWindow.setFullscreen(next);
   listeners.forEach((l) => l());
