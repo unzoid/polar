@@ -5,6 +5,10 @@
 //   bun scripts/release-mac.ts 0.16.0-beta.1 notes.md            build, then publish
 //   bun scripts/release-mac.ts 0.16.0-beta.1 notes.md --draft    upload as a draft
 //   bun scripts/release-mac.ts 0.16.0-beta.1 notes.md --no-build reuse what's in target/
+//   bun scripts/release-mac.ts 0.16.0-beta.1 notes.md --no-account  build without accounts (no sign-in)
+//
+// Accounts need VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY (environment
+// or .env); without them and without --no-account the build stops.
 //
 // The version is set for this build only (the repo's version files aren't
 // touched). Needs the updater key (~/.tauri/polar.key or TAURI_SIGNING_PRIVATE_KEY),
@@ -16,6 +20,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { requireAccountEnv } from "./accountEnv";
 
 const REPO = "unzoid/polar";
 const root = join(import.meta.dir, "..");
@@ -24,7 +29,7 @@ const flags = new Set(args.filter((a) => a.startsWith("--")));
 const [version, notesFile] = args.filter((a) => !a.startsWith("--"));
 
 if (process.platform !== "darwin" || !version || !/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version) || !notesFile) {
-  console.error("On a Mac: bun scripts/release-mac.ts <x.y.z[-pre]> <notes.md> [--draft] [--no-build]");
+  console.error("On a Mac: bun scripts/release-mac.ts <x.y.z[-pre]> <notes.md> [--draft] [--no-build] [--no-account]");
   process.exit(1);
 }
 const notes = readFileSync(notesFile, "utf8").trim();
@@ -46,6 +51,9 @@ if (!git("branch", "-r", "--contains", head)) {
   console.error("Push HEAD first: GitHub needs the commit to tag it.");
   process.exit(1);
 }
+
+// Accounts are built in: without their settings nobody could sign in (#14).
+if (!flags.has("--no-build")) requireAccountEnv(root, flags);
 
 // 1. Build.
 if (!flags.has("--no-build")) {
