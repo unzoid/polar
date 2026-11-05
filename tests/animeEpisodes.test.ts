@@ -94,3 +94,31 @@ test("season tabs name what tells the entries apart", () => {
     distinctLabels(["Paleblade", "Paleblade: Hundred-Night Ash War", "Paleblade: Hundred-Night Ash War - The Parting"], ["Season 1", "Season 2", "Season 3"]),
   ).toEqual(["Season 1", "Hundred-Night Ash War", "The Parting"]);
 });
+
+test("season tabs keep their context (test report 1, items 9 and 19)", () => {
+  // Hayato shares no words with "Kazeori" at the start: its own title, not "Season 3".
+  expect(
+    distinctLabels(
+      ["Kazeori", "Kazeori: Arashi-hen", "Hayato: Kazeori Next Generations", "HAYATO: TWO RED TIDES"],
+      ["Season 1", "Season 2", "Season 3", "Season 4"],
+    ),
+  ).toEqual(["Season 1", "Arashi-hen", "Hayato: Kazeori Next Generations", "HAYATO: TWO RED TIDES"]);
+  // A later part keeps its arc's name when what's left would be only a part or number.
+  const ds = [
+    ["Ember Hunter: Hikari no Tsurugi", "Hikari no Tsurugi"],
+    ["Ember Hunter: Hikari no Tsurugi Endless Keep", "Hikari no Tsurugi: Mugenkyo-hen"],
+    ["Ember Hunter: Hikari no Tsurugi Endless Keep Part 2", "Hikari no Tsurugi: Mugenkyo-hen Part 2"],
+    // No English title yet: matched in its own language (romaji with romaji).
+    ["Hikari no Tsurugi: Mugenkyo-hen Movie 3", "Hikari no Tsurugi: Mugenkyo-hen Movie 3"],
+  ];
+  expect(distinctLabels(ds, ["Season 1", "Movie", "Movie", "Movie"])).toEqual([
+    "Season 1",
+    "Endless Keep",
+    "Endless Keep Part 2",
+    "Mugenkyo-hen Movie 3",
+  ]);
+  // The Parting still drops what it shares with Hundred-Night Ash War (not only a part).
+  expect(
+    distinctLabels(["Paleblade", "Paleblade: Hundred-Night Ash War", "Paleblade: Hundred-Night Ash War - The Parting"], ["Season 1", "Season 2", "Season 3"]),
+  ).toEqual(["Season 1", "Hundred-Night Ash War", "The Parting"]);
+});

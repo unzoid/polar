@@ -100,3 +100,24 @@ test("ErrorBoundary: children render as they are while nothing fails; TV gets it
   expect(byText(container, "button", "Reload")).toBeTruthy();
   quiet.mockRestore();
 });
+
+test("Img: a picture that fails moves on to the next; none left, it's gone (test report 1, items 10 and 31)", async () => {
+  const { act } = await import("react");
+  const { Img } = await import("../../src/components/Img");
+  const { TitleHeading } = await import("../../src/components/title/TitleHeading");
+  const fail = (img: Element | null) => act(async () => void img!.dispatchEvent(new Event("error")));
+  let failed = 0;
+  const { container } = await render(<Img src="https://x.test/still.jpg" fallbacks={["https://x.test/backdrop.jpg"]} alt="" onFail={() => failed++} />);
+  expect(container.querySelector("img")!.getAttribute("src")).toBe("https://x.test/still.jpg");
+  await fail(container.querySelector("img"));
+  expect(container.querySelector("img")!.getAttribute("src")).toBe("https://x.test/backdrop.jpg");
+  await fail(container.querySelector("img"));
+  expect(container.querySelector("img")).toBeNull();
+  expect(failed).toBe(1);
+
+  // A logo that 404s leaves the name as the heading.
+  const page = await render(<TitleHeading name="Iron Wheel Race" logo="https://x.test/logo.png" look="detail" />);
+  expect(page.container.querySelector("h1")).toBeNull();
+  await fail(page.container.querySelector("img"));
+  expect(page.container.querySelector("h1")!.textContent).toBe("Iron Wheel Race");
+});

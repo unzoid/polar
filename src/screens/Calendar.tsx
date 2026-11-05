@@ -65,6 +65,8 @@ export function Calendar() {
   );
 }
 
+const aired = (v: { released?: string }) => !!v.released && Date.parse(v.released) <= Date.now();
+
 function CalendarItem({ entry: { show, video } }: { entry: CalendarEntry }) {
   const { navigate } = useRouter();
   return (
@@ -74,7 +76,8 @@ function CalendarItem({ entry: { show, video } }: { entry: CalendarEntry }) {
       {...cardMenu(show, episodeEntry(show, video), { episode: true })}
     >
       <span className="calendar-art">
-        <Img src={video.thumbnail ?? show.background ?? show.poster} alt="" />
+        {/* An episode still to air has no still yet (its link 404s): the show's art, and that too when a still fails. */}
+        <Img src={aired(video) ? video.thumbnail : undefined} fallbacks={[show.background, show.poster]} alt="" />
       </span>
       <span className="calendar-text">
         <span className="calendar-show">{show.name}</span>

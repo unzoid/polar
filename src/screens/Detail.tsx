@@ -59,7 +59,8 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
       <div className="detail-bg" aria-hidden>
         <Img src={shown.background} alt="" loading="eager" className="detail-bg-sharp" />
         {trailer.node}
-        <Img src={shown.background} alt="" loading="eager" className="detail-bg-blur" />
+        {/* No backdrop (or it fails): the poster, blurred, rather than plain black. */}
+        <Img src={shown.background} fallbacks={[shown.poster]} alt="" loading="eager" className="detail-bg-blur" />
         <div className="detail-bg-scrim" />
       </div>
       <div

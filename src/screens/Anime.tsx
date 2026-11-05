@@ -404,7 +404,7 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
   const years = Array.from({ length: thisYear + 2 - 1970 }, (_, i) => thisYear + 1 - i);
   const seen = new Set<number>();
   const listed = (q.data?.pages.flatMap((p) => p.media) ?? []).filter((m) => !seen.has(m.id) && seen.add(m.id));
-  const items = f.search ? oneFranchiseEach(listed) : listed;
+  const items = oneFranchiseEach(listed);
   const [panel, setPanel] = useState(false);
   // What's narrowing the list, each with a way to take it off again.
   type Active = { label: string; clear: Partial<BrowseFilters> };

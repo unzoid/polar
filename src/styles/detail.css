@@ -327,6 +327,16 @@
 .seasons-tabs > .segmented {
   width: max-content;
 }
+.seasons-tabs:has(.seasons-loading) {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.seasons-loading {
+  flex: none;
+  color: var(--text-3);
+  animation: fade-in var(--dur-base) var(--ease-out);
+}
 /* Sharing the bar with the tools (no episode ranges): the bar gives the edges. */
 .seasons-bar > .seasons-tabs {
   flex: 1;
