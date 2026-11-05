@@ -252,12 +252,15 @@
   position: absolute;
   inset: 0;
   background: var(--text);
-  transform-origin: left;
   animation: dot-fill linear both;
 }
+/* A clip rounded at its right end (the fill's own radius rounds the left), not scaleX: scaling would squash the end flat. */
 @keyframes dot-fill {
   from {
-    transform: scaleX(0);
+    clip-path: inset(0 100% 0 0 round 0 999px 999px 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 0 999px 999px 0);
   }
 }
 .hero-dot[aria-selected="true"]:not(:has(.hero-dot-fill)) {
@@ -858,7 +861,6 @@
   }
   .hero-dot-fill {
     animation: none;
-    transform: none;
   }
 }
 
