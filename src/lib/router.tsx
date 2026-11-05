@@ -53,7 +53,11 @@ export function RouterProvider({ children, initial }: { children: ReactNode; ini
   );
 
   const navigate = useCallback((route: Route) => {
-    setStack((s) => [...s, { key: nextKey++, route }].slice(-MAX_DEPTH));
+    // Deep stacks drop their oldest pushed pages, never the tab at the bottom (rootTab reads it).
+    setStack((s) => {
+      const next = [...s, { key: nextKey++, route }];
+      return next.length > MAX_DEPTH ? [next[0], ...next.slice(-(MAX_DEPTH - 1))] : next;
+    });
   }, []);
   const tab = useCallback((route: TabRoute) => {
     setStack((s) =>

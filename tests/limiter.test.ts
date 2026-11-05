@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Limiter, limitedFetch, retryAfter, type Clock, type HostLimits } from "../src/lib/net/limiter";
+import { concurrency, Limiter, limitedFetch, retryAfter, type Clock, type HostLimits } from "../src/lib/net/limiter";
 
 /** Virtual time: sleeping moves the clock on at once. */
 function fakeClock(): Clock & { t: number; slept: number[] } {
@@ -110,5 +110,26 @@ describe("limitedFetch", () => {
     await limitedFetch(l, "https://x", {}, { clock, fetch: f });
     // 120 a minute after the burst of 1: half a second apart.
     expect(clock.t).toBe(500);
+  });
+});
+
+describe("concurrency", () => {
+  test("runs at most `limit` at once, in order, and passes results and errors through", async () => {
+    const run = concurrency(2);
+    let now = 0;
+    let peak = 0;
+    const started: number[] = [];
+    const task = (i: number) => async () => {
+      started.push(i);
+      peak = Math.max(peak, ++now);
+      await new Promise((r) => setTimeout(r, 5));
+      now--;
+      if (i === 3) throw new Error("three");
+      return i * 10;
+    };
+    const results = await Promise.allSettled([0, 1, 2, 3, 4].map((i) => run(task(i))));
+    expect(peak).toBe(2);
+    expect(started).toEqual([0, 1, 2, 3, 4]);
+    expect(results.map((r) => (r.status === "fulfilled" ? r.value : "err"))).toEqual([0, 10, 20, "err", 40]);
   });
 });
