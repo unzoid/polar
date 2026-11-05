@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useCardIntent } from "../../lib/ui";
 import { episodeState, watchedFraction } from "../../lib/library";
 import { formatDate, formatRemaining, shortRuntime } from "../../lib/format";
@@ -40,6 +41,13 @@ export function EpisodeCard({
   const intent = useCardIntent(() => released && prefetchStreams("series", v.id), 150);
 
   const label = inProgress && p ? formatRemaining(p.position, p.duration) : shortRuntime(runtime);
+  // The check pops in when an episode becomes watched while you're looking (marked, or finished), never on mount.
+  const wasWatched = useRef(watched);
+  const checkIn = useRef(false);
+  if (wasWatched.current !== watched) {
+    checkIn.current = watched;
+    wasWatched.current = watched;
+  }
 
   return (
     <div
@@ -62,7 +70,7 @@ export function EpisodeCard({
             </span>
           )}
           {watched && (
-            <span className="episode-watched" aria-label="Watched">
+            <span className="episode-watched" aria-label="Watched" data-animate={checkIn.current}>
               <Check size={12} strokeWidth={3} />
             </span>
           )}

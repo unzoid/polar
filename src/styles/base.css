@@ -217,7 +217,8 @@ input {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .icon-swap[data-animate="true"] {
+  .icon-swap[data-animate="true"],
+  .episode-watched[data-animate="true"] {
     animation-name: fade-in;
   }
 }

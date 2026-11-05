@@ -183,7 +183,8 @@
   font-size: max(16px, 1em);
 }
 /* Reached with a finger: at least --hit, whatever the desktop size is. */
-:root[data-touch="true"] :is(.navbar-search-icon, .navbar-profile) {
+/* (The search icon stays 40px: the search field's layout is built on it.) */
+:root[data-touch="true"] .navbar-profile {
   min-width: var(--hit);
   min-height: var(--hit);
 }
