@@ -1,0 +1,174 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+/* Theme follows the system. Dark mirrors Screen Studio: pure black page,
+   #141414 surfaces, tinted status badges. The accent is the logo star, #A7ABFF. */
+:root {
+  color-scheme: light dark;
+  --canvas: #fbfbfd;
+  --tile: #f2f2f5;
+  --ink: #1d1d1f;
+  --mute: #6e6e73;
+  --faint: #86868b;
+  --hair: rgb(0 0 0 / 0.08);
+  --edge: rgb(0 0 0 / 0.1);
+  --accent: #a7abff;
+  --accent-hover: #9a9ef7;
+  --accent-ink: #0d0e24;
+  --icon: #5d62d9;
+  --beta-bg: #e3f1fd;
+  --beta-ink: #0a6fc2;
+  --progress-bg: #ecedff;
+  --progress-ink: #4d52cc;
+  --planned-bg: #ececf0;
+  --planned-ink: #5c5c63;
+  --shadow: rgb(0 0 0 / 0.2);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #000000;
+    --tile: #141414;
+    --ink: #ffffff;
+    --mute: #a1a1a6;
+    --faint: #737378;
+    --hair: rgb(255 255 255 / 0.09);
+    --edge: rgb(255 255 255 / 0.1);
+    --accent: #a7abff;
+    --accent-hover: #babdff;
+    --accent-ink: #0d0e24;
+    --icon: #a7abff;
+    --beta-bg: #0e2a40;
+    --beta-ink: #4fb0ff;
+    --progress-bg: #23244d;
+    --progress-ink: #a7abff;
+    --planned-bg: #222225;
+    --planned-ink: #a1a1a6;
+    --shadow: rgb(0 0 0 / 0.6);
+  }
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --color-canvas: var(--canvas);
+  --color-tile: var(--tile);
+  --color-ink: var(--ink);
+  --color-mute: var(--mute);
+  --color-faint: var(--faint);
+  --color-hair: var(--hair);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-icon: var(--icon);
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@layer base {
+  html {
+    scroll-padding-top: 4rem;
+    -webkit-text-size-adjust: 100%;
+    /* Theme changes ease instead of flashing. */
+    transition: background-color 300ms ease;
+  }
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    font-size: 1.0625rem;
+    line-height: 1.5;
+    letter-spacing: -0.012em;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+/* Type scale: tracking tightens as size grows; leading tightens with it. */
+@utility text-display {
+  font-size: clamp(2.75rem, 6vw, 4.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  font-weight: 650;
+}
+@utility text-headline {
+  font-size: clamp(2.125rem, 4.6vw, 3.75rem);
+  line-height: 1.05;
+  letter-spacing: -0.038em;
+  font-weight: 650;
+}
+@utility text-title {
+  font-size: clamp(1.625rem, 2.6vw, 2.25rem);
+  line-height: 1.12;
+  letter-spacing: -0.028em;
+  font-weight: 620;
+}
+@utility text-lede {
+  font-size: clamp(1.1875rem, 1.7vw, 1.4375rem);
+  line-height: 1.38;
+  letter-spacing: -0.019em;
+  font-weight: 450;
+}
+
+/* Pressables answer on pointer-down. */
+@utility press {
+  transition: transform 160ms var(--ease-out-strong), background-color 200ms ease;
+  &:active {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+}
+
+/* One-shot hero entrance. `both` keeps delayed items hidden until their turn. */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rise, 12px)) scale(var(--from-scale, 1));
+    filter: blur(var(--blur, 0px));
+  }
+}
+.enter {
+  animation: enter var(--dur, 700ms) var(--ease-out-strong) var(--delay, 0ms) both;
+}
+
+/* Scroll reveal: a section heading block or tile arrives as one unit. */
+.reveal {
+  transition:
+    opacity 700ms var(--ease-out-strong),
+    transform 900ms var(--ease-out-strong);
+}
+.reveal:not([data-in]) {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation-name: fade;
+    animation-duration: 300ms;
+    animation-delay: 0ms;
+  }
+  .reveal {
+    transition: opacity 300ms ease;
+  }
+  .reveal:not([data-in]) {
+    transform: none;
+  }
+  .press:active {
+    transform: none;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .material {
+    background: var(--color-canvas) !important;
+    backdrop-filter: none !important;
+  }
+}
