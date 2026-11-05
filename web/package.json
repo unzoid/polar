@@ -1,0 +1,27 @@
+{
+  "name": "polarity-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bunx --bun vite",
+    "build": "tsc --noEmit && bunx --bun vite build",
+    "preview": "bun run build && wrangler dev",
+    "deploy": "bun run build && wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "elysia": "^1.4.31",
+    "lucide-solid": "^1.69.0",
+    "solid-js": "^1.9.18"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.4",
+    "@types/bun": "^1.4.4",
+    "tailwindcss": "^4.3.4",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6",
+    "vite-plugin-solid": "^2.11.15",
+    "wrangler": "^4.158.0"
+  }
+}
