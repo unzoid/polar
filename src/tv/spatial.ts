@@ -20,6 +20,8 @@
  *  - `data-nav-scroll`  A vertical scroller: "start" brings the focused
  *                       `data-nav-row` to the top, "center" centres it.
  *  - `data-nav-own`     Handles its own arrow keys (sliders and the like).
+ *  - `data-nav-keep`    A new page leaves focus here (focusWhenReady's
+ *                       `respectKeep`): the section tabs, the search field.
  */
 import { prefersReducedMotion } from "../lib/ui";
 
