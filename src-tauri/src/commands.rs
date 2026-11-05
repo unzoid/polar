@@ -389,6 +389,13 @@ pub fn settings_set(state: State<'_, AppState>, settings: Settings) -> Result<Se
     Ok(SettingsView { settings, metadata_source: state.indexer().source() })
 }
 
+/// What every setting is until someone changes it: settings sync sends only
+/// the ones that differ (docs/supabase-storage.md §3.3).
+#[tauri::command]
+pub fn settings_defaults() -> Settings {
+    Settings::default()
+}
+
 /// Everything back to the defaults, except what took effort to set up: API
 /// keys and the metadata language.
 #[tauri::command]

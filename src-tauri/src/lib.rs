@@ -189,6 +189,7 @@ pub fn run() {
             commands::settings_get,
             commands::settings_set,
             commands::settings_reset,
+            commands::settings_defaults,
             commands::open_external,
             commands::anime_episode_flags,
             commands::anime_ids,

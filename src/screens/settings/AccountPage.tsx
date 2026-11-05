@@ -1,12 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
 import { TextField } from "../../components/ui/TextField";
-import { Edit, Trash } from "../../components/icons";
+import { Edit, Lock, Trash } from "../../components/icons";
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
-import { useAccount } from "../../lib/account";
+import { hasSecretsPassphrase, secretsLocked, setSecretsPassphrase, sync, useAccount } from "../../lib/account";
+import { setPrefs, usePrefs } from "../../lib/settings";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
-import { ActionRow, Card, ExpandRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
+import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AccountPage() {
@@ -45,12 +46,61 @@ export function AccountPage() {
 
       <Card title="Sync">
         <SettingRow id="syncEpisodeHistory" />
+        {account.profile && <SecretsRow profileId={account.profile.id} {...expand("secrets")} />}
       </Card>
 
       <Card title="Danger Zone">
         <DeleteAccountRow {...expand("delete")} />
       </Card>
     </>
+  );
+}
+
+/**
+ * API keys and add-on links sealed with a passphrase (account/secrets.ts), off unless turned on
+ * here. The passphrase stays on this device; each device types it once.
+ */
+function SecretsRow({ profileId, ...props }: Expandable & { profileId: string }) {
+  const { syncSecrets } = usePrefs();
+  const [phrase, setPhrase] = useState("");
+  const [, rerender] = useState(0);
+  const set = hasSecretsPassphrase(profileId);
+  const change = (fn: () => void) => {
+    fn();
+    rerender((n) => n + 1);
+    sync.schedule();
+  };
+  return (
+    <ExpandRow
+      icon={Lock}
+      title="Sync API keys and addons"
+      caption="Encrypted with a passphrase only your devices know"
+      value={syncSecrets ? "On" : "Off"}
+      {...props}
+    >
+      <p className="settings-expand-text">
+        Off: keys and addons stay on this device, and a new device asks for them again. On: they travel encrypted; type the same passphrase on
+        each device. Without it nobody, the server included, can read them, and nobody can get them back if it's forgotten.
+      </p>
+      <div className="settings-expand-form">
+        <Button variant={syncSecrets ? "danger" : "primary"} onClick={() => change(() => setPrefs({ syncSecrets: !syncSecrets }))}>
+          {syncSecrets ? "Turn Off" : "Turn On"}
+        </Button>
+      </div>
+      {syncSecrets && (
+        <FormRow
+          look="expand"
+          type="password"
+          placeholder={set ? "Passphrase set: type a new one to change it" : "Passphrase"}
+          autoComplete="new-password"
+          value={phrase}
+          onChange={setPhrase}
+          tidy={(v) => v}
+          onSubmit={(v) => change(() => (setSecretsPassphrase(profileId, v), setPhrase("")))}
+        />
+      )}
+      {syncSecrets && secretsLocked && <p className="settings-error">The account's keys were sealed with another passphrase.</p>}
+    </ExpandRow>
   );
 }
 

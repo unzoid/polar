@@ -121,6 +121,7 @@ export const SETTINGS: SettingDef[] = [
     bind: p("syncEpisodeHistory"),
     control: toggle,
   },
+  { id: "syncSecrets", page: "account", title: "Sync API keys and addons", keywords: "encrypt encrypted passphrase keys addons secret" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback
