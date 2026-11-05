@@ -1,29 +1,40 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { cachedLookup } from "../net/queries";
-import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard } from "./anilist";
+import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard, type BrowseFilters } from "./anilist";
 import { airedEpisodes, airsWith, cachedAniZip, type AniZip, type AniZipEpisode } from "./anizip";
 import { norm } from "./merge";
 import { oneFranchiseEach } from "./franchise";
 import { readCards, readPage } from "./responses";
 import { keys } from "../net/queryKeys";
 
-/** AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search. */
-export function useAnimeResults(query: string) {
+const browse = (search: string, genre = "", tag = ""): BrowseFilters => ({ search, genre, tag, season: "", year: 0, format: "", status: "", sort: "POPULARITY_DESC" });
+
+/**
+ * AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search.
+ * AniList's search is strict where Cinemeta's forgives a typo: when it finds nothing, `retry` (the
+ * title of an animated show Cinemeta found for the same words) is searched for instead, so the
+ * anime still comes up as itself (test report 1, items 1 and 28).
+ */
+export function useAnimeResults(query: string, retry?: string) {
   const lower = query.toLowerCase();
   const genre = ANIME_GENRES.find((g) => g.toLowerCase() === lower);
   const tag = genre ? undefined : ANIME_TAGS.find((t) => t.toLowerCase() === lower);
-  const q = useAnimeBrowse(
-    { search: genre || tag ? "" : query, genre: genre ?? "", tag: tag ?? "", season: "", year: 0, format: "", status: "", sort: "POPULARITY_DESC" },
-    !!query,
-  );
-  const items = q.data?.pages[0]?.media;
+  const q = useAnimeBrowse(genre || tag ? browse("", genre, tag) : browse(query), !!query);
+  const first = q.data?.pages[0]?.media;
+  const again = !genre && !tag && !!retry && retry.toLowerCase() !== lower && first?.length === 0;
+  const q2 = useAnimeBrowse(browse(retry ?? ""), again);
+  const items = again ? q2.data?.pages[0]?.media : first;
+  const searched = again ? retry! : query;
   return {
     title: genre || tag ? `${genre ?? tag} Anime` : "Anime",
-    items: items && oneFranchiseEach(genre || tag ? items : byRelevance(items, query)),
+    items: items && oneFranchiseEach(genre || tag ? items : byRelevance(items, searched)),
     /** Every entry found, before one per franchise: what hides the same shows' Cinemeta results (a later part listed on its own, test report 1, item 10). */
     all: items,
-    loading: !!query && q.isLoading,
+    loading: !!query && (q.isLoading || (again && q2.isLoading)),
+    /** The search failed (not "found nothing"): the row says so, with a retry. */
+    failed: !!query && (again ? q2.isError : q.isError),
+    retry: () => void (again ? q2.refetch() : q.refetch()),
   };
 }
 

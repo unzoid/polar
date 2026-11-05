@@ -340,7 +340,7 @@ pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
 #[tauri::command]
 pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<bool> {
     if !link.is_valid() {
-        return Err(CmdError::Unsupported(format!("not a title id Polar keys by: {}", link.canonical)));
+        return Err(CmdError::Unsupported(format!("not a title id Polarity keys by: {}", link.canonical)));
     }
     let known = {
         let store = state.store.locked();

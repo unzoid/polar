@@ -132,9 +132,11 @@
   text-align: right;
   color: var(--text);
 }
-/* What 0 means ("Any size") is wider than any number the box takes. */
+/* What 0 means ("Any size") is wider than any number the box takes, and `ch` is
+   the width of a "0": in a font with wide letters (OpenDyslexic) words outgrow
+   any cap in ch, so none (test report 1, item 32). The box sizes to its text. */
 .slider-field-box[data-zero="true"] input {
-  max-width: 9ch;
+  max-width: none;
 }
 /* What 0 means ("Never") reads as the value, not a hint. */
 .slider-field-box input::placeholder {
@@ -1297,10 +1299,14 @@ span.settings-credit-name {
   cursor: default;
 }
 /* TMDB's logo over its notice: their logo rules want it less prominent than Polar's. */
+.settings-credits-tmdb-block {
+  display: block;
+  padding-top: 0.25rem;
+}
 .settings-credits-tmdb {
   display: block;
   height: 12px;
   width: auto;
-  margin-bottom: 0.375rem;
+  margin-top: 12px;
   user-select: none;
 }

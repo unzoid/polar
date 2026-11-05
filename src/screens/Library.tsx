@@ -511,7 +511,7 @@ function PlaylistView({ id, fresh, onClose, backLabel }: { id: string; fresh: bo
         </div>
       </div>
       {playlist.packed ? (
-        <EmptyState>Made with a newer version of Polar. Update Polar to see its titles.</EmptyState>
+        <EmptyState>Made with a newer version of Polarity. Update Polarity to see its titles.</EmptyState>
       ) : n === 0 ? (
         <EmptyState>Add titles with the playlist button on their page.</EmptyState>
       ) : (

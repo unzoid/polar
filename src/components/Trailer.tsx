@@ -1,7 +1,7 @@
 import { useRef, useSyncExternalStore } from "react";
 import { api } from "../lib/api";
 import { useLayer } from "../lib/ui";
-import { useFileTrailer, type TrailerRequest as Open } from "../lib/playback";
+import { trailerSourceLabel, useFileTrailer, type TrailerRequest as Open } from "../lib/playback";
 import { Close, Trailer as TrailerIcon } from "./icons";
 import { Button, IconButton } from "./ui/Button";
 
@@ -81,6 +81,7 @@ export function TrailerHost() {
         )}
         <div className="trailer-bar">
           <span className="trailer-name t-headline">{open.name}</span>
+          {(url || ytId) && <span className="trailer-source t-caption">{trailerSourceLabel(open, url ? "file" : "youtube")}</span>}
           {ytId && (
             <Button variant="glass" onClick={() => void api.openExternal(youtubeUrl(ytId))}>
               <TrailerIcon size={16} /> Open in YouTube

@@ -35,6 +35,17 @@ export interface TrailerRequest {
   ytId?: string;
   /** `ytId` is TMDB's (a TMDB key is set): play it before IMDb's file. */
   ytFirst?: boolean;
+  /** Who listed `ytId` ("TMDB", "AniList"), for the player's label. */
+  ytFrom?: string;
+}
+
+/**
+ * Where the trailer playing comes from, as the trailer player says it (test report 1, item 27): so
+ * whether TMDB's trailer came first can be seen.
+ */
+export function trailerSourceLabel(open: Pick<TrailerRequest, "ytFrom">, playing: "file" | "youtube"): string {
+  if (playing === "file") return "IMDb";
+  return open.ytFrom ? `${open.ytFrom} · YouTube` : "YouTube";
 }
 
 /**
@@ -46,4 +57,5 @@ export const trailerFor = (name: string, imdbId: string | undefined, meta?: Pick
   imdbId: imdbId?.startsWith("tt") ? imdbId : undefined,
   ytId: meta?.trailerYtId,
   ytFirst: meta?.trailerSource === "tmdb" && !!meta.trailerYtId,
+  ytFrom: meta?.trailerYtId ? (meta.trailerSource === "tmdb" ? "TMDB" : "Add-on") : undefined,
 });

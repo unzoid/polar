@@ -1,7 +1,10 @@
 //! Downloads: a movie or an episode saved to this device to watch offline.
 //!
-//! A download is the source's HTTP file copied to `<app data>/downloads`.
-//! The list lives beside it in `downloads.json`. Pausing stops the transfer
+//! A download is the source's HTTP file copied to the user's Videos folder, under
+//! `Polarity` (test report 1, item 29: not hidden in roaming app data, which
+//! Windows may copy between PCs), named for what it is (`Show - S01E02 - Title.mkv`,
+//! polar_library::filenames). Where there's no Videos folder, `<local app data>/downloads`.
+//! The list is `downloads.json` in the local app data. Pausing stops the transfer
 //! and keeps the partial file (`<file>.part` until it is complete); resuming
 //! asks for the rest with a Range request, checked against `Content-Range`
 //! (or starts over if the server can't do ranges). Only one transfer writes a
@@ -18,6 +21,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use polar_addon::Stream;
+use polar_library::filenames;
 use polar_library::opened::{self, Opened};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -124,7 +128,10 @@ fn remove_files(file: &str) {
 }
 
 pub struct Downloads {
+    /// Where the files go.
     dir: PathBuf,
+    /// Where `downloads.json` is.
+    state: PathBuf,
     inner: Mutex<Inner>,
     http: reqwest::Client,
     /// Why `downloads.json` couldn't be read at start-up: while set, the list
@@ -138,9 +145,18 @@ pub fn is_local(url: &str) -> bool {
 }
 
 impl Downloads {
-    pub fn load(app_data: &Path) -> Self {
-        let dir = app_data.join("downloads");
-        let path = dir.join("downloads.json");
+    /// The list from `state` (copied there first from `legacy`, where earlier versions kept it with
+    /// the files; those stay where they are), new files into `dir`.
+    pub fn load(state: &Path, dir: PathBuf, legacy: Option<&Path>) -> Self {
+        let path = state.join("downloads.json");
+        if let Some(old) = legacy.map(|l| l.join("downloads.json")).filter(|old| *old != path && old.exists()) {
+            if !path.exists() {
+                let copied = std::fs::create_dir_all(state).and_then(|()| std::fs::copy(&old, &path));
+                if let Err(e) = copied {
+                    tracing::warn!("couldn't move the downloads list: {e}");
+                }
+            }
+        }
         let (mut items, problem): (Vec<Download>, _) = match opened::open(std::fs::read(&path)) {
             Opened::Data(items) => (items, None),
             Opened::Fresh => (Vec::new(), None),
@@ -167,6 +183,7 @@ impl Downloads {
         items.retain(|d| d.state != DownloadState::Done || Path::new(&d.file).exists());
         Self {
             dir,
+            state: state.to_owned(),
             inner: Mutex::new(Inner { items, ..Inner::default() }),
             http: reqwest::Client::builder()
                 .user_agent(concat!("polar/", env!("CARGO_PKG_VERSION")))
@@ -192,7 +209,7 @@ impl Downloads {
             return;
         }
         if let Ok(json) = serde_json::to_vec(items) {
-            if let Err(e) = polar_library::saver::write_atomic(&self.dir.join("downloads.json"), &json) {
+            if let Err(e) = polar_library::saver::write_atomic(&self.state.join("downloads.json"), &json) {
                 tracing::warn!("the downloads list wasn't saved: {e}");
             }
         }
@@ -415,10 +432,17 @@ fn extension(url: &str) -> &'static str {
     "mkv"
 }
 
-/// A new name per start, so a restart never writes into a file an older transfer still holds.
-fn file_name(id: &str, url: &str, stamp: u64) -> String {
-    let safe: String = id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' }).collect();
-    format!("{safe}-{stamp}.{}", extension(url))
+/// The file for a new download: named for what it is, with a number when that name is in use (a
+/// file there or its `.part`, or another download's), so a restart never writes into a file an
+/// older transfer still holds.
+fn file_for(dir: &Path, req: &DownloadRequest, url: &str, others: &[String]) -> PathBuf {
+    let stem = filenames::download_stem(&req.name, req.season, req.episode, req.episode_title.as_deref(), &req.quality);
+    let name = filenames::free_name(&stem, extension(url), |f| {
+        let p = dir.join(f);
+        let s = p.to_string_lossy();
+        p.exists() || part(&s).exists() || others.iter().any(|o| *o == s)
+    });
+    dir.join(name)
 }
 
 type Shared<'a> = State<'a, Arc<Downloads>>;
@@ -443,7 +467,8 @@ pub async fn download_start(downloads: Shared<'_>, req: DownloadRequest) -> Resu
     // Starting again replaces whatever was there (a failed or expired one).
     downloads.stop(&req.video_id);
     let added_at = now();
-    let file = downloads.dir.join(file_name(&req.video_id, &url, added_at));
+    let others: Vec<String> = downloads.inner.locked().items.iter().map(|d| d.file.clone()).collect();
+    let file = file_for(&downloads.dir, &req, &url, &others);
     std::fs::create_dir_all(&downloads.dir)
         .map_err(|e| CmdError::Save(format!("Couldn't create the downloads folder: {e}")))?;
     let d = Download {
@@ -527,9 +552,13 @@ pub fn download_remove(downloads: Shared<'_>, id: String) {
     downloads.save(&inner.items);
 }
 
-/// Called once at startup so the managed state exists before any command runs.
-pub fn manage(app: &AppHandle, app_data: &Path) {
-    app.manage(Arc::new(Downloads::load(app_data)));
+/// Called once at startup so the managed state exists before any command runs. `app_data` is
+/// where earlier versions kept the list and files (the roaming folder on Windows).
+pub fn manage(app: &AppHandle, app_data: &Path) -> tauri::Result<()> {
+    let state = app.path().app_local_data_dir()?.join("downloads");
+    let dir = app.path().video_dir().map(|v| v.join("Polarity")).unwrap_or_else(|_| state.clone());
+    app.manage(Arc::new(Downloads::load(&state, dir, Some(&app_data.join("downloads")))));
+    Ok(())
 }
 
 #[cfg(test)]
@@ -594,7 +623,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("polar-downloads-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("downloads")).unwrap();
-        let downloads = Downloads::load(&dir);
+        let downloads = Downloads::load(&dir.join("downloads"), dir.join("downloads"), None);
         let file = dir.join("downloads").join("tt1-1.mp4").to_string_lossy().into_owned();
         if have > 0 {
             std::fs::write(part(&file), &FILE[..have]).unwrap();

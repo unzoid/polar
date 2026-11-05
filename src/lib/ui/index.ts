@@ -4,6 +4,7 @@
 export * from "./cardIntent";
 export * from "./dismiss";
 export * from "./formFactor";
+export * from "./handFocus";
 export * from "./layer";
 export * from "./lazy";
 export * from "./motion";

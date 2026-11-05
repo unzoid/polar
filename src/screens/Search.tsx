@@ -32,7 +32,9 @@ export function Search() {
   const { data } = useSearch(deferred);
   const hasQuery = deferred.length > 1;
   const genre = hasQuery ? genreOf(deferred) : undefined;
-  const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "");
+  // An animated show Cinemeta found (it forgives typos): what AniList is asked for when the typed words find nothing.
+  const animated = [...(data?.series ?? []), ...(data?.movies ?? [])].find((m) => m.genres?.some((g) => /^anim(e|ation)$/i.test(g)));
+  const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "", animated?.name);
   const aliases = useAnimeAliases();
 
   if (text.trim().length < 2) return <div className="scroll search-page" />;
@@ -53,7 +55,7 @@ export function Search() {
         {genre && BROWSE_GENRES.series.includes(genre) && <GenreRow type="series" genre={genre} />}
         <ResultRow title={genre ? "Movies Named Like It" : "Movies"} items={waiting ? undefined : movies} />
         <ResultRow title={genre ? "Series Named Like It" : "Series"} items={waiting ? undefined : series} />
-        {animeEnabled && <AnimeRow title={anime.title} items={anime.items} loading={anime.loading} />}
+        {animeEnabled && <AnimeRow title={anime.title} items={anime.items} loading={anime.loading} failed={anime.failed} retry={anime.retry} />}
       </div>
       {nothing && <EmptyState>Nothing found for “{deferred}”.</EmptyState>}
     </div>
@@ -74,7 +76,17 @@ function ResultRow({ title, items }: { title: string; items?: MetaPreview[] }) {
   return <Shelf title={title} items={items} card={(item) => <PosterCard key={item.id} item={item} />} />;
 }
 
-function AnimeRow({ title, items, loading }: { title: string; items?: Card[]; loading: boolean }) {
+function AnimeRow({ title, items, loading, failed, retry }: { title: string; items?: Card[]; loading: boolean; failed: boolean; retry: () => void }) {
+  // A failed search isn't "no anime": it says so, with a way to try again (test report 1, item 28).
+  if (failed && !items?.length)
+    return (
+      <section className="row">
+        <div className="row-header">
+          <h2 className="t-title2">{title}</h2>
+        </div>
+        <EmptyState action={{ label: "Try Again", onClick: retry }}>Anime results couldn't load.</EmptyState>
+      </section>
+    );
   if (!loading && !items?.length) return null;
   return <Shelf title={title} items={items} card={(a) => <AnimeCard key={a.id} item={a} />} />;
 }

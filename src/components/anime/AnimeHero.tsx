@@ -109,7 +109,7 @@ export function AnimeHero({
           playTitle={unavailable}
           onTrailer={
             anime?.trailer?.site === "youtube"
-              ? () => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id })
+              ? () => openTrailer({ name, imdbId: pb.metaId?.startsWith("tt") ? pb.metaId : undefined, ytId: anime.trailer!.id, ytFrom: "AniList" })
               : undefined
           }
           item={pb.meta}
