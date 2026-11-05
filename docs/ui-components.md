@@ -209,12 +209,12 @@ markup rather than a shared component.
 | Segmented / tabs | `Segmented` (`components/Segmented.tsx:19`, clip-path pill; re-skinned in `detail.css:337`, `anime.css:424`, `sheet.css:210`); hand-made `role=tab` strips: hero dots `Home.tsx:170`, anime days `Anime.tsx:320`, anime ranges `AnimeDetail.tsx:482` (M31: they are radio groups). |
 | Chips | `.genre-chip` (`base.css:575`), `.source-chip` (`player.css:980`, used by `SourceFilters.tsx:277` and `SubtitleSettings.tsx:336`), `.srcf-tag` removable (`sheet.css:454`), `ToggleChip` = `.srcf-tag.toggle-chip`, `.anime-tag`, `.anime-ranking` (also used as a disclosure button), `.details-link`, `.score-chip`, `.badge`, `.episode-tag`, `.card-kind-badge`, `.format-badge`. |
 | Switches | `.switch` (`screens.css:1491`) inside `ToggleRow` (`Settings.tsx:197`), `.settings-expand-toggle` (`:2026`) and `.anime-toggle` (`AnimeDetail.tsx:509`); 7 `.t3s .switch` overrides change its look in the overlay. |
-| Sliders | `SliderField` (Base UI + number box, `components/SliderField.tsx:9`), player volume native `<input type=range>` (`Player.tsx:861`), `Scrubber` (custom `role=slider`, not keyboard-operable, `components/player/Scrubber.tsx:23`). |
+| Sliders | `SliderField` (Base UI + number box, `components/SliderField.tsx:9`), player volume native `<input type=range>` (`screens/Player.tsx`), `Scrubber` (custom `role=slider`, not keyboard-operable, `components/player/Scrubber.tsx:23`). |
 | Steppers / pickers | `SubtitleSettings` private `Stepper`, `Swatches`, `Chips` (`components/player/SubtitleSettings.tsx:260,294,336`); `.settings-swatch` (`Settings.tsx:854`); TV settings `Row` left/right stepper (`tv/TvSettings.tsx:248`). |
 | Avatar choice grids | `OnboardingScreen.tsx:87-105` and `ProfilesScreen.tsx:411-433`, each with its own `moveFocus` (`:10`, `:136`, diverged). |
 | Confirm before delete | `ConfirmDeleteButton` (arm, then confirm; only used at `Library.tsx:480`), `ProfilesScreen.tsx:353-373` (state flag, second button), `Settings.tsx:330` (type "delete"). |
 | Busy buttons | `BusyLabel`/`BusyRing` (`components/BusyLabel.tsx:11,27`; account, TV and party only), "Saving…"/"Installing…" text swaps (`Settings.tsx` forms, `Marketplace.tsx:105`), in-button `Spinner` (`DownloadButton.tsx:82`). |
-| Copy buttons | `CopyDetails` (`Player.tsx:1254`, text swap 2.5 s), party invite copy (`PartyUI.tsx:40-49`, blur crossfade 1.8 s). |
+| Copy buttons | `CopyDetails` (`components/player/PlayerStatus.tsx`, text swap 2.5 s), party invite copy (`PartyUI.tsx:40-49`, blur crossfade 1.8 s). |
 | Library toggle | Identical `btn btn-glass btn-icon` + `SwapIcon` at `Home.tsx:237`, `Detail.tsx:184`, `AnimeDetail.tsx:304`. |
 
 ### 2.6 Feedback
@@ -224,18 +224,18 @@ markup rather than a shared component.
 | Spinner | One `Spinner` (`components/Spinner.tsx:5`). Good. |
 | Skeletons | `CardSkeleton`/`PosterSkeleton`; inline ones in `StreamList.tsx:36`, `Calendar.tsx:35-37` (inline height 96), `Anime.tsx:332` (88), `Home.tsx:122`, `Detail.tsx:81`, `AnimeDetail.tsx:72`; `TvSkeletonRail` (`tv/TvRails.tsx:126`). |
 | Empty / error states | About 25 ad-hoc `p.empty t-body muted`; plus `.stream-empty`, `.stream-failed`, `.trailer-empty`, `.market-empty`, `.t3s-empty`, `.calendar-empty`, `.anime-unreachable` (the only one with "Try again"), `.srcf-chiprow-empty`, `.library-hint`, `.tv-empty`, `.tv-note`. Inline errors: `auth-error`/`ErrorLine` (`AuthScreen.tsx:245`), `.settings-error`, `.download-row-error`. |
-| Progress | `ProgressBar`; hand copy at `Library.tsx:388`; `.update-progress`; `OptionsOverlay.tsx:190`; download ring (`DownloadButton.tsx:159`); player load mark (`Player.tsx:1143`). |
-| Toasts / floating notes | `.player-notice` (`Player.tsx:842`), `.party-hold`, `.party-note`, `.party-float` (`party.css`), `UpdateToast` and `ControllerToast` (`.tv-prompt`). |
+| Progress | `ProgressBar`; hand copy at `Library.tsx:388`; `.update-progress`; `OptionsOverlay.tsx:190`; download ring (`DownloadButton.tsx:159`); player load mark (`PlayerStatus.tsx`). |
+| Toasts / floating notes | `.player-notice` (`screens/Player.tsx`, `useNotice`), `.party-hold`, `.party-note`, `.party-float` (`party.css`), `UpdateToast` and `ControllerToast` (`.tv-prompt`). |
 | Entrance animations | Eight keyframes doing "fade, small move, maybe blur(4px)": `auth-step-in`, `hero-content-in`, `rise`, `profile-in`, `status-text-in`, `auth-in`, `search-suggest-in`, `auth-arrive`; three plain fades `fade-in`, `page-in`, `trailer-in`. |
 
 ### 2.7 Player and party
 
 | Element | Where | Notes |
 |---|---|---|
-| Player root, chrome auto-hide, click surface | `screens/Player.tsx:786,210-244,802` | State through `data-*` on `.player`. |
-| Top bar, centre transport, bottom bar | `Player.tsx:847,885,906` | Volume slider, `SkipIcon` (`components/player/icons.tsx`), `ActionButton` row (`:1272-1291`). |
-| Up Next card | `Player.tsx:1022-1065` | `.next-up`, motion slide. |
-| Start-up screen, step log, copy details | `Player.tsx:1155-1254` | `PlayerStatus`, `StartSteps`, `CopyDetails` (T-022). |
+| Player root, chrome auto-hide, click surface | `screens/Player.tsx` (root, click surface), `components/player/usePlayerChrome.ts` (auto-hide) | State through `data-*` on `.player`. |
+| Top bar, centre transport, bottom bar | `screens/Player.tsx` | Volume slider, `SkipIcon` (`components/player/icons.tsx`), `ActionButton` row; the clock is `PlayerClock` (`components/player/PlayerClock.tsx`). |
+| Up Next card | `screens/Player.tsx` (`.next-up`) | `.next-up`, motion slide. |
+| Start-up screen, step log, copy details | `components/player/PlayerStatus.tsx` | `PlayerStatus`, `StartSteps`, `CopyDetails` (T-022). |
 | `OptionsOverlay` + `Row` | `components/player/OptionsOverlay.tsx:54,172` | Speed, Tracks, Party, Episodes, Sources. |
 | `Scrubber`, `SkipButton`, `SubtitleSettings`, `SubtitlePreview`, `VideoBackdrop` | `components/player/*` | |
 | Party | `components/party/PartyUI.tsx:20-239`, `PartyHost.tsx:17` | Start, invite, members, join form, badge, hold, notes. TV has its own join screen (`tv/TvJoinParty.tsx:13`). |

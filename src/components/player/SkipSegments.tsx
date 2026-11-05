@@ -6,6 +6,7 @@ import { aniSkipSegments } from "../../lib/anime";
 import { withShortcut } from "../../lib/settings";
 import type { SkipSegments, Span } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvChapter } from "./mpvMedia";
+import { useMediaTime } from "./useMediaTime";
 import { keys } from "../../lib/net";
 
 export interface ActiveSkip {
@@ -24,7 +25,6 @@ const MIN_LEFT = 2;
  */
 export function useSkipSegments({
   videoId,
-  time,
   started,
   autoSkip,
   media,
@@ -33,11 +33,10 @@ export function useSkipSegments({
   onAutoSkipped,
 }: {
   videoId: string;
-  time: number;
   started: boolean;
   /** Which segments to skip without asking (Settings → Playback). */
   autoSkip: { intro: boolean; recap: boolean };
-  /** Where the file's own chapters come from (mpv only). */
+  /** The playhead, and where the file's own chapters come from (mpv only). */
   media: MediaLike | null;
   /** Trust the file's chapter names over IntroDB where it has them. */
   preferFile: boolean;
@@ -78,7 +77,9 @@ export function useSkipSegments({
     return { intro: null, recap: null, outro: null, postCredits: null, ...online, ...fromFile } as SkipSegments;
   }, [online, fromFile, preferFile]);
 
-  const active = activeSegment(segments, time);
+  // Only which segment the playhead is in re-renders, not every time report.
+  const kind = useMediaTime(media, (t) => activeKind(segments, t.current));
+  const active = useMemo(() => (segments && kind ? skipFor(segments, kind) : null), [segments, kind]);
   const autoSkipped = useRef(new Set<string>());
 
   const skipTo = useCallback(
@@ -134,17 +135,22 @@ function segmentsFromChapters(chapters: MpvChapter[], duration: number): Partial
   return out;
 }
 
-function activeSegment(s: SkipSegments | undefined, t: number): ActiveSkip | null {
+/** Which segment the playhead at `t` is in, if one is worth skipping. */
+function activeKind(s: SkipSegments | undefined, t: number): ActiveSkip["kind"] | null {
   if (!s) return null;
   const within = (sp?: Span | null) => !!sp && t >= sp.start && t < sp.end - MIN_LEFT;
-  if (within(s.intro)) return { kind: "intro", label: "Skip Intro", span: s.intro! };
-  if (within(s.recap)) return { kind: "recap", label: "Skip Recap", span: s.recap! };
+  if (within(s.intro)) return "intro";
+  if (within(s.recap)) return "recap";
   // Movie credits: only worth skipping when a post-credits scene waits after
   // them (series credits hand over to the "Up next" card instead).
-  if (s.postCredits && within(s.outro)) {
-    return { kind: "credits", label: "Skip to Post-Credits Scene", span: { start: s.outro!.start, end: s.postCredits.start } };
-  }
+  if (s.postCredits && within(s.outro)) return "credits";
   return null;
+}
+
+function skipFor(s: SkipSegments, kind: ActiveSkip["kind"]): ActiveSkip {
+  if (kind === "intro") return { kind, label: "Skip Intro", span: s.intro! };
+  if (kind === "recap") return { kind, label: "Skip Recap", span: s.recap! };
+  return { kind, label: "Skip to Post-Credits Scene", span: { start: s.outro!.start, end: s.postCredits!.start } };
 }
 
 /**
