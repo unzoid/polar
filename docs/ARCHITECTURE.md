@@ -131,11 +131,15 @@ read, not run, here.
 
 1. Every change is saved on the device first (`store.rs`, `polar.json`); `sync.schedule()`
    (`lib/account/sync.ts`) queues a round.
-2. A round pushes what changed since the last cursor and pulls what other devices pushed
+2. A round pushes what changed here and pulls what other devices pushed. Each profile keeps a dirty set
+   (`crates/library/src/space.rs` `Dirty`): local edits enter it, pulled rows never do, and a push clears each
+   record by the time it carried (`sync_mark_pushed`), so an edit made meanwhile goes next round
    (`src-tauri/src/sync.rs` `sync_changes`; `crates/library/src/sync.rs` `merge` keeps the newest, and local names
-   and pictures, since the server holds none: `docs/supabase-storage.md`).
+   and pictures, since the server holds none: `docs/supabase-storage.md`). Library and history, playlists and
+   settings run side by side in a round; one failing doesn't stop the others.
 3. After a round, titles that arrived without a name or picture are looked up on this device
    (`lib/account/titleDisplay.ts`).
 4. Settings sync separately and only what differs from the defaults (`settingsDoc.ts`); keys and
    add-on links stay on the device unless "Sync API keys and addons" seals them with a passphrase
-   (`secrets.ts`).
+   (`secrets.ts`). Two devices' edits merge per key against the copy they last agreed on (`mergeDocs`); a
+   profile's first round on a device takes the account's document but removes no add-on (`firstDoc`).

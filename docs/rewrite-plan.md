@@ -62,6 +62,13 @@ Done in the same migration, so the server is changed once:
 - **M8** Pull pages ordered by `(synced_at, key)`, not offset on `synced_at` alone.
 - **H3 / M7** Settings: per-key merge against the last agreed document; first contact never uninstalls
   addons; restore finishes before the first sync; the size error is shown, not retried forever.
+
+Done (T-010, T-053). As built, where it differs from the list above: the client's dirty set makes a
+per-row "accepted" answer unnecessary for library, progress and links (a row the server kept a newer
+copy of comes back on the pull, and a record is cleared only at the time it was sent); settings writes
+do return what the server stored (`settings.put`), and a refused one merges with the newer document.
+Progress rows this version can't decode are left out of the pull (`fromProgressRow`) rather than kept
+read-only: a title's progress is one row and the newest write wins it anyway.
 - **C3** Keys and addon URLs out of the synced settings (asked: what accounts store), legacy
   `watch_progress.stream` gone with the old table.
 

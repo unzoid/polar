@@ -35,6 +35,7 @@ export type AccountErrorCode =
   | "rate_limited"
   | "profile_limit"
   | "playlist_limit"
+  | "settings_too_large"
   | "not_set_up"
   | "network"
   | "unknown";
@@ -148,10 +149,14 @@ export interface AccountBackend {
     push(profileId: string, changes: SyncChanges): Promise<{ links: boolean }>;
   };
 
-  /** The profile's preferences as one small document, last write wins. */
+  /** The profile's preferences as one small document (settingsSync.ts merges it per key). */
   settings: {
     get(profileId: string): Promise<RemoteSettings | null>;
-    put(profileId: string, settings: RemoteSettings): Promise<void>;
+    /**
+     * Resolves to the `updatedAt` the server stored (it may move a time from the future back), or
+     * `null` when it kept a newer document and took nothing (critique H2).
+     */
+    put(profileId: string, settings: RemoteSettings): Promise<number | null>;
   };
 
   /** Whole playlists, last write wins per playlist; titles travel packed (playlistCodec). */

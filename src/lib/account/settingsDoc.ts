@@ -25,7 +25,7 @@ export interface Doc {
   prefs: Record<string, unknown>;
   /** Keys and add-on links in plain text: only on this device; they travel sealed. */
   secrets?: Secrets;
-  /** A `sealed` field this device can't open (no or another passphrase): sent back as it came. */
+  /** A `sealed` field this device can't open (no or another passphrase): sent back as it came, over `secrets`. */
   unopened?: string;
 }
 
@@ -48,7 +48,8 @@ export function withDefaults(changed: Record<string, unknown>, defaults: Record<
 
 /** The document as stored on the server. */
 export async function toWire(doc: Doc, passphrase: string | null): Promise<Record<string, unknown>> {
-  const sealed = doc.secrets && passphrase ? await seal(passphrase, doc.secrets) : doc.unopened;
+  // A seal this device can't open goes back as it came: another passphrase's keys aren't overwritten.
+  const sealed = doc.unopened ?? (doc.secrets && passphrase ? await seal(passphrase, doc.secrets) : undefined);
   return { settings: doc.settings, keybinds: doc.keybinds, prefs: doc.prefs, ...(sealed && { sealed }) };
 }
 
@@ -81,4 +82,71 @@ export function stable(v: unknown): string {
     JSON.stringify(v, (_k, val) => (isRecord(val) ? Object.fromEntries(Object.entries(val).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : val)) ??
     "undefined"
   );
+}
+
+type Section = "settings" | "keybinds" | "prefs";
+const SECTIONS: Section[] = ["settings", "keybinds", "prefs"];
+
+/**
+ * Per-key merge of two edits of one document (critique H3): each key this device changed since
+ * `base` (the copy last agreed with the server) keeps this device's value, every other key takes
+ * the server's. A key set back to its default is a change too (it leaves the document). Add-on
+ * links merge as a set: added or removed here, else as on the server. Keys sealed under a
+ * passphrase this device doesn't have stay sealed as they are.
+ */
+export function mergeDocs(base: Doc, local: Doc, remote: Doc): Doc {
+  const doc = {} as Doc;
+  for (const s of SECTIONS) doc[s] = mergeRecords(base[s], local[s], remote[s]) as never;
+  if (remote.unopened) {
+    // Sealed under another passphrase: it stays as it is until this device can open it.
+    doc.unopened = remote.unopened;
+    if (local.secrets) doc.secrets = local.secrets;
+  } else if (local.secrets && remote.secrets) {
+    const was = base.secrets ?? { keys: {}, addons: [] };
+    const keys = mergeRecords(was.keys, local.secrets.keys, remote.secrets.keys) as Record<string, string>;
+    const added = local.secrets.addons.filter((a) => !was.addons.includes(a));
+    const removed = new Set(was.addons.filter((a) => !local.secrets!.addons.includes(a)));
+    const addons = [...new Set([...remote.secrets.addons, ...added])].filter((a) => !removed.has(a)).sort();
+    doc.secrets = { keys, addons };
+  } else if (local.secrets ?? remote.secrets) {
+    doc.secrets = local.secrets ?? remote.secrets;
+  }
+  return doc;
+}
+
+/**
+ * A profile's first round on this device: the server's document wins, except that no add-on this
+ * device has is taken away (critique H3).
+ */
+export function firstDoc(local: Doc, remote: Doc): Doc {
+  const doc = mergeDocs(local, local, remote);
+  if (doc.secrets && local.secrets) {
+    doc.secrets = { ...doc.secrets, addons: [...new Set([...doc.secrets.addons, ...local.secrets.addons])].sort() };
+  }
+  return doc;
+}
+
+/**
+ * `doc` with the keys of `saved` this version doesn't know (`knows` says no), so an older version
+ * passes a newer one's settings on instead of dropping them.
+ */
+export function withUnknown(doc: Doc, saved: Doc | undefined, knows: Record<Section, (key: string) => boolean>): Doc {
+  if (!saved) return doc;
+  const out = { ...doc };
+  for (const s of SECTIONS) {
+    const unknown = Object.entries(saved[s]).filter(([k]) => !knows[s](k));
+    if (unknown.length) out[s] = { ...Object.fromEntries(unknown), ...doc[s] } as never;
+  }
+  return out;
+}
+
+/** Three-way merge of flat records; a missing key means "at its default". */
+function mergeRecords(base: Record<string, unknown>, local: Record<string, unknown>, remote: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const k of new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(base)])) {
+    const mine = stable(local[k]) !== stable(base[k]);
+    const v = mine ? local[k] : remote[k];
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
 }

@@ -3,7 +3,7 @@ import { TextField } from "../../components/ui/TextField";
 import { Edit, Lock, Trash } from "../../components/icons";
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
-import { hasSecretsPassphrase, secretsLocked, setSecretsPassphrase, sync, useAccount } from "../../lib/account";
+import { hasSecretsPassphrase, secretsLocked, setSecretsPassphrase, settingsTooLarge, sync, useAccount } from "../../lib/account";
 import { setPrefs, usePrefs } from "../../lib/settings";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
@@ -47,6 +47,9 @@ export function AccountPage() {
       <Card title="Sync">
         <SettingRow id="syncEpisodeHistory" />
         {account.profile && <SecretsRow profileId={account.profile.id} {...expand("secrets")} />}
+        {settingsTooLarge() && (
+          <p className="settings-error">This profile's settings are too large to sync. Sealed add-on links take the most room: remove some to sync again.</p>
+        )}
       </Card>
 
       <Card title="Danger Zone">

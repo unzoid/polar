@@ -190,10 +190,13 @@ export function createSupabaseBackend(url: string, key: string, options: Supabas
         return data && isRecord(data.data) ? { data: data.data, updatedAt: count(data.updated_at) ?? 0 } : null;
       },
       async put(profileId, { data, updatedAt }) {
-        const { error } = await db
+        // The sync_lww trigger skips a write older than what's stored: then no row comes back.
+        const { data: rows, error } = await db
           .from("profile_settings")
-          .upsert({ profile_id: profileId, data, updated_at: updatedAt }, { onConflict: "profile_id" });
+          .upsert({ profile_id: profileId, data, updated_at: updatedAt }, { onConflict: "profile_id" })
+          .select("updated_at");
         if (error) throw dbError(error);
+        return rows.length ? (count(rows[0].updated_at) ?? updatedAt) : null;
       },
     },
 
@@ -410,6 +413,10 @@ export function dbError(e: PostgrestError): AccountError {
   }
   if (raised(e, "playlist_limit")) {
     return new AccountError("playlist_limit", "A profile can have up to 100 playlists.");
+  }
+  // profile_settings.data has a size check (critique M7).
+  if (e.code === "23514" && /profile_settings/.test(e.message)) {
+    return new AccountError("settings_too_large", "This profile's settings are too large to sync.");
   }
   if (isMissingTable(e)) {
     return new AccountError("not_set_up", e.message);
