@@ -146,6 +146,50 @@ const EDGE_SLACK: i64 = 4;
 /// are believed sooner than bars that leave an odd shape.
 const COMMON_ASPECTS: &[f64] = &[1.33, 1.37, 1.43, 1.5, 1.66, 1.78, 1.85, 1.9, 2.0, 2.2, 2.35, 2.39, 2.4, 2.55, 2.76];
 
+/// Keyframes the pre-roll probe measures over a film's opening before
+/// playback starts (docs/autocrop.md §3), and how many must agree on bars.
+pub const OPENING_SAMPLES: usize = 8;
+const OPENING_AGREE: usize = 5;
+
+/// The bars to remove from the very first frame, from our own detector's
+/// readings of keyframes spread over the opening minutes (the pre-roll
+/// probe). Per axis, bars at least 5 of 8 readings measure crisp on both
+/// sides, even and within [`EDGE_SLACK`] of each other; the thinnest of
+/// those, so nothing is cut that any of them showed as picture. Fades
+/// (`None`) and readings without crisp bars don't vote, so anything less
+/// clear starts uncropped, as without the probe. Give the result to
+/// [`CropTracker::open`].
+pub fn opening_bars(full: (i64, i64), readings: &[Option<Measured>]) -> (i64, i64) {
+    let need = (readings.len() * OPENING_AGREE).div_ceil(OPENING_SAMPLES).max(1);
+    let (fw, fh) = full;
+    let axis_bars = |axis: usize| {
+        let dim = if axis == 0 { fh } else { fw };
+        let even = ((dim as f64 * 0.02).round() as i64).max(EDGE_SLACK);
+        let votes: Vec<i64> = readings
+            .iter()
+            .flatten()
+            .filter(|m| m.crisp[2 * axis] && m.crisp[2 * axis + 1])
+            .filter_map(|m| {
+                let r = m.rect;
+                let (a, b) = if axis == 0 { (r.y, fh - r.y - r.h) } else { (r.x, fw - r.x - r.w) };
+                ((a - b).abs() <= even && a.min(b) * 100 >= dim).then_some(a.min(b))
+            })
+            .collect();
+        let agree = |v: i64| votes.iter().filter(move |&&o| (o - v).abs() <= EDGE_SLACK);
+        votes
+            .iter()
+            .filter(|&&v| agree(v).count() >= need)
+            .max_by_key(|&&v| agree(v).count())
+            .and_then(|&v| agree(v).min().copied())
+            .unwrap_or(0)
+    };
+    let (v, h) = (axis_bars(0), axis_bars(1));
+    if (fw - 2 * h) * (fh - 2 * v) * 10 < fw * fh * 4 {
+        return (0, 0);
+    }
+    (v, h)
+}
+
 /// Which bars to remove, from cropdetect's per-frame readings, in the spirit
 /// of madVR's black bar detection. It changes both ways, quickly, and is
 /// careful only where a mistake would cut picture off:
@@ -202,6 +246,17 @@ impl CropTracker {
             self.shown
         } else {
             (0, 0)
+        }
+    }
+
+    /// Start `load` with `bars` already removed ([`opening_bars`]), as if
+    /// this file had shown them: picture in them un-crops on its first frame.
+    pub fn open(&mut self, load: u64, full: (i64, i64), bars: (i64, i64)) {
+        *self = CropTracker { load, full, shown: bars, ..Default::default() };
+        for (known, b) in self.known.iter_mut().zip([bars.0, bars.1]) {
+            if b > 0 {
+                known.push(b);
+            }
         }
     }
 
@@ -659,5 +714,46 @@ mod tests {
         // mpv refused it: sent again.
         z.unsent();
         assert_eq!(z.next(2, (1920, 1080), 0.0, false, 1.5), Some(0.0));
+    }
+    #[test]
+    fn opening_bars_need_five_crisp_readings_of_eight() {
+        let m = |rect: Rect, crisp: bool| Some(Measured { rect, crisp: [crisp, crisp, false, false] });
+        let full = Some(Measured { rect: FULL, crisp: [false; 4] });
+        let scope_142 = Rect { w: 1920, h: 796, x: 0, y: 142 };
+        assert_eq!(opening_bars(HD, &[m(SCOPE, true); 8]), (140, 0));
+        // Fades don't vote, but don't stop 5 that agree; the thinnest of them is taken.
+        let mut five = vec![None; 3];
+        five.extend([m(scope_142, true), m(SCOPE, true), m(SCOPE, true), m(scope_142, true), m(SCOPE, true)]);
+        assert_eq!(opening_bars(HD, &five), (140, 0));
+        // 4 of 8: start uncropped.
+        let mut four = vec![full; 4];
+        four.extend([m(SCOPE, true); 4]);
+        assert_eq!(opening_bars(HD, &four), (0, 0));
+        // Dark shots read as bars, not crisp: never believed before playback.
+        assert_eq!(opening_bars(HD, &[m(SCOPE, false); 8]), (0, 0));
+        // Uneven bars aren't letterboxing; fewer readings need as large a share.
+        let uneven = Rect { w: 1920, h: 860, x: 0, y: 140 };
+        assert_eq!(opening_bars(HD, &[m(uneven, true); 8]), (0, 0));
+        assert_eq!(opening_bars(HD, &[m(SCOPE, true), m(SCOPE, true), full]), (140, 0));
+        assert_eq!(opening_bars(HD, &[m(SCOPE, true), full, full]), (0, 0));
+        assert_eq!(opening_bars(HD, &[]), (0, 0));
+        // A pillarbox on top: both axes.
+        let boxed = Some(Measured { rect: Rect { w: 1440, h: 800, x: 240, y: 140 }, crisp: [true; 4] });
+        assert_eq!(opening_bars(HD, &[boxed; 8]), (140, 240));
+    }
+
+    #[test]
+    fn an_opened_tracker_shows_its_bars_from_the_first_frame() {
+        let mut t = CropTracker::default();
+        t.open(1, HD, (140, 0));
+        assert_eq!(t.bars(1), (140, 0));
+        assert_eq!(feed(&mut t, &[Some(SCOPE), None, Some(SCOPE)]), vec![(140, 0); 3]);
+        // Picture in the bars: un-cropped on that frame, and the bars come back as known ones.
+        assert_eq!(feed(&mut t, &[Some(FULL)]), vec![(0, 0)]);
+        assert!(t.on_cut());
+        assert_eq!(feed(&mut t, &[Some(SCOPE), Some(SCOPE)]), vec![(0, 0), (140, 0)]);
+        // A new load starts from nothing.
+        t.update(2, HD, HD, Some(SCOPE));
+        assert_eq!(t.bars(2), (0, 0));
     }
 }

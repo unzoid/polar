@@ -1,10 +1,11 @@
 # Autocrop: removing black bars without the viewer noticing
 
-Status, 2026-11-05: built and tested in `crates/player`: the detector and the crisp-edge lock
-(§2), animated bars (§5, `CropTracker::following`), eased moves (§6, `motion::Glide`,
+Status, 2026-11-06: built and tested in `crates/player`: the detector and the crisp-edge lock
+(§2), the pre-roll's choice of opening bars (§3, `crop::opening_bars`, `CropTracker::open`),
+animated bars (§5, `CropTracker::following`), eased moves (§6, `motion::Glide`,
 `crop::CropZoom`). The desktop engine (`src-tauri/src/player/autocrop.rs`) now jumps on the cut
 and eases late changes, still with cropdetect's readings, which give no crisp edges.
-Designed here and waiting on the engine work: the pre-roll crop (§3) and the lookahead (§4).
+Designed here and waiting on the engine work: the pre-roll probe (§3) and the lookahead (§4).
 The aim is crop changes the viewer doesn't notice: a change on a cut jumps on the cut frame,
 and ease-out is the default for the rest.
 
@@ -67,8 +68,10 @@ While the stream buffers, a second, light player instance (the **probe**) opens 
 - It seeks to 8 points spread over the first 3 minutes (skipping the first 10 s, which are often
   logos on black) and measures one keyframe at each. Cost: about 8 keyframes and the container
   index, a few MB, read with range requests alongside the main buffering.
-- The bars at least 5 of the 8 agree on (within 4 px, crisp) are the opening crop; anything
-  less clear starts uncropped, as today. The main player loads paused with `video-zoom`
+- The bars at least 5 of the 8 agree on (within 4 px, crisp on both sides, even) are the
+  opening crop, the thinnest of them (`crop::opening_bars`); fades don't vote, and anything
+  less clear starts uncropped, as today. `CropTracker::open` starts the load with them, as
+  bars this file has shown: picture in them un-crops on its first frame. The main player loads paused with `video-zoom`
   already set, and starts when the probe is done or after a 1.5 s budget, whichever is first,
   so autocrop never delays the start by more than that.
 - Films that change aspect (IMAX sequences) start with their dominant opening bars; §4 handles
