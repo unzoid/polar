@@ -636,12 +636,17 @@ async fn read_loop(
 
 // --- Commands --------------------------------------------------------------
 
+/// Whether mpv can be the player here: it must be installed and able to draw
+/// into our window, which only Windows (`--wid`) and macOS (libmpv) can do so
+/// far (see [`window_id`]). Elsewhere the player uses the webview's `<video>`.
 #[tauri::command]
 pub fn mpv_available() -> bool {
     #[cfg(target_os = "macos")]
     return mpv_library().is_some();
-    #[cfg(not(target_os = "macos"))]
-    mpv_binary().is_some()
+    #[cfg(windows)]
+    return mpv_binary().is_some();
+    #[cfg(not(any(windows, target_os = "macos")))]
+    false
 }
 
 // --- What the webview may ask of mpv --------------------------------------

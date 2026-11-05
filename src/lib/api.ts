@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { call } from "./platform/bridge";
 import { playContext } from "./anime/playContext";
 import { isKitsuId, kitsuMeta } from "./anime/kitsu";
 import type {
@@ -26,8 +26,6 @@ import type {
 import { settingsChanged } from "./settings/changes";
 import type { AnimeLink } from "./library/identity";
 
-export const isTauri = "__TAURI_INTERNALS__" in window;
-
 /** Pass a result through, telling settings sync something it covers changed. */
 function changed<T>(value: T): T {
   settingsChanged();
@@ -37,76 +35,76 @@ function changed<T>(value: T): T {
 /** Thin typed wrappers over the Rust commands in src-tauri/src/commands.rs. */
 export const api = {
   /** Opens an https page in the default browser. */
-  openExternal: (url: string) => invoke<void>("open_external", { url }),
+  openExternal: (url: string) => call<void>("open_external", { url }),
   /** The anime cache folder (fillers.json, anime-list-mini.json) and their size. */
-  animeCache: () => invoke<CacheInfo>("anime_cache"),
-  animeCacheClear: () => invoke<void>("anime_cache_clear"),
+  animeCache: () => call<CacheInfo>("anime_cache"),
+  animeCacheClear: () => call<void>("anime_cache_clear"),
   catalog: (type: ContentType, id: string, skip = 0, genre?: string) =>
-    invoke<MetaPreview[]>("catalog", { ty: type, id, skip, genre }),
+    call<MetaPreview[]>("catalog", { ty: type, id, skip, genre }),
   /** Titles like `id`, for "Because you watched …". */
-  recommend: (type: ContentType, id: string) => invoke<MetaPreview[]>("recommend", { ty: type, id }),
-  search: (query: string) => invoke<SearchResults>("search", { query }),
+  recommend: (type: ContentType, id: string) => call<MetaPreview[]>("recommend", { ty: type, id }),
+  search: (query: string) => call<SearchResults>("search", { query }),
   // Anime with no IMDb page carry a Kitsu id; no metadata addon serves those, so they're built from AniList.
-  meta: (type: ContentType, id: string) => (isKitsuId(id) ? kitsuMeta(type, id) : invoke<Meta>("meta", { ty: type, id })),
+  meta: (type: ContentType, id: string) => (isKitsuId(id) ? kitsuMeta(type, id) : call<Meta>("meta", { ty: type, id })),
   streams: (type: ContentType, videoId: string) =>
-    invoke<StreamsResult>("streams", { ty: type, videoId, altIds: playContext.altIds(videoId) ?? null }),
-  resolveStream: (stream: Stream) => invoke<Playable>("resolve_stream", { stream }),
+    call<StreamsResult>("streams", { ty: type, videoId, altIds: playContext.altIds(videoId) ?? null }),
+  resolveStream: (stream: Stream) => call<Playable>("resolve_stream", { stream }),
   /** The link check mpv_load runs, for the built-in player: the URL to open, or why it won't play. */
-  streamProbe: (url: string, probeId: number) => invoke<string>("stream_probe", { url, probeId }),
+  streamProbe: (url: string, probeId: number) => call<string>("stream_probe", { url, probeId }),
   subtitles: (type: ContentType, videoId: string) =>
-    invoke<SubtitleOption[]>("subtitles", { ty: type, videoId }),
-  subtitleVtt: (url: string) => invoke<string>("subtitle_vtt", { url }),
+    call<SubtitleOption[]>("subtitles", { ty: type, videoId }),
+  subtitleVtt: (url: string) => call<string>("subtitle_vtt", { url }),
   seekPreviews: (videoId: string, durationMs: number) =>
-    invoke<SeekTrack | null>("seek_previews", { videoId, durationMs }),
-  skipSegments: (videoId: string) => invoke<SkipSegments>("skip_segments", { videoId }),
-  seekrValidate: (key: string) => invoke<string | null>("seekr_validate", { key }),
+    call<SeekTrack | null>("seek_previews", { videoId, durationMs }),
+  skipSegments: (videoId: string) => call<SkipSegments>("skip_segments", { videoId }),
+  seekrValidate: (key: string) => call<string | null>("seekr_validate", { key }),
   /** Rotten Tomatoes, Metacritic, Letterboxd… (empty without a ratings key in Settings → Services). */
-  ratings: (type: ContentType, id: string) => invoke<ExternalRatings>("ratings", { ty: type, id }),
+  ratings: (type: ContentType, id: string) => call<ExternalRatings>("ratings", { ty: type, id }),
 
-  addons: () => invoke<InstalledAddon[]>("addons_list"),
-  installAddon: (url: string) => invoke<InstalledAddon>("addon_install", { url }).then(changed),
-  removeAddon: (id: string) => invoke<void>("addon_remove", { id }).then(changed),
+  addons: () => call<InstalledAddon[]>("addons_list"),
+  installAddon: (url: string) => call<InstalledAddon>("addon_install", { url }).then(changed),
+  removeAddon: (id: string) => call<void>("addon_remove", { id }).then(changed),
 
-  library: () => invoke<LibraryItem[]>("library_list"),
-  toggleLibrary: (item: MetaPreview) => invoke<boolean>("library_toggle", { item }),
-  progressFor: (metaId: string) => invoke<Progress[]>("progress_for", { metaId }),
-  saveProgress: (progress: Progress) => invoke<void>("progress_save", { progress }),
+  library: () => call<LibraryItem[]>("library_list"),
+  toggleLibrary: (item: MetaPreview) => call<boolean>("library_toggle", { item }),
+  progressFor: (metaId: string) => call<Progress[]>("progress_for", { metaId }),
+  saveProgress: (progress: Progress) => call<void>("progress_save", { progress }),
   /** In one save; the last entry counts as the most recently touched. */
-  saveProgressMany: (progress: Progress[]) => invoke<void>("progress_save_many", { progress }),
-  continueWatching: () => invoke<Progress[]>("continue_watching"),
+  saveProgressMany: (progress: Progress[]) => call<void>("progress_save_many", { progress }),
+  continueWatching: () => call<Progress[]>("continue_watching"),
   /** The latest video per title you've watched (finished or under way), newest first. */
-  watchHistory: () => invoke<Progress[]>("watch_history"),
+  watchHistory: () => call<Progress[]>("watch_history"),
   /**
    * Record which id an anime is played from; library and progress kept under
    * its other ids move onto it (docs/anime-identity.md). `updatedAt` is set by
    * the backend. Resolves to whether anything changed.
    */
   linkAnime: (link: Omit<AnimeLink, "updatedAt">) =>
-    invoke<boolean>("link_anime", { link: { ...link, updatedAt: 0 } }),
-  animeLinks: () => invoke<AnimeLink[]>("anime_links"),
+    call<boolean>("link_anime", { link: { ...link, updatedAt: 0 } }),
+  animeLinks: () => call<AnimeLink[]>("anime_links"),
 
   // Profile spaces & sync (src-tauri/src/sync.rs). `space` = profile id.
-  activateSpace: (space: string | null) => invoke<void>("space_activate", { space }),
-  importLocalInto: (space: string) => invoke<void>("space_import_local", { space }),
-  forgetSpace: (space: string | null) => invoke<void>("space_forget", { space }),
-  syncChanges: (space: string) => invoke<LocalChanges>("sync_changes", { space }),
-  syncMarkPushed: (space: string, cursor: number) => invoke<void>("sync_mark_pushed", { space, cursor }),
+  activateSpace: (space: string | null) => call<void>("space_activate", { space }),
+  importLocalInto: (space: string) => call<void>("space_import_local", { space }),
+  forgetSpace: (space: string | null) => call<void>("space_forget", { space }),
+  syncChanges: (space: string) => call<LocalChanges>("sync_changes", { space }),
+  syncMarkPushed: (space: string, cursor: number) => call<void>("sync_mark_pushed", { space, cursor }),
   /** `links: null` leaves the links alone (the server has none to give). */
   syncApply: (space: string, remote: { library: SyncLibraryItem[]; progress: Progress[]; links: AnimeLink[] | null }, pulledAt: string | null) =>
-    invoke<boolean>("sync_apply", { space, ...remote, pulledAt }),
+    call<boolean>("sync_apply", { space, ...remote, pulledAt }),
 
   /** Titles pulled without a name, most recent first; `fillDisplay` fills in what was found. */
-  untitled: (space: string) => invoke<TitleRef[]>("space_untitled", { space }),
-  fillDisplay: (space: string, found: TitleDisplay[]) => invoke<boolean>("space_fill_display", { space, found }),
+  untitled: (space: string) => call<TitleRef[]>("space_untitled", { space }),
+  fillDisplay: (space: string, found: TitleDisplay[]) => call<boolean>("space_fill_display", { space, found }),
 
-  settings: () => invoke<Settings>("settings_get"),
-  saveSettings: (settings: Settings) => invoke<Settings>("settings_set", { settings }).then(changed),
+  settings: () => call<Settings>("settings_get"),
+  saveSettings: (settings: Settings) => call<Settings>("settings_set", { settings }).then(changed),
   /** Every setting as it is until changed (settings sync sends only what differs). */
-  settingsDefaults: () => invoke<Settings>("settings_defaults"),
+  settingsDefaults: () => call<Settings>("settings_defaults"),
   /** Defaults again, keeping API keys and the metadata language. */
-  resetSettings: () => invoke<Settings>("settings_reset").then(changed),
+  resetSettings: () => call<Settings>("settings_reset").then(changed),
 
-  mpvAvailable: () => invoke<boolean>("mpv_available"),
+  mpvAvailable: () => call<boolean>("mpv_available"),
   /** Why saved data couldn't be read at start-up; `null` when it could. */
-  storeProblem: () => invoke<string | null>("store_problem"),
+  storeProblem: () => call<string | null>("store_problem"),
 };

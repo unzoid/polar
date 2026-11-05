@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { call } from "../platform/bridge";
 import { useQuery } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
 import { queryClient } from "../net/queries";
@@ -41,7 +41,7 @@ const downloadsKey = ["downloads"] as const;
 export function useDownloads() {
   return useQuery({
     queryKey: downloadsKey,
-    queryFn: () => invoke<Download[]>("downloads_list"),
+    queryFn: () => call<Download[]>("downloads_list"),
     // Poll only while a transfer is running.
     refetchInterval: (q) => (q.state.data?.some((d) => d.state === "downloading") ? 1000 : false),
     staleTime: Infinity,
@@ -80,7 +80,7 @@ export async function startDownload(item: MetaPreview, video: Video | undefined,
   setPending(videoId, { kind: "finding" });
   try {
     if (!downloadable(pick.stream)) throw new Error("This source plays in a browser and can't be downloaded.");
-    await invoke("download_start", {
+    await call("download_start", {
       req: {
         metaId: item.id,
         type,
@@ -105,12 +105,12 @@ export async function startDownload(item: MetaPreview, video: Video | undefined,
 }
 
 export async function pauseDownload(id: string) {
-  await invoke("download_pause", { id });
+  await call("download_pause", { id });
   await refresh();
 }
 
 export async function resumeDownload(id: string) {
-  await invoke("download_resume", { id });
+  await call("download_resume", { id });
   await refresh();
 }
 
@@ -136,7 +136,7 @@ export async function removeDownload(id: string) {
   emit();
   await new Promise((r) => setTimeout(r, LEAVE_MS));
   try {
-    await invoke("download_remove", { id });
+    await call("download_remove", { id });
     await refresh();
   } finally {
     leaving.delete(id);
@@ -145,7 +145,7 @@ export async function removeDownload(id: string) {
 }
 
 /** Show the file in Explorer / Finder. */
-export const revealDownload = (id: string) => invoke("download_reveal", { id });
+export const revealDownload = (id: string) => call("download_reveal", { id });
 
 /** 0–1, or undefined while the size is unknown. */
 export const downloadFraction = (d: Download) => (d.total ? Math.min(1, d.received / d.total) : undefined);

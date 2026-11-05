@@ -1,6 +1,5 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSyncExternalStore } from "react";
-import { isTauri } from "../lib/api";
+import { appWindow, inShell } from "../lib/platform";
 
 /**
  * TV mode: the whole app goes fullscreen with a 10-foot interface driven by
@@ -17,18 +16,17 @@ function apply() {
   else delete document.documentElement.dataset.tv;
 }
 apply();
-if (on && isTauri) void getCurrentWindow().setFullscreen(true);
+if (on && inShell) void appWindow.setFullscreen(true);
 
 /**
  * Something inside the page going fullscreen and back takes the window out of
  * fullscreen with it. TV mode is always fullscreen, so put it back.
  */
-if (isTauri) {
+if (inShell) {
   const reassert = async () => {
     if (!on) return;
-    const win = getCurrentWindow();
-    if ((await win.isMinimized()) || (await win.isFullscreen())) return;
-    if (on) await win.setFullscreen(true);
+    if ((await appWindow.isMinimized()) || (await appWindow.isFullscreen())) return;
+    if (on) await appWindow.setFullscreen(true);
   };
   document.addEventListener("fullscreenchange", () => {
     if (document.fullscreenElement) return;
@@ -42,7 +40,7 @@ export function setTvMode(next: boolean) {
   on = next;
   localStorage.setItem(KEY, next ? "1" : "0");
   apply();
-  if (isTauri) void getCurrentWindow().setFullscreen(next);
+  if (inShell) void appWindow.setFullscreen(next);
   listeners.forEach((l) => l());
 }
 

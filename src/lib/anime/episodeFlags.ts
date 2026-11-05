@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
+import { call } from "../platform/bridge";
 import { keys } from "../net/queryKeys";
 
 /**
@@ -40,7 +40,7 @@ export function flagMap({ filler, recap }: FlagLists): Map<number, EpisodeFlags>
 
 async function fetchFlags(malId: number, titles: string[]): Promise<Map<number, EpisodeFlags>> {
   const slugs = [...new Set(titles.map(slug).filter(Boolean))];
-  const lists = await invoke<FlagLists>("anime_episode_flags", {
+  const lists = await call<FlagLists>("anime_episode_flags", {
     malId,
     slugs,
   }).catch(() => ({ filler: [], recap: [] }));

@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { MotionConfig } from "motion/react";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { actionFor, getPrefs, isSettingsOpen, openSettings, uiFontOf, usePrefs } from "./lib/settings";
 import type { Settings as SettingsT } from "./lib/types";
 import { NavBar } from "./components/NavBar";
@@ -28,6 +27,7 @@ import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
+import { appWindow } from "./lib/platform";
 import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
@@ -158,9 +158,7 @@ function MainApp() {
   }, [inAnime, animeEnabled, tab]);
 
   useEffect(() => {
-    void getCurrentWebview()
-      .setZoom(uiScale > 0 ? uiScale : 1)
-      .catch(() => {});
+    void appWindow.setZoom(uiScale > 0 ? uiScale : 1).catch(() => {});
   }, [uiScale]);
   const reduce = settings?.reduceMotion;
 

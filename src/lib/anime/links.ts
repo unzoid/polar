@@ -1,7 +1,8 @@
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { sync } from "../account/sync";
-import { api, isTauri } from "../api";
+import { api } from "../api";
+import { inShell } from "../platform/bridge";
 import { aliasTable, type AnimeLink } from "../library/identity";
 import { keys } from "../net/queryKeys";
 
@@ -15,7 +16,7 @@ import { keys } from "../net/queryKeys";
 
 /** Record a link; when it changed anything, what shows library and progress reloads and sync sends it. */
 export async function linkAnime(qc: QueryClient, link: Omit<AnimeLink, "updatedAt">) {
-  if (!isTauri) return;
+  if (!inShell) return;
   const changed = await api.linkAnime(link).catch(() => false);
   // A stored link can change without moving anything; it's a local read, so just ask again.
   void qc.invalidateQueries({ queryKey: keys.animeLinks });
@@ -25,7 +26,7 @@ export async function linkAnime(qc: QueryClient, link: Omit<AnimeLink, "updatedA
 }
 
 /** The stored links. */
-export const animeLinks = (): Promise<AnimeLink[]> => (isTauri ? api.animeLinks().catch(() => []) : Promise.resolve([]));
+export const animeLinks = (): Promise<AnimeLink[]> => (inShell ? api.animeLinks().catch(() => []) : Promise.resolve([]));
 
 /** The stored links as an alias table ({@link aliasTable}), for merging the same show under its ids. */
 export function useAnimeAliases(): ReadonlyMap<string, string> {

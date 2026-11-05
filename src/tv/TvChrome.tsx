@@ -1,4 +1,3 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
 import { Close, Desktop, Power, Profile, Search, Settings, Tv, Users, WatchParty } from "../components/icons";
@@ -18,6 +17,7 @@ import {
 } from "./gamepad";
 import { useBack, useFocusTrap } from "./shell";
 import { setTvMode } from "./tvMode";
+import { appWindow } from "../lib/platform";
 import { Button, IconButton } from "../components/ui/Button";
 import { Toast } from "../components/ui/Toast";
 
@@ -163,7 +163,7 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
             Desktop Mode
             {shortcutText("toggleTv") && <kbd className="tv-menu-kbd">{shortcutText("toggleTv")}</kbd>}
           </button>
-          <button className="tv-menu-item" onClick={() => void getCurrentWindow().close()}>
+          <button className="tv-menu-item" onClick={() => void appWindow.close()}>
             <Power size={28} />
             Quit Polarity
           </button>

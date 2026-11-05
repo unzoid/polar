@@ -1,7 +1,4 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { isMac } from "../lib/ui";
-
-const win = getCurrentWindow();
+import { appWindow as win, isMac } from "../lib/platform";
 
 /** Minimise / maximise / close for Windows' frameless window; macOS has its own traffic lights. */
 export function WindowControls() {

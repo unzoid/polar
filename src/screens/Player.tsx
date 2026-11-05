@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ArrowLeft,
   Captions,
@@ -17,7 +16,8 @@ import {
   VolumeMuted,
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
-import { ease, isMac } from "../lib/ui";
+import { ease } from "../lib/ui";
+import { appWindow, isMac, osName } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -61,7 +61,7 @@ import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage } from "../lib/errors";
 
-const win = getCurrentWindow();
+const win = appWindow;
 const SAVE_EVERY = 5000;
 /** In a watch party, how long a source gets to start before the next one is tried. */
 const PARTY_START_MS = 20_000;
@@ -227,7 +227,7 @@ export function Player({
     window.addEventListener("blur", hide);
     document.addEventListener("visibilitychange", onVisibility);
     root.addEventListener("mouseleave", hide);
-    const unlisten = win.onFocusChanged(({ payload: focused }) => !focused && hide());
+    const unlisten = win.onFocusChanged((focused) => !focused && hide());
     return () => {
       window.removeEventListener("blur", hide);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -1243,14 +1243,12 @@ function StartSteps({ steps, all }: { steps: StartStep[]; all: boolean }) {
   );
 }
 
-const platformName = isMac ? "macOS" : /Win/i.test(navigator.platform || navigator.userAgent) ? "Windows" : "Linux";
-
 /** Copies the redacted log, with app version, platform and player, for a bug report. */
 function CopyDetails({ steps, backend, outcome, stage }: { steps: StartStep[]; backend: string; outcome: string; stage?: StartStage }) {
   const [copied, setCopied] = useState<"yes" | "no" | null>(null);
   const copy = async () => {
     const app = await appVersion().catch(() => "unknown");
-    const text = formatReport(steps, { app, platform: platformName, backend, outcome, stage });
+    const text = formatReport(steps, { app, platform: osName, backend, outcome, stage });
     navigator.clipboard.writeText(text).then(
       () => setCopied("yes"),
       () => setCopied("no"),
