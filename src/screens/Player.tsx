@@ -67,6 +67,7 @@ import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStar
 import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage } from "../lib/errors";
+import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
 import { PlayerStatus } from "../components/player/PlayerStatus";
 import { PlayerClock, TIME_DISPLAYS } from "../components/player/PlayerClock";
 import { useMediaTime } from "../components/player/useMediaTime";
@@ -78,8 +79,6 @@ const win = appWindow;
 /** In a watch party, how long a source gets to start before the next one is tried. */
 const PARTY_START_MS = 20_000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-/** How long the player layer takes to fade back to the page (matches player.css). */
-export const PLAYER_EXIT_MS = 260;
 /** With "Up next" set to the very end, it appears this many seconds before. */
 const NEXT_UP_AT_END = 12;
 

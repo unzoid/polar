@@ -1,8 +1,15 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, type Route } from "../lib/router";
 import { forgetPlayerSourceChoices } from "../lib/playback";
-import { PLAYER_EXIT_MS, Player } from "../screens/Player";
+import { lazyNamed, whenIdle } from "../lib/ui";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
+
+/** How long the player layer takes to fade back to the page (matches player.css). */
+export const PLAYER_EXIT_MS = 260;
+
+/** Its own chunk, fetched once the app is idle so pressing Play never waits on it. */
+const Player = lazyNamed(() => import("../screens/Player"), "Player");
+export const preloadPlayer = () => whenIdle(() => void Player.preload());
 
 type PlayerRoute = Extract<Route, { name: "player" }>;
 
@@ -40,7 +47,9 @@ export function PlayerLayer({ player, leaving }: { player: PlayerRoute | null; l
   return (
     <div className="player-layer" data-leaving={leaving} inert={leaving}>
       <ErrorBoundary key={key} where="player" action={{ label: "Back", onClick: back }}>
-        <Player type={player.type} metaId={player.metaId} videoId={player.videoId} stream={player.stream} leaving={leaving} />
+        <Suspense fallback={null}>
+          <Player type={player.type} metaId={player.metaId} videoId={player.videoId} stream={player.stream} leaving={leaving} />
+        </Suspense>
       </ErrorBoundary>
     </div>
   );

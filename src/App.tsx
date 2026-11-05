@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
-import { actionFor, getPrefs, isSettingsOpen, openSettings, uiFontOf, usePrefs } from "./lib/settings";
+import { actionFor, getPrefs, isSettingsOpen, openSettings, uiFontOf, usePrefs, useSettingsOverlay } from "./lib/settings";
 import type { Settings as SettingsT } from "./lib/types";
 import { NavBar } from "./components/NavBar";
-import { PlayerLayer, usePlayerLayer } from "./components/PlayerLayer";
+import { PlayerLayer, preloadPlayer, usePlayerLayer } from "./components/PlayerLayer";
 import { useSettings } from "./lib/net";
 import { rootTab, RouterProvider, useRouter, type Route } from "./lib/router";
 import { focusSearch } from "./lib/catalog";
@@ -14,15 +14,10 @@ import { Calendar } from "./screens/Calendar";
 import { Search } from "./screens/Search";
 import { Detail } from "./screens/Detail";
 import { Anime, AnimeBrowse, AnimeSchedule } from "./screens/Anime";
-import { AnimeDetail } from "./screens/AnimeDetail";
-import { AuthScreen } from "./screens/account/AuthScreen";
-import { OnboardingScreen } from "./screens/account/OnboardingScreen";
-import { ProfilesScreen } from "./screens/account/ProfilesScreen";
 import { useAccount } from "./lib/account";
-import { TvApp } from "./tv/TvApp";
 import { ControllerToast } from "./tv/TvChrome";
 import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
-import { SettingsOverlay } from "./components/SettingsOverlay";
+import { lazyNamed } from "./lib/ui";
 import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
@@ -32,6 +27,16 @@ import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { StoreProblemToast } from "./components/StoreProblemToast";
+
+// Chunks of their own, loaded the first time they're drawn: most sessions never
+// see the sign-in screens, TV mode, Settings or an anime page (the player is in
+// PlayerLayer, preloaded once the app is idle).
+const AnimeDetail = lazyNamed(() => import("./screens/AnimeDetail"), "AnimeDetail");
+const AuthScreen = lazyNamed(() => import("./screens/account/AuthScreen"), "AuthScreen");
+const OnboardingScreen = lazyNamed(() => import("./screens/account/OnboardingScreen"), "OnboardingScreen");
+const ProfilesScreen = lazyNamed(() => import("./screens/account/ProfilesScreen"), "ProfilesScreen");
+const TvApp = lazyNamed(() => import("./tv/TvApp"), "TvApp");
+const SettingsOverlay = lazyNamed(() => import("./components/SettingsOverlay"), "SettingsOverlay");
 
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
@@ -52,7 +57,11 @@ function Screen({ route }: { route: Route }) {
     case "anime":
       return <Anime />;
     case "anime-detail":
-      return <AnimeDetail id={route.id} preview={route.preview} />;
+      return (
+        <Suspense fallback={null}>
+          <AnimeDetail id={route.id} preview={route.preview} />
+        </Suspense>
+      );
     case "anime-schedule":
       return <AnimeSchedule />;
     case "anime-browse":
@@ -92,20 +101,33 @@ export function App() {
 function Gate() {
   const { status, profile, profilesView } = useAccount();
   const { data: settings, isFetched } = useSettings();
+  const shell = <div className="account-shell" />;
   switch (status) {
     case "loading":
-      return <div className="account-shell" />;
+      return shell;
     case "signed-out":
-      return <AuthScreen />;
+      return (
+        <Suspense fallback={shell}>
+          <AuthScreen />
+        </Suspense>
+      );
     case "onboarding":
-      return <OnboardingScreen />;
+      return (
+        <Suspense fallback={shell}>
+          <OnboardingScreen />
+        </Suspense>
+      );
     case "profiles":
-      return <ProfilesScreen initial={profilesView} />;
+      return (
+        <Suspense fallback={shell}>
+          <ProfilesScreen initial={profilesView} />
+        </Suspense>
+      );
     case "guest":
     case "ready":
       // Each profile starts on its start page with its own navigation. Wait
       // for settings (a local read) so it doesn't open on Home and then jump.
-      if (!isFetched) return <div className="account-shell" />;
+      if (!isFetched) return shell;
       return (
         <RouterProvider key={profile?.id ?? "guest"} initial={[startRoute(settings?.startPage)]}>
           <MainApp />
@@ -164,6 +186,7 @@ function MainApp() {
 
   // Look for a new version shortly after launch, then every few hours (TV mode too).
   useEffect(() => startUpdateChecks(), []);
+  useEffect(() => preloadPlayer(), []);
 
   // The webview's own right-click menu (Save image as, Copy image link…) has no
   // place in the app. Titles open their own options instead (CardMenu); text
@@ -194,7 +217,13 @@ function MainApp() {
 
   return (
     <MotionConfig reducedMotion={reduce === "on" ? "always" : reduce === "off" ? "never" : "user"}>
-      {tv ? <TvApp /> : <DesktopApp />}
+      {tv ? (
+        <Suspense fallback={null}>
+          <TvApp />
+        </Suspense>
+      ) : (
+        <DesktopApp />
+      )}
       <PartyHost />
     </MotionConfig>
   );
@@ -270,9 +299,22 @@ function DesktopApp() {
       </main>
       <WhatsNewSheet />
       <PlayerLayer player={player} leaving={leaving} />
-      <SettingsOverlay />
+      <LazySettingsOverlay />
       {!playing && <CardMenuHost />}
       <TrailerHost />
     </div>
+  );
+}
+
+/** The Settings window, loaded the first time it opens, then kept (it animates its own closing). */
+function LazySettingsOverlay() {
+  const { open } = useSettingsOverlay();
+  const [opened, setOpened] = useState(open);
+  if (open && !opened) setOpened(true);
+  if (!opened) return null;
+  return (
+    <Suspense fallback={null}>
+      <SettingsOverlay />
+    </Suspense>
   );
 }
