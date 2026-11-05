@@ -78,6 +78,11 @@ bun run index
 1. Open Settings and add a Stremio addon URL.
 2. Optionally add a TMDB API key. 
 
+Settings, keys and add-on URLs are kept in `polar.json` in the app's data folder. On Linux and macOS
+only your user account can read it, and Windows keeps app data per user, but it isn't encrypted:
+other programs running as you can read your keys. Polar doesn't use the system keychain, which
+behaves differently on every system. Signed in to an account, they are synced with your other settings.
+
 ## Contributing
 
 Screenshots and recordings for the README use openly licensed films only: [docs/screenshots.md](docs/screenshots.md)

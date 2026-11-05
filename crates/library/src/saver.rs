@@ -10,6 +10,8 @@
 //! [`write_atomic`] is how every data file reaches the disk: a temp file,
 //! flushed, renamed over the old one, then the folder flushed, so a crash or a
 //! power cut leaves either the old file or the new one, never half of one.
+//! On Linux and macOS the file is readable by its owner only: it holds API
+//! keys and add-on links (no keychain, the owner's choice I-008).
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -27,7 +29,14 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let mut name = path.file_name().unwrap_or_default().to_owned();
     name.push(".tmp");
     let tmp = path.with_file_name(name);
-    let mut file = File::create(&tmp)?;
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut file = options.open(&tmp)?;
+    // `mode` only applies to a new file; a temp left over from a crash keeps its own.
+    #[cfg(unix)]
+    file.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
@@ -235,6 +244,8 @@ mod tests {
         write_atomic(&path, b"one").unwrap();
         write_atomic(&path, b"two").unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"two");
+        #[cfg(unix)]
+        assert_eq!(std::os::unix::fs::PermissionsExt::mode(&fs::metadata(&path).unwrap().permissions()) & 0o777, 0o600);
         assert!(!dir.join("data.json.tmp").exists());
         fs::remove_dir_all(dir).unwrap();
     }

@@ -11,8 +11,10 @@ removes the most cost first. Every step is a set of small commits that each leav
   can't be run here.
 - **Checks after every commit:** `bun run typecheck`, `bun run test`, `vite build`,
   `cargo test -p polar-addon -p polar-library -p polar-anime`, `cargo clippy` and `rustfmt` on those
-  crates, and the legal wording grep (work NOTES). `src-tauri` and `polar-index` don't build here
-  (WebKitGTK; T-012): edits there are checked by reading and rustfmt, and listed as unverified.
+  crates, and the legal wording grep (work NOTES). `polar-index` builds and tests here since T-012 was
+  found (a glibc static-TLS limit). `src-tauri` can't link here (no WebKitGTK) but is type-checked with
+  `cargo clippy --all-targets` against stub system libraries; what needs the running app is listed as
+  unverified.
 - **Pure logic in its own file** with a test next to the other tests (`tests/` for TS, `#[cfg(test)]`
   for Rust). Components and Tauri commands stay thin wrappers around it.
 - **Comments say why**, as the code already does. Each module directory gets a short header comment in
@@ -126,7 +128,8 @@ Done in the same migration, so the server is changed once:
   flushes. A failed write is reported by the next command until one succeeds. `polar.json` is compact
   and carries `version` (1); a file from a newer build is copied aside (`polar.v<N>-<time>.json`) before
   this one writes over it. `downloads.json` goes through `write_atomic` too. Left: settings validation and
-  whole-struct `settings_set` (M4), keychain (not asked yet).
+  whole-struct `settings_set` (M4). Keychain: no (I-008 B); `write_atomic` makes data files owner-only
+  (0600) on Linux/macOS and the README says where keys live.
 - **H9** Downloads: read timeout, resume validated with `Content-Range`, partial file kept apart.
   Done: 30 s idle timeout on the answer and on every chunk; a chunk that arrives after Pause is dropped;
   one transfer per file (a resume waits for the paused one to let go); a 206 must start where the file
