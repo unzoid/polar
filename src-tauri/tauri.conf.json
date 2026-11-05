@@ -27,7 +27,7 @@
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob: https: http:",
-        "media-src": "'self' data: blob: https: http: trailer:",
+        "media-src": "'self' data: blob: https: http:",
         "font-src": "'self' data: https:",
         "connect-src": "'self' ipc: http://ipc.localhost https://graphql.anilist.co https://api.ani.zip https://api.aniskip.com https://v3.sg.media-imdb.com https://api.github.com https://raw.githubusercontent.com https://*.supabase.co wss://*.supabase.co",
         "worker-src": "'self' blob:",
