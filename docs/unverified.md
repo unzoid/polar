@@ -11,6 +11,9 @@ with the app, and how to check each item. It grows as work lands (T-011 finishes
 
 `src-tauri` was checked with `rustfmt`, by reading and, from R4 on, with `cargo clippy
 --all-targets` against stub system libraries (it type-checks; it can't link or run here).
+Since R4's last steps it is also type-checked for Windows (`--target x86_64-pc-windows-gnu`, zig as the C
+compiler, a stub resource compiler), so the `cfg(windows)` code (mpv as its own process, the named pipe) compiles;
+the MSVC target the releases use and the macOS code (`cfg(target_os = "macos")`, `mpv_view.m`) were never compiled.
 `cargo build` / `bun tauri dev` on a desktop is the first check for every item below.
 
 ## Saving in the background (R4, H8/M4)
