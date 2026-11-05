@@ -2,8 +2,9 @@
 
 The work on this branch was done on a Linux VM with no display, no WebKitGTK and no
 mpv. `tsc`, `vite build`, `bun run test` and `cargo test` for `polar-addon`,
-`polar-anime` and `polar-library` run there; `src-tauri` does not build there, and
-nothing could be looked at on screen. This file lists what still needs a person
+`polar-anime` and `polar-library` run there; `src-tauri` does not build there. The
+screens were looked at only in a headless Chromium against a fake shell (below,
+T-051), never in the app's own window. This file lists what still needs a person
 with the app, and how to check each item. It grows as work lands (T-011 finishes it).
 
 ## Built by reading only (`src-tauri`)
@@ -186,9 +187,10 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
 
 ## Phone and tablet layouts (T-033)
 
-- No browser runs on this machine (a headless Chromium from npm hangs under the sandbox), so the layouts were
-  checked by reading the CSS, and the form-factor rules by tests (tests/formFactor.test.ts). Nothing here has
-  been seen on a phone or tablet: the mobile shells don't exist yet (cycle 3).
+- The layouts were first checked by reading the CSS, and the form-factor rules by tests
+  (tests/formFactor.test.ts); since T-051 they have been seen at 390×844 in a headless Chromium with an iPhone
+  user agent (next section). Nothing here has been seen on a real phone or tablet: the mobile shells don't
+  exist yet (cycle 3).
 - To check on Windows now (the app only starts in its shell): `bun run app`, open DevTools in the window
   (right-click → Inspect), turn on device emulation (Ctrl+Shift+M) as a Pixel or iPhone and reload: the user
   agent makes it a phone. Look for: the tabs in a bar along the bottom,
@@ -197,6 +199,32 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
   number above the title; no window buttons. As an iPad: the desktop layout with 44 px bar icons.
 - A desktop window narrower than 600 px now gets the hero and episode-list changes too (not the tab bar).
 - Touch: a tap on the playing video shows or hides the controls whatever "Clicking the video" says.
+
+## Screens in headless Chromium (T-051)
+
+- How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The
+  fake shell (src/fake-main.ts, src/lib/platform/fake) answers every command from made-up titles; nothing is
+  fetched and nothing plays. `?theme=black` and other settings go in the query string; TV mode is
+  `localStorage.setItem("polar.tvMode", "1")` in the console, then reload.
+- Seen and fixed: every desktop screen (home, Series, Movies, Anime, Library, search, a show, a film, the
+  player's start-up screen, the profile menu, every Settings page) at 1440×900 in dark and black; the same at
+  390×844 as a phone; TV mode at 1920×1080 (home, each tab, a title, its Episodes, search, the menu, Settings,
+  the player). Fixes: c395bfb, aa68e5e (Settings on a phone), 314ea46, de8af47, e31623c.
+- What Chromium can't stand in for:
+  - The app's own windows. Chromium is close to WebView2 (Windows) but not to WebKitGTK (Linux) or WKWebView
+    (macOS): look at `backdrop-filter` glass (navbar, menus, the TV menu), `field-sizing` in the Settings
+    number boxes (in WebKit the box may be wider), `text-wrap: balance` in captions, `100dvh` on a phone, and
+    the custom scrollbars. On each OS, open Settings → Sources and check "Any size" fits its box.
+  - Real artwork, logos and long names: the fixtures are flat colours with short titles. Look at a show with a
+    long name on a phone (player title, cards) and at title logos on the TV home.
+  - Anime: AniList can't be reached from the fake shell, so the Anime screens only showed their error state.
+  - Playback: the player only showed its start-up screen with a failure; the playing controls, Up Next, skip
+    buttons, subtitles and the options panels over a playing video were not seen.
+  - Fonts: Segoe UI and the system fonts of each OS aren't on this machine.
+  - TV on a TV: walked by arrow keys in the browser, not with a remote or a controller, and not at 4K or
+    with overscan.
+  - Phones: touch scrolling, the on-screen keyboard over Settings fields, notches and the home indicator
+    (safe areas are 0 in Chromium).
 
 ## Earlier items
 
