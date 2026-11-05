@@ -1,51 +1,63 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import { cachedLookup } from "../queries";
-import type { MetaPreview } from "../types";
-import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard } from "./anilist";
-import { airedEpisodes, airsWith, fetchAniZip, type AniZip, type AniZipEpisode } from "./anizip";
+import { cachedLookup } from "../net/queries";
+import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard, type BrowseFilters } from "./anilist";
+import { airedEpisodes, airsWith, cachedAniZip, type AniZip, type AniZipEpisode } from "./anizip";
+import { norm } from "./merge";
+import { oneFranchiseEach } from "./franchise";
+import { readCards, readPage } from "./responses";
+import { keys } from "../net/queryKeys";
 
-/** AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search. */
-export function useAnimeResults(query: string) {
+const browse = (search: string, genre = "", tag = ""): BrowseFilters => ({ search, genre, tag, season: "", year: 0, format: "", status: "", sort: "POPULARITY_DESC" });
+
+/**
+ * AniList's answer to a search: a genre or kind of show if it names one, otherwise a title search.
+ * AniList's search is strict where Cinemeta's forgives a typo: when it finds nothing, `retry` (the
+ * title of an animated show Cinemeta found for the same words) is searched for instead, so the
+ * anime still comes up as itself (test report 1, items 1 and 28). `retryTitle` picks it.
+ */
+export function useAnimeResults(query: string, retry?: string) {
   const lower = query.toLowerCase();
   const genre = ANIME_GENRES.find((g) => g.toLowerCase() === lower);
   const tag = genre ? undefined : ANIME_TAGS.find((t) => t.toLowerCase() === lower);
-  const q = useAnimeBrowse(
-    { search: genre || tag ? "" : query, genre: genre ?? "", tag: tag ?? "", season: "", year: 0, format: "", status: "", sort: "POPULARITY_DESC" },
-    !!query,
-  );
-  const items = q.data?.pages[0]?.media;
+  const q = useAnimeBrowse(genre || tag ? browse("", genre, tag) : browse(query), !!query);
+  const first = q.data?.pages[0]?.media;
+  const again = !genre && !tag && !!retry && retry.toLowerCase() !== lower && first?.length === 0;
+  const q2 = useAnimeBrowse(browse(retry ?? ""), again);
+  const retried = q2.data?.pages[0]?.media;
+  const items = again ? retried && retryMatches(retried, retry!) : first;
+  const searched = again ? retry! : query;
   return {
     title: genre || tag ? `${genre ?? tag} Anime` : "Anime",
-    items: items && !genre && !tag ? oneFranchiseEach(byRelevance(items, query)) : items,
-    loading: !!query && q.isLoading,
+    items: items && oneFranchiseEach(genre || tag ? items : byRelevance(items, searched)),
+    /** Every entry found, before one per franchise: what hides the same shows' Cinemeta results (a later part listed on its own, test report 1, item 10). */
+    all: items,
+    loading: !!query && (q.isLoading || (again && q2.isLoading)),
+    /** The search failed (not "found nothing"): the row says so, with a retry. */
+    failed: !!query && (again ? q2.isError : q.isError),
+    retry: () => void (again ? q2.refetch() : q.refetch()),
   };
 }
+
+
+type Found = { name: string; genres?: string[] };
 
 /**
- * A search answers with every season of a franchise (Paleblade, then each part
- * of Hundred-Night Ash War): keep the first of each, in the order given.
- * Its page has the rest as season tabs. Entries count as one franchise when
- * one is the other's prequel or sequel, directly or through the others.
+ * What to ask AniList for when the typed words find nothing: the first animated show or film the
+ * catalogs found, else their first show, else their first film. Catalog search answers often carry
+ * no genres at all (re-test 28), so the first result is the best guess there; `retryMatches` keeps
+ * that guess from bringing unrelated anime.
  */
-export function oneFranchiseEach(items: AnimeCard[]): AnimeCard[] {
-  const root = new Map<number, number>(items.map((a) => [a.id, a.id]));
-  const find = (id: number): number => {
-    const up = root.get(id)!;
-    if (up === id) return id;
-    const top = find(up);
-    root.set(id, top);
-    return top;
-  };
-  for (const a of items) for (const b of a.chain ?? []) if (root.has(b)) root.set(find(b), find(a.id));
-  const seen = new Set<number>();
-  return items.filter((a) => {
-    const r = find(a.id);
-    return !seen.has(r) && !!seen.add(r);
-  });
+export function retryTitle(series: Found[], movies: Found[]): string | undefined {
+  const all = [...series, ...movies];
+  return (all.find((m) => m.genres?.some((g) => /^anim(e|ation)$/i.test(g))) ?? series[0] ?? movies[0])?.name;
 }
 
-const norm = (s?: string | null) => (s ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+/** The entries AniList found for a guessed title that are named like it (any title starts with it). */
+export function retryMatches(items: AnimeCard[], retry: string): AnimeCard[] {
+  const q = norm(retry);
+  return items.filter((a) => [a.title.romaji, a.title.english, a.title.native].some((t) => !!q && norm(t).startsWith(q)));
+}
 
 /**
  * AniList's SEARCH_MATCH puts any title containing the words first, so a
@@ -73,7 +85,7 @@ function byRelevance(items: AnimeCard[], query: string): AnimeCard[] {
 export function useAnimeImdb(a: AnimeCard, zip: AniZip | null | undefined) {
   const qc = useQueryClient();
   return useQuery({
-    queryKey: ["anime", "imdb", a.id],
+    queryKey: keys.anime.imdb(a.id),
     enabled: zip !== undefined,
     staleTime: 6 * 60 * 60_000,
     queryFn: () => imdbForAnime(a, zip ?? null, cachedLookup(qc)),
@@ -161,30 +173,6 @@ export async function findImdbId(
   return null;
 }
 
-/**
- * Movies and series that are one of these anime, gone: the same show shouldn't
- * come up twice, and its anime page (AniList's episodes, art, airing) is the
- * one to open. Same title in any of AniList's languages, and a year that agrees.
- */
-export function withoutAnime(items: MetaPreview[] | undefined, anime: AnimeCard[] | undefined) {
-  if (!items || !anime?.length) return items;
-  const byTitle = new Map<string, (number | undefined)[]>();
-  for (const a of anime) {
-    const year = a.seasonYear ?? a.startDate?.year ?? undefined;
-    for (const t of [a.title.english, a.title.romaji, a.title.native]) {
-      const k = norm(t);
-      if (k) byTitle.set(k, [...(byTitle.get(k) ?? []), year]);
-    }
-  }
-  return items.filter((m) => {
-    const years = byTitle.get(norm(m.name));
-    if (!years) return true;
-    const year = Number(m.releaseInfo?.match(/\d{4}/)?.[0]);
-    // No year on either side: the title alone decides.
-    return !years.some((y) => !y || !year || Math.abs(y - year) <= 1);
-  });
-}
-
 /** AniList formats that are the show itself, for a Cinemeta series or movie. */
 const MAIN_FORMATS = { series: ["TV", "TV_SHORT", "ONA"], movie: ["MOVIE"] } as const;
 
@@ -198,23 +186,23 @@ const MAIN_FORMATS = { series: ["TV", "TV_SHORT", "ONA"], movie: ["MOVIE"] } as 
  * a plain series or movie.
  */
 export async function anilistForImdb(imdbId: string, title: { type: string; name: string; year?: number }): Promise<number | null> {
-  const zip = await fetchAniZip({ imdb_id: imdbId });
+  const zip = await cachedAniZip({ imdb_id: imdbId });
   const id = zip?.mappings.anilist_id;
   if (!id) return null;
   const formats: readonly string[] = title.type === "movie" ? MAIN_FORMATS.movie : MAIN_FORMATS.series;
   if (!zip.mappings.type || formats.includes(zip.mappings.type)) return id;
 
-  const data = await gql<{ Page: { media: { id: number; startDate?: { year?: number | null } }[] } }>(
+  const data = await gql(
     `query ($search: String, $formats: [MediaFormat]) {
       Page(perPage: 6) { media(type: ANIME, search: $search, format_in: $formats, sort: [SEARCH_MATCH, POPULARITY_DESC]) { id startDate { year } } }
     }`,
     { search: title.name, formats },
   ).catch(() => null);
-  const candidates = (data?.Page.media ?? []).sort(
+  const candidates = readCards(data && readPage(data, "media").items).sort(
     (a, b) => Number(a.startDate?.year !== title.year) - Number(b.startDate?.year !== title.year),
   );
   for (const c of candidates.slice(0, 3)) {
-    const z = await fetchAniZip({ anilist_id: c.id }).catch(() => null);
+    const z = await cachedAniZip({ anilist_id: c.id }).catch(() => null);
     if (z?.mappings.imdb_id === imdbId) return c.id;
   }
   return null;

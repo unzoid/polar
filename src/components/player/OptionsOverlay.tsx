@@ -2,8 +2,10 @@ import { Check, Close } from "../icons";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
+import { IconButton } from "../ui/Button";
 import type { MediaLike } from "./mpvMedia";
-import { prefersReducedMotion } from "../../lib/reducedMotion";
+import { prefersReducedMotion, useLayer } from "../../lib/ui";
+import { nearest } from "../../tv/spatial";
 
 export interface OptionItem {
   id: string;
@@ -14,7 +16,7 @@ export interface OptionItem {
   thumbnail?: string;
   /** 0–1 watch progress drawn under the thumbnail. */
   progress?: number;
-  /** Small trailing tag: "Instant", "Watched", "CAM". */
+  /** Small trailing tag: "Watched", "CAM". */
   /** Trailing tag. With `icon`, the icon is shown and `text` becomes its label. */
   badge?: { text: string; tone?: "good" | "bad"; icon?: ReactNode };
   icon?: ReactNode;
@@ -75,11 +77,10 @@ export function OptionsOverlay({
     return () => window.clearTimeout(t);
   }, [open]);
 
-  // The parent re-renders several times a second during playback and passes a
-  // fresh onClose each time; read it through a ref so nothing below re-runs
-  // (re-running would snap the lists back to the selection mid-scroll).
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // Escape through the shared dismiss stack (lib/ui/dismiss.ts), Tab kept inside, focus back to the
+  // opener on close. The parent passes a fresh onClose several times a second during playback;
+  // useLayer reads the newest without re-running anything (which would snap the lists back mid-scroll).
+  useLayer(root, open, onClose);
 
   // Once per opening: show the current choice in every column, focus it for the keyboard.
   useEffect(() => {
@@ -90,7 +91,8 @@ export function OptionsOverlay({
       const list = el.closest<HTMLElement>(".options-list");
       if (list) list.scrollTop = el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2;
     });
-    root.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
+    // Nothing chosen yet: the layer itself, so Tab and the arrows start inside it.
+    (root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? root.current)?.focus({ preventScroll: true });
   }, [open, mounted]);
 
   useEffect(() => {
@@ -99,14 +101,9 @@ export function OptionsOverlay({
       // An open dropdown inside the overlay handles its own keys.
       if (document.querySelector(".select-popup, .srcf-popover")) return;
       // A slider (the source list's size range) takes the arrows for itself.
-      if ((e.target as HTMLElement | null)?.closest?.('[role="slider"], input[type="range"]') && e.key !== "Escape") return;
+      if ((e.target as HTMLElement | null)?.closest?.('[role="slider"], input[type="range"]')) return;
       // A text field (the party code) keeps its caret keys.
-      if ((e.target as HTMLElement | null)?.matches?.('input:not([type]), input[type="text"]') && e.key !== "Escape") return;
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onCloseRef.current();
-        return;
-      }
+      if ((e.target as HTMLElement | null)?.matches?.('input:not([type]), input[type="text"]')) return;
       if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.stopPropagation();
         e.preventDefault();
@@ -127,6 +124,8 @@ export function OptionsOverlay({
       data-open={open}
       role="dialog"
       aria-modal
+      tabIndex={-1}
+      data-layer=""
       // Anywhere on the blur closes; only the columns themselves (and popups opened from them) don't.
       onPointerDown={(e) => {
         if (e.button !== 0) return;
@@ -136,9 +135,9 @@ export function OptionsOverlay({
     >
       <VideoBackdrop media={media} />
       <div className="options-shade" aria-hidden />
-      <button className="player-icon pressable options-close" onClick={onClose} aria-label="Close" title="Close (Esc)">
+      <IconButton variant="player" className="options-close" onClick={onClose} label="Close" title="Close (Esc)">
         <Close size={26} />
-      </button>
+      </IconButton>
       <div className="options-columns" data-count={columns.length}>
         {columns.map((col, c) => (
           <section key={col.title} className="options-column" data-column={c} data-size={col.size ?? "narrow"}>
@@ -229,7 +228,15 @@ function moveFocus(root: HTMLElement | null, key: string) {
   const step = key === "ArrowDown" || key === "ArrowRight" ? 1 : -1;
 
   if (hi >= 0) {
-    if (horizontal && head[hi + step]) return head[hi + step].focus();
+    // TV's filter chips come in rows (re-test 7): left/right along a row, up/down between rows,
+    // down from the last row into the list.
+    const row = active!.closest(".srcf-chiprow");
+    if (row) {
+      const inRow = head.filter((el) => row.contains(el));
+      if (horizontal) return inRow[inRow.indexOf(active!) + step]?.focus();
+      const next = nearest(active!, head.filter((el) => !row.contains(el)), key === "ArrowDown" ? "down" : "up");
+      if (next) return next.focus();
+    } else if (horizontal && head[hi + step]) return head[hi + step].focus();
     if (key === "ArrowDown") return show(items[0]);
     if (!horizontal) return;
   }
@@ -244,7 +251,11 @@ function moveFocus(root: HTMLElement | null, key: string) {
   }
   const i = items.indexOf(active as HTMLElement);
   if (i === 0 && step < 0 && head.length) {
-    return (head.find((el) => el.getAttribute("aria-pressed") === "true") ?? head[0]).focus();
+    // Into the last row of chips when there are rows, else the head's pressed control.
+    const rows = [...column.querySelectorAll(".options-head .srcf-chiprow")];
+    const last = rows.at(-1);
+    const pool = last ? head.filter((el) => last.contains(el)) : head;
+    return (pool.find((el) => el.getAttribute("aria-pressed") === "true") ?? pool[0]).focus();
   }
   show(items[Math.min(items.length - 1, Math.max(0, i + step))]);
 }

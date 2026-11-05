@@ -18,6 +18,9 @@ export type Route =
   | { name: "anime-detail"; id: number; preview?: AnimeCard }
   | { name: "anime-schedule" }
   | { name: "anime-browse"; genre?: string; tag?: string }
+  /** One of Library's collections in full; `fresh`: a playlist just made, its name selected to type over. */
+  | { name: "library-collection"; view: "saved" | "watched" | "playlists" | "downloads" }
+  | { name: "playlist"; id: string; fresh?: boolean }
   | { name: "player"; type: ContentType; metaId: string; videoId: string; stream?: Stream };
 
 export interface Entry {
@@ -50,7 +53,7 @@ export function RouterProvider({ children, initial }: { children: ReactNode; ini
   );
 
   const navigate = useCallback((route: Route) => {
-    setStack((s) => [...s, { key: nextKey++, route }].slice(-MAX_DEPTH));
+    setStack((s) => pushed(s, route, () => nextKey++));
   }, []);
   const tab = useCallback((route: TabRoute) => {
     setStack((s) =>
@@ -87,6 +90,22 @@ export function useRouter() {
   const ctx = useContext(RouterContext);
   if (!ctx) throw new Error("useRouter outside RouterProvider");
   return ctx;
+}
+
+/**
+ * `stack` with `route` on top. The player always goes over its title's page, so Back from it lands
+ * there whatever started it (Continue Watching, Downloads, a card's menu: test report 1, item 5);
+ * a second Back returns to where you were. Deep stacks drop their oldest pushed pages, never the
+ * tab at the bottom (rootTab reads it).
+ */
+export function pushed(stack: Entry[], route: Route, key: () => number): Entry[] {
+  const top = stack[stack.length - 1].route;
+  const add: Route[] = [];
+  if (route.name === "player" && top.name !== "player" && top.name !== "anime-detail" && !(top.name === "detail" && top.id === route.metaId))
+    add.push({ name: "detail", type: route.type, id: route.metaId });
+  add.push(route);
+  const next = [...stack, ...add.map((r) => ({ key: key(), route: r }))];
+  return next.length > MAX_DEPTH ? [next[0], ...next.slice(-(MAX_DEPTH - 1))] : next;
 }
 
 function sameRoute(a: Route, b: Route) {

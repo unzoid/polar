@@ -18,7 +18,10 @@ cc = "1"
 tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
 polar-addon.workspace = true
+polar-anime.workspace = true
 polar-index.workspace = true
+polar-library.workspace = true
+polar-player.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true
@@ -26,6 +29,7 @@ tokio.workspace = true
 futures.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
 base64 = "0.22"
 gilrs = "0.11"
 

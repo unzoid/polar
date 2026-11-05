@@ -1,10 +1,11 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
-import { ease, springs } from "../../lib/motion";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { ease, springs } from "../../lib/ui";
 import logo from "../../assets/polarity-white.png";
-import { BusyLabel } from "../../components/BusyLabel";
-import { AccountError } from "../../lib/account";
-import { useAccount } from "../../lib/account/AccountProvider";
+import { Button } from "../../components/ui/Button";
+import { TextField, type TextFieldProps } from "../../components/ui/TextField";
+import { AccountError, useAccount } from "../../lib/account";
+import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -49,7 +50,7 @@ export function AuthScreen() {
     } catch (e) {
       const isCodeError = e instanceof AccountError && (e.code === "invalid_code" || e.code === "invalid_email");
       setError({
-        message: e instanceof Error ? e.message : String(e),
+        message: errorMessage(e),
         // A code was accepted but setting up profiles failed: retrying the
         // same code won't work, but resuming the session will.
         signedIn: signedIn && !isCodeError,
@@ -103,12 +104,12 @@ export function AuthScreen() {
           <>
             <h1 className="auth-title">Sign in to Polarity</h1>
             <div className="auth-actions">
-              <button className="auth-btn auth-btn-primary" onClick={() => go("email")}>
+              <Button variant="accent" size="block" onClick={() => go("email")}>
                 Continue with email
-              </button>
-              <button className="auth-btn" onClick={skip}>
+              </Button>
+              <Button size="block" onClick={skip}>
                 Continue without an account
-              </button>
+              </Button>
             </div>
             <p className="auth-fine">
               An account keeps your profiles, library, watch history and settings in sync across devices. New here? Signing in
@@ -130,9 +131,9 @@ export function AuthScreen() {
                 onValue={setEmail}
                 autoFocus
               />
-              <button className="auth-btn" type="submit" disabled={busy} aria-busy={busy}>
-                <BusyLabel busy={busy}>Continue with email</BusyLabel>
-              </button>
+              <Button size="block" type="submit" disabled={busy} busy={busy}>
+                Continue with email
+              </Button>
             </div>
             <ErrorLine error={error} />
             <button type="button" className="auth-link" onClick={() => go("start")}>
@@ -176,9 +177,9 @@ export function AuthScreen() {
                 }}
                 autoFocus
               />
-              <button className="auth-btn auth-btn-primary" type="submit" disabled={busy || !code} aria-busy={busy}>
-                <BusyLabel busy={busy}>Continue with login code</BusyLabel>
-              </button>
+              <Button variant="accent" size="block" type="submit" disabled={busy || !code} busy={busy}>
+                Continue with login code
+              </Button>
             </div>
             <ErrorLine
               error={error}
@@ -222,24 +223,8 @@ function useCountdown(from: number, seconds: number) {
 }
 
 /** A field with no label above it (the placeholder asks; aria-label names it), as Linear's. */
-function Input({
-  value,
-  onValue,
-  className,
-  type = "text",
-  ...rest
-}: { value: string; onValue: (v: string) => void } & Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
-  return (
-    <input
-      className={className ? `auth-input ${className}` : "auth-input"}
-      type={type}
-      value={value}
-      onChange={(e) => onValue(e.target.value)}
-      spellCheck={false}
-      autoCapitalize="off"
-      {...rest}
-    />
-  );
+function Input({ onValue, type = "text", ...rest }: { value: string; onValue: (v: string) => void } & Omit<TextFieldProps, "onChange" | "look">) {
+  return <TextField look="block" type={type} onChange={onValue} spellCheck={false} autoCapitalize="off" {...rest} />;
 }
 
 function ErrorLine({ error, action }: { error: Failure | null; action?: ReactNode }) {

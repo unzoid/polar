@@ -58,14 +58,16 @@
   margin-left: auto;
   padding: 0.5rem 0.875rem;
   border-radius: var(--r-pill);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--text-2);
-  transition: color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+  transition: color var(--dur-fast) var(--ease-std), background-color var(--dur-fast) var(--ease-std);
 }
-.account-bar-link:hover {
-  color: var(--text);
-  background: rgb(255 255 255 / 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .account-bar-link:hover {
+    color: var(--text);
+    background: rgb(255 255 255 / 0.08);
+  }
 }
 .account-bar-link + .window-controls {
   margin-left: 0;
@@ -128,7 +130,7 @@
 }
 .auth-sub {
   margin: -0.875rem 0 2rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: #8a8f98;
 }
@@ -142,93 +144,24 @@
   gap: 1rem;
   width: 100%;
 }
-.auth-btn {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 2.75rem;
-  padding: 0 1.25rem;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.06);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
-  color: #f7f8f8;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition:
-    background-color 150ms ease,
-    box-shadow 150ms ease,
-    transform var(--dur-press) var(--ease-out),
-    opacity 150ms ease;
-}
-.auth-btn-primary {
-  background: var(--accent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
-  color: var(--accent-fg, #fff);
-}
-@media (hover: hover) and (pointer: fine) {
-  .auth-btn:not(:disabled):hover {
-    background: rgb(255 255 255 / 0.1);
-  }
-  .auth-btn-primary:not(:disabled):hover {
-    background: color-mix(in srgb, var(--accent) 88%, white);
-  }
-}
-.auth-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-.auth-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.35);
-}
-.auth-btn:disabled {
-  opacity: 0.55;
-}
-.auth-btn[aria-busy="true"] {
-  opacity: 1;
-  cursor: progress;
-}
-.auth-input {
-  width: 100%;
-  height: 2.75rem;
-  padding: 0 0.875rem;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  border-radius: 8px;
-  background: rgb(255 255 255 / 0.02);
-  color: #f7f8f8;
-  font-size: 0.875rem;
-  text-align: left;
-  outline: none;
-  user-select: text;
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
-}
-.auth-input::placeholder {
-  color: #62666d;
-  opacity: 1;
-}
-.auth-input:focus {
-  border-color: rgb(255 255 255 / 0.22);
-  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.05);
-}
 /* The code: the app's font with even-width digits, centred and spaced. */
-.auth-input.auth-code {
-  font-size: 1rem;
+.text-field.auth-code {
+  font-size: var(--fs-lg);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.2em;
   text-align: center;
 }
-.auth-input.auth-code::placeholder {
+.text-field.auth-code::placeholder {
   font-weight: 400;
   letter-spacing: normal;
 }
 .auth-link {
   margin-top: 1.25rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: #d0d6e0;
-  transition: color 150ms ease;
+  transition: color 150ms var(--ease-std);
 }
 .auth-link + .auth-link {
   margin-top: 0.75rem;
@@ -246,7 +179,7 @@
 }
 .auth-fine {
   margin: 2.75rem 0 0;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   line-height: 1.45;
   color: #8a8f98;
 }
@@ -256,10 +189,10 @@
   align-items: center;
   gap: 0.25rem;
   margin-top: 0.875rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   color: #eb5757;
-  animation: auth-in 300ms var(--ease-out) both;
+  animation: auth-in var(--dur-slow) var(--ease-out) both;
 }
 .auth-error .auth-link {
   margin-top: 0;
@@ -295,6 +228,13 @@
     animation-name: fade-in;
   }
 }
+/* Profile set-up and editor forms (.onboard, .onboard-group). */
+@keyframes auth-form-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
 @keyframes auth-step-in {
   from {
     opacity: 0;
@@ -315,7 +255,7 @@
   margin-top: -0.375rem;
   margin-bottom: 0.5rem;
   color: var(--text-2);
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   line-height: 1.45;
   animation: none;
 }
@@ -330,10 +270,10 @@
   margin: 0 0 1.25rem -0.625rem;
   padding: 0.375rem 0.75rem 0.375rem 0.5rem;
   border-radius: var(--r-pill);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--text-2);
-  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) var(--ease-std), color var(--dur-fast) var(--ease-std);
 }
 @media (hover: hover) and (pointer: fine) {
   .auth-back:hover {
@@ -349,52 +289,10 @@
   gap: 0.5rem;
 }
 .auth-field label {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-2);
 }
-.auth-field input {
-  width: 100%;
-  height: 3.25rem;
-  padding: 0 1rem;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-sm);
-  background: rgb(255 255 255 / 0.05);
-  color: var(--text);
-  font-size: 1rem;
-  outline: none;
-  user-select: text;
-  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, background-color var(--dur-fast) ease;
-}
-.auth-field input::placeholder {
-  color: var(--text-3);
-  opacity: 1;
-}
-.auth-field input:focus {
-  border-color: var(--text);
-  box-shadow: 0 0 0 1px var(--text);
-  background: rgb(255 255 255 / 0.07);
-}
-.auth-primary {
-  display: grid;
-  place-items: center;
-  height: 3rem;
-  margin-top: 0.25rem;
-  border-radius: var(--r-sm);
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-size: 1rem;
-  font-weight: 600;
-  transition: background-color var(--dur-fast) ease, opacity var(--dur-fast) ease;
-}
-.auth-primary:disabled {
-  opacity: 0.5;
-}
-.auth-primary[aria-busy="true"] {
-  opacity: 1;
-  cursor: progress;
-}
-
 /* Busy button label (components/BusyLabel.tsx): text and ring share one
    cell and crossfade, so the button keeps its size. */
 .busy-label {
@@ -404,8 +302,15 @@
 .busy-label > * {
   grid-area: 1 / 1;
   transition:
-    opacity 160ms ease,
+    opacity var(--dur-fast) var(--ease-std),
     scale 200ms var(--ease-out);
+}
+/* An icon and text inside keep the button's own spacing (the detail page's
+   "▶ Play First Episode" ran together). */
+.busy-label-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .busy-label .busy-ring {
   opacity: 0;
@@ -420,34 +325,31 @@
   scale: 1;
 }
 .busy-ring-solo {
-  animation: fade-in 200ms ease;
-}
-@media (hover: hover) and (pointer: fine) {
-  .auth-primary:not(:disabled):hover {
-    background: color-mix(in srgb, var(--accent) 88%, white);
-  }
+  animation: fade-in 200ms var(--ease-std);
 }
 
 .account-shell:not([data-plain]) .auth-link {
   align-self: flex-start;
   margin-top: 0;
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
   font-weight: 500;
   color: var(--text-2);
   text-decoration: underline;
   text-decoration-color: transparent;
   text-underline-offset: 3px;
-  transition: color var(--dur-fast) ease, text-decoration-color var(--dur-fast) ease;
+  transition: color var(--dur-fast) var(--ease-std), text-decoration-color var(--dur-fast) var(--ease-std);
   animation: none;
 }
-.account-shell:not([data-plain]) .auth-link:hover {
-  color: var(--text);
-  text-decoration-color: currentColor;
+@media (hover: hover) and (pointer: fine) {
+  .account-shell:not([data-plain]) .auth-link:hover {
+    color: var(--text);
+    text-decoration-color: currentColor;
+  }
 }
 .account-shell:not([data-plain]) .auth-error {
   align-items: flex-start;
   margin-top: 0;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   line-height: 1.4;
   color: var(--danger);
 }
@@ -547,7 +449,7 @@
 }
 .onboard-group h2 {
   margin-bottom: 0.5rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-2);
 }
@@ -559,7 +461,7 @@
 .onboard-choice {
   position: relative;
   border-radius: var(--r-sm);
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) ease, opacity var(--dur-fast) ease;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-std), opacity var(--dur-fast) var(--ease-std);
 }
 .onboard-choice .avatar {
   width: 100%;
@@ -586,7 +488,7 @@
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
-.onboard .auth-primary {
+.onboard-submit {
   margin-top: 0.5rem;
 }
 /* Hover and keyboard focus both lift the tile onto a soft dark card. */
@@ -598,12 +500,12 @@
   padding: 1rem 1rem 1.125rem;
   border-radius: var(--r-lg);
   color: var(--text-3);
-  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) var(--ease-std), color var(--dur-fast) var(--ease-std);
 }
 .profile-tile:focus-visible {
   outline: none;
   color: var(--text);
-  background: rgb(255 255 255 / 0.1);
+  background: var(--fill-3);
 }
 @media (hover: hover) and (pointer: fine) {
   .profile-tile:hover {
@@ -632,7 +534,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
   font-weight: 600;
 }
 .profile-tile[data-entering="true"] {
@@ -649,7 +551,7 @@
   border-radius: var(--r-md);
   background: rgb(0 0 0 / 0.45);
   color: white;
-  animation: fade-in var(--dur-fast) ease;
+  animation: fade-in var(--dur-fast) var(--ease-std);
 }
 .profile-tile-pencil {
   display: grid;
@@ -657,12 +559,12 @@
   width: 48px;
   height: 48px;
   border: 2px solid white;
-  border-radius: 50%;
+  border-radius: var(--r-round);
 }
 .profile-add .profile-tile-art {
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   color: var(--text-3);
-  transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+  transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-fast) var(--ease-std), color var(--dur-fast) var(--ease-std);
 }
 .profile-add:focus-visible .profile-tile-art {
   color: var(--text);
@@ -670,44 +572,8 @@
 @media (hover: hover) and (pointer: fine) {
   .profile-add:hover .profile-tile-art {
     color: var(--text);
-    background: rgb(255 255 255 / 0.1);
+    background: var(--fill-3);
   }
-}
-
-.profiles-manage,
-.profiles-done {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-width: 7rem;
-  height: 2.75rem;
-  padding: 0 1.375rem;
-  border-radius: var(--r-pill);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease, border-color var(--dur-fast) ease;
-}
-.profiles-manage {
-  border: 1px solid var(--hairline-strong);
-  color: var(--text-2);
-}
-.profiles-done {
-  background: var(--pill-light);
-  color: var(--text-on-light);
-}
-@media (hover: hover) and (pointer: fine) {
-  .profiles-manage:hover {
-    color: var(--text);
-    border-color: var(--text-2);
-  }
-  .profiles-done:hover {
-    background: white;
-  }
-}
-.profiles-danger {
-  color: var(--danger);
-  border-color: rgb(255 107 94 / 0.5);
 }
 
 /* --- Profile editor */
@@ -731,7 +597,7 @@
   align-self: flex-start;
   width: 128px;
   border-radius: var(--r-md);
-  transition: transform var(--dur-press) var(--ease-out), box-shadow var(--dur-fast) ease;
+  transition: transform var(--dur-press) var(--ease-out), box-shadow var(--dur-fast) var(--ease-std);
 }
 .profile-editor-avatar .avatar {
   width: 100%;
@@ -752,13 +618,13 @@
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 0.7);
+  border-radius: var(--r-round);
+  background: var(--scrim-3);
   box-shadow: 0 0 0 1.5px white;
   color: white;
 }
 .profile-editor-fields .auth-link {
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 
 /* --- Icon picker */
@@ -812,7 +678,7 @@
 .icon-choice {
   position: relative;
   border-radius: var(--r-md);
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) ease;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-std);
 }
 .icon-choice .avatar {
   width: 100%;
@@ -839,7 +705,7 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: var(--text);
   color: var(--text-on-light);
   box-shadow: 0 0 0 3px var(--bg);
@@ -851,7 +717,7 @@
   padding: 0.125rem 0.4375rem;
   border-radius: var(--r-pill);
   background: rgb(0 0 0 / 0.6);
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 600;
   color: white;
 }
@@ -862,19 +728,9 @@
   flex-direction: column;
   gap: 0.75rem;
 }
-.profile-editor-name {
-  height: 2.75rem;
-  padding: 0 0.875rem;
-  border: 1px solid var(--hairline-strong);
-  border-radius: var(--r-sm);
-  background: rgb(255 255 255 / 0.05);
-  font-size: 1.0625rem;
-  outline: none;
-  user-select: text;
-  transition: border-color var(--dur-fast) ease;
-}
-.profile-editor-name:focus {
-  border-color: var(--text);
+/* The name reads large, like the tile under the avatar. */
+.text-field.profile-editor-name {
+  font-size: var(--fs-xl);
 }
 .profile-editor-actions {
   display: flex;
@@ -890,7 +746,7 @@
   height: 36px;
   margin-left: 0.25rem;
   border-radius: var(--r-sm);
-  transition: box-shadow var(--dur-fast) ease;
+  transition: box-shadow var(--dur-fast) var(--ease-std);
 }
 .navbar-profile .avatar {
   width: 32px;
@@ -901,49 +757,12 @@
   outline: none;
   box-shadow: 0 0 0 2px var(--text-2);
 }
-.navbar-signin {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  margin-left: 0.25rem;
-  padding: 0 0.875rem;
-  border-radius: var(--r-pill);
-  background: var(--pill-light);
-  color: var(--text-on-light);
-  font-size: 0.875rem;
-  font-weight: 600;
-  white-space: nowrap; /* never wraps to two lines when the bar is tight */
-  touch-action: manipulation;
-}
 @media (max-width: 860px) {
-  .navbar-signin {
-    margin-left: 0;
-    padding: 0 0.75rem;
-    font-size: 0.8125rem;
-  }
   .navbar-profile {
     margin-left: 0;
   }
 }
 
-.profile-menu {
-  /* Same surface as the title right-click menu (.ctx-menu in cards.css). */
-  min-width: 240px;
-  padding: 5px;
-  border-radius: 13px;
-  background: rgb(20 20 22 / 0.6);
-  backdrop-filter: blur(12px) saturate(1.6);
-  -webkit-backdrop-filter: blur(12px) saturate(1.6);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.32),
-    0 0 0 1px rgb(0 0 0 / 0.85),
-    0 6px 20px rgb(0 0 0 / 0.3);
-  -webkit-font-smoothing: antialiased;
-  color: rgb(255 255 255 / 0.85);
-  outline: none;
-}
 .profile-menu-head {
   display: flex;
   align-items: center;
@@ -956,7 +775,7 @@
 }
 .profile-menu-head strong {
   display: block;
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
 }
 .profile-menu-head span {
   display: block;
@@ -964,46 +783,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 /* Keep the email private on screen shares; reveal on hover. */
 .profile-menu-email {
   filter: blur(3px);
-  transition: filter var(--dur-fast) ease;
+  transition: filter var(--dur-fast) var(--ease-std);
+  overflow-wrap: anywhere;
 }
-.profile-menu-head:hover .profile-menu-email {
+/* On touch a press reveals it (hover is a mouse's). */
+.profile-menu-head:active .profile-menu-email {
   filter: none;
 }
-.profile-menu-item {
+@media (hover: hover) and (pointer: fine) {
+  .profile-menu-head:hover .profile-menu-email {
+    filter: none;
+  }
+}
+
+/* Sign out with unsynced changes (components/SignOutDialog.tsx, in the party dialog's look). */
+.sign-out-dialog-actions {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.5rem 0.625rem;
-  border-radius: 8px;
-  font-size: 13px;
-  color: rgb(255 255 255 / 0.85);
-  cursor: default;
-  outline: none;
-  user-select: none;
-}
-.profile-menu-item[data-highlighted] {
-  background: #0a84ff;
-  background: AccentColor;
-  color: #fff;
-}
-.profile-menu-item .avatar {
-  width: 26px;
-  border-radius: 5px;
-}
-.profile-menu-item svg[data-slot="icon"] {
-  width: 18px;
-  height: 18px;
-  margin-inline: 4px;
-}
-.profile-menu-sep {
-  height: 1px;
-  margin: 5px 11px;
-  background: rgb(255 255 255 / 0.14);
 }

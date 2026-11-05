@@ -28,8 +28,10 @@
   overflow: hidden;
   isolation: isolate;
   cursor: pointer;
+  /* Up and down still scroll the page; sideways is the card's swipe. */
+  touch-action: pan-y;
   box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.06),
+    0 0 0 1px var(--fill-2),
     0 30px 60px -30px rgb(0 0 0 / 0.8);
 }
 .hero-placeholder {
@@ -64,7 +66,7 @@
     overflow: hidden;
     cursor: pointer;
     opacity: 0.4;
-    transition: opacity var(--dur-fast) ease;
+    transition: opacity var(--dur-fast) var(--ease-std);
   }
   @media (hover: hover) and (pointer: fine) {
     .hero-peek:hover {
@@ -104,7 +106,7 @@
   height: 100%;
   filter: blur(40px) saturate(1.5) brightness(0.75);
   transform: scale(1.15); /* hide the blur's soft edges */
-  transition: opacity 600ms ease;
+  transition: opacity 600ms var(--ease-std);
 }
 .hero-ambient canvas[data-current="false"] {
   opacity: 0;
@@ -122,7 +124,7 @@
   height: 100%;
   object-fit: cover;
   object-position: center 22%;
-  transition: opacity 600ms ease;
+  transition: opacity 600ms var(--ease-std);
 }
 .hero-backdrop[data-current="false"] {
   opacity: 0;
@@ -160,7 +162,7 @@
   object-fit: contain;
   object-position: left bottom;
   margin-bottom: 0.5rem;
-  filter: drop-shadow(0 2px 18px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 2px 18px var(--scrim-1));
 }
 .hero-title {
   margin: 0 0 0.25rem;
@@ -186,13 +188,18 @@
   gap: 0.75rem;
   margin-top: 0.75rem;
 }
-.hero-next {
+/* Previous and next, side by side at the card's corner (test report 1, item 15). */
+.hero-steps {
   position: absolute;
+  z-index: 2;
   right: var(--hero-pad);
   bottom: calc(var(--hero-pad) + 1.25rem);
+  display: flex;
+  gap: 0.5rem;
 }
 .hero-pager {
   position: absolute;
+  z-index: 2;
   left: var(--hero-pad);
   right: var(--hero-pad);
   bottom: 1rem;
@@ -217,7 +224,23 @@
   margin: 0 3px;
   border-radius: var(--r-pill);
   background: rgb(255 255 255 / 0.35);
-  overflow: hidden;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-std);
+}
+/* The dot is small; what takes the click is 24px across, reaching past it. */
+.hero-dot::before {
+  content: "";
+  position: absolute;
+  inset: -9px -4px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .hero-dot:hover {
+    background: rgb(255 255 255 / 0.7);
+  }
+}
+/* The fill is clipped to the pill (the dot itself can't clip: its hit area reaches past it). */
+.hero-dot-fill {
+  border-radius: inherit;
 }
 /* Selected dot is a wider pill (swapped instantly, not animated) whose fill
    shows time until the next item — constant motion, so linear. */
@@ -266,7 +289,7 @@
   max-height: 190px;
 }
 .home .hero-kind {
-  font-size: 1rem;
+  font-size: var(--fs-lg);
 }
 .home .hero-description {
   font-size: 1.125rem;
@@ -274,7 +297,7 @@
 .home .hero-actions .btn {
   height: 54px;
   padding: 0 1.9rem;
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
 }
 .home .hero-actions .btn svg {
   width: 22px;
@@ -301,10 +324,10 @@
   gap: 1.75rem;
 }
 .home .card-caption .t-callout {
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
 }
 .home .card-caption .t-caption {
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 
 /* ==========================================================================
@@ -323,6 +346,13 @@
 }
 .row-header h2 {
   margin: 0;
+}
+/* One line: "Because you watched <a very long name>" ends in an ellipsis (the whole is the tooltip). */
+.row-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .row-viewport {
   position: relative;
@@ -389,9 +419,9 @@
   opacity: var(--edge-shown);
   /* Bright art behind the edge (a sky, a white cover) would swallow a bare
      white chevron. */
-  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.7));
+  filter: drop-shadow(0 1px 3px var(--scrim-3));
   transition:
-    opacity var(--dur-fast) ease,
+    opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .row-paddle:active svg {
@@ -406,6 +436,14 @@
 .row-viewport[data-end="true"] .row-paddle[data-dir="next"] {
   --edge-shown: 0;
   pointer-events: none;
+}
+/* Without a mouse the paddles never show, so they mustn't be there at all: a
+   tap on a shelf's edge paged it instead of opening the card under the finger,
+   and a swipe starting there didn't scroll. Fingers scroll the shelf. */
+@media (hover: none), (pointer: coarse) {
+  .row-paddle {
+    display: none;
+  }
 }
 
 /* --- Edge blur: the navbar's progressive blur, pointed any way. Stacked
@@ -427,7 +465,7 @@
   position: absolute;
   inset: 0;
   opacity: var(--edge-shown, 1);
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
   --fade: radial-gradient(var(--edge-at, ellipse 125% 100% at 50% 100%), #000 var(--solid), transparent var(--end));
   -webkit-mask-image: var(--fade);
   mask-image: var(--fade);
@@ -494,9 +532,9 @@
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  box-shadow: 0 18px 36px -8px rgb(0 0 0 / 0.7);
+  box-shadow: 0 18px 36px -8px var(--scrim-3);
   opacity: 0;
-  transition: opacity var(--dur-base) ease;
+  transition: opacity var(--dur-base) var(--ease-std);
 }
 /* Hairline ring above the art so dark images keep their edge. */
 .card-frame::after {
@@ -525,6 +563,9 @@
   padding: 1rem;
   text-align: center;
   color: var(--text-2);
+  /* One unbroken word (a long compound) breaks inside the card instead of running into the next. */
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .card-art-scrim {
   position: absolute;
@@ -541,7 +582,7 @@
   max-height: 34%;
   object-fit: contain;
   object-position: left bottom;
-  filter: drop-shadow(0 1px 8px rgb(0 0 0 / 0.5));
+  filter: drop-shadow(0 1px 8px var(--scrim-2));
 }
 .card-art-title {
   position: absolute;
@@ -566,7 +607,7 @@
   background: var(--glass-control);
   backdrop-filter: var(--blur-control);
   opacity: 0;
-  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std), transform var(--dur-press) var(--ease-out);
   border: 0;
   padding: 0;
   color: inherit;
@@ -586,8 +627,14 @@
   padding: 0 2px;
 }
 /* Settings → Browsing can hide captions, or just their second line. */
+/* Hidden from sight only: the caption stays the card's accessible name. */
 .app[data-card-titles="false"] .card-caption:not(.card-caption-keep) {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .app[data-card-details="false"] .card-caption:not(.card-caption-keep) > :not(.card-title) {
   display: none;
@@ -601,7 +648,7 @@
   align-items: center; /* don't stretch the badge to the row's height */
   min-height: 1.4rem;
   padding: 0 2px;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
 }
 /* Settings → Browsing → Rating position: only the badge in the chosen spot shows. */
 .app[data-rating-position="poster"] .card-rating[data-placement="below"],
@@ -616,7 +663,7 @@
   z-index: 1;
   min-height: 0;
   padding: 0;
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   pointer-events: none;
 }
 
@@ -632,14 +679,14 @@
 .card-score svg {
   width: 1.1em;
   height: 1.1em;
-  color: var(--score-tone, #f5c518);
+  color: var(--score-tone, var(--brand-imdb));
 }
 /* Over artwork: on a small dark pill so it reads over anything. */
 /* A solid chip, no backdrop blur: there's one on every poster, and a grid
    of them would each re-blur the art under them on every scrolled frame. */
 .card-score-art {
   padding: 0.36em 0.5em;
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   background: rgb(0 0 0 / 0.72);
   color: #fff;
   pointer-events: none;
@@ -687,12 +734,6 @@
   transition: none;
 }
 
-.skeleton-line {
-  display: block;
-  height: 0.8em;
-  border-radius: 4px;
-}
-
 /* --- Progress bars (scaleX, never width) */
 .progress-track {
   position: absolute;
@@ -703,6 +744,9 @@
   border-radius: var(--r-pill);
   background: rgb(255 255 255 / 0.28);
   overflow: hidden;
+  /* overflow + radius alone leaves a scaled (composited) fill square at its left end in some web
+     views (re-test N3); a clip path rounds both ends whatever the fill does. */
+  clip-path: inset(0 round var(--r-pill));
 }
 .progress-fill {
   height: 100%;
@@ -752,7 +796,7 @@
 }
 .card-resume-left {
   position: relative;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   line-height: 1;
   color: rgb(255 255 255 / 0.85);
@@ -764,6 +808,40 @@
 }
 .card-frame-resume .card-art-title {
   bottom: 28%;
+}
+
+/* --- Narrow screens (a phone, or a window as narrow as one): the hero's text
+   spans the card over a scrim from the bottom, and Next moves up out of its way. */
+@media (max-width: 600px) {
+  .hero-content,
+  .home .hero-content {
+    width: auto;
+    right: var(--hero-pad);
+  }
+  .hero-scrim {
+    background: linear-gradient(to top, rgb(10 10 10 / 0.8) 0%, rgb(10 10 10 / 0.35) 45%, transparent 70%);
+  }
+  .hero-steps {
+    top: var(--hero-pad);
+    bottom: auto;
+  }
+  .home .hero {
+    --hero-h: clamp(420px, 68vh, 640px);
+  }
+  .home .hero-logo {
+    max-height: 112px;
+  }
+  .home .hero-description {
+    font-size: var(--fs-base);
+  }
+  .home .hero-actions .btn {
+    height: 46px;
+  }
+}
+
+/* A phone swipes the card (Home.tsx useHeroSwipe); the dots still pick one. */
+:root[data-form="phone"] .hero-steps {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -784,127 +862,17 @@
   }
 }
 
-/* --- A title's right-click menu (CardMenu.tsx), on every platform: the
-   native macOS 26 menu, measured pixel by pixel from the system's own (dark
-   appearance). A 1px near-black ring outside a 1px light rim, 13px corners,
-   a light tint over a moderate blur so the colours behind show through, 5px
-   inset, 24px rows, 11px separators inset 16px, SF/system 13 regular. */
-.ctx-menu {
-  min-width: 200px;
-  max-width: 340px;
-  padding: 5px;
-  border-radius: 13px;
-  background: rgb(20 20 22 / 0.6);
-  backdrop-filter: blur(12px) saturate(1.6);
-  -webkit-backdrop-filter: blur(12px) saturate(1.6);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.32),
-    0 0 0 1px rgb(0 0 0 / 0.85),
-    0 6px 20px rgb(0 0 0 / 0.3);
-  font-family: var(--font);
-  -webkit-font-smoothing: antialiased;
-  letter-spacing: 0;
-  color: rgb(255 255 255 / 0.85);
-  outline: none;
-}
-/* The title as a native section header: small, bold, secondary. */
-.ctx-menu-head {
-  display: grid;
-  padding: 3px 13px 4px;
-}
-.ctx-menu-head :is(strong, span) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  line-height: 16px;
-}
-.ctx-menu-head strong {
-  font-weight: 700;
-  color: rgb(255 255 255 / 0.5);
-}
-.ctx-menu-head span {
-  color: rgb(255 255 255 / 0.35);
-}
-.ctx-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  height: 24px;
-  padding: 0 10px 0 13px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 16px;
-  color: rgb(255 255 255 / 0.85);
-  text-align: left;
-  cursor: default;
-  outline: none;
-  user-select: none;
-}
-.ctx-menu-item > span:not(.ctx-menu-check, .ctx-menu-meta) {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ctx-menu-item > svg {
-  flex: none;
-  width: 15px;
-  height: 15px;
-}
-.ctx-menu-item[data-highlighted],
-.ctx-menu-item[data-popup-open] {
-  background: #0a84ff;
-  background: AccentColor;
-  color: #fff;
-}
-.ctx-menu-item[data-disabled] {
-  color: rgb(255 255 255 / 0.25);
-}
-.ctx-menu-item > .ctx-menu-chevron {
-  width: 12px;
-  height: 12px;
-  margin-left: auto;
-}
-.ctx-menu-check,
-.ctx-menu-check svg {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 15px;
-  height: 15px;
-}
-.ctx-menu-meta {
-  margin-left: auto;
-  color: rgb(255 255 255 / 0.5);
-}
-.ctx-menu-item[data-highlighted] .ctx-menu-meta {
-  color: rgb(255 255 255 / 0.75);
-}
-.ctx-menu-sep {
-  height: 1px;
-  margin: 5px 11px;
-  background: rgb(255 255 255 / 0.14);
-}
-.ctx-menu-sep:first-child,
-.ctx-menu-sep + .ctx-menu-sep {
-  display: none;
-}
-
 /* --- Trailer over the app (Trailer.tsx). */
 .trailer-layer {
   position: fixed;
   inset: 0;
-  z-index: 900;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   padding: calc(var(--nav-h) * 0.6) var(--gutter) var(--gutter);
   background: rgb(0 0 0 / 0.78);
   backdrop-filter: blur(14px);
-  animation: trailer-in 220ms var(--ease-out);
+  animation: trailer-in var(--dur-base) var(--ease-out);
 }
 @keyframes trailer-in {
   from {
@@ -943,4 +911,9 @@ video.trailer-video {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Where the trailer comes from (IMDb, TMDB · YouTube), quietly beside its name. */
+.trailer-source {
+  flex: none;
+  color: var(--text-3);
 }

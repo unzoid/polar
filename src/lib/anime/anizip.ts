@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import { call } from "../platform/bridge";
 import type { Video } from "../types";
+import { keys } from "../net/queryKeys";
+import { queryClient } from "../net/queryClient";
+import { aniZipLimiter, limitedFetch } from "../net/limiter";
+import { readAniZip } from "./responses";
 
 /**
  * ani.zip: the bridge between anime databases and everything else. For an
@@ -41,26 +46,57 @@ export interface AniZip {
     thetvdb_id?: number | null;
     anidb_id?: number | null;
     type?: string;
+    /** Only from the Fribb/anime-lists fallback: the TVDB/TMDB season and episode offset of this entry. */
+    season?: { tvdb?: number; tmdb?: number };
+    episode_offset?: { tvdb?: number; tmdb?: number };
   };
   episodes: Record<string, AniZipEpisode>;
 }
 
-export async function fetchAniZip(params: { anilist_id: number } | { imdb_id: string } | { kitsu_id: number }): Promise<AniZip | null> {
+/**
+ * ani.zip's answer; `null` when it doesn't know the show. When ani.zip can't
+ * be reached, the ids alone from Fribb/anime-lists (kept by the app,
+ * crates/anime/src/anime_lists.rs), with no episodes or images.
+ */
+type AniZipParams = { anilist_id: number } | { imdb_id: string } | { kitsu_id: number };
+
+async function fetchAniZip(params: AniZipParams, signal?: AbortSignal): Promise<AniZip | null> {
   const [k, v] = Object.entries(params)[0];
-  const res = await fetch(`https://api.ani.zip/mappings?${k}=${encodeURIComponent(String(v))}`);
+  let res: Response;
+  try {
+    res = await limitedFetch(aniZipLimiter, `https://api.ani.zip/mappings?${k}=${encodeURIComponent(String(v))}`, { signal });
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    return fallback(k, String(v), e);
+  }
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`ani.zip answered ${res.status}`);
-  const json = (await res.json()) as AniZip;
-  return json?.mappings ? json : null;
+  if (!res.ok) return fallback(k, String(v), new Error(`ani.zip answered ${res.status}`));
+  const json: unknown = await res.json().catch(() => undefined);
+  if (json === undefined) return fallback(k, String(v), new Error("ani.zip answered with something that isn't JSON"));
+  return readAniZip(json);
 }
 
-export const aniZipQuery = (anilistId: number) => ({
-  queryKey: ["anizip", anilistId],
-  queryFn: () => fetchAniZip({ anilist_id: anilistId }),
+/** Fribb/anime-lists' ids in ani.zip's shape, or the original error if it has none. */
+async function fallback(key: string, value: string, error: unknown): Promise<AniZip | null> {
+  const mappings = await call<AniZip["mappings"] | null>("anime_ids", { key, value }).catch(() => null);
+  if (!mappings) throw error;
+  return { mappings, episodes: {} };
+}
+
+/** The query for one ani.zip record: every lookup goes through the cache, so a show is asked for once. */
+export const aniZipLookup = (params: AniZipParams) => ({
+  queryKey:
+    "anilist_id" in params ? keys.aniZip(params.anilist_id) : "imdb_id" in params ? keys.aniZipImdb(params.imdb_id) : keys.aniZipKitsu(params.kitsu_id),
+  queryFn: ({ signal }: { signal?: AbortSignal }) => fetchAniZip(params, signal),
   staleTime: 6 * 60 * 60_000,
   gcTime: 24 * 60 * 60_000,
   retry: 1,
 });
+
+export const aniZipQuery = (anilistId: number) => aniZipLookup({ anilist_id: anilistId });
+
+/** ani.zip's record (or null) through the query cache, outside a component. */
+export const cachedAniZip = (params: AniZipParams) => queryClient.fetchQuery(aniZipLookup(params));
 
 export function useAniZip(anilistId: number, enabled = true) {
   return useQuery({ ...aniZipQuery(anilistId), enabled });
@@ -86,6 +122,32 @@ export function animeArt(
     background: (franchise ? anizipImage(z, "Fanart") : undefined) ?? own ?? anizipImage(z, "Fanart"),
     logo: franchise ? anizipImage(z, "Clearlogo") : undefined,
   };
+}
+
+/**
+ * The logo at the top of an anime's page (re-test N1). `aniZipLogo` is `animeArt`'s: set only for a
+ * franchise's first entry. ani.zip's logos carry no language (one show's is in Japanese script), so
+ * the linked IMDb title's logo comes first (the catalog's, English with a TMDB key); while that title
+ * loads, the name shows rather than a logo that may change. `readable` false: a logo of unknown
+ * language, so the page puts the name under it.
+ */
+export function heroLogo({
+  aniZipLogo,
+  metaId,
+  meta,
+  metaLoading,
+}: {
+  aniZipLogo: string | undefined;
+  metaId: string | undefined;
+  meta: { logo?: string | null } | undefined;
+  metaLoading: boolean;
+}): { logo: string | undefined; readable: boolean } {
+  if (!aniZipLogo) return { logo: undefined, readable: true };
+  if (metaId?.startsWith("tt")) {
+    if (metaLoading) return { logo: undefined, readable: true };
+    if (meta?.logo) return { logo: meta.logo, readable: true };
+  }
+  return { logo: aniZipLogo, readable: false };
 }
 
 /** The regular episodes (not specials), in order. */

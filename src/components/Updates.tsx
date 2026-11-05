@@ -12,6 +12,8 @@ import {
   useUpdateDismissed,
   type WhatsNew,
 } from "../lib/updater";
+import { Button, IconButton } from "./ui/Button";
+import { Toast } from "./ui/Toast";
 
 /**
  * The bottom-centre notice for a new version. It steps through the whole flow
@@ -33,63 +35,67 @@ export function UpdateToast({ hidden }: { hidden: boolean }) {
   return (
     <>
       {visible && (
-        <div className="tv-prompt update-toast" role="status" data-phase={s.phase}>
-          <UpdateIcon />
-          <span className="tv-prompt-text">
-            {s.phase === "available" && (
-              <>
-                <strong>Polarity {s.version} is available</strong>
-                <span>You're on an older version.</span>
-              </>
-            )}
-            {s.phase === "downloading" && (
-              <>
-                <strong>Downloading Polarity {s.version}…</strong>
-                <span>{s.progress == null ? "Starting" : `${Math.round(s.progress * 100)}%`} · keep watching, it's in the background</span>
-                <span className="update-progress" aria-hidden>
-                  <span style={{ transform: `scaleX(${s.progress ?? 0.04})` }} />
-                </span>
-              </>
-            )}
-            {s.phase === "ready" && (
-              <>
-                <strong>Polarity {s.version} is ready</strong>
-                <span>Restart to finish. It takes a few seconds and you'll be right back.</span>
-              </>
-            )}
-            {s.phase === "installing" && (
-              <>
-                <strong>Installing Polarity {s.version}…</strong>
-                <span>Polarity will reopen by itself.</span>
-              </>
-            )}
-          </span>
-          {(s.phase === "available" || s.phase === "ready") && s.notes && (
-            <button className="btn btn-glass tv-prompt-go" onClick={() => setNotes(true)}>
-              What's new
-            </button>
-          )}
+        <Toast
+          className="update-toast"
+          data-phase={s.phase}
+          icon={<UpdateIcon />}
+          actions={
+            <>
+              {(s.phase === "available" || s.phase === "ready") && s.notes && (
+                <Button variant="glass" className="toast-action" onClick={() => setNotes(true)}>
+                  What's new
+                </Button>
+              )}
+              {s.phase === "available" && (
+                <Button variant="primary" className="toast-action" onClick={() => void downloadUpdate()}>
+                  Update
+                </Button>
+              )}
+              {s.phase === "ready" && (
+                <Button variant="primary" className="toast-action" onClick={() => void installUpdate()}>
+                  Restart now
+                </Button>
+              )}
+              {s.phase !== "installing" && (
+                <IconButton
+                  label={s.phase === "ready" ? "Later" : "Dismiss"}
+                  title={s.phase === "ready" ? "Later — it'll wait in the top bar" : "Dismiss"}
+                  onClick={dismissUpdate}
+                >
+                  <Close size={18} />
+                </IconButton>
+              )}
+            </>
+          }
+        >
           {s.phase === "available" && (
-            <button className="btn btn-primary tv-prompt-go" onClick={() => void downloadUpdate()}>
-              Update
-            </button>
+            <>
+              <strong>Polarity {s.version} is available</strong>
+              <span>You're on an older version.</span>
+            </>
+          )}
+          {s.phase === "downloading" && (
+            <>
+              <strong>Downloading Polarity {s.version}…</strong>
+              <span>{s.progress == null ? "Starting" : `${Math.round(s.progress * 100)}%`} · keep watching, it's in the background</span>
+              <span className="update-progress" aria-hidden>
+                <span style={{ transform: `scaleX(${s.progress ?? 0.04})` }} />
+              </span>
+            </>
           )}
           {s.phase === "ready" && (
-            <button className="btn btn-primary tv-prompt-go" onClick={() => void installUpdate()}>
-              Restart now
-            </button>
+            <>
+              <strong>Polarity {s.version} is ready</strong>
+              <span>Restart to finish. It takes a few seconds and you'll be right back.</span>
+            </>
           )}
-          {s.phase !== "installing" && (
-            <button
-              className="btn btn-icon"
-              aria-label={s.phase === "ready" ? "Later" : "Dismiss"}
-              title={s.phase === "ready" ? "Later — it'll wait in the top bar" : "Dismiss"}
-              onClick={dismissUpdate}
-            >
-              <Close size={18} />
-            </button>
+          {s.phase === "installing" && (
+            <>
+              <strong>Installing Polarity {s.version}…</strong>
+              <span>Polarity will reopen by itself.</span>
+            </>
           )}
-        </div>
+        </Toast>
       )}
       <Sheet
         open={notes && "notes" in s}
@@ -165,9 +171,9 @@ export function WhatsNewSheet() {
       <div className="whats-new">
         {info?.notes ? <ReleaseNotes text={info.notes} /> : <p>Fixes and improvements.</p>}
         <div className="whats-new-actions">
-          <button className="btn btn-primary" onClick={() => setOpen(false)}>
+          <Button variant="primary" onClick={() => setOpen(false)}>
             Got it
-          </button>
+          </Button>
           <a className="whats-new-link" href={releaseUrl(info?.version)} onClick={openExternally}>
             Full release notes
           </a>
@@ -227,7 +233,7 @@ function inline(s: string) {
 
 function UpdateIcon() {
   return (
-    <svg className="tv-prompt-icon update-icon" viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg className="toast-icon update-icon" viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7.5v8M8.5 12.5 12 16l3.5-3.5" />
     </svg>

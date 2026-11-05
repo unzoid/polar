@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import type { ContentType, SubtitleOption } from "../../lib/types";
-import { ISO3, langMatches, languageName } from "../../lib/languages";
+import { ISO3, langMatches, languageName } from "../../lib/playback";
 import { isMpv, type MediaLike, type MpvTrack } from "./mpvMedia";
+import { keys } from "../../lib/net";
+import { warnFailed } from "../../lib/errors";
 
 export interface TrackOption {
   id: string;
@@ -71,7 +73,7 @@ export function useTracks(
   onPrefRef.current = onPrefChange;
 
   const external = useQuery({
-    queryKey: ["subtitles", type, videoId],
+    queryKey: keys.subtitles(type, videoId),
     queryFn: () => api.subtitles(type, videoId),
     staleTime: 30 * 60_000,
   });
@@ -187,7 +189,7 @@ export function useTracks(
           if (!sub) return;
           const loaded = mpv.tracks.find((t) => t.type === "sub" && t["external-filename"] === sub.url);
           if (loaded) void mpv.set("sid", loaded.id);
-          else await mpv.command("sub-add", sub.url, "select", languageName(sub.lang) ?? sub.lang, ISO3[sub.lang] ?? sub.lang).catch(() => {});
+          else await mpv.command("sub-add", sub.url, "select", languageName(sub.lang) ?? sub.lang, ISO3[sub.lang] ?? sub.lang).catch(warnFailed("Adding the subtitle"));
         }
         if (remember) {
           const lang =
@@ -302,7 +304,7 @@ export function useTracks(
   const subtitles: TrackOption[] = [
     { id: OFF, label: "Off" },
     ...embedded,
-    ...externalByLang.map((s) => ({ id: `ext:${s.lang}`, label: languageName(s.lang) ?? s.lang })),
+    ...externalByLang.map((s) => ({ id: `ext:${s.lang}`, label: languageName(s.lang) ?? (s.lang || "Unknown language") })),
   ];
 
   return {

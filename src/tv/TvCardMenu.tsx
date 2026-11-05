@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode
 import { Check, Close, Info, Minus, PlaylistIcon, Plus, Reset, Watched } from "../components/icons";
 import { episodeCode } from "../lib/format";
 import { useRouter } from "../lib/router";
-import { useTitleActions } from "../lib/titleActions";
+import { useTitleActions } from "../lib/library";
 import type { MetaPreview, Progress } from "../lib/types";
 import { useBack, useFocusTrap } from "./shell";
 import { playSound } from "./sounds";

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Speed } from "../components/icons";
-import { addRecentSearch, clearRecentSearches, useRecentSearches } from "../lib/recentSearches";
+import { addRecentSearch, byDay, clearRecentSearches, dayLabel, searchMinLength, useCalendar, useRecentSearches } from "../lib/catalog";
 import { playSound } from "./sounds";
-import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/queries";
+import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/net";
 import {
   GENRES,
   progressFraction,
@@ -15,21 +15,20 @@ import {
   useTrending,
   type Shape,
   type Shelf,
-} from "../lib/shelves";
+} from "../lib/catalog";
 import type { ContentType, MetaPreview } from "../lib/types";
 import { useBack, usePageActive } from "./shell";
 import { focusWhenReady } from "./spatial";
 import { usePlaylistItem } from "../components/Playlists";
-import { usePlaylists, type PlaylistItem } from "../lib/playlists";
-import { localStream, useDownloads } from "../lib/downloads";
+import { localStream, type PlaylistItem, useDownloads, usePlaylists } from "../lib/library";
 import { episodeCode } from "../lib/format";
 import { useRouter } from "../lib/router";
 import { TvBrowse, TvCard, TvContinueRail, TvItemsRail, TvRail, TvShelfRail, type RailRow } from "./TvRails";
 import { TvKeyboard } from "./TvKeyboard";
 import { TvAnimeRail } from "./TvAnime";
-import { useAnimeResults, withoutAnime } from "../lib/anime/search";
-import { usePrefs } from "../lib/prefs";
-import { byDay, dayLabel, useCalendar } from "../lib/calendar";
+import { useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
+import { usePrefs } from "../lib/settings";
+import { EmptyState } from "../components/ui/EmptyState";
 
 const NO_TITLES: MetaPreview[] = [];
 
@@ -106,7 +105,7 @@ export function TvLibrary() {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Library</h1>
-        <p className="tv-empty">Titles you save, watch or put in a playlist appear here.</p>
+        <EmptyState variant="tv">Titles you save, watch or put in a playlist appear here.</EmptyState>
       </div>
     );
   }
@@ -202,12 +201,13 @@ export function TvSearch() {
     if (text) setGenre(null);
   }, [text]);
 
-  const searching = query.length > 1;
+  const searching = query.length >= searchMinLength(query);
   // Anime from AniList, as on desktop; a show that's anime shows once, as the anime.
   const { animeEnabled } = usePrefs();
   const anime = useAnimeResults(animeEnabled && searching ? query : "");
-  const movies = withoutAnime(data?.movies, anime.items);
-  const series = withoutAnime(data?.series, anime.items);
+  const aliases = useAnimeAliases();
+  const movies = withoutAnime(data?.movies, anime.items, aliases);
+  const series = withoutAnime(data?.series, anime.items, aliases);
   const empty =
     searching && data && !isPlaceholderData && !movies!.length && !series!.length && !anime.loading && !anime.items?.length;
 
@@ -216,7 +216,7 @@ export function TvSearch() {
   const [submits, setSubmits] = useState(0);
   const runSearch = (q: string) => {
     q = q.trim().slice(0, MAX_QUERY);
-    if (q.length < 2) return false;
+    if (q.length < searchMinLength(q)) return false;
     setText(q);
     setQuery(q);
     addRecentSearch(q);
@@ -291,7 +291,7 @@ export function TvSearch() {
             )}
           </>
         )}
-        {empty && <p className="tv-empty">Nothing found for “{query}”.</p>}
+        {empty && <EmptyState variant="tv">Nothing found for “{query}”.</EmptyState>}
       </div>
     </div>
   );
@@ -343,11 +343,11 @@ export function TvCalendar() {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Calendar</h1>
-        <p className="tv-empty">
+        <EmptyState variant="tv">
           {showCount === 0
             ? "Add shows to your library, or start watching one, and their new episodes show up here."
             : "Nothing aired in the last week, and nothing's scheduled yet for your shows."}
-        </p>
+        </EmptyState>
       </div>
     );
   }

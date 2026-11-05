@@ -12,8 +12,10 @@ import {
   unbind,
   useBindings,
   type Action,
-} from "../lib/keybinds";
-import { Close, Plus, Reset, Search } from "./icons";
+} from "../lib/settings";
+import { Close, Plus, Reset } from "./icons";
+import { SearchField } from "./ui/SearchField";
+import { Button } from "./ui/Button";
 
 /**
  * Settings → Controls & TV → Keyboard Shortcuts, laid out like an editor's
@@ -36,20 +38,11 @@ export function ShortcutSettings() {
     <section className="settings-group">
       <h2 className="settings-group-title">Keyboard Shortcuts</h2>
       <div className="shortcut-toolbar">
-        <label className="shortcut-search">
-          <Search size={16} />
-          <input
-            className="shortcut-search-input"
-            placeholder="Search shortcuts"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && query && (e.stopPropagation(), setQuery(""))}
-          />
-        </label>
-        <button className="btn" disabled={!customized} onClick={() => resetBindings()}>
+        <SearchField className="shortcut-search" value={query} onChange={setQuery} label="Search shortcuts" placeholder="Search shortcuts" />
+        <Button disabled={!customized} onClick={() => resetBindings()}>
           <Reset size={15} />
           Reset All
-        </button>
+        </Button>
       </div>
 
       {GROUPS.map((g) => {

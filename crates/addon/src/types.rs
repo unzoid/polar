@@ -130,6 +130,10 @@ pub struct Meta {
     pub director: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trailer_yt_id: Option<String>,
+    /// Where `trailer_yt_id` comes from: `"tmdb"` when TMDB's videos chose it
+    /// (played before IMDb's file), none for an addon's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trailer_source: Option<String>,
     /// Episodes (series) — empty for movies.
     #[serde(default)]
     pub videos: Vec<Video>,
@@ -220,10 +224,6 @@ pub struct Stream {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub yt_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub content_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub file_idx: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub external_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -247,6 +247,7 @@ pub struct MetaResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamsResponse {
+    #[serde(default)]
     pub streams: Vec<Stream>,
 }
 
@@ -256,7 +257,9 @@ pub struct Subtitle {
     #[serde(default)]
     pub id: String,
     pub url: String,
-    /// ISO 639-2 (`eng`) or 639-1 (`en`), as the addon provides it.
+    /// ISO 639-2 (`eng`) or 639-1 (`en`), as the addon provides it; empty when it gives none
+    /// (one such entry used to fail the whole list).
+    #[serde(default)]
     pub lang: String,
 }
 

@@ -3,73 +3,8 @@
   padding: calc(var(--nav-h) + 1.5rem) 0 4rem;
 }
 
-/* --- Settings: an account-style page. Section list on the left, one page
-       on the right; options sit in bordered cards with hairline rows.
+/* --- Settings pages (drawn in the settings overlay): options sit in bordered cards with hairline rows.
        Monochrome: colour is for the switches, the main action and errors. */
-.settings {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 760px);
-  justify-content: center;
-  gap: clamp(2rem, 6vw, 6rem);
-  padding: calc(var(--nav-h) + 2.5rem) var(--gutter) 5rem;
-}
-/* Keep the layout still when a long page brings in the scrollbar. */
-.scroll:has(> .settings) {
-  scrollbar-gutter: stable;
-}
-.settings-nav {
-  position: sticky;
-  top: calc(var(--nav-h) + 2.5rem);
-  align-self: start;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-.settings-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  height: 44px;
-  padding: 0 0.75rem;
-  border-radius: 10px;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-2);
-  text-align: left;
-  transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
-}
-.settings-nav-item[aria-current="page"] {
-  color: var(--text);
-  font-weight: 650;
-  background: rgb(255 255 255 / 0.08);
-}
-@media (hover: hover) and (pointer: fine) {
-  .settings-nav-item:not([aria-current="page"]):hover {
-    color: var(--text);
-    background: rgb(255 255 255 / 0.05);
-  }
-}
-.settings-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2.25rem;
-  min-width: 0;
-  /* Switching section is like switching tabs: instant, no entrance. */
-}
-.settings-head {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-.settings-title {
-  margin: 0;
-  font-size: 2.25rem;
-  font-weight: 750;
-  letter-spacing: -0.025em;
-  line-height: 1.1;
-}
 .settings-group {
   display: flex;
   flex-direction: column;
@@ -77,13 +12,13 @@
 }
 .settings-group-title {
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
   font-weight: 500;
   color: var(--text-2);
 }
 .settings-card {
   border: 1px solid var(--hairline-strong);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: rgb(255 255 255 / 0.025);
   overflow: hidden;
 }
@@ -113,7 +48,7 @@
   font-size: 1.05rem;
 }
 .pad-binding-row {
-  transition: background-color 400ms ease;
+  transition: background-color 400ms var(--ease-std);
 }
 .pad-binding-row[data-lit] {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
@@ -127,11 +62,11 @@
   min-width: 0;
 }
 .settings-row-title {
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
 }
 .settings-row-caption {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
@@ -149,7 +84,8 @@
   flex: none;
   width: 16rem; /* as wide as the dropdowns beside it */
 }
-/* The slider gets the room; the box is only as wide as what's in it. */
+/* The slider gets the room; the box grows with what's in it, from a width that fits "Never" and "100 %"
+   so the sliders of the rows in one card end at the same place. */
 .slider-field-slider {
   flex: 1;
   min-width: 0;
@@ -170,14 +106,14 @@
   justify-content: flex-end;
   gap: 0.25rem;
   flex: none;
-  min-width: 3rem;
+  min-width: 4.5rem;
   height: 2rem;
   padding: 0 0.5rem;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--hairline-strong);
-  background: rgb(255 255 255 / 0.04);
+  background: var(--fill-1);
   cursor: text;
-  transition: border-color var(--dur-fast) ease;
+  transition: border-color var(--dur-fast) var(--ease-std);
 }
 .slider-field-box:focus-within {
   border-color: var(--focus);
@@ -190,11 +126,17 @@
   border: 0;
   outline: 0;
   background: none;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;
   color: var(--text);
+}
+/* What 0 means ("Any size") is wider than any number the box takes, and `ch` is
+   the width of a "0": in a font with wide letters (OpenDyslexic) words outgrow
+   any cap in ch, so none (test report 1, item 32). The box sizes to its text. */
+.slider-field-box[data-zero="true"] input {
+  max-width: none;
 }
 /* What 0 means ("Never") reads as the value, not a hint. */
 .slider-field-box input::placeholder {
@@ -203,7 +145,7 @@
 }
 .slider-field-unit {
   flex: none;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 /* Accent colour picker (Settings → Appearance). */
@@ -218,7 +160,7 @@
   height: 1.5rem;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: var(--swatch);
   cursor: pointer;
   transition: transform var(--dur-press) var(--ease-out);
@@ -240,7 +182,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   color: var(--text-2);
 }
 .settings-chevron {
@@ -250,11 +192,11 @@
 }
 .settings-row-button {
   cursor: pointer;
-  transition: background-color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) var(--ease-std);
 }
 @media (hover: hover) and (pointer: fine) {
   .settings-row-button:hover {
-    background: rgb(255 255 255 / 0.04);
+    background: var(--fill-1);
   }
 }
 .settings-expand[data-open="true"] .settings-chevron {
@@ -267,18 +209,19 @@
   flex-direction: column;
   gap: 0.875rem;
   padding: 0 1.5rem 1.375rem calc(1.5rem + 20px + 1rem);
-  animation: fade-in 180ms ease;
+  animation: fade-in 180ms var(--ease-std);
 }
 .settings-expand-text {
   margin: 0;
   max-width: 60ch;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: var(--text-2);
 }
 .settings-url {
   color: var(--text-3);
   overflow-wrap: anywhere;
+  -webkit-user-select: text;
   user-select: text;
 }
 .settings-expand-form,
@@ -290,7 +233,7 @@
 .settings-expand-form-stack {
   flex-wrap: wrap;
 }
-.settings-expand-form-stack .settings-input {
+.settings-expand-form-stack .text-field {
   flex: 1 1 12rem;
 }
 /* A card holding a group of chips (Settings → Sources). */
@@ -302,7 +245,7 @@
   align-items: center;
   justify-content: space-between;
   max-width: 420px;
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
   font-weight: 500;
 }
 
@@ -317,7 +260,7 @@
   padding: 0 1.25rem 1rem;
   border-radius: calc(12px - 0.625rem + 2px);
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--fill-2);
   background:
     radial-gradient(120% 90% at 30% 20%, rgb(70 90 120 / 0.55), transparent 60%),
     radial-gradient(90% 80% at 80% 70%, rgb(120 80 60 / 0.45), transparent 60%),
@@ -348,88 +291,20 @@
   border-bottom: 0;
 }
 
-@media (max-width: 1080px) {
-  .settings {
-    grid-template-columns: minmax(0, 760px);
-    gap: 1.5rem;
-  }
-  .settings-nav {
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .settings-nav-item {
-    height: 38px;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .settings-chevron {
     transition: none;
   }
 }
 
-/* Inputs match the dropdown fields (T3 Code style): compact, a quiet border,
-   blue only while focused. */
-.settings-input {
-  flex: 1;
-  min-width: 0;
-  max-width: 420px;
-  height: 2.25rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--hairline-strong);
-  border-radius: 8px;
-  background: rgb(255 255 255 / 0.04);
-  font-size: 0.875rem;
-  outline: none;
-  user-select: text;
-  transition: border-color var(--dur-fast) ease;
-}
-.settings-input::placeholder {
-  color: var(--text-3);
-}
-.settings-input:focus {
-  border-color: var(--accent);
-}
-/* One quiet button style throughout: T3 Code's outline button (faint fill, a
-   1px top highlight, a hairline drop shadow). Same as in the overlay. */
-.settings .btn {
-  height: 2rem;
-  padding: 0 0.6875rem;
-  gap: 0.375rem;
-  border: 1px solid rgb(255 255 255 / 0.11);
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  background: rgb(255 255 255 / 0.035);
-  color: var(--text);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 1px 2px rgb(0 0 0 / 0.05);
-  backdrop-filter: none;
-}
-.settings .btn:active {
-  transform: none;
-}
-.settings .btn:disabled {
-  opacity: 0.64;
-}
-.settings .btn-danger {
-  color: var(--danger);
-}
-@media (hover: hover) and (pointer: fine) {
-  .settings .btn:not(:disabled):hover {
-    background: rgb(255 255 255 / 0.07);
-  }
-}
 .settings-footer {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 .settings-error {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--danger);
 }
 .settings-link {
@@ -437,8 +312,10 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.settings-link:hover {
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .settings-link:hover {
+    color: var(--text);
+  }
 }
 
 /* --- Keyboard shortcuts, editor-style: search on top, grouped rows, each
@@ -449,34 +326,6 @@
 }
 .shortcut-search {
   flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: 2.25rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--hairline-strong);
-  border-radius: 8px;
-  background: rgb(255 255 255 / 0.04);
-  color: var(--text-3);
-  transition: border-color var(--dur-fast) ease;
-}
-.shortcut-search:focus-within {
-  border-color: var(--accent);
-}
-.shortcut-search-input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 0.875rem;
-  color: var(--text);
-  outline: none;
-  user-select: text;
-}
-.shortcut-search-input::placeholder {
-  color: var(--text-3);
 }
 .shortcut-toolbar .btn {
   display: inline-flex;
@@ -491,7 +340,7 @@
 }
 .shortcut-group-title {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-3);
@@ -503,11 +352,15 @@
   gap: 1rem;
   min-height: 60px;
   padding: 0.625rem 1rem 0.625rem 1.25rem;
-  transition: background-color var(--dur-fast) ease;
+  transition: background-color var(--dur-fast) var(--ease-std);
 }
-.shortcut-row:hover,
 .shortcut-row[data-capturing] {
   background: rgb(255 255 255 / 0.03);
+}
+@media (hover: hover) and (pointer: fine) {
+  .shortcut-row:hover {
+    background: rgb(255 255 255 / 0.03);
+  }
 }
 .shortcut-text {
   display: flex;
@@ -519,18 +372,18 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
 /* A small dot: this one isn't the default any more. */
 .shortcut-modified {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: var(--accent);
 }
 .shortcut-when {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .shortcut-when[data-note] {
@@ -548,7 +401,7 @@
   gap: 0.375rem;
 }
 .shortcut-or {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 .shortcut-tool {
@@ -556,21 +409,27 @@
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   color: var(--text-3);
   opacity: 0;
   transition:
-    opacity var(--dur-fast) ease,
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    opacity var(--dur-fast) var(--ease-std),
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
-.shortcut-row:hover .shortcut-tool,
 .shortcut-tool:focus-visible {
   opacity: 1;
 }
-.shortcut-tool:hover {
-  background: rgb(255 255 255 / 0.08);
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .shortcut-row:hover .shortcut-tool {
+    opacity: 1;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .shortcut-tool:hover {
+    background: rgb(255 255 255 / 0.08);
+    color: var(--text);
+  }
 }
 /* The clickable shortcut: keycaps on a frame that only shows on hover. */
 .shortcut-combo {
@@ -580,15 +439,17 @@
   min-height: 30px;
   padding: 3px;
   border-radius: 7px;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   transition:
-    background-color var(--dur-fast) ease,
-    box-shadow var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    box-shadow var(--dur-fast) var(--ease-std);
 }
-button.shortcut-combo:hover {
-  background: rgb(255 255 255 / 0.06);
-  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+@media (hover: hover) and (pointer: fine) {
+  button.shortcut-combo:hover {
+    background: var(--fill-2);
+    box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  }
 }
 .shortcut-combo[data-empty] {
   padding: 0 0.625rem;
@@ -598,7 +459,7 @@ button.shortcut-combo:hover {
   min-width: 7.5rem;
   padding: 3px 4px 3px 0.625rem;
   justify-content: space-between;
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   box-shadow: inset 0 0 0 1.5px var(--accent);
   color: var(--text-2);
 }
@@ -610,9 +471,11 @@ button.shortcut-combo:hover {
   border-radius: 5px;
   color: var(--text-3);
 }
-.shortcut-capture-cancel:hover {
-  background: rgb(255 255 255 / 0.1);
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .shortcut-capture-cancel:hover {
+    background: var(--fill-3);
+    color: var(--text);
+  }
 }
 .keycaps {
   display: inline-flex;
@@ -628,10 +491,10 @@ button.shortcut-combo:hover {
   border-radius: 5px;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.05));
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.1),
-    inset 0 -1px 0 rgb(0 0 0 / 0.35);
+    inset 0 0 0 1px var(--fill-3),
+    inset 0 -1px 0 var(--scrim-1);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   line-height: 1;
   color: var(--text);
@@ -674,12 +537,12 @@ button.shortcut-combo:hover {
   padding: 1rem 1rem 1rem 1.125rem;
   overflow: hidden;
   border-radius: var(--r-lg);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
   text-align: left;
   transition:
     transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std);
 }
 .library-tile-art {
   position: absolute;
@@ -694,7 +557,7 @@ button.shortcut-combo:hover {
 }
 @media (hover: hover) and (pointer: fine) {
   .library-tile:hover {
-    background: rgb(255 255 255 / 0.1);
+    background: var(--fill-3);
   }
   .library-tile:hover .library-tile-chevron {
     transform: translateX(2px);
@@ -707,8 +570,8 @@ button.shortcut-combo:hover {
   flex: none;
   width: 2.75rem;
   height: 2.75rem;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 0.14);
+  border-radius: var(--r-round);
+  background: var(--fill-4);
   color: var(--text);
 }
 .library-tile-text {
@@ -719,7 +582,7 @@ button.shortcut-combo:hover {
   gap: 0.125rem;
 }
 .library-tile-title {
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
   font-weight: 650;
   letter-spacing: -0.01em;
 }
@@ -727,7 +590,7 @@ button.shortcut-combo:hover {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 .library-tile-chevron {
@@ -735,7 +598,26 @@ button.shortcut-combo:hover {
   opacity: 0.5;
   transition:
     transform var(--dur-fast) var(--ease-out),
-    opacity var(--dur-fast) ease;
+    opacity var(--dur-fast) var(--ease-std);
+}
+/* Phone: two tiles a row leave no room for the chevron; the name and count keep it. */
+:root[data-form="phone"] .library-collections {
+  gap: 0.625rem;
+}
+:root[data-form="phone"] .library-tile {
+  gap: 0.625rem;
+  min-height: 4.5rem;
+  padding: 0.75rem;
+}
+:root[data-form="phone"] .library-tile-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+:root[data-form="phone"] .library-tile-title {
+  font-size: var(--fs-lg);
+}
+:root[data-form="phone"] .library-tile-chevron {
+  display: none;
 }
 .library-rows {
   padding-bottom: 3rem;
@@ -799,7 +681,7 @@ button.shortcut-combo:hover {
   place-items: center;
   width: 2rem;
   height: 2rem;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: rgb(0 0 0 / 0.45);
   backdrop-filter: blur(12px);
   color: #fff;
@@ -824,7 +706,7 @@ button.shortcut-combo:hover {
   max-height: 3.75rem;
   object-fit: contain;
   object-position: left bottom;
-  filter: drop-shadow(0 2px 12px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 2px 12px var(--scrim-1));
 }
 /* Leaving (a delete): the row or title folds shut - its height through a
    1fr → 0fr grid row, so what's below slides up - while it fades and sinks
@@ -834,8 +716,8 @@ button.shortcut-combo:hover {
   display: grid;
   grid-template-rows: 1fr;
   transition:
-    grid-template-rows 220ms var(--ease-out),
-    opacity 160ms var(--ease-out);
+    grid-template-rows var(--dur-base) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
 .download-row-fold,
 .download-group-fold {
@@ -844,7 +726,7 @@ button.shortcut-combo:hover {
 }
 .download-row-inner,
 .download-group-fold {
-  transition: transform 220ms var(--ease-out);
+  transition: transform var(--dur-base) var(--ease-out);
 }
 .download-row[data-leaving],
 .download-group[data-leaving] {
@@ -862,7 +744,7 @@ button.shortcut-combo:hover {
 @media (prefers-reduced-motion: reduce) {
   .download-row,
   .download-group {
-    transition: opacity 160ms ease;
+    transition: opacity var(--dur-fast) var(--ease-std);
   }
   .download-row-inner,
   .download-group-fold {
@@ -909,7 +791,7 @@ button.shortcut-combo:hover {
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: var(--r-sm, 8px);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
 }
 .download-row-still img {
   width: 100%;
@@ -924,7 +806,7 @@ button.shortcut-combo:hover {
   background: rgb(0 0 0 / 0.25);
   color: #fff;
   opacity: 0;
-  transition: opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) var(--ease-std);
 }
 @media (hover: hover) and (pointer: fine) {
   .download-row-main:not(:disabled):hover .download-row-play {
@@ -1002,7 +884,7 @@ button.shortcut-combo:hover {
   color: var(--accent);
 }
 .calendar-date-day {
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   font-weight: 500;
   color: var(--text-3);
 }
@@ -1018,8 +900,8 @@ button.shortcut-combo:hover {
   padding: 0.5rem;
   border-radius: var(--r-md);
   text-align: left;
-  background: rgb(255 255 255 / 0.04);
-  transition: background-color var(--dur-fast) ease;
+  background: var(--fill-1);
+  transition: background-color var(--dur-fast) var(--ease-std);
 }
 @media (hover: hover) and (pointer: fine) {
   .calendar-item:hover {
@@ -1092,7 +974,7 @@ button.shortcut-combo:hover {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 0.35);
+  background: var(--scrim-1);
 }
 .playlist-cover-icon {
   margin-bottom: 30%;
@@ -1114,7 +996,7 @@ button.shortcut-combo:hover {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   box-shadow:
     0 10px 24px -6px rgb(0 0 0 / 0.6),
     0 0 0 1px rgb(255 255 255 / 0.08);
@@ -1177,7 +1059,7 @@ button.shortcut-combo:hover {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  font-size: 1.0625rem;
+  font-size: var(--fs-xl);
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.012em;
@@ -1185,7 +1067,7 @@ button.shortcut-combo:hover {
   text-shadow: 0 1px 8px rgb(0 0 0 / 0.4);
 }
 .playlist-cover-meta {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: rgb(255 255 255 / 0.7);
 }
 
@@ -1201,8 +1083,8 @@ button.shortcut-combo:hover {
   font-weight: 600;
   transition:
     transform var(--dur-base) var(--ease-out),
-    color var(--dur-fast) ease,
-    border-color var(--dur-fast) ease;
+    color var(--dur-fast) var(--ease-std),
+    border-color var(--dur-fast) var(--ease-std);
 }
 .playlist-new::before,
 .playlist-new::after {
@@ -1230,8 +1112,10 @@ button.shortcut-combo:hover {
   margin-left: -0.25rem;
   color: var(--text-2);
 }
-.playlist-back:hover {
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .playlist-back:hover {
+    color: var(--text);
+  }
 }
 .playlist-view-title {
   display: flex;
@@ -1250,15 +1134,16 @@ button.shortcut-combo:hover {
   padding: 0.25rem 0.5rem;
   margin-left: -0.5rem;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text);
   outline: none;
+  -webkit-user-select: text;
   user-select: text;
   text-overflow: ellipsis;
   transition:
-    background-color var(--dur-fast) ease,
-    box-shadow var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    box-shadow var(--dur-fast) var(--ease-std);
 }
 @media (hover: hover) and (pointer: fine) {
   .playlist-name-input:hover {
@@ -1266,7 +1151,7 @@ button.shortcut-combo:hover {
   }
 }
 .playlist-name-input:focus {
-  background: rgb(255 255 255 / 0.06);
+  background: var(--fill-2);
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 /* Two-step delete (ConfirmDeleteButton): first click turns it red and pops
@@ -1285,15 +1170,15 @@ button.shortcut-combo:hover {
   color: var(--text-2);
   transition:
     transform var(--dur-press) var(--ease-out),
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std);
 }
 .btn.btn-icon:is(.confirm-delete, .quiet-btn) svg {
   filter: none;
 }
 @media (hover: hover) and (pointer: fine) {
   .btn.btn-icon:is(.confirm-delete, .quiet-btn):hover {
-    background: rgb(255 255 255 / 0.14);
+    background: var(--fill-4);
     color: var(--text);
   }
 }
@@ -1368,7 +1253,7 @@ button.shortcut-combo:hover {
   width: 100%;
 }
 /* An empty playlist's note sits right under its title, on the same left edge. */
-.playlist-view .empty {
+.playlist-view .empty-state {
   padding-top: 0.25rem;
 }
 .playlist-remove {
@@ -1379,204 +1264,75 @@ button.shortcut-combo:hover {
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   background: rgb(0 0 0 / 0.65);
   backdrop-filter: blur(8px);
   color: #fff;
   opacity: 0;
   transition:
-    opacity var(--dur-fast) ease,
+    opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .playlist-remove:active {
   transform: scale(0.92);
 }
-.playlist-entry:hover .playlist-remove,
 .playlist-remove:focus-visible {
   opacity: 1;
 }
-
-/* "Save to playlist" popover on a title's page. */
-.playlist-menu {
-  width: 280px;
-  padding: 0.375rem;
-  border-radius: var(--r-md);
-  background: var(--glass-heavy);
-  backdrop-filter: var(--blur-glass);
-  box-shadow: 0 0 0 1px var(--glass-edge), var(--glass-highlight), 0 18px 48px rgb(0 0 0 / 0.5);
-  outline: none;
-}
-.playlist-menu-title {
-  margin: 0;
-  padding: 0.5rem 0.625rem 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-3);
-}
-.playlist-menu-list {
-  max-height: 260px;
-  overflow-y: auto;
-}
-.playlist-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  width: 100%;
-  padding: 0.5rem 0.625rem;
-  border-radius: var(--r-xs);
-  font-size: 0.875rem;
-  color: var(--text-2);
-  text-align: left;
-  outline: none;
-}
-.playlist-menu-item:hover,
-.playlist-menu-item:focus-visible {
-  background: rgb(255 255 255 / 0.1);
-  color: var(--text);
-}
-.playlist-menu-check {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  box-shadow: inset 0 0 0 1.5px var(--hairline-strong);
-  color: #fff;
-}
-.playlist-menu-item[aria-checked="true"] .playlist-menu-check {
-  background: var(--accent);
-  box-shadow: none;
-  color: var(--accent-fg);
-}
-.playlist-menu-new .playlist-menu-check {
-  box-shadow: none;
-  color: var(--text-2);
-}
-.playlist-menu-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.playlist-menu-count {
-  font-size: 0.75rem;
-  color: var(--text-3);
-}
-.playlist-menu-list + .playlist-menu-item,
-.playlist-menu-list + .playlist-menu-form {
-  margin-top: 0.25rem;
-  border-top: 1px solid var(--hairline);
-}
-.playlist-menu-form {
-  display: flex;
-  gap: 0.375rem;
-  padding: 0.5rem 0.25rem 0.25rem;
-}
-.playlist-menu-form .settings-input {
-  height: 2rem;
-}
-.playlist-menu-form .btn {
-  height: 2rem;
-  padding: 0 0.75rem;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-/* Toggle switch on a native checkbox (accessible by default), styled like
-   macOS: a blue gradient track with a lit top edge, and a white thumb that
-   sits on a soft shadow. */
-.switch {
-  -webkit-appearance: none;
-  appearance: none;
-  position: relative;
-  width: 46px;
-  height: 28px;
-  border-radius: var(--r-pill);
-  flex: none;
-  background: rgb(122 122 122 / 0.36);
-  box-shadow:
-    inset 0 0 0 0.5px rgb(0 0 0 / 0.25),
-    inset 0 1px 2px rgb(0 0 0 / 0.25);
-  transition: box-shadow var(--dur-base) ease;
-}
-/* The "on" track is a gradient, which can't be transitioned: it's a layer of
-   its own that fades in, instead of the track snapping from grey to blue. */
-.switch::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(180deg, var(--accent-hi) 0%, var(--accent) 100%);
-  opacity: 0;
-  transition: opacity var(--dur-base) ease;
-}
-.switch:checked::before {
-  opacity: 1;
-}
-.switch::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: linear-gradient(180deg, #ffffff 0%, #f1f1f4 100%);
-  box-shadow:
-    0 0 0 0.5px rgb(0 0 0 / 0.08),
-    0 3px 6px rgb(0 0 0 / 0.3),
-    0 1px 1px rgb(0 0 0 / 0.2);
-  /* Width and position move together: the press stretch and the slide are
-     one motion, not a snap followed by a glide. */
-  transition:
-    transform var(--dur-base) var(--ease-out),
-    width var(--dur-base) var(--ease-out);
-}
-.switch:checked {
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 50%, rgb(0 0 0 / 0.5)),
-    inset 0 1px 1px rgb(255 255 255 / 0.4),
-    inset 0 -1px 2px color-mix(in srgb, var(--accent) 30%, rgb(0 0 0 / 0.2));
-}
-.switch:checked::after {
-  transform: translateX(18px);
-}
-/* Pressing stretches the thumb, like the real thing. */
-.switch:active::after {
-  width: 28px;
-}
-.switch:active:checked::after {
-  transform: translateX(14px);
-}
-.switch:disabled {
-  opacity: 0.4;
-}
-/* Reduced motion: the thumb jumps, but the track still crossfades its colour. */
-@media (prefers-reduced-motion: reduce) {
-  .switch::after {
-    transition: none;
-  }
-}
-
-/* The action you're meant to take: the same button, tinted with the accent. */
-.settings .btn-primary {
-  border-color: color-mix(in oklab, var(--accent) 45%, transparent);
-  background: color-mix(in oklab, var(--accent) 16%, transparent);
-  color: color-mix(in oklab, var(--accent) 35%, white);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, var(--accent) 22%, transparent),
-    0 1px 2px rgb(0 0 0 / 0.05);
-}
 @media (hover: hover) and (pointer: fine) {
-  .settings .btn-primary:not(:disabled):hover {
-    background: color-mix(in oklab, var(--accent) 24%, transparent);
+  .playlist-entry:hover .playlist-remove {
+    opacity: 1;
   }
 }
+
 
 /* Right under the header's line, not a screen's height away. */
 .calendar-empty {
   padding-top: 0;
+}
+
+/* Settings → About → Credits: one source per line, its name a link. */
+.settings-credits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.settings-credits li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.settings-credit-name {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.settings-credit-name:hover {
+    text-decoration: underline;
+  }
+}
+span.settings-credit-name {
+  cursor: default;
+}
+/* TMDB's logo over its notice: their logo rules want it less prominent than Polar's. */
+.settings-credits-tmdb-block {
+  display: block;
+  padding-top: 0.25rem;
+}
+.settings-credits-tmdb {
+  display: block;
+  height: 12px;
+  width: auto;
+  margin-top: 12px;
+  user-select: none;
 }

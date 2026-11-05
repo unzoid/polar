@@ -6,3 +6,7 @@ src-tauri/gen/
 .DS_Store
 .env
 src-tauri/vendor/
+e2e/.results/
+e2e/.report/
+.claude/skills/
+.agents/skills/

@@ -1,33 +1,36 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { prefetchTitlePage } from "../lib/anime";
 import { AmbientWash } from "../components/AmbientWash";
-import { Check, ChevronRight, Play, Plus } from "../components/icons";
+import { ChevronLeft, ChevronRight, Play } from "../components/icons";
 import { Img } from "../components/Img";
-import { TitleLogo } from "../components/TitleLogo";
-import { CardSkeleton, LandscapeCard, PosterCard, ProgressBar, useIntent } from "../components/PosterCard";
+import { TitleHeading } from "../components/title/TitleHeading";
+import { LandscapeCard, PosterCard, useIntent } from "../components/PosterCard";
+import { ArtTitle, Card, ProgressBar } from "../components/title/Card";
+import { Shelf } from "../components/title/Shelf";
 import { Row } from "../components/Row";
-import { SwapIcon } from "../components/SwapIcon";
 import { api } from "../lib/api";
-import { episodeCode, formatRemaining } from "../lib/format";
+import { episodeCode, formatRemaining, joinFacts, kindFacts } from "../lib/format";
 import {
   keys,
   preloadImage,
   useCatalog,
   useContinueWatching,
-  useLibrary,
   useRecommend,
   useSettings,
-  useToggleLibrary,
-} from "../lib/queries";
-import { prefersReducedMotion } from "../lib/reducedMotion";
+} from "../lib/net";
+import { prefersReducedMotion, useNearViewport } from "../lib/ui";
 import { useRouter } from "../lib/router";
-import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf } from "../lib/shelves";
+import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/catalog";
 import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
+import { Button, IconButton } from "../components/ui/Button";
+import { LibraryButton } from "../components/title/LibraryButton";
+import { Skeleton } from "../components/ui/Skeleton";
 
 /**
  * The page, top to bottom: featured carousel, what you're watching, then the
- * day's shelves (lib/shelves.ts). A title already shown higher up (the
+ * day's shelves (lib/catalog/shelves.ts). A title already shown higher up (the
  * carousel included) is left out of the shelves below it. Shelves below the
  * fold only fetch when scrolled near.
  */
@@ -116,10 +119,14 @@ export function HeroCarousel({
     if (items && count) preloadImage(items[(index + 1) % count].background);
   }, [items, index, count]);
 
+  // A sideways swipe on touch steps through the titles, as the arrows do.
+  const swiped = useRef(false);
+  const swipeHandlers = useHeroSwipe(count > 1, (dir) => setIndex((index + dir + count) % count), swiped);
+
   if (!items || !item) {
     return (
       <section className="hero">
-        <div className="hero-card hero-placeholder skeleton" />
+        <Skeleton className="hero-card hero-placeholder" />
       </section>
     );
   }
@@ -145,8 +152,16 @@ export function HeroCarousel({
         ref={hero}
         onPointerEnter={() => setPaused(true)}
         onPointerLeave={() => setPaused(false)}
-        // The whole card opens the title, except where its own controls sit.
-        onClick={(e) => !(e.target as Element).closest("button, a") && h.onClick()}
+        {...swipeHandlers}
+        // The whole card opens the title, except where its own controls sit (or a swipe just ended on it).
+        onClick={(e) => !swiped.current && !(e.target as Element).closest("button, a") && h.onClick()}
+        // ← and → step through the featured titles while focus is on the card's controls.
+        onKeyDown={(e) => {
+          if (count < 2 || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          setIndex((index + (e.key === "ArrowLeft" ? count - 1 : 1)) % count);
+        }}
         onContextMenu={h.onContextMenu}
       >
         <div className="hero-art">
@@ -184,18 +199,59 @@ export function HeroCarousel({
             ))}
           </div>
         </div>
-        <button
-          className="hero-next btn btn-glass btn-icon pressable"
-          aria-label="Next featured"
-          onClick={() => setIndex((index + 1) % count)}
-        >
-          <ChevronRight size={22} />
-        </button>
+        {count > 1 && (
+          <div className="hero-steps">
+            <IconButton variant="glass" className="hero-next pressable" label="Previous featured" onClick={() => setIndex((index - 1 + count) % count)}>
+              <ChevronLeft size={22} />
+            </IconButton>
+            <IconButton variant="glass" className="hero-next pressable" label="Next featured" onClick={() => setIndex((index + 1) % count)}>
+              <ChevronRight size={22} />
+            </IconButton>
+          </div>
+        )}
       </div>
       {count > 1 && <HeroPeek item={items[(index + 1) % count]} side="next" onClick={() => setIndex((index + 1) % count)} />}
       </div>
     </section>
   );
+}
+
+/** Below this many pixels sideways a touch is a tap. */
+const SWIPE_MIN_PX = 12;
+/** Past either, the swipe turns the page: a long drag or a quick flick (px per ms), whichever comes first. */
+const SWIPE_DISTANCE_PX = 56;
+const SWIPE_VELOCITY = 0.3;
+
+/**
+ * Touch swipes on the featured card (mouse and pen keep their click). The card
+ * lets the page scroll up and down (`touch-action: pan-y`), so a vertical move
+ * cancels the pointer and only sideways ones reach here. `swiped` stays set
+ * until the click that follows the lifted finger, so that click doesn't open
+ * the title.
+ */
+function useHeroSwipe(enabled: boolean, step: (dir: 1 | -1) => void, swiped: React.RefObject<boolean>) {
+  const start = useRef<{ id: number; x: number; y: number; t: number } | null>(null);
+  if (!enabled) return {};
+  return {
+    onPointerDown: (e: React.PointerEvent) => {
+      swiped.current = false;
+      if (e.pointerType !== "touch" || !e.isPrimary) return;
+      start.current = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const s = start.current;
+      start.current = null;
+      if (!s || s.id !== e.pointerId) return;
+      const dx = e.clientX - s.x;
+      if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(e.clientY - s.y)) return;
+      swiped.current = true;
+      const velocity = Math.abs(dx) / Math.max(1, e.timeStamp - s.t);
+      if (Math.abs(dx) >= SWIPE_DISTANCE_PX || velocity > SWIPE_VELOCITY) step(dx < 0 ? 1 : -1);
+    },
+    onPointerCancel: () => {
+      start.current = null;
+    },
+  };
 }
 
 /**
@@ -214,35 +270,18 @@ function HeroPeek({ item, side, onClick }: { item: MetaPreview; side: "prev" | "
 function HeroContent({ item }: { item: MetaPreview }) {
   const { navigate } = useRouter();
   const intent = useIntent(item);
-  const { data: library } = useLibrary();
-  const toggle = useToggleLibrary();
-  const inLibrary = library?.some((l) => l.id === item.id);
   const open = () => navigate({ name: "detail", type: item.type, id: item.id, preview: item });
 
   return (
     <div className="hero-content">
-      {item.logo ? (
-        <TitleLogo src={item.logo} alt={item.name} className="hero-logo" loading="eager" />
-      ) : (
-        <h1 className="t-display hero-title">{item.name}</h1>
-      )}
-      <p className="hero-kind t-callout">
-        {[item.type === "movie" ? "Movie" : "Series", ...(item.genres ?? []).slice(0, 2)].join(" · ")}
-      </p>
+      <TitleHeading name={item.name} logo={item.logo} look="hero" />
+      <p className="hero-kind t-callout">{joinFacts(kindFacts(item))}</p>
       <p className="hero-description t-body">{item.description}</p>
       <div className="hero-actions">
-        <button className="btn btn-primary" onClick={open} {...intent}>
+        <Button variant="primary" onClick={open} {...intent}>
           <Play size={18} fill="currentColor" /> Watch Now
-        </button>
-        <button
-          className="btn btn-glass btn-icon"
-          onClick={() => toggle.mutate(item)}
-          aria-label={inLibrary ? "Remove from Library" : "Add to Library"}
-          title={inLibrary ? "Remove from Library" : "Add to Library"}
-          aria-pressed={inLibrary}
-        >
-          <SwapIcon state={library && (inLibrary ? "in" : "out")}>{inLibrary ? <Check size={20} /> : <Plus size={20} />}</SwapIcon>
-        </button>
+        </Button>
+        <LibraryButton item={item} />
       </div>
     </div>
   );
@@ -253,7 +292,7 @@ function HeroContent({ item }: { item: MetaPreview }) {
 /** With fewer fresh titles than this, a shelf shows its full list, repeats and all. */
 const MIN_FRESH = 6;
 
-function CatalogRow({ shelf, enabled, exclude }: { shelf: Shelf; enabled: boolean; exclude: Set<string> }) {
+function CatalogRow({ shelf, enabled, exclude }: { shelf: HomeShelf; enabled: boolean; exclude: Set<string> }) {
   const { title, shape } = shelf;
   const isCatalog = shelf.kind === "catalog";
   const catalog = useCatalog(shelf.type, isCatalog ? shelf.id : "", isCatalog ? shelf.genre : undefined, enabled && isCatalog);
@@ -267,31 +306,13 @@ function CatalogRow({ shelf, enabled, exclude }: { shelf: Shelf; enabled: boolea
   if (isError) return null; // one failing catalog shouldn't break the page
   // Nothing good to recommend: leave the row out rather than show a stub.
   if (shelf.kind === "because" && data && items.length < 4) return null;
-  const Card = shape === "landscape" ? LandscapeCard : PosterCard;
-  return (
-    <Row title={title} shape={shape}>
-      {isLoading || !enabled
-        ? Array.from({ length: 8 }, (_, i) => <CardSkeleton key={i} shape={shape} />)
-        : items.map((item) => <Card key={item.id} item={item} />)}
-    </Row>
-  );
+  const TitleCard = shape === "landscape" ? LandscapeCard : PosterCard;
+  return <Shelf title={title} shape={shape} items={isLoading || !enabled ? undefined : items} card={(item) => <TitleCard key={item.id} item={item} />} />;
 }
 
 /** Holds a shelf back (as a skeleton) until it's near the viewport. */
-function LazyShelf({ shelf, eager, exclude }: { shelf: Shelf; eager: boolean; exclude: Set<string> }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [near, setNear] = useState(eager);
-  useEffect(() => {
-    const el = ref.current;
-    if (near || !el) return;
-    // The page scrolls inside its own container, so that's the observer's root.
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && setNear(true), {
-      root: el.closest(".scroll"),
-      rootMargin: "0px 0px 700px 0px",
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [near]);
+function LazyShelf({ shelf, eager, exclude }: { shelf: HomeShelf; eager: boolean; exclude: Set<string> }) {
+  const [ref, near] = useNearViewport<HTMLDivElement>(eager);
   return (
     <div ref={ref}>
       <CatalogRow shelf={shelf} enabled={near} exclude={exclude} />
@@ -316,34 +337,24 @@ function ContinueRow() {
 function ContinueCard({ progress: p }: { progress: Progress }) {
   const { navigate } = useRouter();
   const openDetail = () => navigate({ name: "detail", type: p.type, id: p.metaId });
+  // Which page it opens on is known before the click (mostly a stored anime link: no network).
+  useEffect(() => prefetchTitlePage(p.type, p.metaId), [p.type, p.metaId]);
   const resume = () => navigate({ name: "player", type: p.type, metaId: p.metaId, videoId: p.videoId, stream: p.stream });
   const fraction = p.duration ? p.position / p.duration : 0;
   const meta = useQuery({ queryKey: keys.meta(p.type, p.metaId), queryFn: () => api.meta(p.type, p.metaId), staleTime: 60 * 60_000 });
   const logo = meta.data?.logo;
 
   return (
-    <div
-      className="card card-landscape"
-      role="link"
-      tabIndex={0}
+    <Card
+      shape="landscape"
+      frameClass="card-frame-resume"
+      art={p.background ?? p.poster}
+      title={p.season != null ? `${episodeCode(p.season, p.episode)} · ${p.episodeTitle ?? p.name}` : p.name}
+      // Always shown: it's what you're watching, not a description.
+      keepCaption
       onClick={openDetail}
       {...cardMenu(progressItem(p), p)}
-      onKeyDown={(e) => {
-        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          openDetail();
-        }
-      }}
-    >
-      <div className="card-frame card-frame-resume">
-        <Img src={p.background ?? p.poster} alt="" className="card-img" />
-        <div className="card-art-scrim" />
-        {logo ? <TitleLogo src={logo} alt={p.name} className="card-logo" /> : <span className="card-art-title t-title2">{p.name}</span>}
-        {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a progressive blur. */}
-        <div className="card-resume">
-          <ProgressBar fraction={fraction} />
-          <span className="card-resume-left tabular">{formatRemaining(p.position, p.duration)}</span>
-        </div>
+      actions={
         <button
           type="button"
           className="card-play"
@@ -355,13 +366,14 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
         >
           <Play size={20} fill="currentColor" />
         </button>
+      }
+    >
+      <ArtTitle name={p.name} logo={logo} />
+      {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a progressive blur. */}
+      <div className="card-resume">
+        <ProgressBar fraction={fraction} />
+        <span className="card-resume-left tabular">{formatRemaining(p.position, p.duration)}</span>
       </div>
-      {/* Always shown: it's what you're watching, not a description. */}
-      <div className="card-caption card-caption-keep">
-        <span className="card-title t-callout">
-          {p.season != null ? `${episodeCode(p.season, p.episode)} · ${p.episodeTitle ?? p.name}` : p.name}
-        </span>
-      </div>
-    </div>
+    </Card>
   );
 }

@@ -1,13 +1,15 @@
 import type { ContentType, Meta, Video } from "../types";
-import { getPrefs } from "../prefs";
+import { getPrefs } from "../settings/prefs";
+import { queryClient } from "../net/queryClient";
+import { keys } from "../net/queryKeys";
 import { fetchAnime } from "./anilist";
-import { animeArt, episodeTitle, fetchAniZip, regularEpisodes } from "./anizip";
+import { animeArt, episodeTitle, cachedAniZip, regularEpisodes, type AniZipEpisode } from "./anizip";
 import { cleanDescription, pickTitle } from "./format";
 
 /**
  * Anime with no IMDb page. Many shows (most donghua, plenty of ONAs and OVAs)
- * aren't on IMDb as a series ani.zip can map to, but stream addons such as
- * addon and Comet know them by Kitsu id: `kitsu:48036:5` is episode 5 of
+ * aren't on IMDb as a series ani.zip can map to, but many stream addons
+ * know them by Kitsu id: `kitsu:48036:5` is episode 5 of
  * Renegade Immortal. For these the app's own id is the Kitsu one, and this
  * builds the title page's data (what a metadata addon would send) from AniList
  * and ani.zip, so the title page, the player, watch history and the library
@@ -23,16 +25,25 @@ export const kitsuParts = (id: string) => {
 
 export async function kitsuMeta(type: ContentType, id: string): Promise<Meta> {
   const { kitsu } = kitsuParts(id);
-  const zip = await fetchAniZip({ kitsu_id: kitsu });
+  const zip = await cachedAniZip({ kitsu_id: kitsu });
   const anilistId = zip?.mappings.anilist_id;
   if (!zip || !anilistId) throw new Error("This anime isn't known to ani.zip");
-  const anime = await fetchAnime(anilistId);
+  // The same record (and cache entry) the anime page uses: opening it after this costs nothing.
+  const anime = await queryClient.fetchQuery({
+    queryKey: keys.anime.media(anilistId),
+    queryFn: ({ signal }) => fetchAnime(anilistId, signal),
+    staleTime: 30 * 60_000,
+  });
   const lang = getPrefs().animeTitles;
 
+  // Without ani.zip's episode list (its fallback has ids only), numbered episodes from AniList's count.
+  const aired = anime.episodes ?? (anime.nextAiringEpisode ? anime.nextAiringEpisode.episode - 1 : 0);
+  const listed = regularEpisodes(zip);
+  const episodes = listed.length ? listed : Array.from({ length: aired }, (_, i) => ({ episode: String(i + 1) }) as AniZipEpisode);
   const videos: Video[] =
     type === "movie"
       ? []
-      : regularEpisodes(zip).map((e) => {
+      : episodes.map((e) => {
           const n = Number(e.episode);
           return {
             id: `${id}:${n}`,

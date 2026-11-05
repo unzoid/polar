@@ -1,17 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useState } from "react";
 import { AnimeCard } from "../components/anime/AnimeCard";
-import { PosterCard, PosterSkeleton } from "../components/PosterCard";
-import { Row } from "../components/Row";
-import type { AnimeCard as Card } from "../lib/anime/anilist";
-import { useAnimeResults, withoutAnime } from "../lib/anime/search";
+import { PosterCard } from "../components/PosterCard";
+import { Shelf } from "../components/title/Shelf";
+import { type AnimeCard as Card, retryTitle, useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
 import { api } from "../lib/api";
-import { BROWSE_GENRES, genreOf } from "../lib/genres";
-import { usePrefs } from "../lib/prefs";
-import { useSearch } from "../lib/queries";
-import { useSearchText } from "../lib/searchQuery";
-import { addRecentSearch } from "../lib/recentSearches";
+import { addRecentSearch, BROWSE_GENRES, genreOf, searchMinLength, useSearchText } from "../lib/catalog";
+import { usePrefs } from "../lib/settings";
+import { keys, useSearch } from "../lib/net";
 import type { ContentType, MetaPreview } from "../lib/types";
+import { EmptyState } from "../components/ui/EmptyState";
 
 /**
  * Results for whatever is typed in the navbar's search field, one row per
@@ -32,16 +30,26 @@ export function Search() {
   }, [text]);
 
   const { data } = useSearch(deferred);
-  const hasQuery = deferred.length > 1;
+  const hasQuery = deferred.length >= searchMinLength(deferred);
   const genre = hasQuery ? genreOf(deferred) : undefined;
-  const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "");
+  // What the catalogs found (they forgive typos): what AniList is asked for when the typed words find nothing.
+  const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "", retryTitle(data?.series ?? [], data?.movies ?? []));
+  const aliases = useAnimeAliases();
 
-  if (text.trim().length < 2) return <div className="scroll search-page" />;
+  if (!text.trim()) return <div className="scroll search-page" />;
+  // One Latin letter matches half the catalog: ask for another rather than show an empty page.
+  if (text.trim().length < searchMinLength(text.trim()))
+    return (
+      <div className="scroll search-page">
+        <EmptyState>Type another letter to search.</EmptyState>
+      </div>
+    );
 
   // Titles without art are almost always stubs nobody's looking for.
   // An anime shows once, as the anime (AniList), not again as a series or movie.
-  const movies = withoutAnime(data?.movies.filter((m) => m.poster), anime.items);
-  const series = withoutAnime(data?.series.filter((m) => m.poster), anime.items);
+  // Against every entry found, not one per franchise: a later part Cinemeta lists as its own show goes too.
+  const movies = withoutAnime(data?.movies.filter((m) => m.poster), anime.all, aliases);
+  const series = withoutAnime(data?.series.filter((m) => m.poster), anime.all, aliases);
   const waiting = !hasQuery || !data;
   const nothing = !waiting && !genre && !movies!.length && !series!.length && !anime.items?.length && !anime.loading;
 
@@ -53,16 +61,16 @@ export function Search() {
         {genre && BROWSE_GENRES.series.includes(genre) && <GenreRow type="series" genre={genre} />}
         <ResultRow title={genre ? "Movies Named Like It" : "Movies"} items={waiting ? undefined : movies} />
         <ResultRow title={genre ? "Series Named Like It" : "Series"} items={waiting ? undefined : series} />
-        {animeEnabled && <AnimeRow title={anime.title} items={anime.items} loading={anime.loading} />}
+        {animeEnabled && <AnimeRow title={anime.title} items={anime.items} loading={anime.loading} failed={anime.failed} retry={anime.retry} />}
       </div>
-      {nothing && <p className="empty t-body muted">Nothing found for “{deferred}”.</p>}
+      {nothing && <EmptyState>Nothing found for “{deferred}”.</EmptyState>}
     </div>
   );
 }
 
 function GenreRow({ type, genre }: { type: ContentType; genre: string }) {
   const { data } = useQuery({
-    queryKey: ["discover", type, "popular", genre],
+    queryKey: keys.genreRow(type, genre),
     queryFn: () => api.catalog(type, "popular", 0, genre),
     staleTime: 30 * 60_000,
   });
@@ -71,18 +79,20 @@ function GenreRow({ type, genre }: { type: ContentType; genre: string }) {
 
 function ResultRow({ title, items }: { title: string; items?: MetaPreview[] }) {
   if (items && !items.length) return null;
-  return (
-    <Row title={title}>
-      {items ? items.map((item) => <PosterCard key={item.id} item={item} />) : Array.from({ length: 8 }, (_, i) => <PosterSkeleton key={i} />)}
-    </Row>
-  );
+  return <Shelf title={title} items={items} card={(item) => <PosterCard key={item.id} item={item} />} />;
 }
 
-function AnimeRow({ title, items, loading }: { title: string; items?: Card[]; loading: boolean }) {
+function AnimeRow({ title, items, loading, failed, retry }: { title: string; items?: Card[]; loading: boolean; failed: boolean; retry: () => void }) {
+  // A failed search isn't "no anime": it says so, with a way to try again (test report 1, item 28).
+  if (failed && !items?.length)
+    return (
+      <section className="row">
+        <div className="row-header">
+          <h2 className="t-title2">{title}</h2>
+        </div>
+        <EmptyState action={{ label: "Try Again", onClick: retry }}>Anime results couldn't load.</EmptyState>
+      </section>
+    );
   if (!loading && !items?.length) return null;
-  return (
-    <Row title={title}>
-      {items ? items.map((a) => <AnimeCard key={a.id} item={a} />) : Array.from({ length: 8 }, (_, i) => <PosterSkeleton key={i} />)}
-    </Row>
-  );
+  return <Shelf title={title} items={items} card={(a) => <AnimeCard key={a.id} item={a} />} />;
 }

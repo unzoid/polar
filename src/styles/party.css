@@ -16,12 +16,12 @@
 .party-lede {
   margin: 0;
   max-width: 34ch;
-  font-size: 0.9375rem;
+  font-size: var(--fs-base);
   line-height: 1.45;
   color: var(--text-2);
 }
 .party-kicker {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-3);
   letter-spacing: 0.02em;
@@ -30,6 +30,7 @@
   display: flex;
   gap: 0.375rem;
   margin-top: -0.375rem;
+  -webkit-user-select: text;
   user-select: text;
 }
 .party-code > span {
@@ -67,8 +68,8 @@
   justify-content: center;
   gap: 0.375rem;
   transition:
-    opacity 180ms ease,
-    filter 180ms ease,
+    opacity 180ms var(--ease-std),
+    filter 180ms var(--ease-std),
     transform 180ms var(--ease-out);
 }
 .party-copy-label[data-shown="false"] {
@@ -96,7 +97,7 @@
   gap: 0.75rem;
   width: 100%;
   margin: 0.5rem 0 -0.25rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 .party-or::before,
@@ -124,12 +125,12 @@
   box-shadow: inset 0 0 0 1px var(--hairline);
   color: var(--text);
   font: inherit;
-  font-size: 1rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   outline: none;
-  transition: box-shadow var(--dur-fast) ease;
+  transition: box-shadow var(--dur-fast) var(--ease-std);
 }
 .party-join-input::placeholder {
   font-weight: 400;
@@ -147,10 +148,10 @@
   grid-column: 1 / -1;
   min-height: 1.25em;
   margin: -0.125rem 0 0 1rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--danger);
   transition:
-    opacity var(--dur-fast) ease,
+    opacity var(--dur-fast) var(--ease-std),
     transform var(--dur-fast) var(--ease-out);
 }
 .party-join-error[data-shown="false"] {
@@ -189,7 +190,7 @@
   text-overflow: ellipsis;
 }
 .party-member-detail {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 .party-member .spinner {
@@ -225,13 +226,13 @@
 }
 .party-extra {
   margin-left: 0.375rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-2);
 }
 .party-badge[data-status="error"] .party-face {
   opacity: 0.45;
-  transition: opacity var(--dur-base) ease;
+  transition: opacity var(--dur-base) var(--ease-std);
 }
 
 /* --- "Waiting for Sam…" — appears only if the hold lasts */
@@ -246,18 +247,18 @@
   gap: 0.5rem;
   padding: 0.5rem 1rem 0.5rem 0.875rem;
   border-radius: var(--r-pill);
-  background: rgb(22 22 22 / 0.88);
+  background: var(--surface-float);
   box-shadow: 0 0.75rem 2rem -0.75rem rgb(0 0 0 / 0.6);
   pointer-events: none;
   transition:
-    opacity 200ms ease 400ms,
+    opacity 200ms var(--ease-std) 400ms,
     transform 200ms var(--ease-out) 400ms;
 }
 .party-hold[data-shown="false"] {
   opacity: 0;
   transform: translateY(-4px) scale(0.98);
   transition-delay: 0ms;
-  transition-duration: 140ms;
+  transition-duration: var(--dur-press);
 }
 
 /* --- Activity notes: bottom-left, clear of the controls while they show */
@@ -285,9 +286,9 @@
   gap: 0.625rem;
   padding: 0.375rem 0.875rem 0.375rem 0.375rem;
   border-radius: var(--r-pill);
-  background: rgb(22 22 22 / 0.88);
+  background: var(--surface-float);
   box-shadow: 0 0.75rem 2rem -0.75rem rgb(0 0 0 / 0.6);
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   color: var(--text-2);
 }
 .party-note strong {
@@ -303,7 +304,7 @@
   position: fixed;
   left: 1.5rem;
   bottom: 1.5rem;
-  z-index: 60;
+  z-index: var(--z-popover);
   pointer-events: none;
 }
 .party-float .party-notes {
@@ -333,16 +334,16 @@
 .party-dialog-scrim {
   position: fixed;
   inset: 0;
-  z-index: 40;
-  background: rgb(0 0 0 / 0.5);
-  transition: opacity 220ms var(--ease-out);
+  z-index: var(--z-sheet);
+  background: var(--scrim-2);
+  transition: opacity var(--dur-base) var(--ease-out);
 }
 .party-dialog {
   position: fixed;
   top: 50%;
   left: 50%;
   translate: -50% -50%;
-  z-index: 41;
+  z-index: calc(var(--z-sheet) + 1);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -358,8 +359,8 @@
   text-align: center;
   outline: none;
   transition:
-    opacity 220ms var(--ease-out),
-    transform 220ms var(--ease-out);
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
 }
 .party-dialog-scrim[data-starting-style],
 .party-dialog-scrim[data-ending-style] {
@@ -392,7 +393,7 @@
 }
 .party-dialog-text {
   margin: 0.375rem 0 1.5rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
   color: var(--text-2);
 }
 /* Centred under the centred field; empty until there's an error. */
@@ -411,8 +412,8 @@
   border-radius: var(--r-pill);
   color: var(--text-2);
   transition:
-    background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
+    background-color var(--dur-fast) var(--ease-std),
+    color var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
 .party-dialog-close:active {

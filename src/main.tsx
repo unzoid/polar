@@ -4,15 +4,28 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "motion/react";
 
 import { App } from "./App";
-import { queryClient } from "./lib/queries";
-import { isTauri } from "./lib/api";
-import { AccountProvider } from "./lib/account/AccountProvider";
-import { isMac } from "./lib/platform";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import { queryClient } from "./lib/net";
+import { AccountProvider } from "./lib/account";
+import { mirrorFormFactor } from "./lib/ui";
+import { inShell, os } from "./lib/platform";
 
 // Inter with weight + optical-size axes: large titles get the Display cut automatically.
 import "@fontsource-variable/inter/opsz.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
+import "./styles/ui/button.css";
+import "./styles/ui/chip.css";
+import "./styles/ui/switch.css";
+import "./styles/ui/search-field.css";
+import "./styles/ui/text-field.css";
+import "./styles/ui/empty-state.css";
+import "./styles/ui/skeleton.css";
+import "./styles/ui/toast.css";
+import "./styles/ui/menu.css";
+import "./styles/ui/layer.css";
+import "./styles/title/poster-grid.css";
+import "./styles/title/playlist-checklist.css";
 import "./styles/shell.css";
 import "./styles/cards.css";
 import "./styles/detail.css";
@@ -30,11 +43,13 @@ import { installGamepad } from "./tv/gamepad";
 
 // Font rendering differs by OS; base.css tunes text weight for Windows.
 // "mac" also makes room for the traffic lights (shell.css).
-document.documentElement.dataset.os = navigator.userAgent.includes("Windows") ? "windows" : isMac ? "mac" : "other";
+document.documentElement.dataset.os = os === "windows" ? "windows" : os === "macos" ? "mac" : "other";
+// Phone, tablet or desktop, and touch: the shell and target sizes follow (lib/platform/formFactor.ts).
+mirrorFormFactor(document.documentElement);
 
 const root = createRoot(document.getElementById("root")!);
 
-if (!isTauri) {
+if (!inShell) {
   root.render(
     <div className="not-tauri">
       <p className="t-title2">Polarity runs inside its desktop shell.</p>
@@ -49,11 +64,13 @@ if (!isTauri) {
     <StrictMode>
       {/* reducedMotion="user": springs become instant cross-fades when the OS asks for less motion. */}
       <MotionConfig reducedMotion="user">
-        <QueryClientProvider client={queryClient}>
-          <AccountProvider>
-            <App />
-          </AccountProvider>
-        </QueryClientProvider>
+        <ErrorBoundary where="app">
+          <QueryClientProvider client={queryClient}>
+            <AccountProvider>
+              <App />
+            </AccountProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
       </MotionConfig>
     </StrictMode>,
   );

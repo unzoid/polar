@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { useProgress, useSettings, useStreams } from "../../lib/queries";
-import { autoPickOrder } from "../../lib/sources";
+import { useProgress, useSettings, useStreams } from "../../lib/net";
+import { autoPickOrder, describeStream } from "../../lib/playback";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
-import { sameFile, type StreamHint } from "../../lib/party/party";
+import { sameFile, type StreamHint } from "../../lib/party";
+import { errorMessage } from "../../lib/errors";
+import type { LogStep } from "./useStartLog";
 
 export type SourceState =
   | { status: "searching" }
@@ -14,6 +16,7 @@ export type SourceState =
 interface Candidate {
   stream: Stream;
   label?: string;
+  addon?: string;
 }
 
 /**
@@ -24,8 +27,9 @@ interface Candidate {
  *   4. the top-ranked streams, in order.
  * The decision is frozen once made — saving progress mid-playback must never
  * re-trigger source selection. `next()` falls through after a playback error.
+ * Each decision and attempt is written to `log` (the loading screen's steps).
  */
-export function useSource(type: ContentType, metaId: string, videoId: string, picked?: Stream, prefer?: StreamHint) {
+export function useSource(type: ContentType, metaId: string, videoId: string, picked: Stream | undefined, prefer: StreamHint | undefined, log: LogStep) {
   const progress = useProgress(metaId);
   const [saved, setSaved] = useState<Progress | null | undefined>(undefined);
   useEffect(() => {
@@ -35,14 +39,23 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
   const needsRanking = !picked && (!!prefer || (saved !== undefined && !saved?.stream));
   const streams = useStreams(type, needsRanking ? videoId : undefined);
   const { data: settings } = useSettings();
+  useEffect(() => {
+    if (needsRanking) log("Asking your add-ons for sources", "info", "sources");
+  }, [needsRanking, log]);
 
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   useEffect(() => {
     if (candidates) return;
-    if (picked) return setCandidates([{ stream: picked }]);
+    if (picked) {
+      log("Using the source you picked", "info", "sources");
+      return setCandidates([{ stream: picked }]);
+    }
     if (!prefer) {
       if (saved === undefined) return;
-      if (saved?.stream) return setCandidates([{ stream: saved.stream }]);
+      if (saved?.stream) {
+        log("Resuming with the source this was last played from", "info", "sources");
+        return setCandidates([{ stream: saved.stream }]);
+      }
     }
     if (streams.data) {
       // Best match for this screen, narrowed by the filters you set in the player
@@ -50,19 +63,28 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
       // preferences in Settings, when they leave something.
       const ranked = autoPickOrder(streams.data.streams, settings, metaId);
       // The room's file first, even past Settings' filters: same file, same timing.
-      // Unless it isn't cached on this account while others are: someone else's
-      // instant file can be a long download here, and the whole room waits on it.
-      const match = prefer ? streams.data.streams.find((r) => sameFile(r.stream, prefer)) : undefined;
-      const same = match && (match.quality.cached || !ranked.some((r) => r.quality.cached)) ? match : undefined;
+      const same = prefer ? streams.data.streams.find((r) => sameFile(r.stream, prefer)) : undefined;
+      const { streams: all, failed, hidden = 0 } = streams.data;
+      const addons = new Set(all.map((r) => r.addon)).size;
+      const filtered = all.length - ranked.length + hidden;
+      log(
+        `Found ${all.length + hidden} source${all.length + hidden === 1 ? "" : "s"} from ${addons} add-on${addons === 1 ? "" : "s"}` +
+          (filtered > 0 ? `; ${filtered} left out by your source filters` : ""),
+        all.length ? "ok" : "warn",
+        "sources",
+      );
+      if (failed.length) log(`No answer from: ${failed.join(", ")}`, "warn", "sources");
+      if (same) log("Using the watch party's file", "info", "sources");
       setCandidates(
         (same ? [same, ...ranked.filter((r) => r !== same)] : ranked)
           .slice(0, 5)
-          .map((s) => ({ stream: s.stream, label: s.label })),
+          .map((s) => ({ stream: s.stream, label: s.label, addon: s.addon })),
       );
     } else if (streams.isError) {
+      log(`Couldn't ask the add-ons: ${errorMessage(streams.error)}`, "fail", "sources");
       setCandidates([]);
     }
-  }, [candidates, picked, prefer, saved, streams.data, streams.isError, settings, metaId]);
+  }, [candidates, picked, prefer, saved, streams.data, streams.isError, streams.error, settings, metaId, log]);
 
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<SourceState>({ status: "searching" });
@@ -71,29 +93,35 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
     if (!candidates) return;
     const candidate = candidates[attempt];
     if (!candidate) {
-      setState({
-        status: "failed",
-        reason: candidates.length
-          ? "None of the sources could be played."
-          : "No sources found. Install a stream add-on in Settings.",
-      });
+      const reason = candidates.length ? "None of the sources could be played." : "No sources found. Install a stream add-on in Settings.";
+      // Out of sources: the attempts above say why; with none at all, it's the add-ons.
+      if (!candidates.length) log(reason, "fail", "sources");
+      setState({ status: "failed", reason });
       return;
     }
     let cancelled = false;
+    const name = [candidate.label, candidate.addon].filter(Boolean).join(" · ");
+    log(`Source ${attempt + 1} of ${candidates.length}${name ? `: ${name}` : ""}`, "info", "link");
     setState({ status: "resolving", ...candidate });
+    const fail = (reason: string) => {
+      log(reason, "fail", "link");
+      setState({ status: "failed", reason });
+    };
     api
       .resolveStream(candidate.stream)
       .then((p: Playable) => {
         if (cancelled) return;
-        if (p.kind === "url") setState({ status: "ready", url: p.url, ...candidate });
-        else if (p.kind === "unsupported") setState({ status: "failed", reason: p.reason });
-        else setState({ status: "failed", reason: "This source opens outside the player." });
+        if (p.kind === "url") {
+          log(`Link: ${describeStream(candidate.stream, p.url)}`, "info", "link");
+          setState({ status: "ready", url: p.url, ...candidate });
+        } else if (p.kind === "unsupported") fail(p.reason);
+        else fail("This source opens outside the player.");
       })
-      .catch((e) => !cancelled && setState({ status: "failed", reason: String(e) }));
+      .catch((e) => !cancelled && fail(errorMessage(e)));
     return () => {
       cancelled = true;
     };
-  }, [candidates, attempt]);
+  }, [candidates, attempt, log]);
 
   return {
     state,

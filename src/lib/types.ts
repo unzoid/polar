@@ -1,8 +1,11 @@
-// Mirrors the Rust types in crates/addon and src-tauri/src/store.rs.
+// Mirrors the Rust types in crates/addon, crates/library and src-tauri/src. Their JSON field names are
+// checked against contract/*.json, which the Rust tests write (src/lib/contract.ts, tests/contract.test.ts).
+
+import type { AnimeLink } from "./library/identity";
 
 export type ContentType = "movie" | "series";
 
-/** The app's font (Settings → Appearance). See lib/fonts.ts. */
+/** The app's font (Settings → Appearance). See lib/settings/fonts.ts. */
 export type UiFont = "inter" | "system" | "opendyslexic";
 
 export interface MetaPreview {
@@ -36,6 +39,8 @@ export interface Meta extends MetaPreview {
   cast?: string[];
   director?: string[];
   trailerYtId?: string;
+  /** "tmdb" when TMDB's videos chose `trailerYtId` (it then plays before IMDb's file). */
+  trailerSource?: "tmdb";
   videos: Video[];
   /** The cast with roles and photos, where the source has them. */
   people?: Person[];
@@ -87,12 +92,12 @@ export interface ExternalRatings {
 export interface Stream {
   url?: string;
   ytId?: string;
-  content_id?: string;
-  fileIdx?: number;
   externalUrl?: string;
   name?: string;
   title?: string;
   description?: string;
+  /** The addon's hints as it sent them (`proxyHeaders`, `bingeGroup`…); read by the backend. */
+  behaviorHints?: Record<string, unknown>;
 }
 
 export interface StreamQuality {
@@ -101,15 +106,13 @@ export interface StreamQuality {
   dolbyVision: boolean;
   codec?: string;
   sizeBytes?: number;
-  sources?: number;
-  cached: boolean;
   lowQualitySource: boolean;
   direct: boolean;
   /** Audio languages the source mentions (ISO 639-1, or "multi"); empty when it says nothing. */
   languages?: string[];
   /** "Remux", "Atmos", "HDR10+", "10-bit"… */
   tags?: string[];
-  /** The release group ("SubsPlease", "FLUX"), else the site it came from ("site"). */
+  /** The group named in the release ("[Group] Show - 01", "Movie.2024.1080p.WEB-DL-GROUP"). */
   source?: string | null;
 }
 
@@ -126,6 +129,18 @@ export interface StreamsResult {
   failed: string[];
   /** Left out by the filters in Settings → Sources. */
   hidden?: number;
+}
+
+/** What `search` returns: matches of each kind. */
+export interface SearchResults {
+  movies: MetaPreview[];
+  series: MetaPreview[];
+}
+
+/** The anime cache folder (fillers.json, anime-list-mini.json) and the size of its files. */
+export interface CacheInfo {
+  path: string;
+  bytes: number;
 }
 
 export type Playable =
@@ -155,6 +170,8 @@ export interface LibraryItem {
   name: string;
   poster?: string;
   addedAt: number;
+  /** Last change when it differs from `addedAt` (moved onto its canonical id). */
+  updatedAt?: number;
 }
 
 /** A library record as it travels over sync: present, or a removal. */
@@ -168,11 +185,33 @@ export interface SyncLibraryItem {
   updatedAt: number;
 }
 
+/** A title by id and kind: `space_untitled` lists those pulled without a name. */
+export interface TitleRef {
+  id: string;
+  type: ContentType;
+}
+
+/** Names and pictures found on this device for a pulled title (`space_fill_display`). */
+export interface TitleDisplay {
+  id: string;
+  name?: string;
+  poster?: string;
+  background?: string;
+}
+
 export interface LocalChanges {
   library: SyncLibraryItem[];
   progress: Progress[];
-  cursor: number;
+  /** Anime links changed since the last push (docs/anime-identity.md). */
+  links: AnimeLink[];
   pulledAt: string | null;
+}
+
+/** What reached the server, each record with the time it carried (`sync_mark_pushed`). */
+export interface Pushed {
+  library: [id: string, at: number][];
+  progress: [videoId: string, at: number][];
+  links: [anilist: number, at: number][];
 }
 
 export interface Manifest {
@@ -197,7 +236,6 @@ export type EpisodeLayout = "row" | "list";
 export interface Settings {
   tmdbKey?: string | null;
   language: string;
-  bridge: string;
   autoplayNext: boolean;
   /** Seekr (seekr.tv) API key — enables seek-bar thumbnails. */
   seekrKey?: string | null;
@@ -292,7 +330,7 @@ export interface Settings {
   showCalendar?: boolean;
 }
 
-export type SourceSort = "best" | "quality" | "sizeDesc" | "sizeAsc" | "peers";
+export type SourceSort = "best" | "quality" | "sizeDesc" | "sizeAsc";
 
 export interface SubtitleOption {
   id: string;

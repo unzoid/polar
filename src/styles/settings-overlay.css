@@ -14,14 +14,14 @@
   --t3-muted-fg: #a3a3a3;
   --t3-border: rgb(255 255 255 / 0.08);
   --t3-input: rgb(255 255 255 / 0.11);
-  --t3-hover: rgb(255 255 255 / 0.04);
-  --t3-selected: rgb(255 255 255 / 0.06);
+  --t3-hover: var(--fill-1);
+  --t3-selected: var(--fill-2);
   --t3-primary: var(--accent);
   --t3-icon: color-mix(in srgb, var(--t3-muted-fg) 85%, var(--t3-card));
-  --t3-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --t3-ease: var(--ease-out);
 
   position: fixed;
-  z-index: 900;
+  z-index: var(--z-modal);
   inset: 0;
   margin: auto;
   width: min(1280px, calc(100vw - 48px));
@@ -29,8 +29,8 @@
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: 14px;
+  border: 1px solid var(--fill-3);
+  border-radius: var(--r-card);
   background: var(--t3-bg);
   color: var(--t3-fg);
   font-size: 16px;
@@ -55,9 +55,9 @@
 
 .t3s-backdrop {
   position: fixed;
-  z-index: 900;
+  z-index: var(--z-modal);
   inset: 0;
-  background: rgb(0 0 0 / 0.5);
+  background: var(--scrim-2);
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
@@ -68,8 +68,8 @@
 .t3s,
 .t3s-backdrop {
   transition:
-    opacity 0.16s cubic-bezier(0.23, 1, 0.32, 1),
-    transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 .t3s[data-starting-style] {
   opacity: 0;
@@ -107,41 +107,31 @@
   overflow-x: hidden;
 }
 .t3s-search {
-  display: flex;
-  align-items: center;
   gap: 0.625rem;
   height: 2.5rem;
   padding: 0 0.625rem;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   color: color-mix(in srgb, var(--t3-muted-fg) 80%, transparent);
-  cursor: text;
-  transition: background-color 120ms ease;
+  transition: background-color 120ms var(--ease-std);
 }
-.t3s-search:hover,
 .t3s-search:focus-within {
   background: var(--t3-hover);
 }
-.t3s-search svg {
-  flex: none;
+@media (hover: hover) and (pointer: fine) {
+  .t3s-search:hover {
+    background: var(--t3-hover);
+  }
 }
 .t3s-search input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: none;
-  outline: none;
   color: var(--t3-fg);
-  font: inherit;
   font-weight: 500;
+  -webkit-user-select: text;
   user-select: text;
 }
 .t3s-search input::placeholder {
   color: var(--t3-muted-fg);
 }
-.t3s-search input::-webkit-search-cancel-button {
-  display: none;
-}
-.t3s-kbd {
+.t3s-search .search-field-kbd {
   display: grid;
   place-items: center;
   min-width: 20px;
@@ -177,19 +167,16 @@
   font-size: 14px;
   color: var(--t3-muted-fg);
 }
-.t3s-search-clear {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
+.t3s-search .search-field-clear {
   border-radius: 4px;
   color: var(--t3-muted-fg);
   cursor: pointer;
 }
-.t3s-search-clear:hover {
-  background: rgb(255 255 255 / 0.08);
-  color: var(--t3-fg);
+@media (hover: hover) and (pointer: fine) {
+  .t3s-search .search-field-clear:hover {
+    background: rgb(255 255 255 / 0.08);
+    color: var(--t3-fg);
+  }
 }
 
 /* Search results: one row per setting, its page underneath (T3 Code's command list). */
@@ -203,7 +190,7 @@
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.5625rem 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   color: var(--t3-fg);
   cursor: pointer;
 }
@@ -264,7 +251,7 @@
   width: 100%;
   height: 2.5rem;
   padding: 0 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   font-size: 16px;
   font-weight: 500;
   text-align: left;
@@ -283,18 +270,27 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.t3s-nav-item:hover,
 .t3s-nav-item:active {
   background: var(--t3-hover);
   color: var(--t3-fg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .t3s-nav-item:hover {
+    background: var(--t3-hover);
+    color: var(--t3-fg);
+  }
 }
 .t3s-nav-item[data-active="true"] {
   background: var(--t3-selected);
   color: var(--t3-fg);
 }
-.t3s-nav-item:hover > svg,
 .t3s-nav-item[data-active="true"] > svg {
   color: var(--t3-fg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .t3s-nav-item:hover > svg {
+    color: var(--t3-fg);
+  }
 }
 .t3s-nav-item:focus-visible,
 .t3s-search:focus-within,
@@ -351,15 +347,17 @@
   gap: 0.375rem;
   height: 2.25rem;
   padding: 0 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   font-size: 15px;
   font-weight: 500;
   color: var(--t3-muted-fg);
   cursor: pointer;
 }
-.t3s-ghost:not(:disabled):hover {
-  background: var(--t3-hover);
-  color: var(--t3-fg);
+@media (hover: hover) and (pointer: fine) {
+  .t3s-ghost:not(:disabled):hover {
+    background: var(--t3-hover);
+    color: var(--t3-fg);
+  }
 }
 .t3s-ghost:disabled {
   opacity: 0.64;
@@ -370,13 +368,15 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   color: var(--t3-muted-fg);
   cursor: pointer;
 }
-.t3s-icon-btn:hover {
-  background: var(--t3-hover);
-  color: var(--t3-fg);
+@media (hover: hover) and (pointer: fine) {
+  .t3s-icon-btn:hover {
+    background: var(--t3-hover);
+    color: var(--t3-fg);
+  }
 }
 
 /* --- Page -------------------------------------------------------------- */
@@ -413,8 +413,8 @@
 }
 .t3s .settings-card {
   overflow: visible;
-  border: 1px solid rgb(255 255 255 / 0.06);
-  border-radius: 14px;
+  border: 1px solid var(--fill-2);
+  border-radius: var(--r-card);
   background: rgb(17 17 17 / 0.4);
 }
 .t3s .settings-card > * + * {
@@ -443,8 +443,10 @@
 .t3s .settings-row-button .settings-row-value {
   margin-left: 1.25rem;
 }
-.t3s .settings-row-button:hover {
-  background: rgb(255 255 255 / 0.025);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .settings-row-button:hover {
+    background: rgb(255 255 255 / 0.025);
+  }
 }
 .t3s .settings-row-text {
   gap: 0.25rem;
@@ -503,7 +505,7 @@
 .t3s {
   --t3-control: rgb(255 255 255 / 0.035);
   --t3-control-hover: rgb(255 255 255 / 0.07);
-  --t3-control-shade: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.05);
+  --t3-control-shade: inset 0 1px 0 var(--fill-2), 0 1px 2px rgb(0 0 0 / 0.05);
 }
 .t3s .select-trigger {
   width: 16rem;
@@ -515,22 +517,24 @@
   box-shadow: var(--t3-control-shade);
   font-weight: 400;
 }
-.t3s .select-trigger:hover {
-  background: var(--t3-control-hover);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .select-trigger:hover {
+    background: var(--t3-control-hover);
+  }
 }
 .t3s .select-trigger[data-popup-open],
 .t3s .select-trigger:focus-visible {
   border-color: var(--t3-primary);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--t3-primary) 24%, transparent);
 }
-.t3s .settings-input {
+.t3s .text-field {
   height: 2rem;
   border-color: var(--t3-input);
   border-radius: 10px;
   background: transparent;
   font-size: 15px;
 }
-.t3s .settings-input:focus {
+.t3s .text-field:focus {
   border-color: var(--t3-primary);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--t3-primary) 24%, transparent);
 }
@@ -540,7 +544,7 @@
   padding: 0 0.6875rem;
   gap: 0.375rem;
   border: 1px solid var(--t3-input);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: var(--t3-control);
   box-shadow: var(--t3-control-shade);
   backdrop-filter: none;
@@ -548,13 +552,15 @@
   font-size: 14.5px;
   font-weight: 500;
   letter-spacing: 0;
-  transition: background-color 120ms ease;
+  transition: background-color 120ms var(--ease-std);
 }
 .t3s .btn svg {
   opacity: 0.8;
 }
-.t3s .btn:not(:disabled):hover {
-  background: var(--t3-control-hover);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .btn:not(:disabled):hover {
+    background: var(--t3-control-hover);
+  }
 }
 .t3s .btn:active {
   transform: none;
@@ -575,14 +581,18 @@
   box-shadow: inset 0 1px 0 color-mix(in oklab, var(--t3-primary) 22%, transparent), 0 1px 2px rgb(0 0 0 / 0.05);
   color: color-mix(in oklab, var(--t3-primary) 35%, white);
 }
-.t3s .btn-primary:not(:disabled):hover {
-  background: color-mix(in oklab, var(--t3-primary) 24%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .btn-primary:not(:disabled):hover {
+    background: color-mix(in oklab, var(--t3-primary) 24%, transparent);
+  }
 }
 .t3s .btn-danger {
   color: #f87171;
 }
-.t3s .btn-danger:not(:disabled):hover {
-  background: rgb(248 113 113 / 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .t3s .btn-danger:not(:disabled):hover {
+    background: rgb(248 113 113 / 0.08);
+  }
 }
 
 /* T3's switch: 30×18 track, 14px thumb. Grey thumb when off, a dark one on blue when on. */
@@ -596,7 +606,7 @@
   left: 2px;
   width: 14px;
   height: 14px;
-  border-radius: 14px;
+  border-radius: var(--r-card);
   /* Lighter drop shadow than the full-size thumb, to suit the smaller size. */
   box-shadow:
     0 0 0 0.5px rgb(0 0 0 / 0.08),
@@ -645,6 +655,88 @@
     justify-content: center;
     padding: 0;
   }
+}
+
+/* Phone: the whole screen, the icon rail, and a control that doesn't fit beside its
+   label goes under it at full width (dropdowns, sliders, chips). */
+@media (max-width: 600px) {
+  .t3s {
+    width: 100vw;
+    height: 100dvh;
+    grid-template-columns: 52px minmax(0, 1fr);
+    border: 0;
+    border-radius: 0;
+    padding: var(--safe-top) 0 var(--safe-bottom);
+  }
+  .t3s-sidebar {
+    padding: 0.5rem 0.25rem;
+  }
+  .t3s-header {
+    height: 52px;
+    padding: 0 0.5rem 0 1rem;
+  }
+  .t3s-crumb-root,
+  .t3s-crumb-sep,
+  .t3s-ghost-label {
+    display: none;
+  }
+  .t3s-crumbs {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .t3s-scroll {
+    scrollbar-gutter: auto;
+  }
+  .t3s-page {
+    gap: 2rem;
+    padding: 1.25rem 0.75rem 3rem;
+  }
+  .t3s .settings-group-title,
+  .t3s .settings-footer,
+  .t3s .settings-error {
+    padding: 0 0.25rem;
+  }
+  .t3s .settings-row {
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    padding: 0.875rem 1rem;
+  }
+  .t3s .settings-row-text {
+    flex: 1 1 11rem;
+  }
+  /* Icon, text, value and chevron stay on one line. */
+  .t3s .settings-row-button {
+    flex-wrap: nowrap;
+  }
+  .t3s .settings-row-button .settings-row-value {
+    margin-left: 0;
+  }
+  .t3s .shortcut-search {
+    min-width: 0;
+  }
+  .t3s .settings-row .select-trigger,
+  .t3s .settings-row .slider-field {
+    width: 100%;
+  }
+  .t3s .settings-card-pad {
+    padding: 0.875rem 1rem 1rem;
+  }
+  .t3s .settings-expand-body {
+    padding: 0 1rem 1rem;
+  }
+  .t3s .sub-setting-text {
+    flex: 1 1 7rem;
+  }
+}
+/* A phone in either orientation takes the whole screen, clear of the notch,
+   the camera cutout and the home indicator: in landscape it is wider than the
+   width query above and got a floating dialog 340px tall. */
+:root[data-form="phone"] .t3s {
+  width: 100vw;
+  height: 100dvh;
+  border: 0;
+  border-radius: 0;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,5 @@
 import { Hidden } from "./icons";
-import { useEffect, useState } from "react";
+import { useCardArt } from "./title/Card";
 
 /** Shown in place of an episode still that doesn't exist yet or won't load. */
 export function StillPlaceholder() {
@@ -16,8 +16,7 @@ export function StillPlaceholder() {
  * 404), renders the placeholder instead of the browser's broken-image glyph.
  */
 export function Still({ src, className }: { src?: string; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  if (!src || failed) return <StillPlaceholder />;
-  return <img src={src} alt="" className={className} loading="lazy" decoding="async" draggable={false} onError={() => setFailed(true)} />;
+  const { shown, onError } = useCardArt(src);
+  if (!shown) return <StillPlaceholder />;
+  return <img src={shown} alt="" className={className} loading="lazy" decoding="async" draggable={false} onError={onError} />;
 }

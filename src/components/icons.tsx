@@ -47,6 +47,7 @@ export const Download = icon(S24.ArrowDownTrayIcon, S20.ArrowDownTrayIcon, S16.A
 export const Instant =icon(S24.BoltIcon, S20.BoltIcon, S16.BoltIcon);
 export const LayoutList = icon(S24.ListBulletIcon, S20.ListBulletIcon, S16.ListBulletIcon);
 export const LayoutRow = icon(S24.ViewColumnsIcon, S20.ViewColumnsIcon, S16.ViewColumnsIcon);
+export const Lock = icon(S24.LockClosedIcon, S20.LockClosedIcon, S16.LockClosedIcon);
 export const Minus = icon(S24.MinusIcon, S20.MinusIcon, S16.MinusIcon);
 export const Warning = icon(S24.ExclamationTriangleIcon, S20.ExclamationTriangleIcon, S16.ExclamationTriangleIcon);
 export const Pause = icon(S24.PauseIcon, S20.PauseIcon, S16.PauseIcon);

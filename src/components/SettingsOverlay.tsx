@@ -1,12 +1,13 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
-import { Close, Reset, Search, SignOut } from "./icons";
-import { useAccount } from "../lib/account/AccountProvider";
-import { prefsCustomized, resetPrefs, usePrefs } from "../lib/prefs";
-import { closeSettings, useSettingsOverlay } from "../lib/settingsOverlay";
-import { searchSettings, type SettingEntry } from "../lib/settingsIndex";
-import { PAGES, SettingsPageBody, type PageId } from "../screens/Settings";
+import { Close, Reset, SignOut } from "./icons";
+import { iconButtonClass } from "./ui/Button";
+import { SearchField } from "./ui/SearchField";
+import { useAccount } from "../lib/account";
+import { closeSettings, type PageId, prefsCustomized, resetPrefs, searchSettings, type SettingEntry, usePrefs, useSettingsOverlay } from "../lib/settings";
+import { SettingsPageBody } from "../screens/settings/SettingsPageBody";
+import { PAGES } from "./settings/pages";
 
 /** Sidebar groups, T3 Code style: an unlabelled first group, then headed ones. */
 const GROUPS: { heading?: string; pages: PageId[] }[] = [
@@ -20,11 +21,12 @@ const GROUPS: { heading?: string; pages: PageId[] }[] = [
 const ROW_LABELS = ".settings-row-title, .settings-group-title, .sub-setting-label, .shortcut-label";
 const ROW_BOXES = ".settings-row, .settings-group-title, .sub-setting, .shortcut-row";
 
-/** Scrolls a page to the setting with this label and briefly highlights it. */
-function revealSetting(root: HTMLElement, title: string) {
-  const label = [...root.querySelectorAll<HTMLElement>(ROW_LABELS)].find((el) => el.textContent?.trim() === title);
+/** Scrolls a page to the setting (by its schema id, else by its label) and briefly highlights it. */
+function revealSetting(root: HTMLElement, entry: SettingEntry) {
+  const marked = root.querySelector<HTMLElement>(`[data-setting="${CSS.escape(entry.id)}"]`);
+  const label = marked ?? [...root.querySelectorAll<HTMLElement>(ROW_LABELS)].find((el) => el.textContent?.trim() === entry.title);
   if (!label) return;
-  const box = label.closest<HTMLElement>(ROW_BOXES) ?? label;
+  const box = marked ?? label.closest<HTMLElement>(ROW_BOXES) ?? label;
   box.scrollIntoView({ block: "center" });
   box.removeAttribute("data-search-hit");
   void box.offsetWidth; // restart the highlight if it's already running
@@ -68,7 +70,7 @@ export function SettingsOverlay() {
   const [selected, setSelected] = useState(0);
   const resultsList = useRef<HTMLDivElement>(null);
   // The setting to scroll to once its page has rendered.
-  const [target, setTarget] = useState<{ title: string } | null>(null);
+  const [target, setTarget] = useState<{ entry: SettingEntry } | null>(null);
 
   useEffect(() => setSelected(0), [query]);
 
@@ -79,7 +81,7 @@ export function SettingsOverlay() {
   useEffect(() => {
     if (!target || !scroller.current) return;
     const root = scroller.current;
-    const frame = requestAnimationFrame(() => revealSetting(root, target.title));
+    const frame = requestAnimationFrame(() => revealSetting(root, target.entry));
     return () => cancelAnimationFrame(frame);
   }, [target, page]);
 
@@ -90,7 +92,7 @@ export function SettingsOverlay() {
 
   const pick = (entry: SettingEntry) => {
     go(entry.page);
-    setTarget({ title: entry.title }); // a fresh object, so picking the same one again still scrolls
+    setTarget({ entry }); // a fresh object, so picking the same one again still scrolls
   };
 
   return (
@@ -109,50 +111,29 @@ export function SettingsOverlay() {
           }}
         >
           <nav className="t3s-sidebar" aria-label="Settings sections">
-            <label className="t3s-search">
-              <Search size={16} strokeWidth={2} />
-              <input
-                ref={searchInput}
-                type="search"
-                placeholder="Search"
-                aria-label="Search settings"
-                role="combobox"
-                aria-expanded={searching}
-                aria-controls="t3s-results"
-                aria-activedescendant={searching && results.length ? `t3s-result-${selected}` : undefined}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                    if (!results.length) return;
-                    e.preventDefault();
-                    const step = e.key === "ArrowDown" ? 1 : -1;
-                    setSelected((i) => (i + step + results.length) % results.length);
-                  }
-                  if (e.key === "Enter" && results[selected]) pick(results[selected]);
-                  if (e.key === "Escape" && query) {
-                    e.stopPropagation();
-                    setQuery("");
-                  }
-                }}
-                spellCheck={false}
-              />
-              {query ? (
-                <button
-                  className="t3s-search-clear"
-                  aria-label="Clear search"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setQuery("");
-                    searchInput.current?.focus();
-                  }}
-                >
-                  <Close size={14} strokeWidth={2.2} />
-                </button>
-              ) : (
-                <kbd className="t3s-kbd">/</kbd>
-              )}
-            </label>
+            <SearchField
+              ref={searchInput}
+              look="plain"
+              className="t3s-search"
+              value={query}
+              onChange={setQuery}
+              label="Search settings"
+              placeholder="Search"
+              kbd="/"
+              role="combobox"
+              aria-expanded={searching}
+              aria-controls="t3s-results"
+              aria-activedescendant={searching && results.length ? `t3s-result-${selected}` : undefined}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  if (!results.length) return;
+                  e.preventDefault();
+                  const step = e.key === "ArrowDown" ? 1 : -1;
+                  setSelected((i) => (i + step + results.length) % results.length);
+                }
+                if (e.key === "Enter" && results[selected]) pick(results[selected]);
+              }}
+            />
 
             <div className="t3s-groups">
               {searching ? (
@@ -162,7 +143,7 @@ export function SettingsOverlay() {
                       const p = pageOf(entry.page);
                       return (
                         <div
-                          key={`${entry.page}:${entry.title}`}
+                          key={entry.id}
                           id={`t3s-result-${i}`}
                           data-index={i}
                           className="t3s-result"
@@ -234,9 +215,9 @@ export function SettingsOverlay() {
                   title="Interface sounds and controller notices on this device"
                 >
                   <Reset size={14} strokeWidth={2.2} />
-                  Restore device defaults
+                  <span className="t3s-ghost-label">Restore device defaults</span>
                 </button>
-                <Dialog.Close className="t3s-icon-btn" aria-label="Close settings">
+                <Dialog.Close className={iconButtonClass("settings")} aria-label="Close settings">
                   <Close size={16} strokeWidth={2.2} />
                 </Dialog.Close>
               </div>

@@ -1,13 +1,15 @@
-import { Popover } from "@base-ui/react/popover";
 import { useLayoutEffect, useRef, useState } from "react";
-import { SORTS, type SourceFilters } from "../lib/sources";
+import { SORTS, type SourceFilters } from "../lib/playback";
 import type { SourceSort } from "../lib/types";
-import { Close, Filters, Search } from "./icons";
+import { Close, Filters } from "./icons";
 import { Segmented } from "./Segmented";
 import { Dropdown } from "./Dropdown";
+import { Chip } from "./ui/Chip";
+import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
+import { SearchField } from "./ui/SearchField";
 
 /**
- * The controls over a source list (see lib/sources.ts). One decision is in
+ * The controls over a source list (see lib/playback/sources.ts). One decision is in
  * view, the one everybody makes - which picture - and the rest waits behind
  * a single button:
  *
@@ -166,31 +168,27 @@ function DesktopBar({ f, note }: { f: SourceFilters; note?: string }) {
           />
           </span>
         )}
-        <Popover.Root>
-          <Popover.Trigger className="srcf-filters pressable" aria-label={active.length ? `Filters, ${active.length} on` : "Filters"}>
+        <PopoverRoot>
+          <PopoverTrigger className="srcf-filters pressable" aria-label={active.length ? `Filters, ${active.length} on` : "Filters"}>
             <Filters size={16} strokeWidth={2} />
             Filters
             {active.length > 0 && <span className="srcf-filters-count tabular">{active.length}</span>}
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Positioner className="select-positioner" sideOffset={8} align="end">
-              <Popover.Popup className="srcf-popover">
-                {sections(f, false).map((s) => (
-                  <ChipRow key={s.label} {...s} collapsible />
-                ))}
-                {note && <p className="srcf-popover-note">{note}</p>}
-              </Popover.Popup>
-            </Popover.Positioner>
-          </Popover.Portal>
-        </Popover.Root>
+          </PopoverTrigger>
+          <PopoverPopup className="srcf-popover" sideOffset={8} align="end">
+            {sections(f, false).map((s) => (
+              <ChipRow key={s.label} {...s} collapsible />
+            ))}
+            {note && <p className="srcf-popover-note">{note}</p>}
+          </PopoverPopup>
+        </PopoverRoot>
       </div>
       {active.length > 0 && (
         <div className="srcf-active" role="group" aria-label="Filters on">
           {active.map((a) => (
-            <button key={a.key} className="srcf-tag" aria-pressed onClick={a.clear} aria-label={`Remove ${a.label}`}>
+            <Chip key={a.key} variant="tag" pressed onClick={a.clear} aria-label={`Remove ${a.label}`}>
               {a.label}
               <Close size={12} />
-            </button>
+            </Chip>
           ))}
           <button className="srcf-clear" onClick={() => f.set({ lang: null, size: null, source: null, tags: [] })}>
             Clear All
@@ -205,7 +203,7 @@ function TvBar({ f, note }: { f: SourceFilters; note?: string }) {
   // Sort goes last on TV, under the filters it orders.
   const [sort, ...rest] = sections(f, true);
   return (
-    <div className="srcf srcf-tv" data-nav-memory>
+    <div className="srcf srcf-tv" data-nav-memory data-nav-group>
       {[...rest, sort].map((s) => (
         <ChipRow key={s.label} {...s} />
       ))}
@@ -258,26 +256,22 @@ function ChipRow({ label, chips, collapsible = false }: Section & { collapsible?
       <div className="srcf-chiprow-head">
         <span className="srcf-chiprow-label">{label}</span>
         {searchable && (
-          <label className="srcf-chiprow-search">
-            <Search size={13} aria-hidden />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search"
-              aria-label={`Search ${label.toLowerCase()}`}
-              spellCheck={false}
-              autoComplete="off"
-            />
-          </label>
+          <SearchField
+            look="mini"
+            className="srcf-chiprow-search"
+            value={query}
+            onChange={setQuery}
+            label={`Search ${label.toLowerCase()}`}
+            placeholder="Search"
+          />
         )}
       </div>
       <div className="srcf-chips" ref={box} data-folded={folded || undefined}>
         {shown.map((c) => (
-          <button key={c.key} className="source-chip" aria-pressed={c.on} onClick={c.pick}>
+          <Chip key={c.key} variant="choice" pressed={c.on} onClick={c.pick}>
             {c.label}
             {c.count != null && <span className="srcf-count tabular">{c.count}</span>}
-          </button>
+          </Chip>
         ))}
       </div>
       {q && !shown.length && <p className="srcf-chiprow-empty">Nothing matches “{query.trim()}”.</p>}

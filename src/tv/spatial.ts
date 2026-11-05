@@ -19,9 +19,16 @@
  *                       start edge, so your eye stays put as the shelf slides.
  *  - `data-nav-scroll`  A vertical scroller: "start" brings the focused
  *                       `data-nav-row` to the top, "center" centres it.
+ *  - `data-nav-group`   Up/down stay inside it while there's something that way
+ *                       (rows of filter chips above a list: down goes to the
+ *                       next row of chips, not into the list beside them).
+ *  - `data-nav-loading` A row still loading: reachable by moving, never where
+ *                       focus is first placed.
  *  - `data-nav-own`     Handles its own arrow keys (sliders and the like).
+ *  - `data-nav-keep`    A new page leaves focus here (focusWhenReady's
+ *                       `respectKeep`): the section tabs, the search field.
  */
-import { prefersReducedMotion } from "../lib/reducedMotion";
+import { glideScroll } from "./follow";
 
 export type Dir = "up" | "down" | "left" | "right";
 
@@ -35,7 +42,6 @@ export const KEY_DIRS: Record<string, Dir> = {
 const FOCUSABLE = "button, a[href], input, select, textarea, [tabindex]";
 const memory = new WeakMap<Element, HTMLElement>();
 
-const reducedMotion = prefersReducedMotion;
 
 export function isNavigable(el: Element): el is HTMLElement {
   if (!(el instanceof HTMLElement)) return false;
@@ -78,13 +84,15 @@ export function landingIn(root: Element): HTMLElement | null {
     const inHome = landingIn(home);
     if (inHome) return inHome;
   }
-  const first = (sel: string) => [...root.querySelectorAll(sel)].find(isNavigable) ?? null;
+  // A loading row can take focus when moved to, but focus is never placed on one from nothing.
+  const first = (sel: string) => [...root.querySelectorAll(sel)].find((el): el is HTMLElement => isNavigable(el) && !el.hasAttribute("data-nav-loading")) ?? null;
   const remembered = memory.get(root);
   const recalled = remembered?.isConnected && root.contains(remembered) && isNavigable(remembered) ? remembered : null;
   if (root.hasAttribute("data-nav-prefer-entry")) {
     return first("[data-nav-entry]") ?? recalled ?? navigables(root)[0] ?? null;
   }
-  return recalled ?? first("[data-nav-default]") ?? first("[data-nav-entry]") ?? navigables(root)[0] ?? null;
+  const all = navigables(root);
+  return recalled ?? first("[data-nav-default]") ?? first("[data-nav-entry]") ?? all.find((el) => !el.hasAttribute("data-nav-loading")) ?? null;
 }
 
 // --- Geometry ---------------------------------------------------------------
@@ -135,8 +143,26 @@ function score(a: DOMRect, b: DOMRect, dir: Dir) {
   return along + side * 3 + drift * 0.05;
 }
 
-/** The best control in `dir` from `from`, among `candidates`. */
-function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
+/**
+ * The best control in `dir` from `from`, among `candidates`. Inside a `data-nav-group`, up and
+ * down look there first (test report 1, item 7): a short row of chips beside a wide list would
+ * otherwise lose to the list, which sits right under every chip.
+ */
+export function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
+  const horizontal = dir === "left" || dir === "right";
+  const group = horizontal ? null : from.closest("[data-nav-group]");
+  if (group) {
+    const inside = nearestOf(
+      from,
+      candidates.filter((c) => group.contains(c)),
+      dir,
+    );
+    if (inside) return inside;
+  }
+  return nearestOf(from, candidates, dir);
+}
+
+function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
   const a = from.getBoundingClientRect();
   const horizontal = dir === "left" || dir === "right";
   // At the end of a shelf (or the navbar), left/right stops — it never jumps to another row.
@@ -171,7 +197,12 @@ function resolveEntry(from: HTMLElement, target: HTMLElement) {
 
 // --- Moving -----------------------------------------------------------------
 
-/** Move focus one step in `dir`. Returns false when there's nowhere to go. */
+
+/**
+ * Move focus one step in `dir`. Returns false when there's nowhere to go. The page follows with
+ * one glide that a held stick or D-pad keeps steering (follow.ts): neither a restarted smooth
+ * scroll per step, which juddered, nor an instant jump per row (test report 1 and re-test, item 20).
+ */
 export function move(dir: Dir): boolean {
   const scope = activeScope();
   if (!scope) return false;
@@ -185,6 +216,30 @@ export function move(dir: Dir): boolean {
   if (!target) return false;
   focusEl(resolveEntry(current, target));
   return true;
+}
+
+/**
+ * Focus was on something that's going away (a loading row whose cards arrived): once the page has
+ * drawn the new content, focus what now sits nearest to where it was.
+ */
+export function refocusNear(place: DOMRect) {
+  requestAnimationFrame(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) return;
+    const scope = activeScope();
+    if (!scope) return;
+    let best: HTMLElement | null = null;
+    let bestDistance = Infinity;
+    for (const el of navigables(scope)) {
+      const r = el.getBoundingClientRect();
+      const d = Math.hypot(r.left - place.left, r.top - place.top);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = el;
+      }
+    }
+    if (best) focusEl(best, false);
+  });
 }
 
 /** Focus without the browser's jump-scroll, then glide it into place. */
@@ -215,13 +270,17 @@ function offsetWithin(el: HTMLElement, ancestor: HTMLElement) {
 
 /** Bring a newly focused control into place: pinned in its shelf, its row where the screen wants it. */
 export function reveal(el: HTMLElement, smooth = true) {
-  const behavior: ScrollBehavior = smooth && !reducedMotion() ? "smooth" : "instant";
+  // Smooth: our own glide (follow.ts), which a held direction keeps heading on instead of restarting.
+  const scrollTo = (box: HTMLElement, axis: "x" | "y", to: number) => {
+    if (smooth) glideScroll(box, axis, to);
+    else box[axis === "x" ? "scrollLeft" : "scrollTop"] = to;
+  };
 
   const rail = el.closest<HTMLElement>("[data-nav-rail]");
   if (rail) {
     const card = [...rail.children].find((c) => c.contains(el)) as HTMLElement | undefined;
     const start = parseFloat(getComputedStyle(rail).scrollPaddingInlineStart) || 0;
-    if (card) rail.scrollTo({ left: offsetWithin(card, rail).left - start, behavior });
+    if (card) scrollTo(rail, "x", offsetWithin(card, rail).left - start);
   }
 
   const scroller = el.closest<HTMLElement>("[data-nav-scroll]");
@@ -249,7 +308,7 @@ export function reveal(el: HTMLElement, smooth = true) {
       else return;
     }
   }
-  scroller.scrollTo({ top: Math.max(0, next), behavior });
+  scrollTo(scroller, "y", Math.max(0, next));
 }
 
 /**
@@ -319,24 +378,4 @@ export function ownsArrows(target: EventTarget | null) {
   if (target.closest("[data-nav-own]")) return true;
   if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
   return target instanceof HTMLInputElement && !["button", "checkbox", "radio", "submit"].includes(target.type);
-}
-
-// --- Back -------------------------------------------------------------------
-
-/** Handlers for Back (Esc, Backspace, B), innermost last: an open panel closes before the page goes back. */
-const backStack: { current: () => void }[] = [];
-
-export function pushBack(handler: { current: () => void }) {
-  backStack.push(handler);
-  return () => {
-    const i = backStack.lastIndexOf(handler);
-    if (i >= 0) backStack.splice(i, 1);
-  };
-}
-
-export function runBack() {
-  const top = backStack[backStack.length - 1];
-  if (!top) return false;
-  top.current();
-  return true;
 }

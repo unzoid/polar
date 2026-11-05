@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::locks::Locked;
+
 /// Scores move slowly; a few hours keeps revisits free and the free tiers' daily limits safe.
 const TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
@@ -78,7 +80,7 @@ impl RatingsClient {
             return Ratings::default();
         }
         let key = format!("{imdb_id}/{}/{}", mdblist.is_some(), omdb.is_some());
-        if let Some((at, hit)) = self.cache.lock().unwrap().get(&key) {
+        if let Some((at, hit)) = self.cache.locked().get(&key) {
             if at.elapsed() < TTL {
                 return hit.clone();
             }
@@ -101,13 +103,21 @@ impl RatingsClient {
         if let Some(b) = b {
             out.fill_from(b);
         }
-        self.cache.lock().unwrap().insert(key, (Instant::now(), out.clone()));
+        self.cache.locked().insert(key, (Instant::now(), out.clone()));
         out
     }
 
+    /// The answer as JSON, or `None` (logged by host: the query holds the key).
     async fn json(&self, url: &str, query: &[(&str, &str)]) -> Option<Value> {
-        let res = self.http.get(url).query(query).send().await.ok()?;
-        res.error_for_status().ok()?.json().await.ok()
+        let answer = async { self.http.get(url).query(query).send().await?.error_for_status()?.json().await };
+        answer
+            .await
+            .map_err(|e| {
+                let host =
+                    reqwest::Url::parse(url).ok().and_then(|u| u.host_str().map(str::to_owned)).unwrap_or_default();
+                tracing::warn!("ratings from {host} failed: {}", e.without_url());
+            })
+            .ok()
     }
 
     async fn mdblist(&self, imdb_id: &str, ty: &str, key: &str) -> Option<Ratings> {

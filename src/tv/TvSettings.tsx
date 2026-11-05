@@ -1,10 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight } from "../components/icons";
-import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../lib/anime/shelves";
-import { PREFERRED_LANGUAGES, languageName } from "../lib/languages";
-import { setPrefs, usePrefs, type Prefs } from "../lib/prefs";
-import { useSettings, useUpdateSettings } from "../lib/queries";
-import type { Settings, SourceSort } from "../lib/types";
+import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../lib/anime";
+import { choicesOf, numberLabel, shownNumber, storedNumber, tvNumberSteps, usePrefs, useSetting } from "../lib/settings";
 import { useBack, usePageActive } from "./shell";
 import { playSound } from "./sounds";
 import { focusWhenReady } from "./spatial";
@@ -22,54 +19,6 @@ const onOff: Choice<boolean>[] = [
   { value: true, label: "On" },
 ];
 
-const range = (min: number, max: number, step: number, label: (n: number) => string): Choice<number>[] => {
-  const out: Choice<number>[] = [];
-  for (let n = min; n <= max + 1e-9; n += step) out.push({ value: Math.round(n * 100) / 100, label: label(Math.round(n * 100) / 100) });
-  return out;
-};
-
-const RESOLUTIONS: Choice<number>[] = [
-  { value: 0, label: "Any" },
-  { value: 2160, label: "4K" },
-  { value: 1440, label: "1440p" },
-  { value: 1080, label: "1080p" },
-  { value: 720, label: "720p" },
-];
-
-const SORTS: Choice<SourceSort>[] = [
-  { value: "best", label: "Best Match" },
-  { value: "quality", label: "Quality" },
-  { value: "sizeDesc", label: "Largest First" },
-  { value: "sizeAsc", label: "Smallest First" },
-  { value: "peers", label: "Most Peers" },
-];
-
-const RATING_POSITIONS: Choice<"poster" | "below">[] = [
-  { value: "poster", label: "On the Poster" },
-  { value: "below", label: "Below the Poster" },
-];
-
-const languages =(none: string): Choice<string>[] => [
-  { value: "", label: none },
-  ...PREFERRED_LANGUAGES.map((code) => ({ value: code, label: languageName(code) ?? code })),
-];
-
-const MATURE: Choice<Prefs["matureContent"]>[] = [
-  { value: "show", label: "Show" },
-  { value: "hide", label: "Hide" },
-];
-
-const ANIME_TITLES: Choice<Prefs["animeTitles"]>[] = [
-  { value: "english", label: "English" },
-  { value: "romaji", label: "Romaji" },
-  { value: "native", label: "Japanese" },
-];
-
-const SCORE_FORMATS: Choice<Prefs["animeScoreFormat"]>[] = [
-  { value: "ten", label: "Out of Ten" },
-  { value: "percent", label: "Percentage" },
-];
-
 type CategoryId = "playback" | "sources" | "browsing" | "anime" | "tv";
 
 const CATEGORIES: { id: CategoryId; title: string }[] = [
@@ -80,11 +29,12 @@ const CATEGORIES: { id: CategoryId; title: string }[] = [
   { id: "tv", title: "Remote and Controller" },
 ];
 
-/** A list of categories; Enter opens one, Back returns to the list on the one you left. */
-export function TvSettings() {
+/** A list of categories; Enter opens one, Back returns to the list on the one you left. `page` opens one at the start. */
+export function TvSettings({ page }: { page?: string }) {
   const active = usePageActive();
-  const [open, setOpen] = useState<CategoryId | null>(null);
-  const [focused, setFocused] = useState<CategoryId>("playback");
+  const asked = CATEGORIES.find((c) => c.id === page)?.id ?? null;
+  const [open, setOpen] = useState<CategoryId | null>(asked);
+  const [focused, setFocused] = useState<CategoryId>(asked ?? "playback");
   const listRef = useRef<HTMLDivElement>(null);
 
   const go = (next: CategoryId | null) => {
@@ -127,122 +77,65 @@ export function TvSettings() {
   );
 }
 
+/** Each category's settings, by schema id (lib/settings/schema.ts); the first row takes focus. */
+const ROWS: Record<Exclude<CategoryId, "anime">, string[]> = {
+  playback: [
+    "autoplayNext",
+    "autoplayCountdown",
+    "stillWatchingAfter",
+    "autoSkip",
+    "autocrop",
+    "resumePlayback",
+    "seekStep",
+    "audioLanguage",
+    "subtitleLanguage",
+  ],
+  sources: ["autoPickSource", "maxResolution", "preferScreenResolution", "hideCam", "sourceSort", "sourceFiltersHide"],
+  browsing: ["trailerAutoplay", "trailerSound", "showCardRatings", "cardRatingPosition", "matureContent", "showCalendar", "showContinueWatching"],
+  tv: ["uiSounds", "uiSoundVolume", "padHints", "padStick", "padPlayerVolume", "controllerAlerts"],
+};
+
+const ANIME_ROWS = ["animeTitles", "animeCardScores", "animeScoreFormat", "animeCardCountdown"];
+
 function CategoryRows({ id }: { id: CategoryId }) {
-  const { data: s } = useSettings();
-  const update = useUpdateSettings();
   const prefs = usePrefs();
   const shelfVisible = useShelfVisible();
-  if (!s) return null;
 
-  const set = (patch: Partial<Settings>) => update.mutate(patch);
-  const pref = (patch: Partial<Prefs>) => setPrefs(patch);
+  if (id !== "anime") return ROWS[id].map((setting, i) => <SettingRow key={setting} id={setting} first={i === 0} />);
+  return (
+    <>
+      <SettingRow id="animeEnabled" first />
+      {prefs.animeEnabled && (
+        <>
+          {ANIME_ROWS.map((setting) => (
+            <SettingRow key={setting} id={setting} />
+          ))}
+          {ANIME_SHELVES.filter((s) => s.id !== "hero").map((s) => (
+            <Row key={s.id} label={s.label} choices={onOff} value={shelfVisible(s.id)} onChange={(v) => setShelfVisible(s.id, v)} />
+          ))}
+        </>
+      )}
+    </>
+  );
+}
 
-  switch (id) {
-    case "playback":
-      return (
-        <>
-          <Row label="Play Next Episode Automatically" choices={onOff} value={s.autoplayNext} onChange={(v) => set({ autoplayNext: v })} first />
-          <Row
-            label="Up Next Countdown"
-            choices={range(3, 60, 1, (n) => `${n} sec`)}
-            value={s.autoplayCountdown}
-            onChange={(v) => set({ autoplayCountdown: v })}
-          />
-          <Row
-            label="Ask “Still Watching?”"
-            choices={range(0, 12, 1, (n) => (n === 0 ? "Never" : `After ${n} episode${n === 1 ? "" : "s"}`))}
-            value={s.stillWatchingAfter}
-            onChange={(v) => set({ stillWatchingAfter: v })}
-          />
-          <Row label="Skip Intros" choices={onOff} value={s.autoSkip} onChange={(v) => set({ autoSkip: v })} />
-          <Row label="Crop Black Bars" choices={onOff} value={prefs.autocrop} onChange={(v) => pref({ autocrop: v })} />
-          <Row label="Resume Where You Left Off" choices={onOff} value={s.resumePlayback} onChange={(v) => set({ resumePlayback: v })} />
-          <Row
-            label="Seek Step"
-            choices={range(5, 120, 5, (n) => `${n} sec`)}
-            value={s.seekStep}
-            onChange={(v) => set({ seekStep: v })}
-          />
-          <Row label="Audio Language" choices={languages("File Default")} value={s.audioLanguage} onChange={(v) => set({ audioLanguage: v })} />
-          <Row label="Subtitles" choices={languages("Off")} value={s.subtitleLanguage} onChange={(v) => set({ subtitleLanguage: v })} />
-        </>
-      );
-    case "sources":
-      return (
-        <>
-          <Row label="Play the Best Source Right Away" choices={onOff} value={s.autoPickSource} onChange={(v) => set({ autoPickSource: v })} first />
-          <Row label="Highest Quality" choices={RESOLUTIONS} value={s.maxResolution} onChange={(v) => set({ maxResolution: v })} />
-          <Row
-            label="Match My Screen"
-            choices={onOff}
-            value={s.preferScreenResolution ?? true}
-            onChange={(v) => set({ preferScreenResolution: v })}
-          />
-          <Row label="Hide CAM Recordings" choices={onOff} value={s.hideCam} onChange={(v) => set({ hideCam: v })} />
-          <Row label="Sort Sources By" choices={SORTS} value={s.sourceSort} onChange={(v) => set({ sourceSort: v })} />
-          <Row label="Filters Hide Other Sources" choices={onOff} value={s.sourceFiltersHide ?? false} onChange={(v) => set({ sourceFiltersHide: v })} />
-        </>
-      );
-    case "browsing":
-      return (
-        <>
-          <Row label="Play Trailers on Title Pages" choices={onOff} value={s.trailerAutoplay ?? true} onChange={(v) => set({ trailerAutoplay: v })} first />
-          <Row label="Automatic Trailer Sound" choices={onOff} value={s.trailerSound ?? false} onChange={(v) => set({ trailerSound: v })} />
-          <Row label="IMDb Ratings on Cards" choices={onOff} value={s.showCardRatings ?? false} onChange={(v) => set({ showCardRatings: v })} />
-          <Row
-            label="Rating Position"
-            choices={RATING_POSITIONS}
-            value={s.cardRatingPosition ?? "poster"}
-            onChange={(v) => set({ cardRatingPosition: v })}
-          />
-          <Row
-            label="Mature Anime"
-            choices={MATURE}
-            value={prefs.matureContent === "show" ? ("show" as const) : ("hide" as const)}
-            onChange={(v) => pref({ matureContent: v })}
-          />
-          <Row label="Calendar" choices={onOff} value={s.showCalendar ?? false} onChange={(v) => set({ showCalendar: v })} />
-          <Row label="Continue Watching" choices={onOff} value={s.showContinueWatching} onChange={(v) => set({ showContinueWatching: v })} />
-        </>
-      );
-    case "anime":
-      return (
-        <>
-          <Row label="Show Anime" choices={onOff} value={prefs.animeEnabled} onChange={(v) => pref({ animeEnabled: v })} first />
-          {prefs.animeEnabled && (
-            <>
-              <Row label="Titles" choices={ANIME_TITLES} value={prefs.animeTitles} onChange={(v) => pref({ animeTitles: v })} />
-              <Row label="Scores" choices={onOff} value={prefs.animeCardScores} onChange={(v) => pref({ animeCardScores: v })} />
-              <Row label="Score Format" choices={SCORE_FORMATS} value={prefs.animeScoreFormat} onChange={(v) => pref({ animeScoreFormat: v })} />
-              <Row label="Airing Countdowns" choices={onOff} value={prefs.animeCardCountdown} onChange={(v) => pref({ animeCardCountdown: v })} />
-              {ANIME_SHELVES.filter((s) => s.id !== "hero").map((s) => (
-                <Row key={s.id} label={s.label} choices={onOff} value={shelfVisible(s.id)} onChange={(v) => setShelfVisible(s.id, v)} />
-              ))}
-            </>
-          )}
-        </>
-      );
-    case "tv":
-      return (
-        <>
-          <Row label="Interface Sounds" choices={onOff} value={prefs.uiSounds} onChange={(v) => pref({ uiSounds: v })} first />
-          <Row
-            label="Sound Volume"
-            choices={range(0.1, 1, 0.1, (n) => `${Math.round(n * 100)}%`)}
-            value={Math.round(prefs.uiSoundVolume * 10) / 10}
-            onChange={(v) => pref({ uiSoundVolume: v })}
-          />
-          <Row label="Button Hints" choices={onOff} value={prefs.padHints} onChange={(v) => pref({ padHints: v })} />
-          <Row label="Move With the Left Stick" choices={onOff} value={prefs.padStick} onChange={(v) => pref({ padStick: v })} />
-          <Row
-            label="Up and Down Change Volume in the Player"
-            choices={onOff}
-            value={prefs.padPlayerVolume}
-            onChange={(v) => pref({ padPlayerVolume: v })}
-          />
-          <Row label="Controller Notices" choices={onOff} value={prefs.controllerAlerts} onChange={(v) => pref({ controllerAlerts: v })} />
-        </>
-      );
+/** A schema setting as a TV row: its TV label, and its choices or the number steps to move through. */
+function SettingRow({ id, first }: { id: string; first?: boolean }) {
+  const { def, value, set } = useSetting(id);
+  const control = def.control;
+  if (value === undefined || !control) return null;
+  const label = def.tv ?? def.title;
+
+  switch (control.kind) {
+    case "toggle":
+      return <Row label={label} choices={onOff} value={!!value} onChange={set} first={first} />;
+    case "choice":
+      return <Row label={label} choices={choicesOf(control, value)} value={value} onChange={set} first={first} />;
+    case "number": {
+      const shown = shownNumber(control, Number(value));
+      const choices = tvNumberSteps(control, shown).map((n) => ({ value: n, label: numberLabel(control, n) }));
+      return <Row label={label} choices={choices} value={shown} onChange={(n) => set(storedNumber(control, n))} first={first} />;
+    }
   }
 }
 

@@ -1,11 +1,15 @@
 //! Downloads: a movie or an episode saved to this device to watch offline.
 //!
-//! A download is the source's HTTP file (a service link, a direct URL, or the
-//! bridge's file for a p2p) copied to `<app data>/downloads`.
-//! The list lives beside it in `downloads.json`. Pausing stops the transfer
-//! and keeps the partial file; resuming asks for the rest with a Range
-//! request (or starts over if the server can't do ranges). A transfer cut off
-//! by quitting the app comes back paused.
+//! A download is the source's HTTP file copied to the user's Videos folder, under
+//! `Polarity` (test report 1, item 29: not hidden in roaming app data, which
+//! Windows may copy between PCs), named for what it is (`Show - S01E02 - Title.mkv`,
+//! polar_library::filenames). Where there's no Videos folder, `<local app data>/downloads`.
+//! The list is `downloads.json` in the local app data. Pausing stops the transfer
+//! and keeps the partial file (`<file>.part` until it is complete); resuming
+//! asks for the rest with a Range request, checked against `Content-Range`
+//! (or starts over if the server can't do ranges). Only one transfer writes a
+//! file at a time: a resume waits for the paused one to let go. A transfer cut
+//! off by quitting the app comes back paused.
 //!
 //! The UI polls `downloads_list` while anything is moving, so there's no
 //! event plumbing: progress is just the record's `received` count.
@@ -17,13 +21,15 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use polar_addon::Stream;
+use polar_library::filenames;
+use polar_library::opened::{self, Opened};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tokio::io::AsyncWriteExt;
 
 use crate::commands::{resolve, CmdError, Playable, Result};
+use crate::locks::Locked;
 use crate::store::now;
-use crate::AppState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -103,12 +109,34 @@ struct Inner {
     items: Vec<Download>,
     /// Running transfers, by id; setting the flag stops one.
     running: HashMap<String, Arc<AtomicBool>>,
+    /// Held by the transfer writing each file, for as long as it runs.
+    writers: HashMap<String, Arc<tokio::sync::Mutex<()>>>,
+}
+
+/// A source that sends nothing for this long has stalled.
+const IDLE: Duration = Duration::from_secs(30);
+
+/// Where an unfinished download is written; renamed to `file` once complete.
+fn part(file: &str) -> PathBuf {
+    PathBuf::from(format!("{file}.part"))
+}
+
+/// Deletes a download's file, finished or not.
+fn remove_files(file: &str) {
+    let _ = std::fs::remove_file(file);
+    let _ = std::fs::remove_file(part(file));
 }
 
 pub struct Downloads {
+    /// Where the files go.
     dir: PathBuf,
+    /// Where `downloads.json` is.
+    state: PathBuf,
     inner: Mutex<Inner>,
     http: reqwest::Client,
+    /// Why `downloads.json` couldn't be read at start-up: while set, the list
+    /// isn't saved over it (critique C1).
+    problem: Option<String>,
 }
 
 /// True for a path on this machine (what a finished download plays from), not a URL.
@@ -117,12 +145,32 @@ pub fn is_local(url: &str) -> bool {
 }
 
 impl Downloads {
-    pub fn load(app_data: &Path) -> Self {
-        let dir = app_data.join("downloads");
-        let mut items: Vec<Download> = std::fs::read(dir.join("downloads.json"))
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default();
+    /// The list from `state` (taken over first from `legacy`, where earlier versions kept it with
+    /// the files: copied, the old one renamed `downloads.json.moved`; the files stay where they
+    /// are), new files into `dir`.
+    pub fn load(state: &Path, dir: PathBuf, legacy: Option<&Path>) -> Self {
+        let path = state.join("downloads.json");
+        if let Some(old) = legacy.map(|l| l.join("downloads.json")) {
+            if let Err(e) = polar_library::moved::take_over(&old, &path) {
+                tracing::warn!("couldn't move the downloads list: {e}");
+            }
+        }
+        let (mut items, problem): (Vec<Download>, _) = match opened::open(std::fs::read(&path)) {
+            Opened::Data(items) => (items, None),
+            Opened::Fresh => (Vec::new(), None),
+            // The files are still on disk; keep the record of them before starting over.
+            Opened::Corrupt(e) => match std::fs::copy(&path, path.with_extension(format!("corrupt-{}.json", now()))) {
+                Ok(_) => (Vec::new(), None),
+                Err(copy) => (
+                    Vec::new(),
+                    Some(format!("{} is damaged ({e}) and couldn't be backed up ({copy})", path.display())),
+                ),
+            },
+            Opened::Unreadable(e) => (Vec::new(), Some(format!("{} couldn't be read ({e})", path.display()))),
+        };
+        if let Some(problem) = &problem {
+            tracing::error!("{problem}; not saving the downloads list over it");
+        }
         for d in &mut items {
             // Cut off by the app quitting: comes back paused, ready to resume.
             if d.state == DownloadState::Downloading {
@@ -133,33 +181,40 @@ impl Downloads {
         items.retain(|d| d.state != DownloadState::Done || Path::new(&d.file).exists());
         Self {
             dir,
-            inner: Mutex::new(Inner { items, running: HashMap::new() }),
+            state: state.to_owned(),
+            inner: Mutex::new(Inner { items, ..Inner::default() }),
             http: reqwest::Client::builder()
                 .user_agent(concat!("polar/", env!("CARGO_PKG_VERSION")))
                 .connect_timeout(Duration::from_secs(15))
                 .build()
                 .unwrap_or_default(),
+            problem,
         }
+    }
+
+    /// Set when `downloads.json` couldn't be read at start-up.
+    pub fn problem(&self) -> Option<&str> {
+        self.problem.as_deref()
     }
 
     /// True when `path` is a finished download's file, so the player may open it.
     pub fn owns(&self, path: &str) -> bool {
-        is_local(path)
-            && self.inner.lock().unwrap().items.iter().any(|d| d.state == DownloadState::Done && d.file == path)
+        is_local(path) && self.inner.locked().items.iter().any(|d| d.state == DownloadState::Done && d.file == path)
     }
 
     fn save(&self, items: &[Download]) {
-        let _ = std::fs::create_dir_all(&self.dir);
-        if let Ok(json) = serde_json::to_vec_pretty(items) {
-            let tmp = self.dir.join("downloads.json.tmp");
-            if std::fs::write(&tmp, json).is_ok() {
-                let _ = std::fs::rename(tmp, self.dir.join("downloads.json"));
+        if self.problem.is_some() {
+            return;
+        }
+        if let Ok(json) = serde_json::to_vec(items) {
+            if let Err(e) = polar_library::saver::write_atomic(&self.state.join("downloads.json"), &json) {
+                tracing::warn!("the downloads list wasn't saved: {e}");
             }
         }
     }
 
     fn update(&self, id: &str, f: impl FnOnce(&mut Download), persist: bool) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.locked();
         if let Some(d) = inner.items.iter_mut().find(|d| d.id == id) {
             f(d);
         }
@@ -170,7 +225,7 @@ impl Downloads {
 
     /// A running transfer updates its own record by file, never a newer one for the same video.
     fn update_file(&self, file: &str, f: impl FnOnce(&mut Download), persist: bool) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.locked();
         if let Some(d) = inner.items.iter_mut().find(|d| d.file == file) {
             f(d);
         }
@@ -180,11 +235,11 @@ impl Downloads {
     }
 
     fn get(&self, id: &str) -> Option<Download> {
-        self.inner.lock().unwrap().items.iter().find(|d| d.id == id).cloned()
+        self.inner.locked().items.iter().find(|d| d.id == id).cloned()
     }
 
     fn stop(&self, id: &str) {
-        if let Some(flag) = self.inner.lock().unwrap().running.remove(id) {
+        if let Some(flag) = self.inner.locked().running.remove(id) {
             flag.store(true, Ordering::Relaxed);
         }
     }
@@ -193,7 +248,7 @@ impl Downloads {
     fn spawn(self: &Arc<Self>, id: String) {
         let flag = Arc::new(AtomicBool::new(false));
         let file = {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.locked();
             if inner.running.contains_key(&id) {
                 return;
             }
@@ -205,20 +260,27 @@ impl Downloads {
             self.save(&inner.items);
             file
         };
+        let writer = self.inner.locked().writers.entry(file.clone()).or_default().clone();
         let me = self.clone();
         tauri::async_runtime::spawn(async move {
-            let outcome = me.transfer(&file, &flag).await;
-            let mut inner = me.inner.lock().unwrap();
-            // Only the transfer still registered may clear itself (a restart may have replaced it).
-            if inner.running.get(&id).is_some_and(|f| Arc::ptr_eq(f, &flag)) {
+            // A paused transfer may still be inside a chunk; it lets go at the
+            // next one (or after IDLE), and only then does this one append.
+            let _writing = writer.lock().await;
+            let outcome = if flag.load(Ordering::Relaxed) { Ok(false) } else { me.transfer(&file, &flag).await };
+            let mut inner = me.inner.locked();
+            // Only the transfer still registered may clear itself or set the
+            // state: a paused or restarted one has no say any more.
+            let current = inner.running.get(&id).is_some_and(|f| Arc::ptr_eq(f, &flag));
+            if current {
                 inner.running.remove(&id);
             }
             // Removed or replaced while running: the file was still open then, so delete it now.
             if !inner.items.iter().any(|d| d.file == file) {
-                let _ = std::fs::remove_file(&file);
+                inner.writers.remove(&file);
+                remove_files(&file);
                 return;
             }
-            if let Some(d) = inner.items.iter_mut().find(|d| d.file == file) {
+            if let Some(d) = inner.items.iter_mut().find(|d| d.file == file).filter(|_| current) {
                 match outcome {
                     Ok(true) => {
                         d.state = DownloadState::Done;
@@ -238,21 +300,33 @@ impl Downloads {
 
     /// Copy the file down. Ok(true) when finished, Ok(false) when stopped.
     async fn transfer(&self, file: &str, stop: &AtomicBool) -> std::result::Result<bool, String> {
-        let Some(d) = self.inner.lock().unwrap().items.iter().find(|d| d.file == file).cloned() else {
+        let Some(d) = self.inner.locked().items.iter().find(|d| d.file == file).cloned() else {
             return Ok(false);
         };
-        let path = PathBuf::from(file);
+        let path = part(file);
+        // Finished just as it was paused, or paused by an older build that
+        // wrote straight into `file`: carry on from there.
+        if !path.exists() && Path::new(file).exists() {
+            tokio::fs::rename(file, &path).await.map_err(|e| format!("Couldn't write the file: {e}"))?;
+        }
         // Each start writes a new file, so whatever is on disk is this download's own.
         let have = tokio::fs::metadata(&path).await.map(|m| m.len()).unwrap_or(0);
 
-        // Always ask for a range, as a video player does: bridges
-        // (p2ps) and some service hosts refuse a plain GET with 400.
+        // Always ask for a range, as a video player does: some file hosts
+        // refuse a plain GET with 400.
         let mut req = self.http.get(&d.url).header(reqwest::header::RANGE, format!("bytes={have}-"));
         for (k, v) in &d.headers {
             req = req.header(k.as_str(), v.as_str());
         }
-        let mut res = req.send().await.map_err(|e| format!("Couldn't reach the source: {e}"))?;
+        let mut res = match tokio::time::timeout(IDLE, req.send()).await {
+            Ok(sent) => sent.map_err(|e| format!("Couldn't reach the source: {e}"))?,
+            Err(_) => return Err("The source didn't answer.".into()),
+        };
         let status = res.status();
+        // Everything was already here (it finished as it was paused).
+        if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && have > 0 && d.total == Some(have) {
+            return finish(&path, file).await;
+        }
         if !status.is_success() {
             if status.as_u16() == 403 || status.as_u16() == 410 {
                 return Err("The source link expired. Choose another source.".into());
@@ -266,10 +340,19 @@ impl Downloads {
                 format!("The source answered {status}: {said}")
             });
         }
-        // 206: the rest of the file. 200: the whole file again (no range support).
-        let resumed = have > 0 && status == reqwest::StatusCode::PARTIAL_CONTENT;
-        let start = if resumed { have } else { 0 };
-        let total = res.content_length().map(|n| n + start);
+        // 206: the part asked for, which must start where the file ends.
+        // 200: the whole file again (no range support).
+        let range = res.headers().get(reqwest::header::CONTENT_RANGE).and_then(|v| v.to_str().ok());
+        let range = range.and_then(polar_addon::probe::content_range);
+        let start = match (status, range) {
+            (reqwest::StatusCode::PARTIAL_CONTENT, Some((start, _))) if start == have || start == 0 => start,
+            (reqwest::StatusCode::PARTIAL_CONTENT, _) => {
+                return Err("The source sent the wrong part of the file. Start the download again.".into())
+            }
+            _ => 0,
+        };
+        let resumed = start > 0;
+        let total = range.and_then(|(_, total)| total).or_else(|| res.content_length().map(|n| n + start));
         self.update_file(
             file,
             |d| {
@@ -295,7 +378,16 @@ impl Downloads {
                 let _ = out.flush().await;
                 return Ok(false);
             }
-            match res.chunk().await {
+            let Ok(chunk) = tokio::time::timeout(IDLE, res.chunk()).await else {
+                let _ = out.flush().await;
+                return Err("The source stopped sending.".into());
+            };
+            match chunk {
+                // Paused while this chunk was on its way: it belongs to no one now.
+                Ok(Some(_)) if stop.load(Ordering::Relaxed) => {
+                    let _ = out.flush().await;
+                    return Ok(false);
+                }
                 Ok(Some(bytes)) => {
                     out.write_all(&bytes).await.map_err(|e| format!("Couldn't write the file: {e}"))?;
                     received += bytes.len() as u64;
@@ -316,8 +408,15 @@ impl Downloads {
         if total.is_some_and(|t| received < t) {
             return Err("The download ended early.".into());
         }
-        Ok(true)
+        drop(out);
+        finish(&path, file).await
     }
+}
+
+/// The whole file is in `part`: give it its final name.
+async fn finish(part: &Path, file: &str) -> std::result::Result<bool, String> {
+    tokio::fs::rename(part, file).await.map_err(|e| format!("Couldn't write the file: {e}"))?;
+    Ok(true)
 }
 
 /// A file extension for what the source serves; mpv sniffs the real format anyway.
@@ -331,41 +430,45 @@ fn extension(url: &str) -> &'static str {
     "mkv"
 }
 
-/// A new name per start, so a restart never writes into a file an older transfer still holds.
-fn file_name(id: &str, url: &str, stamp: u64) -> String {
-    let safe: String = id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' }).collect();
-    format!("{safe}-{stamp}.{}", extension(url))
+/// The file for a new download: named for what it is, with a number when that name is in use (a
+/// file there or its `.part`, or another download's), so a restart never writes into a file an
+/// older transfer still holds.
+fn file_for(dir: &Path, req: &DownloadRequest, url: &str, others: &[String]) -> PathBuf {
+    let stem = filenames::download_stem(&req.name, req.season, req.episode, req.episode_title.as_deref(), &req.quality);
+    let name = filenames::free_name(&stem, extension(url), |f| {
+        let p = dir.join(f);
+        let s = p.to_string_lossy();
+        p.exists() || part(&s).exists() || others.iter().any(|o| *o == s)
+    });
+    dir.join(name)
 }
 
 type Shared<'a> = State<'a, Arc<Downloads>>;
 
 #[tauri::command]
 pub fn downloads_list(downloads: Shared<'_>) -> Vec<Download> {
-    let mut items = downloads.inner.lock().unwrap().items.clone();
+    let mut items = downloads.inner.locked().items.clone();
     items.sort_by_key(|i| std::cmp::Reverse(i.added_at));
     items
 }
 
 #[tauri::command]
-pub async fn download_start(
-    state: State<'_, AppState>,
-    downloads: Shared<'_>,
-    req: DownloadRequest,
-) -> Result<Download> {
-    let url = match resolve(&state, req.stream.clone()).await {
+pub async fn download_start(downloads: Shared<'_>, req: DownloadRequest) -> Result<Download> {
+    let url = match resolve(req.stream.clone()) {
         Playable::Url { url } if !is_local(&url) => url,
-        Playable::Url { .. } => return Err(CmdError::Other("This is already on your device.".into())),
+        Playable::Url { .. } => return Err(CmdError::Unsupported("This is already on your device.".into())),
         Playable::External { .. } => {
-            return Err(CmdError::Other("This source plays in a browser and can't be downloaded.".into()))
+            return Err(CmdError::Unsupported("This source plays in a browser and can't be downloaded.".into()))
         }
-        Playable::Unsupported { reason } => return Err(CmdError::Other(reason)),
+        Playable::Unsupported { reason } => return Err(CmdError::Unsupported(reason)),
     };
     // Starting again replaces whatever was there (a failed or expired one).
     downloads.stop(&req.video_id);
     let added_at = now();
-    let file = downloads.dir.join(file_name(&req.video_id, &url, added_at));
+    let others: Vec<String> = downloads.inner.locked().items.iter().map(|d| d.file.clone()).collect();
+    let file = file_for(&downloads.dir, &req, &url, &others);
     std::fs::create_dir_all(&downloads.dir)
-        .map_err(|e| CmdError::Other(format!("Couldn't create the downloads folder: {e}")))?;
+        .map_err(|e| CmdError::Save(format!("Couldn't create the downloads folder: {e}")))?;
     let d = Download {
         id: req.video_id.clone(),
         meta_id: req.meta_id,
@@ -389,10 +492,11 @@ pub async fn download_start(
         headers: proxy_headers(&req.stream),
     };
     {
-        let mut inner = downloads.inner.lock().unwrap();
+        let mut inner = downloads.inner.locked();
         // The old file goes now if nothing holds it; a running transfer deletes it when it stops.
-        if let Some(old) = inner.items.iter().find(|x| x.id == d.id) {
-            let _ = std::fs::remove_file(&old.file);
+        if let Some(old) = inner.items.iter().find(|x| x.id == d.id).map(|x| x.file.clone()) {
+            remove_files(&old);
+            inner.writers.remove(&old);
         }
         inner.items.retain(|x| x.id != d.id);
         inner.items.push(d.clone());
@@ -426,26 +530,177 @@ pub fn download_resume(downloads: Shared<'_>, id: String) {
 /// Show a download's file in Explorer / Finder. By id, so the webview can't point it anywhere else.
 #[tauri::command]
 pub fn download_reveal(downloads: Shared<'_>, id: String) -> Result<()> {
-    let file = downloads.get(&id).map(|d| d.file).ok_or_else(|| CmdError::Other("No such download.".into()))?;
-    if !Path::new(&file).exists() {
-        return Err(CmdError::Other("The file isn't there any more.".into()));
-    }
-    tauri_plugin_opener::reveal_item_in_dir(&file).map_err(|e| CmdError::Other(e.to_string()))
+    let file = downloads.get(&id).map(|d| d.file).ok_or_else(|| CmdError::NotFound("No such download.".into()))?;
+    // Unfinished, it is still the `.part` file.
+    let shown = [PathBuf::from(&file), part(&file)].into_iter().find(|p| p.exists());
+    let shown = shown.ok_or_else(|| CmdError::NotFound("The file isn't there any more.".into()))?;
+    tauri_plugin_opener::reveal_item_in_dir(&shown).map_err(|e| CmdError::Other(e.to_string()))
 }
 
 /// Cancel and delete: the record and the file.
 #[tauri::command]
 pub fn download_remove(downloads: Shared<'_>, id: String) {
     downloads.stop(&id);
-    let mut inner = downloads.inner.lock().unwrap();
-    if let Some(d) = inner.items.iter().find(|d| d.id == id) {
-        let _ = std::fs::remove_file(&d.file);
+    let mut inner = downloads.inner.locked();
+    if let Some(file) = inner.items.iter().find(|d| d.id == id).map(|d| d.file.clone()) {
+        remove_files(&file);
+        inner.writers.remove(&file);
     }
     inner.items.retain(|d| d.id != id);
     downloads.save(&inner.items);
 }
 
-/// Called once at startup so the managed state exists before any command runs.
-pub fn manage(app: &AppHandle, app_data: &Path) {
-    app.manage(Arc::new(Downloads::load(app_data)));
+/// Called once at startup so the managed state exists before any command runs. `app_data` is
+/// where earlier versions kept the list and files (the roaming folder on Windows).
+pub fn manage(app: &AppHandle, app_data: &Path) -> tauri::Result<()> {
+    let state = app.path().app_local_data_dir()?.join("downloads");
+    let dir = app.path().video_dir().map(|v| v.join("Polarity")).unwrap_or_else(|_| state.clone());
+    app.manage(Arc::new(Downloads::load(&state, dir, Some(&app_data.join("downloads")))));
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::AsyncReadExt;
+    use tokio::net::TcpListener;
+
+    const FILE: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+
+    /// How the test server answers a `Range: bytes=N-` request.
+    #[derive(Clone, Copy)]
+    enum Answer {
+        /// 206 from N, as asked.
+        Ranges,
+        /// 200 with the whole file: no range support.
+        Whole,
+        /// 206, but from a place nobody asked for.
+        WrongPart,
+        /// 416: N is past the end.
+        PastEnd,
+        Status(u16),
+    }
+
+    async fn serve(answer: Answer) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let mut buf = vec![0u8; 4096];
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase();
+                let from: usize = request
+                    .lines()
+                    .find_map(|l| l.strip_prefix("range: bytes="))
+                    .and_then(|r| r.trim_end_matches('-').parse().ok())
+                    .unwrap_or(0);
+                let len = FILE.len();
+                let (head, body): (String, &[u8]) = match answer {
+                    Answer::Ranges => {
+                        (format!("206 Partial Content\r\nContent-Range: bytes {from}-{}/{len}", len - 1), &FILE[from..])
+                    }
+                    Answer::Whole => ("200 OK".into(), FILE),
+                    Answer::WrongPart => {
+                        (format!("206 Partial Content\r\nContent-Range: bytes 3-{}/{len}", len - 1), &FILE[3..])
+                    }
+                    Answer::PastEnd => (format!("416 Range Not Satisfiable\r\nContent-Range: bytes */{len}"), b""),
+                    Answer::Status(code) => (format!("{code} X"), b"link gone"),
+                };
+                let response =
+                    format!("HTTP/1.1 {head}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = sock.write_all(response.as_bytes()).await;
+                let _ = sock.write_all(body).await;
+                let _ = sock.shutdown().await;
+            }
+        });
+        base
+    }
+
+    /// A download record whose `.part` already holds `have` bytes.
+    fn setup(name: &str, url: String, have: usize, total: Option<u64>) -> (Downloads, String) {
+        let dir = std::env::temp_dir().join(format!("polar-downloads-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("downloads")).unwrap();
+        let downloads = Downloads::load(&dir.join("downloads"), dir.join("downloads"), None);
+        let file = dir.join("downloads").join("tt1-1.mp4").to_string_lossy().into_owned();
+        if have > 0 {
+            std::fs::write(part(&file), &FILE[..have]).unwrap();
+        }
+        let d = Download {
+            id: "tt1".into(),
+            meta_id: "tt1".into(),
+            ty: "movie".into(),
+            name: "Sintel".into(),
+            poster: None,
+            background: None,
+            logo: None,
+            season: None,
+            episode: None,
+            episode_title: None,
+            thumbnail: None,
+            quality: "1080p".into(),
+            url,
+            file: file.clone(),
+            received: have as u64,
+            total,
+            state: DownloadState::Paused,
+            error: None,
+            added_at: 0,
+            headers: HashMap::new(),
+        };
+        downloads.inner.locked().items.push(d);
+        (downloads, file)
+    }
+
+    async fn run(
+        name: &str,
+        answer: Answer,
+        have: usize,
+        total: Option<u64>,
+    ) -> (std::result::Result<bool, String>, Downloads, String) {
+        let url = format!("{}/film.mp4", serve(answer).await);
+        let (downloads, file) = setup(name, url, have, total);
+        let outcome = downloads.transfer(&file, &AtomicBool::new(false)).await;
+        (outcome, downloads, file)
+    }
+
+    #[tokio::test]
+    async fn a_resume_appends_the_rest_and_gives_the_file_its_name() {
+        let (outcome, downloads, file) = run("resume", Answer::Ranges, 10, None).await;
+        assert_eq!(outcome, Ok(true));
+        assert_eq!(std::fs::read(&file).unwrap(), FILE);
+        assert!(!part(&file).exists());
+        let d = downloads.get("tt1").unwrap();
+        assert_eq!((d.received, d.total), (FILE.len() as u64, Some(FILE.len() as u64)));
+    }
+
+    #[tokio::test]
+    async fn a_server_without_ranges_starts_the_file_over() {
+        let (outcome, _, file) = run("whole", Answer::Whole, 10, None).await;
+        assert_eq!(outcome, Ok(true));
+        assert_eq!(std::fs::read(&file).unwrap(), FILE);
+    }
+
+    #[tokio::test]
+    async fn the_wrong_part_is_refused_and_the_partial_file_kept() {
+        let (outcome, _, file) = run("wrong", Answer::WrongPart, 10, None).await;
+        assert!(outcome.unwrap_err().contains("wrong part"));
+        assert_eq!(std::fs::read(part(&file)).unwrap(), &FILE[..10]);
+    }
+
+    #[tokio::test]
+    async fn everything_already_here_just_finishes() {
+        let (outcome, _, file) = run("past", Answer::PastEnd, FILE.len(), Some(FILE.len() as u64)).await;
+        assert_eq!(outcome, Ok(true));
+        assert_eq!(std::fs::read(&file).unwrap(), FILE);
+    }
+
+    #[tokio::test]
+    async fn an_expired_link_says_so_and_other_errors_quote_the_server() {
+        let (outcome, _, _) = run("expired", Answer::Status(403), 0, None).await;
+        assert!(outcome.unwrap_err().contains("expired"));
+        let (outcome, _, _) = run("busy", Answer::Status(503), 0, None).await;
+        let message = outcome.unwrap_err();
+        assert!(message.contains("503") && message.contains("link gone"), "{message}");
+    }
 }

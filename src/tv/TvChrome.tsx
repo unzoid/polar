@@ -1,24 +1,25 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
 import { Close, Desktop, Power, Profile, Search, Settings, Tv, Users, WatchParty } from "../components/icons";
-import { partyAvailable, setJoinPartyOpen } from "../lib/party/party";
-import { useAccount } from "../lib/account/AccountProvider";
+import { partyAvailable, setJoinPartyOpen } from "../lib/party";
+import { useAccount } from "../lib/account";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
-import { usePrefs } from "../lib/prefs";
-import { useSettings } from "../lib/queries";
+import { shortcutText, usePrefs } from "../lib/settings";
+import { useSettings } from "../lib/net";
 import { buttonFor, usePadBindings, type NavAction, type PadButton, type PlayerPadAction } from "./padBindings";
-import { shortcutText } from "../lib/keybinds";
 import {
   dismissNotice,
   useControllerNotice,
   useGamepadConnected,
   usePadFamily,
-  type Button,
+  type Button as PadKey,
   type PadFamily,
 } from "./gamepad";
 import { useBack, useFocusTrap } from "./shell";
 import { setTvMode } from "./tvMode";
+import { appWindow } from "../lib/platform";
+import { Button, IconButton } from "../components/ui/Button";
+import { Toast } from "../components/ui/Toast";
 
 export const TV_TABS: { route: TabRoute; label: string }[] = [
   { route: { name: "search" }, label: "Search" },
@@ -50,11 +51,12 @@ export function TvNav({ onMenu }: { onMenu: () => void }) {
   const tabs = useTvTabs();
 
   return (
-    <header className="tv-nav" data-nav-keep data-nav-memory data-nav-prefer-entry data-nav-lock-x>
+    <header className="tv-nav" data-nav-memory data-nav-prefer-entry data-nav-lock-x>
       <button className="tv-nav-me" onClick={onMenu} aria-label="Menu">
         {profile ? <Avatar id={profile.avatar} /> : <Tv size={28} />}
       </button>
-      <nav className="tv-nav-tabs" aria-label="Sections">
+      {/* Switching sections keeps focus on the tabs; the menu's choices (Settings) land in the page. */}
+      <nav className="tv-nav-tabs" aria-label="Sections" data-nav-keep>
         {tabs.map((t) => {
           const current = sameTab(t.route, active);
           return (
@@ -162,7 +164,7 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
             Desktop Mode
             {shortcutText("toggleTv") && <kbd className="tv-menu-kbd">{shortcutText("toggleTv")}</kbd>}
           </button>
-          <button className="tv-menu-item" onClick={() => void getCurrentWindow().close()}>
+          <button className="tv-menu-item" onClick={() => void appWindow.close()}>
             <Power size={28} />
             Quit Polarity
           </button>
@@ -212,7 +214,7 @@ function Hint({ glyphs, label }: { glyphs: GlyphButton[]; label: string }) {
   );
 }
 
-type GlyphButton = Exclude<Button, "up" | "down" | "left" | "right">;
+type GlyphButton = Exclude<PadKey, "up" | "down" | "left" | "right">;
 
 /** PlayStation's face buttons are shapes, drawn rather than typed so they look the same everywhere. */
 const shape = (d: ReactNode) => (
@@ -281,36 +283,42 @@ export function ControllerToast({ tv }: { tv: boolean }) {
   if (!show || !notice) return null;
   const connected = notice.kind === "connected";
   return (
-    <div className={tv ? "tv-prompt tv-prompt-tv" : "tv-prompt"} role="status" key={notice.key} data-kind={notice.kind}>
-      <GamepadIcon off={!connected} />
-      <span className="tv-prompt-text">
-        <strong>
-          {notice.name} {connected ? "connected" : "disconnected"}
-        </strong>
-        {connected && awaiting && <span>Press any button to start using it.</span>}
-        {offerTv && !awaiting && (
-          <span>
-            Press <PadGlyph button="menu" /> for TV mode.
-          </span>
-        )}
-      </span>
-      {offerTv && (
-        <button className="btn btn-primary tv-prompt-go" onClick={() => setTvMode(true)}>
-          Open TV Mode
-        </button>
+    <Toast
+      key={notice.key}
+      variant={tv ? "tv" : undefined}
+      data-kind={notice.kind}
+      icon={<GamepadIcon off={!connected} />}
+      actions={
+        <>
+          {offerTv && (
+            <Button variant="primary" className="toast-action" onClick={() => setTvMode(true)}>
+              Open TV Mode
+            </Button>
+          )}
+          {!tv && (
+            <IconButton label="Dismiss" onClick={dismissNotice}>
+              <Close size={18} />
+            </IconButton>
+          )}
+        </>
+      }
+    >
+      <strong>
+        {notice.name} {connected ? "connected" : "disconnected"}
+      </strong>
+      {connected && awaiting && <span>Press any button to start using it.</span>}
+      {offerTv && !awaiting && (
+        <span>
+          Press <PadGlyph button="menu" /> for TV mode.
+        </span>
       )}
-      {!tv && (
-        <button className="btn btn-icon" aria-label="Dismiss" onClick={dismissNotice}>
-          <Close size={18} />
-        </button>
-      )}
-    </div>
+    </Toast>
   );
 }
 
 function GamepadIcon({ off }: { off?: boolean }) {
   return (
-    <svg className="tv-prompt-icon" viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg className="toast-icon" viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M7.5 7h9a4.5 4.5 0 0 1 4.4 3.6l.9 4.6a2.6 2.6 0 0 1-4.6 2.1L15.5 15h-7l-1.7 2.3a2.6 2.6 0 0 1-4.6-2.1l.9-4.6A4.5 4.5 0 0 1 7.5 7Z" />
       <path d="M8 9.5v3M6.5 11h3" />
       <circle cx="15.5" cy="10.25" r="0.6" fill="currentColor" />

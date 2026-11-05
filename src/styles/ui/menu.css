@@ -1,0 +1,141 @@
+/* --- Menu (components/ui/Menu.tsx): one surface, the native macOS 26 menu measured pixel by pixel
+   from the system's own (dark appearance). A 1px near-black ring outside a 1px light rim, 13px corners,
+   a light tint over a moderate blur so the colours behind show through, 5px inset. Compact rows are the
+   native ones: 24px, 11px separators inset 16px, SF/system 13 regular. Roomy rows are taller, with room
+   for an avatar (profile menu, the navbar's "More"). */
+.menu {
+  padding: 5px;
+  border-radius: 13px;
+  background: rgb(20 20 22 / 0.6);
+  backdrop-filter: blur(12px) saturate(1.6);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.32),
+    0 0 0 1px rgb(0 0 0 / 0.85),
+    0 6px 20px rgb(0 0 0 / 0.3);
+  -webkit-font-smoothing: antialiased;
+  color: rgb(255 255 255 / 0.85);
+  outline: none;
+}
+.menu-compact {
+  min-width: 200px;
+  max-width: 340px;
+  font-family: var(--font);
+  letter-spacing: 0;
+}
+.menu-roomy {
+  min-width: 240px;
+}
+/* The title as a native section header: small, bold, secondary. */
+.menu-head {
+  display: grid;
+  padding: 3px 13px 4px;
+}
+.menu-head :is(strong, span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 16px;
+}
+.menu-head strong {
+  font-weight: 700;
+  color: rgb(255 255 255 / 0.5);
+}
+.menu-head span {
+  color: rgb(255 255 255 / 0.35);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 24px;
+  padding: 0 10px 0 13px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 16px;
+  color: rgb(255 255 255 / 0.85);
+  text-align: left;
+  cursor: default;
+  outline: none;
+  user-select: none;
+}
+.menu-item > span:not(.menu-check, .menu-meta) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-item > svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+.menu-item[data-highlighted],
+.menu-item[data-popup-open] {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.menu-item[data-disabled] {
+  color: rgb(255 255 255 / 0.25);
+}
+.menu-item > .menu-chevron {
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+}
+.menu-check,
+.menu-check svg {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+.menu-meta {
+  margin-left: auto;
+  color: rgb(255 255 255 / 0.5);
+}
+.menu-item[data-highlighted] .menu-meta {
+  color: rgb(255 255 255 / 0.75);
+}
+.menu-sep {
+  height: 1px;
+  margin: 5px 11px;
+  background: var(--fill-4);
+}
+.menu-sep:first-child,
+.menu-sep + .menu-sep {
+  display: none;
+}
+
+/* Roomy rows. */
+.menu-roomy-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  color: rgb(255 255 255 / 0.85);
+  cursor: default;
+  outline: none;
+  user-select: none;
+}
+.menu-roomy-item[data-highlighted] {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.menu-roomy-item .avatar {
+  width: 26px;
+  border-radius: 5px;
+}
+.menu-roomy-item svg[data-slot="icon"] {
+  width: 18px;
+  height: 18px;
+  margin-inline: 4px;
+}
