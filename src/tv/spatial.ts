@@ -162,7 +162,7 @@ export function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir) 
   return nearestOf(from, candidates, dir);
 }
 
-function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
+function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir): HTMLElement | null {
   const a = from.getBoundingClientRect();
   const horizontal = dir === "left" || dir === "right";
   // At the end of a shelf (or the navbar), left/right stops — it never jumps to another row.
@@ -179,7 +179,40 @@ function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
       best = el;
     }
   }
-  return best;
+  return horizontal || !best ? best : adjacentRow(from, best, candidates, dir);
+}
+
+/**
+ * Up or down to a card in another shelf (`data-nav-row`) lands in the shelf next to this one, on its
+ * nearest card (#42): the sideways cost in score() would otherwise let a further shelf whose cards
+ * line up beat a shorter one in between.
+ */
+function adjacentRow(from: HTMLElement, best: HTMLElement, candidates: HTMLElement[], dir: Dir): HTMLElement | null {
+  const bestRow = best.closest("[data-nav-row]");
+  if (!bestRow || bestRow.contains(from)) return best;
+  const a = from.getBoundingClientRect();
+  const distance = (row: Element) => {
+    const r = row.getBoundingClientRect();
+    if (dir === "down") return r.top >= (a.top + a.bottom) / 2 ? r.top - a.bottom : Infinity;
+    return r.bottom <= (a.top + a.bottom) / 2 ? a.top - r.bottom : Infinity;
+  };
+  let near = bestRow;
+  let nearDistance = distance(bestRow);
+  for (const el of candidates) {
+    const row = el.closest("[data-nav-row]");
+    if (!row || row === near || row.contains(from)) continue;
+    const d = distance(row);
+    if (d < nearDistance) {
+      nearDistance = d;
+      near = row;
+    }
+  }
+  if (near === bestRow) return best;
+  return nearestOf(
+    from,
+    candidates.filter((c) => near.contains(c)),
+    dir,
+  );
 }
 
 /**

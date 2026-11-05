@@ -28,3 +28,26 @@ test("TV: down from a filter chip goes to the next row of chips, not into the li
   expect(nearest(list, all, "up")?.textContent).toBe("1080p");
   panel.remove();
 });
+
+/** A shelf (`data-nav-row`) at y, with `count` cards 180 wide and 240 high from x = 0, under a 40 px title. */
+function shelf(parent: HTMLElement, name: string, y: number, count: number) {
+  const row = document.createElement("section");
+  row.setAttribute("data-nav-row", "");
+  row.getBoundingClientRect = () => ({ left: 0, top: y, right: 1920, bottom: y + 280, width: 1920, height: 280, x: 0, y, toJSON: () => ({}) }) as DOMRect;
+  parent.append(row);
+  return Array.from({ length: count }, (_, i) => at(row, `${name}${i + 1}`, i * 200, y + 40, 180, 240));
+}
+
+test("TV: down and up between shelves go to the adjacent shelf's nearest card, even when it is shorter (#42)", () => {
+  const page = document.createElement("div");
+  document.body.append(page);
+  const a = shelf(page, "A", 0, 8);
+  const b = shelf(page, "B", 300, 3);
+  const c = shelf(page, "C", 600, 8);
+  const all = [...a, ...b, ...c];
+  expect(nearest(a[4], all, "down")).toBe(b[2]);
+  expect(nearest(a[1], all, "down")).toBe(b[1]);
+  expect(nearest(c[6], all, "up")).toBe(b[2]);
+  expect(nearest(b[2], all, "down")).toBe(c[2]);
+  page.remove();
+});
