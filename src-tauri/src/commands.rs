@@ -434,19 +434,25 @@ pub async fn subtitles(state: State<'_, AppState>, ty: String, video_id: String)
         (a.manifest.name.clone(), res)
     }))
     .await;
-    Ok(results
+    let options: Vec<SubtitleOption> = results
         .into_iter()
         .filter_map(|(addon, res)| Some((addon, res.ok()?.ok()?)))
         .flat_map(|(addon, subs)| {
             subs.into_iter().map(move |s| SubtitleOption { id: s.id, url: s.url, lang: s.lang, addon: addon.clone() })
         })
-        .collect())
+        .collect();
+    state.subtitle_urls.offer(options.iter().map(|o| o.url.as_str()));
+    Ok(options)
 }
 
 /// Download a subtitle file and return it as WebVTT. Done in Rust so CORS and
-/// SRT/encoding quirks never reach the UI.
+/// SRT/encoding quirks never reach the UI; for that same reason only a URL
+/// `subtitles` listed, so the page can't read the LAN or this machine (M13).
 #[tauri::command]
 pub async fn subtitle_vtt(state: State<'_, AppState>, url: String) -> Result<String> {
+    if !state.subtitle_urls.was_offered(&url) {
+        return Err(CmdError::Unsupported("not a subtitle an addon offered".into()));
+    }
     let bytes = state.addons.fetch_bytes(&url).await?;
     Ok(polar_addon::subs::to_vtt(&bytes))
 }

@@ -25,6 +25,8 @@ pub struct AppState {
     /// Swapped wholesale when the TMDB key changes.
     pub indexer: RwLock<Arc<Indexer>>,
     pub addons: AddonClient,
+    /// Subtitle URLs the addons listed: the only ones `subtitle_vtt` fetches.
+    pub subtitle_urls: polar_addon::offered::Offered,
     /// Change it through [`AppState::persist`], which gets it written.
     pub store: Arc<Mutex<store::Store>>,
     /// Writes `store` to disk in the background.
@@ -145,6 +147,7 @@ pub fn run() {
             app.manage(AppState {
                 indexer: RwLock::new(Arc::new(indexer)),
                 addons: AddonClient::new(),
+                subtitle_urls: Default::default(),
                 saver: store_saver(store.clone()),
                 store,
                 seekr: seekr::Seekr::default(),

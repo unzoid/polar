@@ -150,7 +150,8 @@ Done in the same migration, so the server is changed once:
   Addon half done: `AddonError::Http` drops the URL (an addon URL can hold a token); addon JSON capped at
   16 MB and `fetch_bytes` (subtitles) at 10 MB, refused mid-stream whatever `Content-Length` says (tested).
   TMDB key: `reqwest` errors lose their URL (`without_url`) in `IndexError`, so the key can't reach the
-  UI or the polar-index HTTP API (tested). Left: `subtitle_vtt` limited to subtitle URLs, seekr/fillers bodies.
+  UI or the polar-index HTTP API (tested). `subtitle_vtt` fetches only URLs the `subtitles` command listed (`polar_addon::offered`, tested); Seekr's
+  thumbnail index capped at 4 MB. Left: animefillerlist pages (a fixed host) are still read whole.
   **M14** `tracing`-style logging to a rotating file (only `log` + an existing writer if it needs no new
   crate; otherwise asked). **M17** `Mutex` unwraps replaced by a poison-tolerant helper.
   M17 done: `src-tauri/src/locks.rs` (`locked()`, `reading()`, `writing()`) everywhere outside tests, and the
