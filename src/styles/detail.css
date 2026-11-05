@@ -700,6 +700,15 @@
   .detail-hero-main {
     width: 100%;
   }
+  /* Play takes the row and the round buttons sit under it: side by side, the
+     last one (Download) ran off a phone's edge. */
+  .detail-actions {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+  .detail-play {
+    flex: 1 0 100%;
+  }
   .episode-card[data-layout="list"] .episode-card-main {
     grid-template-columns: 8.5rem minmax(0, 1fr);
     grid-template-areas:

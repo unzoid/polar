@@ -698,9 +698,15 @@
   left: 50%;
   translate: -50% 0;
   z-index: 3;
+  /* Its own width up to the screen's: left: 50% alone squeezed it into half a
+     phone, three lines in a pill. */
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  text-align: center;
   padding: 0.5rem 1rem;
   border-radius: var(--r-pill);
   background: var(--surface-float);
+  animation: fade-in var(--dur-base) var(--ease-out);
 }
 
 /* --- Up next card: enters from the right, leaves the same way. */
@@ -1067,6 +1073,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.05;
+  /* Room for descenders: at 1.05 a "Q" or "g" sat on the message below. */
+  padding-bottom: 0.1em;
   text-align: center;
   color: var(--text);
 }
@@ -1112,6 +1120,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   max-height: 11.5rem;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Earlier lines fade out under the top edge instead of being cut through. */
+  mask-image: linear-gradient(to bottom, transparent 0, black 1.5rem);
 }
 .player-steps li {
   display: flex;

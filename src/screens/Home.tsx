@@ -119,6 +119,10 @@ export function HeroCarousel({
     if (items && count) preloadImage(items[(index + 1) % count].background);
   }, [items, index, count]);
 
+  // A sideways swipe on touch steps through the titles, as the arrows do.
+  const swiped = useRef(false);
+  const swipeHandlers = useHeroSwipe(count > 1, (dir) => setIndex((index + dir + count) % count), swiped);
+
   if (!items || !item) {
     return (
       <section className="hero">
@@ -148,8 +152,9 @@ export function HeroCarousel({
         ref={hero}
         onPointerEnter={() => setPaused(true)}
         onPointerLeave={() => setPaused(false)}
-        // The whole card opens the title, except where its own controls sit.
-        onClick={(e) => !(e.target as Element).closest("button, a") && h.onClick()}
+        {...swipeHandlers}
+        // The whole card opens the title, except where its own controls sit (or a swipe just ended on it).
+        onClick={(e) => !swiped.current && !(e.target as Element).closest("button, a") && h.onClick()}
         // ← and → step through the featured titles while focus is on the card's controls.
         onKeyDown={(e) => {
           if (count < 2 || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -209,6 +214,44 @@ export function HeroCarousel({
       </div>
     </section>
   );
+}
+
+/** Below this many pixels sideways a touch is a tap. */
+const SWIPE_MIN_PX = 12;
+/** Past either, the swipe turns the page: a long drag or a quick flick (px per ms), whichever comes first. */
+const SWIPE_DISTANCE_PX = 56;
+const SWIPE_VELOCITY = 0.3;
+
+/**
+ * Touch swipes on the featured card (mouse and pen keep their click). The card
+ * lets the page scroll up and down (`touch-action: pan-y`), so a vertical move
+ * cancels the pointer and only sideways ones reach here. `swiped` stays set
+ * until the click that follows the lifted finger, so that click doesn't open
+ * the title.
+ */
+function useHeroSwipe(enabled: boolean, step: (dir: 1 | -1) => void, swiped: React.RefObject<boolean>) {
+  const start = useRef<{ id: number; x: number; y: number; t: number } | null>(null);
+  if (!enabled) return {};
+  return {
+    onPointerDown: (e: React.PointerEvent) => {
+      swiped.current = false;
+      if (e.pointerType !== "touch" || !e.isPrimary) return;
+      start.current = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const s = start.current;
+      start.current = null;
+      if (!s || s.id !== e.pointerId) return;
+      const dx = e.clientX - s.x;
+      if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(e.clientY - s.y)) return;
+      swiped.current = true;
+      const velocity = Math.abs(dx) / Math.max(1, e.timeStamp - s.t);
+      if (Math.abs(dx) >= SWIPE_DISTANCE_PX || velocity > SWIPE_VELOCITY) step(dx < 0 ? 1 : -1);
+    },
+    onPointerCancel: () => {
+      start.current = null;
+    },
+  };
 }
 
 /**
