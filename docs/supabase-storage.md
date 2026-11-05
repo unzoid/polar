@@ -274,7 +274,7 @@ Left for the app: pulls ordered by `(synced_at, key)` (M8).
 
 ## 7. Checks the owner runs on a real project
 
-To be written with the app's side (`docs/unverified.md` will point here): apply the migration on a
-copy, run `supabase/checks/compact_storage.sql` (row counts old vs new, a round trip of every row
-through the codec, RLS from two users), compare `select pg_size_pretty(pg_database_size(current_database()))`
-before and after, and sync two devices across the change.
+`supabase/checks/compact_storage.sql` (read-only): part 1 before the migration (row counts, database
+size), part 2 after (same counts, every progress row decodes to one entry, no keys or add-on links
+left in settings, old tables and `user_id` gone, RLS on, database size). Part 3 and the two-device
+checks are in `docs/unverified.md` ("Compact account storage").
