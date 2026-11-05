@@ -72,7 +72,10 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 ## 6. Order
 
 1. T-042 Android project and shell gating; app builds for the emulator in CI.
-2. T-043 Android back button, keyboard, downloads folder; emulator end-to-end run.
+2. T-043 Android back button, keyboard, downloads folder; emulator run (built: Back through `onBackButtonPress`
+   as Escape, Home, then leave; the web view ends at the keyboard; no "Show in Folder" off desktop; the
+   emulator smoke test `e2e/android/smoke.sh` in `e2e-app.yml`, not the whole e2e suite, which needs a
+   WebDriver into the WebView).
 3. T-050 how libmpv and FFmpeg are built on Android and iOS (§7).
 4. T-044 Android libmpv engine.
 5. T-045 iOS project; unsigned build on the macOS runner.

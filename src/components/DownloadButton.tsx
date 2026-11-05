@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   downloadFraction,
   localStream,
+  canRevealDownloads,
   pauseDownload,
   removeDownload,
   resumeDownload,
@@ -150,7 +151,7 @@ function DownloadMenu({ d, className, glyph, onRetry }: { d: DownloadRecord; cla
             Choose Another Source
           </MenuItem>
         )}
-        {d.received > 0 && (
+        {canRevealDownloads && d.received > 0 && (
           <MenuItem icon={<Folder />} onClick={() => void revealDownload(d.id)}>
             Show in Folder
           </MenuItem>

@@ -79,6 +79,26 @@ desktop with Android Studio: `bun run tauri android dev` with an emulator runnin
 on the home screen, the phone layout and bottom tab bar, a title plays in `<video>` where the phone
 can decode it.
 
+## Android Back, keyboard, downloads, emulator run (T-043)
+
+Built without running on Android: Back (button, gesture, a remote's Back) reaches the page through Tauri's
+`onBackButtonPress` (`lib/platform/back.ts`), which takes Back over from the system; the page presses Escape where
+focus is (`lib/ui/systemBack.ts`), so the top layer closes, then the player or pushed page; on a tab's own page Back
+goes Home, and on Home it closes the app (`exit`, permission `core:app:allow-exit` in `capabilities/mobile.json`).
+A focused text field loses focus first. Tested here: the decision (`tests/systemBack.test.ts`) and the Escape it
+sends (`tests/dom/systemBack.test.ts`). Not known: whether the WebView also delivers KEYCODE_BACK to the page as a
+key (it would go back twice), and the account screens before sign-in, which register no handler (the system's
+default: the web view's history, else the app closes).
+On-screen keyboard: from Android 15, edge to edge, the window no longer shrinks for it, so `MainActivity.kt` pads
+the content view by the keyboard's height less the navigation bar's (never compiled here), and
+`lib/ui/keyboard.ts` scrolls the focused field into view on each resize. Look for: a search field at the top and
+the account forms near the bottom stay above the keyboard, with no gap or double padding.
+Downloads stay in `app_data_dir/downloads` (app-private); "Show in Folder" is hidden off desktop.
+Emulator: `e2e-app.yml` job `android` (nightly, `master`) builds the x86_64 debug APK and runs `e2e/android/smoke.sh`
+in an API 35 emulator: start, 30 s alive, Back, no crash; logcat and screenshots as an artifact. Not run yet.
+The Playwright suite isn't pointed at the app (it would need a WebDriver into the
+WebView, chromedriver through adb); the screenshots are the check of what it shows.
+
 ## Android TV (same APK, T-047)
 
 Written by reading only: the manifest's banner (`res/drawable-xhdpi/banner.png`, 320x180, the icon and
@@ -87,7 +107,7 @@ JavaScript interface before the first page loads, answering `isTv()` from `UiMod
 `android.software.leanback` feature. The Kotlin was never compiled here. The front end's side is tested
 (`detectTvDevice`, `startsInTvMode`). To check, in Android Studio start an Android TV emulator (API 34, 1080p) and
 `adb install` the `android-debug-apk` artifact (x86_64). Look for: the banner in the launcher's apps row; the app
-opening fullscreen in TV mode; the D-pad moving focus; Back closing the top layer and, on the home screen, leaving
+opening fullscreen in TV mode; the D-pad moving focus; Back closing the top layer, on the home screen opening the TV menu and, with the menu open there, leaving
 the app; leaving TV mode from the TV menu lasting until the app is closed, and TV mode back at the next start. On
 a phone, TV mode must stay off unless chosen. Fire TV: `UiModeManager` reports TV there too (untested).
 

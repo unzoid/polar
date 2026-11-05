@@ -9,6 +9,7 @@ src-tauri/gen/*
 .env
 src-tauri/vendor/
 e2e/.results/
+e2e/android/out/
 e2e/.report/
 .claude/skills/
 .agents/skills/
