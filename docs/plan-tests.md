@@ -66,13 +66,13 @@ no real account, key or add-on is used in CI.
   no secrets are needed by any job.
 - A coverage report (`bun test --coverage`, `cargo llvm-cov`) is printed, not enforced.
 
-## 5. Owner choices (asked through the inbox)
+## 5. Owner choices (answered 2026-11-05, I-010)
 
-- New dev dependencies: `happy-dom`, `@playwright/test`, `@electric-sql/pglite` (all
-  Apache-2.0 or MIT), or Docker-based `supabase start` instead of PGlite.
-- Whether the slow app end-to-end job runs nightly or on every push (minutes on Windows and
-  macOS runners count against the free allowance at 2x and 10x for private repositories; the
-  repository is public, so they are free today).
+- New dev dependencies: `happy-dom`, `@playwright/test` and `@electric-sql/pglite` (MIT or
+  Apache-2.0), dev only. PGlite, not Docker, for the SQL checks; row-level security is still
+  checked by the owner against a real project (`supabase/checks`).
+- The app end-to-end job (tauri-driver) runs nightly and on `master`; everything else on every
+  push.
 
 ## 6. Order
 
