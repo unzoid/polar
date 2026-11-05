@@ -531,3 +531,149 @@ pub fn download_remove(downloads: Shared<'_>, id: String) {
 pub fn manage(app: &AppHandle, app_data: &Path) {
     app.manage(Arc::new(Downloads::load(app_data)));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::AsyncReadExt;
+    use tokio::net::TcpListener;
+
+    const FILE: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+
+    /// How the test server answers a `Range: bytes=N-` request.
+    #[derive(Clone, Copy)]
+    enum Answer {
+        /// 206 from N, as asked.
+        Ranges,
+        /// 200 with the whole file: no range support.
+        Whole,
+        /// 206, but from a place nobody asked for.
+        WrongPart,
+        /// 416: N is past the end.
+        PastEnd,
+        Status(u16),
+    }
+
+    async fn serve(answer: Answer) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let mut buf = vec![0u8; 4096];
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase();
+                let from: usize = request
+                    .lines()
+                    .find_map(|l| l.strip_prefix("range: bytes="))
+                    .and_then(|r| r.trim_end_matches('-').parse().ok())
+                    .unwrap_or(0);
+                let len = FILE.len();
+                let (head, body): (String, &[u8]) = match answer {
+                    Answer::Ranges => {
+                        (format!("206 Partial Content\r\nContent-Range: bytes {from}-{}/{len}", len - 1), &FILE[from..])
+                    }
+                    Answer::Whole => ("200 OK".into(), FILE),
+                    Answer::WrongPart => {
+                        (format!("206 Partial Content\r\nContent-Range: bytes 3-{}/{len}", len - 1), &FILE[3..])
+                    }
+                    Answer::PastEnd => (format!("416 Range Not Satisfiable\r\nContent-Range: bytes */{len}"), b""),
+                    Answer::Status(code) => (format!("{code} X"), b"link gone"),
+                };
+                let response =
+                    format!("HTTP/1.1 {head}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = sock.write_all(response.as_bytes()).await;
+                let _ = sock.write_all(body).await;
+                let _ = sock.shutdown().await;
+            }
+        });
+        base
+    }
+
+    /// A download record whose `.part` already holds `have` bytes.
+    fn setup(name: &str, url: String, have: usize, total: Option<u64>) -> (Downloads, String) {
+        let dir = std::env::temp_dir().join(format!("polar-downloads-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("downloads")).unwrap();
+        let downloads = Downloads::load(&dir);
+        let file = dir.join("downloads").join("tt1-1.mp4").to_string_lossy().into_owned();
+        if have > 0 {
+            std::fs::write(part(&file), &FILE[..have]).unwrap();
+        }
+        let d = Download {
+            id: "tt1".into(),
+            meta_id: "tt1".into(),
+            ty: "movie".into(),
+            name: "Sintel".into(),
+            poster: None,
+            background: None,
+            logo: None,
+            season: None,
+            episode: None,
+            episode_title: None,
+            thumbnail: None,
+            quality: "1080p".into(),
+            url,
+            file: file.clone(),
+            received: have as u64,
+            total,
+            state: DownloadState::Paused,
+            error: None,
+            added_at: 0,
+            headers: HashMap::new(),
+        };
+        downloads.inner.locked().items.push(d);
+        (downloads, file)
+    }
+
+    async fn run(
+        name: &str,
+        answer: Answer,
+        have: usize,
+        total: Option<u64>,
+    ) -> (std::result::Result<bool, String>, Downloads, String) {
+        let url = format!("{}/film.mp4", serve(answer).await);
+        let (downloads, file) = setup(name, url, have, total);
+        let outcome = downloads.transfer(&file, &AtomicBool::new(false)).await;
+        (outcome, downloads, file)
+    }
+
+    #[tokio::test]
+    async fn a_resume_appends_the_rest_and_gives_the_file_its_name() {
+        let (outcome, downloads, file) = run("resume", Answer::Ranges, 10, None).await;
+        assert_eq!(outcome, Ok(true));
+        assert_eq!(std::fs::read(&file).unwrap(), FILE);
+        assert!(!part(&file).exists());
+        let d = downloads.get("tt1").unwrap();
+        assert_eq!((d.received, d.total), (FILE.len() as u64, Some(FILE.len() as u64)));
+    }
+
+    #[tokio::test]
+    async fn a_server_without_ranges_starts_the_file_over() {
+        let (outcome, _, file) = run("whole", Answer::Whole, 10, None).await;
+        assert_eq!(outcome, Ok(true));
+        assert_eq!(std::fs::read(&file).unwrap(), FILE);
+    }
+
+    #[tokio::test]
+    async fn the_wrong_part_is_refused_and_the_partial_file_kept() {
+        let (outcome, _, file) = run("wrong", Answer::WrongPart, 10, None).await;
+        assert!(outcome.unwrap_err().contains("wrong part"));
+        assert_eq!(std::fs::read(part(&file)).unwrap(), &FILE[..10]);
+    }
+
+    #[tokio::test]
+    async fn everything_already_here_just_finishes() {
+        let (outcome, _, file) = run("past", Answer::PastEnd, FILE.len(), Some(FILE.len() as u64)).await;
+        assert_eq!(outcome, Ok(true));
+        assert_eq!(std::fs::read(&file).unwrap(), FILE);
+    }
+
+    #[tokio::test]
+    async fn an_expired_link_says_so_and_other_errors_quote_the_server() {
+        let (outcome, _, _) = run("expired", Answer::Status(403), 0, None).await;
+        assert!(outcome.unwrap_err().contains("expired"));
+        let (outcome, _, _) = run("busy", Answer::Status(503), 0, None).await;
+        let message = outcome.unwrap_err();
+        assert!(message.contains("503") && message.contains("link gone"), "{message}");
+    }
+}

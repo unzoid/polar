@@ -15,6 +15,10 @@ Since R4's last steps it is also type-checked for Windows (`--target x86_64-pc-w
 compiler, a stub resource compiler), so the `cfg(windows)` code (mpv as its own process, the named pipe) compiles;
 the MSVC target the releases use and the macOS code (`cfg(target_os = "macos")`, `mpv_view.m`) were never compiled.
 `cargo build` / `bun tauri dev` on a desktop is the first check for every item below.
+Its tests (`cargo test -p polar`) were therefore never run here: since T-035 CI runs them on Linux,
+Windows and macOS on every push, including the downloads resume tests (`downloads.rs`, a local
+server answering ranges, whole files, the wrong part, 416, 403/503) and the error-code contract
+(`contract.rs` against `contract/error-codes.json`). Until CI has run once (I-013) they are unseen.
 
 ## Saving in the background (R4, H8/M4)
 
