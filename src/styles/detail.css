@@ -334,7 +334,7 @@
   padding: 4px 0;
   margin: 0;
 }
-.segmented[data-variant="large"] .segmented-item[aria-selected="false"] {
+.segmented[data-variant="large"] .segmented-item[aria-checked="false"] {
   color: rgb(245 245 247 / 0.55);
 }
 /* Roomier tabs. */

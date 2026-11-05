@@ -160,9 +160,9 @@ export function AnimeEpisodes({
       }))}
     />
   ) : pages > 1 ? (
-    <div className="anime-ranges" role="tablist" aria-label="Episodes">
+    <div className="anime-ranges" role="radiogroup" aria-label="Episodes">
       {Array.from({ length: pages }, (_, i) => (
-        <button key={i} role="tab" className="anime-range tabular" aria-selected={i === current} onClick={() => setPage(i)}>
+        <button key={i} role="radio" className="anime-range tabular" aria-checked={i === current} onClick={() => setPage(i)}>
           {list[i * PAGE]?.episode}–{list[Math.min(list.length, (i + 1) * PAGE) - 1]?.episode}
         </button>
       ))}

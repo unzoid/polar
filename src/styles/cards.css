@@ -586,8 +586,14 @@
   padding: 0 2px;
 }
 /* Settings → Browsing can hide captions, or just their second line. */
+/* Hidden from sight only: the caption stays the card's accessible name. */
 .app[data-card-titles="false"] .card-caption:not(.card-caption-keep) {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .app[data-card-details="false"] .card-caption:not(.card-caption-keep) > :not(.card-title) {
   display: none;

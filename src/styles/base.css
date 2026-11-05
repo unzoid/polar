@@ -93,7 +93,7 @@ button:disabled {
   cursor: default;
 }
 /* Anything you can click shows the hand, like the web. */
-:is(a[href], summary, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="tab"], [role="switch"], [role="slider"], select, input:is([type="checkbox"], [type="radio"], [type="range"], [type="color"]), label:has(> input:is([type="checkbox"], [type="radio"]))):not(:disabled, [aria-disabled="true"]) {
+:is(a[href], summary, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="tab"], [role="radio"], [role="switch"], [role="slider"], select, input:is([type="checkbox"], [type="radio"], [type="range"], [type="color"]), label:has(> input:is([type="checkbox"], [type="radio"]))):not(:disabled, [aria-disabled="true"]) {
   cursor: pointer;
 }
 

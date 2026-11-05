@@ -315,9 +315,9 @@ function ScheduleView() {
 
   return (
     <div className="anime-schedule">
-      <div className="anime-days" role="tablist" aria-label="Day">
+      <div className="anime-days" role="radiogroup" aria-label="Day">
         {days.map((d, i) => (
-          <button key={i} role="tab" className="anime-day" aria-selected={i === day} onClick={() => setDay(i)}>
+          <button key={i} role="radio" className="anime-day" aria-checked={i === day} onClick={() => setDay(i)}>
             <span className="anime-day-name">{i === 1 ? "Today" : i === 0 ? "Yesterday" : i === 2 ? "Tomorrow" : d.toLocaleDateString(undefined, { weekday: "short" })}</span>
             <span className="anime-day-date tabular">{d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
           </button>

@@ -182,17 +182,17 @@
   font-size: var(--fs-xs);
   color: var(--text-3);
 }
-.anime-day[aria-selected="true"] {
+.anime-day[aria-checked="true"] {
   border-color: transparent;
   background: var(--pill-light);
   color: var(--text-on-light);
 }
-.anime-day[aria-selected="true"] .anime-day-date {
+.anime-day[aria-checked="true"] .anime-day-date {
   color: inherit;
   opacity: 0.65;
 }
 @media (hover: hover) and (pointer: fine) {
-  .anime-day[aria-selected="false"]:hover {
+  .anime-day[aria-checked="false"]:hover {
     background: rgb(255 255 255 / 0.07);
   }
 }
@@ -448,7 +448,7 @@
   font-weight: 600;
   color: var(--text-2);
 }
-.anime-range[aria-selected="true"] {
+.anime-range[aria-checked="true"] {
   background: var(--pill-light);
   color: var(--text-on-light);
 }
