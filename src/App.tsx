@@ -17,7 +17,7 @@ import { Anime, AnimeBrowse, AnimeSchedule } from "./screens/Anime";
 import { useAccount } from "./lib/account";
 import { ControllerToast } from "./tv/TvChrome";
 import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
-import { lazyNamed } from "./lib/ui";
+import { lazyNamed, usePageFocus } from "./lib/ui";
 import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
@@ -281,6 +281,7 @@ function DesktopApp() {
   const pages = stack.filter((e) => e.route.name !== "player");
   const topPage = pages[pages.length - 1];
   const { data: settings } = useSettings();
+  usePageFocus(playing || !topPage ? undefined : String(topPage.key));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -315,7 +316,7 @@ function DesktopApp() {
             className={entry.route.name === "detail" || entry.route.name === "anime-detail" ? "page page-pushed" : "page"}
             data-active={entry === topPage && !playing}
             data-under-player={(entry === topPage && !!player) || undefined}
-            aria-hidden={entry !== topPage || !!playing}
+            data-page-key={entry.key}
             inert={entry !== topPage || !!playing}
           >
             <ErrorBoundary where={`page ${entry.route.name}`}>

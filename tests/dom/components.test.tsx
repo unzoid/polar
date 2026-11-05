@@ -121,3 +121,15 @@ test("Img: a picture that fails moves on to the next; none left, it's gone (test
   await fail(page.container.querySelector("img"));
   expect(page.container.querySelector("h1")!.textContent).toBe("Iron Wheel Race");
 });
+
+test("TitleActions: while what Play would play is unknown, Play is busy, not just greyed out (re-test N4)", async () => {
+  const { TitleActions } = await import("../../src/components/title/TitleActions");
+  const picker = { play: () => {}, choose: () => {} } as never;
+  const { container, rerender, unmount } = await render(<TitleActions request={undefined} picker={picker} label="Play" loading />);
+  const play = container.querySelector<HTMLButtonElement>(".detail-play")!;
+  expect(play.getAttribute("aria-busy")).toBe("true");
+  expect(play.title).toBe("Loading…");
+  await rerender(<TitleActions request={undefined} picker={picker} label="Play" playTitle="No episodes to play yet" />);
+  expect(container.querySelector(".detail-play")!.hasAttribute("aria-busy")).toBe(false);
+  await unmount();
+});

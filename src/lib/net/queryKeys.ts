@@ -56,6 +56,8 @@ export const keys = {
     home: ["anime", "home"] as const,
     genre: (genre: string) => ["anime", "genre", genre] as const,
     seasons: (anilistId: number | undefined) => ["anime", "seasons", anilistId] as const,
+    /** An entry's IMDb id from the id lists on the device (landscape card art). */
+    listedImdb: (anilistId: number) => ["anime", "listed-imdb", anilistId] as const,
     link: (anilistId: number) => ["anime", "link", anilistId] as const,
     media: (anilistId: number) => ["anime", "media", anilistId] as const,
     schedule: (from: number, to: number) => ["anime", "schedule", from, to] as const,

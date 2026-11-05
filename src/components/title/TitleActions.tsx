@@ -18,6 +18,8 @@ export type TitleActionsProps = {
   resume: boolean;
   /** Tooltip on Play, e.g. why it's disabled. */
   playTitle?: string;
+  /** What Play would play isn't known yet: Play shows a spinner instead of looking disabled (re-test N4). */
+  loading?: boolean;
   /** Pointer on Play: warm its sources. */
   onWarm?: () => void;
   /** Shows the Trailer button. */
@@ -44,6 +46,7 @@ export function TitleActions({
   label,
   resume,
   playTitle,
+  loading,
   onWarm,
   onTrailer,
   item,
@@ -54,7 +57,15 @@ export function TitleActions({
 }: TitleActionsProps) {
   return (
     <div className="detail-actions">
-      <Button variant="primary" className="detail-play" disabled={!request} onClick={() => request && picker.play(request)} onPointerEnter={onWarm} title={playTitle}>
+      <Button
+        variant="primary"
+        className="detail-play"
+        disabled={!request}
+        busy={!request && loading}
+        onClick={() => request && picker.play(request)}
+        onPointerEnter={onWarm}
+        title={!request && loading ? "Loading…" : playTitle}
+      >
         {resume ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
         {label}
       </Button>

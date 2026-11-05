@@ -10,6 +10,7 @@ export * from "./format";
 export * from "./franchise";
 export * from "./groups";
 export * from "./kitsu";
+export * from "./landscapeArt";
 export * from "./links";
 export * from "./merge";
 export * from "./playContext";

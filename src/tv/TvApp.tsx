@@ -225,7 +225,6 @@ export function TvApp() {
               data-nav-home={(isTop && !playing) || undefined}
               data-active={isTop && !playing}
               data-under-player={(isTop && !!player) || undefined}
-              aria-hidden={!isTop || !!playing}
               inert={!isTop || !!playing}
             >
               <PageActive.Provider value={isTop && !playing && !menuOpen && !cardMenuOpen}>

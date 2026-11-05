@@ -21,6 +21,10 @@
   position: absolute;
   inset: 0;
 }
+/* Focus is put on the page itself when it has nothing focused yet (lib/ui/pageFocus.ts): no ring. */
+.page:focus {
+  outline: none;
+}
 .page[data-active="false"] {
   /* Keeps state, scroll position and decoded images, but skips rendering. */
   visibility: hidden;

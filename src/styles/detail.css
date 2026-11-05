@@ -178,6 +178,18 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* Still loading (anime pages, re-test N4): lines at the text's height, and Play shows its spinner
+   at full strength rather than looking disabled. */
+.detail-description-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  padding-block: 0.3em;
+}
+.detail-play[aria-busy="true"] {
+  opacity: 1;
+  cursor: progress;
+}
 .detail-facts {
   display: flex;
   flex-wrap: wrap;

@@ -3,6 +3,20 @@ import { prefersReducedMotion } from "./reducedMotion";
 
 /** Wheel events right after a jump belong to the jump (a trackpad's tail), not to a new one. */
 const LOCK_MS = 650;
+/** How long the glide between the hero and the episodes takes. */
+export const GLIDE_MS = 520;
+
+/**
+ * Where the glide from `start` to `target` is after `elapsed` ms: ease-out (quick start, gentle
+ * landing). `target` is read again on every frame, so content above that changes height mid-way
+ * (a description, the season tabs, images arriving) moves the landing point smoothly instead of
+ * re-aiming a browser smooth scroll from scratch, which is what stuttered (re-test N8).
+ */
+export function glideAt(start: number, target: number, elapsed: number): number {
+  const t = Math.min(1, Math.max(0, elapsed / GLIDE_MS));
+  const eased = 1 - Math.pow(1 - t, 3);
+  return t >= 1 ? target : start + (target - start) * eased;
+}
 
 /**
  * A title page is two places: the hero, and everything below it. A wheel turn
@@ -18,6 +32,7 @@ export function useFoldSnap(scroller: RefObject<HTMLElement | null>, ready: bool
     const el = scroller.current;
     if (!el) return;
     let lockedUntil = 0;
+    let frame = 0;
 
     const fold = () => {
       const h = el.querySelector<HTMLElement>(hero);
@@ -28,9 +43,25 @@ export function useFoldSnap(scroller: RefObject<HTMLElement | null>, ready: bool
       return Math.max(0, Math.min(target, el.scrollHeight - el.clientHeight));
     };
 
-    const go = (top: number) => {
-      lockedUntil = performance.now() + LOCK_MS;
-      el.scrollTo({ top, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    // Up to the hero (0) or down to the fold, which is measured again each frame. The wheel stays
+    // locked until it has landed and a moment after.
+    const go = (down: boolean) => {
+      cancelAnimationFrame(frame);
+      const to = () => (down ? fold() : 0);
+      if (prefersReducedMotion()) {
+        lockedUntil = performance.now() + LOCK_MS;
+        el.scrollTop = to();
+        return;
+      }
+      const start = el.scrollTop;
+      const began = performance.now();
+      lockedUntil = began + GLIDE_MS + LOCK_MS;
+      const step = (now: number) => {
+        const elapsed = now - began;
+        el.scrollTop = glideAt(start, to(), elapsed);
+        if (elapsed < GLIDE_MS) frame = requestAnimationFrame(step);
+      };
+      frame = requestAnimationFrame(step);
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -45,14 +76,23 @@ export function useFoldSnap(scroller: RefObject<HTMLElement | null>, ready: bool
       const y = el.scrollTop;
       if (e.deltaY > 0 && y < target - 4) {
         e.preventDefault();
-        if (now >= lockedUntil) go(target);
+        if (now >= lockedUntil) go(true);
       } else if (e.deltaY < 0 && y > 0 && y <= target + 4) {
         e.preventDefault();
-        if (now >= lockedUntil) go(0);
+        if (now >= lockedUntil) go(false);
       }
     };
 
+    // Touch, keys or the scrollbar take over from a glide at once.
+    const stop = () => cancelAnimationFrame(frame);
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    el.addEventListener("pointerdown", stop);
+    el.addEventListener("keydown", stop);
+    return () => {
+      stop();
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", stop);
+      el.removeEventListener("keydown", stop);
+    };
   }, [scroller, ready, hero]);
 }

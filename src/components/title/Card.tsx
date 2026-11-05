@@ -9,6 +9,8 @@ type CardProps = Omit<HTMLAttributes<HTMLElement>, "title"> & {
   shape: CardShape;
   /** The picture. When it's missing or doesn't load, `fallback` takes its place. */
   art?: string;
+  /** Pictures to try in turn when `art` doesn't load, before `fallback`. */
+  artFallbacks?: string[];
   fallback?: ReactNode;
   /** Extra class on the frame (`anime-card-frame`, `card-frame-resume`). */
   frameClass?: string;
@@ -39,6 +41,7 @@ type CardProps = Omit<HTMLAttributes<HTMLElement>, "title"> & {
 export function Card({
   shape,
   art,
+  artFallbacks,
   fallback,
   frameClass,
   children,
@@ -55,7 +58,7 @@ export function Card({
   const body = (
     <>
       <div className={frameClass ? `card-frame ${frameClass}` : "card-frame"}>
-        <CardArt src={art} fallback={fallback} />
+        <CardArt src={art} fallbacks={artFallbacks} fallback={fallback} />
         {children}
         {actions}
       </div>
@@ -97,12 +100,12 @@ export function useCardArt(src?: string) {
   return { shown, onError: () => setFailed(shown) };
 }
 
-/** The art, or `fallback` while there's none or it failed to load; a new `src` gets a fresh try. */
-export function CardArt({ src, fallback }: { src?: string; fallback?: ReactNode }) {
+/** The art (or the first of `fallbacks` that loads), or `fallback` while there's none or none loaded; a new `src` gets a fresh try. */
+export function CardArt({ src, fallbacks, fallback }: { src?: string; fallbacks?: string[]; fallback?: ReactNode }) {
   const { shown, onError } = useCardArt(src);
   return (
     <>
-      {shown && <Img src={shown} alt="" className="card-img" onError={onError} />}
+      {shown && <Img src={shown} fallbacks={fallbacks} alt="" className="card-img" onFail={onError} />}
       {!shown && fallback}
     </>
   );
