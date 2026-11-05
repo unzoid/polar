@@ -1,6 +1,7 @@
 // Playing something: stream sources and their ranking, what a Play button starts, the start-up log, trailers, languages.
 // Its public surface: code outside src/lib imports this folder, code inside src/lib imports the file.
 
+export * from "./headers";
 export * from "./languages";
 export * from "./playTarget";
 export * from "./sources";

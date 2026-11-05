@@ -50,7 +50,8 @@ export const api = {
     call<StreamsResult>("streams", { ty: type, videoId, altIds: playContext.altIds(videoId) ?? null }),
   resolveStream: (stream: Stream) => call<Playable>("resolve_stream", { stream }),
   /** The link check mpv_load runs, for the built-in player: the URL to open, or why it won't play. */
-  streamProbe: (url: string, probeId: number) => call<string>("stream_probe", { url, probeId }),
+  streamProbe: (url: string, probeId: number, headers: Record<string, string> | null = null) =>
+    call<string>("stream_probe", { url, probeId, headers }),
   subtitles: (type: ContentType, videoId: string) =>
     call<SubtitleOption[]>("subtitles", { ty: type, videoId }),
   subtitleVtt: (url: string) => call<string>("subtitle_vtt", { url }),

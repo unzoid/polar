@@ -52,6 +52,8 @@ pub struct Probe {
     pub retry_after: Vec<Duration>,
     pub connect_timeout: Duration,
     pub timeout: Duration,
+    /// Sent with every request, redirects included (`polar_player::headers` picks them).
+    pub headers: Vec<(String, String)>,
 }
 
 impl Default for Probe {
@@ -61,6 +63,7 @@ impl Default for Probe {
             retry_after: [600, 1500, 3000].map(Duration::from_millis).to_vec(),
             connect_timeout: Duration::from_secs(8),
             timeout: Duration::from_secs(20),
+            headers: Vec::new(),
         }
     }
 }
@@ -70,8 +73,9 @@ const PLACEHOLDER_MAX_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_REDIRECTS: usize = 10;
 
 /// The URL the player should open, or why this source won't play (in plain words).
-pub async fn prepare(url: &str, on: impl FnMut(ProbeEvent)) -> Result<String, String> {
-    Probe::default().run(url, on).await
+/// `headers` are the add-on's, as the player will send them.
+pub async fn prepare(url: &str, headers: Vec<(String, String)>, on: impl FnMut(ProbeEvent)) -> Result<String, String> {
+    Probe { headers, ..Probe::default() }.run(url, on).await
 }
 
 impl Probe {
@@ -109,7 +113,11 @@ impl Probe {
             let mut hops = 0;
             let (res, took) = loop {
                 let sent = Instant::now();
-                let res = match http.get(url.clone()).header(header::RANGE, "bytes=0-1023").send().await {
+                let mut req = http.get(url.clone()).header(header::RANGE, "bytes=0-1023");
+                for (k, v) in &self.headers {
+                    req = req.header(k.as_str(), v.as_str());
+                }
+                let res = match req.send().await {
                     Ok(r) => r,
                     Err(e) => {
                         on(ProbeEvent::Unreachable { host: host_label(&url), error: describe(&e), ms: ms(sent) });
@@ -331,6 +339,41 @@ mod tests {
     }
 
     #[test]
+    fn sends_the_addons_headers_on_every_hop() {
+        block(async {
+            // 403 unless the request carries the Referer; the first hop redirects.
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            tokio::spawn(async move {
+                loop {
+                    let (mut sock, _) = listener.accept().await.unwrap();
+                    let mut buf = vec![0u8; 4096];
+                    let n = sock.read(&mut buf).await.unwrap_or(0);
+                    let head = String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase();
+                    let reply = if !head.contains("\r\nreferer: https://site.example/\r\n") {
+                        answer("403 Forbidden", &[])
+                    } else if head.starts_with("get /start") {
+                        answer("302 Found", &[("Location", "/file.mkv")])
+                    } else {
+                        answer(
+                            "206 Partial Content",
+                            &[("Content-Range", "bytes 0-1023/900000000"), ("Content-Length", "0")],
+                        )
+                    };
+                    let _ = sock.write_all(reply.as_bytes()).await;
+                    let _ = sock.shutdown().await;
+                }
+            });
+            let url = format!("{base}/start");
+            let (without, _) = run(&url).await;
+            assert!(without.is_err());
+            let probe = Probe { headers: vec![("Referer".into(), "https://site.example/".into())], ..quick() };
+            let with = probe.check(Url::parse(&url).unwrap(), &mut |_| {}).await;
+            assert_eq!(with.unwrap(), format!("{base}/file.mkv"));
+        })
+    }
+
+    #[test]
     fn follows_redirects_and_reports_each_hop() {
         block(async {
             let base = serve(|path, _| match path {
@@ -456,7 +499,7 @@ mod tests {
     fn a_server_on_this_machine_is_not_checked() {
         block(async {
             let mut events = vec![];
-            let r = prepare("http://127.0.0.1:7878/file.mp4", |e| events.push(e)).await;
+            let r = prepare("http://127.0.0.1:7878/file.mp4", Vec::new(), |e| events.push(e)).await;
             assert_eq!(r.unwrap(), "http://127.0.0.1:7878/file.mp4");
             assert!(matches!(events[..], [ProbeEvent::Skipped { .. }]));
         })

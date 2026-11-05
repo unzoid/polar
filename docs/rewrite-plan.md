@@ -163,6 +163,11 @@ Done in the same migration, so the server is changed once:
   `tests/webviewPolicy.test.ts`. `img-src`/`media-src` keep `https:`/`http:`: add-ons choose posters and
   streams, local ones over http. The WebView2 flags are kept: `msSmartScreenProtection` is in Tauri's own
   default list, which `additionalBrowserArgs` replaces, so it stays as Tauri ships it.
+  M19 done: the player sends the stream's `behaviorHints.proxyHeaders.request` (`lib/playback/headers.ts`) with
+  `mpv_load` and `stream_probe`; `polar_player::headers` keeps User-Agent, Referer and Origin (no line breaks,
+  1 KB at most) and the link check sends them on every hop, mpv as `http-header-fields` (reset on every load).
+  Cookie, Authorization and other headers stay with downloads only: mpv's fields go to every request while a
+  file plays, external subtitles included. The built-in `<video>` player can't send headers at all.
 - **L18** `player.rs` split into `ipc.rs`, `autocrop.rs`, `snapshot.rs`, tests in their own module.
 
 ### R5. Screens (T-008)
