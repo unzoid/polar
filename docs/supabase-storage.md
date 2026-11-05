@@ -247,8 +247,8 @@ A typical episode is 1 + 2 + 2 + 2 + 3-4 ≈ 10-11 bytes. Varints are LEB128 lik
 
 ## 5. Migration from today's tables (cut over at once)
 
-`supabase/migrations/20261105000000_compact_storage.sql`, checked in PGlite (Postgres 17) with
-`work/tmp/pgcheck/compact.ts`, 28 checks:
+`supabase/migrations/20261105000000_compact_storage.sql`, checked in PGlite (Postgres 17) by
+`tests/sql/compactStorage.test.ts`, which `bun run test` and CI run:
 
 1. creates `library` and `progress` with their triggers and policies and the SQL codec functions;
 2. copies the old rows in: library without names or posters (removals as `128 + kind`), progress as

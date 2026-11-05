@@ -12,8 +12,8 @@ push. Tasks T-035 to T-041 in the work plan follow this document.
   saver, add-on parsing and probe, player rules, anime ids).
 - **Contract**: `contract/*.json` and `tests/contract.test.ts` keep TS and Rust field names in
   step.
-- **SQL**: the migrations are checked only by a PGlite script outside the repo
-  (`work/tmp/pgcheck/compact.ts`, 29 checks) and by `supabase/checks/compact_storage.sql`,
+- **SQL**: the migrations were checked only by a PGlite script outside the repo
+  (since T-036: `tests/sql/`, see §6) and by `supabase/checks/compact_storage.sql`,
   which the owner runs by hand against a real project.
 - **CI** (`.github/workflows/ci.yml`): runs on pushes to `master` and on pull requests only:
   front end (tests + `tsc` + `vite build`) on Ubuntu, `cargo test`/clippy for the whole
@@ -76,8 +76,10 @@ no real account, key or add-on is used in CI.
 
 ## 6. Order
 
-1. T-035 CI on every push, Linux builds the whole workspace.
+1. T-035 CI on every push, Linux builds the whole workspace. Done (not yet seen running on
+   GitHub).
 2. T-036 SQL integration: the PGlite checks move into the repo (`tests/sql/`) and run in CI.
+   Done: they are part of `bun run test`, so the front-end job runs them; no separate job.
 3. T-037 Rust integration: local add-on server, downloads, command JSON.
 4. T-038 Component tests with a DOM.
 5. T-039 Fake bridge + Playwright end-to-end on the web build.
