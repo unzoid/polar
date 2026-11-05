@@ -173,6 +173,8 @@ Done in the same migration, so the server is changed once:
   Cookie, Authorization and other headers stay with downloads only: mpv's fields go to every request while a
   file plays, external subtitles included. The built-in `<video>` player can't send headers at all.
 - **L18** `player.rs` split into `ipc.rs`, `autocrop.rs`, `snapshot.rs`, tests in their own module.
+  L18 done: `src-tauri/src/player/` = `mod.rs` (`Mpv`, engines, start-up, the IPC reader), `commands.rs` (every
+  `mpv_*` command, snapshot included), `autocrop.rs`, `ipc.rs`; the tests had already moved to `crates/player`.
 
 ### R5. Screens (T-008)
 

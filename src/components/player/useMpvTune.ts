@@ -8,7 +8,7 @@ import type { MpvMedia } from "./mpvMedia";
  * This machine's sound and picture options (Settings → Subtitles & Audio,
  * → Advanced) applied to mpv: on load, when the audio track changes, and
  * whenever one of them is switched. Rust turns them into fixed mpv values
- * (player.rs `Tune`).
+ * (polar_player `Tune`).
  */
 export function useMpvTune(mpv: MpvMedia | null) {
   const { dialogueBoost, volumeLeveling, hwdec, deband, autocrop, buffer } = usePrefs();
