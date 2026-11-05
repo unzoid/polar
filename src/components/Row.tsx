@@ -10,11 +10,14 @@ export function Row({
   title,
   action,
   shape = "poster",
+  order,
   children,
 }: {
   title?: string;
   action?: ReactNode;
   shape?: "poster" | "landscape" | "episode";
+  /** The items' ids in order. When it changes, the shelf goes back to its start, or keeps a focused card in view. */
+  order?: string;
   children: ReactNode;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -27,6 +30,23 @@ export function Row({
     const el = scroller.current;
     if (el && !touched.current && el.scrollLeft !== 0) el.scrollLeft = 0;
   });
+
+  // Resuming a title moves it to the front of Continue Watching; the shelf kept
+  // its scroll offset, which now shows whatever took the title's old place.
+  const shownOrder = useRef(order);
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (shownOrder.current === order) return;
+    shownOrder.current = order;
+    if (!el) return;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && el.contains(focused)) {
+      focused.scrollIntoView({ block: "nearest", inline: "nearest" });
+      return;
+    }
+    touched.current = false;
+    el.scrollLeft = 0;
+  }, [order]);
 
   useEffect(() => {
     const el = scroller.current;
