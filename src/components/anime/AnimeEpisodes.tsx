@@ -220,6 +220,8 @@ export function AnimeEpisodes({
         </>
       )}
       <EpisodeShelf
+        // Downloads keyed like progress: under the id the anime plays from (test report 1, item 18).
+        item={pb.meta}
         layout={layout}
         episodes={visible}
         progress={pb.byVideo}

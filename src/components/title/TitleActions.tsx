@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { PlayRequest } from "../../lib/playback";
-import type { MetaPreview } from "../../lib/types";
+import type { MetaPreview, Video } from "../../lib/types";
 import { DownloadButton } from "../DownloadButton";
 import { Play, Reset, Sources, Trailer } from "../icons";
 import { PlaylistButton } from "../Playlists";
@@ -27,6 +27,8 @@ export type TitleActionsProps = {
   /** With `item`: also the playlist and download buttons. */
   playlist?: boolean;
   download?: boolean;
+  /** A show's download: the episode Play would play (test report 1, item 18). */
+  downloadVideo?: Video;
   /** Trailing buttons of the page's own (the backdrop trailer's mute). */
   children?: ReactNode;
 };
@@ -36,7 +38,20 @@ export type TitleActionsProps = {
  * Choose source, Download, in that order, each only where the page has it. TV draws its own
  * column of pills (step 6).
  */
-export function TitleActions({ request, picker, label, resume, playTitle, onWarm, onTrailer, item, playlist, download, children }: TitleActionsProps) {
+export function TitleActions({
+  request,
+  picker,
+  label,
+  resume,
+  playTitle,
+  onWarm,
+  onTrailer,
+  item,
+  playlist,
+  download,
+  downloadVideo,
+  children,
+}: TitleActionsProps) {
   return (
     <div className="detail-actions">
       <Button variant="primary" className="detail-play" disabled={!request} onClick={() => request && picker.play(request)} onPointerEnter={onWarm} title={playTitle}>
@@ -54,7 +69,7 @@ export function TitleActions({ request, picker, label, resume, playTitle, onWarm
       <IconButton variant="glass" disabled={!request} onClick={() => request && picker.choose(request)} label="Choose source" title="Choose source">
         <Sources size={19} />
       </IconButton>
-      {item && download && <DownloadButton item={item} />}
+      {item && (download || downloadVideo) && <DownloadButton key={downloadVideo?.id} item={item} video={downloadVideo} />}
       {children}
     </div>
   );

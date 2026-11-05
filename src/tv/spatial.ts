@@ -194,8 +194,19 @@ function resolveEntry(from: HTMLElement, target: HTMLElement) {
 
 // --- Moving -----------------------------------------------------------------
 
-/** Move focus one step in `dir`. Returns false when there's nowhere to go. */
+/** Moves closer together than this are a held direction (or a fast thumb). */
+const QUICK_MS = 220;
+let lastMove = 0;
+
+/**
+ * Move focus one step in `dir`. Returns false when there's nowhere to go. While moves come
+ * quickly (a held stick or D-pad), the page follows instantly instead of restarting a smooth
+ * scroll at every step, which juddered (test report 1, item 20).
+ */
 export function move(dir: Dir): boolean {
+  const now = performance.now();
+  const quick = now - lastMove < QUICK_MS;
+  lastMove = now;
   const scope = activeScope();
   if (!scope) return false;
   const current = document.activeElement;
@@ -206,8 +217,32 @@ export function move(dir: Dir): boolean {
   }
   const target = nearest(current, navigables(scope), dir);
   if (!target) return false;
-  focusEl(resolveEntry(current, target));
+  focusEl(resolveEntry(current, target), !quick);
   return true;
+}
+
+/**
+ * Focus was on something that's going away (a loading row whose cards arrived): once the page has
+ * drawn the new content, focus what now sits nearest to where it was.
+ */
+export function refocusNear(place: DOMRect) {
+  requestAnimationFrame(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) return;
+    const scope = activeScope();
+    if (!scope) return;
+    let best: HTMLElement | null = null;
+    let bestDistance = Infinity;
+    for (const el of navigables(scope)) {
+      const r = el.getBoundingClientRect();
+      const d = Math.hypot(r.left - place.left, r.top - place.top);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = el;
+      }
+    }
+    if (best) focusEl(best, false);
+  });
 }
 
 /** Focus without the browser's jump-scroll, then glide it into place. */
