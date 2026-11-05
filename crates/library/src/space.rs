@@ -185,9 +185,11 @@ impl Space {
         items
     }
 
-    /// Latest unfinished video per title, newest first.
+    /// Latest unfinished video per title, newest first. Only videos watched past the start
+    /// count: opening another episode for a few seconds doesn't take the show out (test
+    /// report 1, item 4); its latest started video still decides, finished or not.
     pub fn continue_watching(&self, watched: f64) -> Vec<Progress> {
-        let mut items = self.latest_per_title(|_| true);
+        let mut items = self.latest_per_title(Progress::started);
         items.retain(|p| !p.finished(watched) && p.started());
         items.truncate(CONTINUE_LIMIT);
         items
@@ -367,6 +369,22 @@ pub(crate) mod tests {
         let cw = s.continue_watching(0.92);
         assert_eq!(cw.len(), 1);
         assert_eq!(cw[0].video_id, "tt9:1:2");
+    }
+
+    #[test]
+    fn a_brief_look_at_another_episode_keeps_the_show_in_continue_watching() {
+        // Test report 1, item 4: halfway through S1E2, then S2E1 and S2E2 opened for a few seconds.
+        let mut s = Space::default();
+        s.progress.insert("tt9:1:1".into(), progress("tt9", "tt9:1:1", 10, 990.0));
+        s.progress.insert("tt9:1:2".into(), progress("tt9", "tt9:1:2", 20, 400.0));
+        s.progress.insert("tt9:2:1".into(), progress("tt9", "tt9:2:1", 30, 12.0));
+        s.progress.insert("tt9:2:2".into(), progress("tt9", "tt9:2:2", 40, 1.0));
+        let cw: Vec<_> = s.continue_watching(0.92).into_iter().map(|p| p.video_id).collect();
+        assert_eq!(cw, ["tt9:1:2"]);
+        // Watching on past 30 s makes that episode the one to resume.
+        s.progress.insert("tt9:2:2".into(), progress("tt9", "tt9:2:2", 50, 31.0));
+        let cw: Vec<_> = s.continue_watching(0.92).into_iter().map(|p| p.video_id).collect();
+        assert_eq!(cw, ["tt9:2:2"]);
     }
 
     #[test]

@@ -149,7 +149,7 @@ describe("pulled rows (critique M9)", () => {
     episodeTitle: "Ep",
     season,
     episode,
-    position: 12.4,
+    position: 312.4,
     duration: 1400,
     updatedAt,
   });
@@ -166,13 +166,22 @@ describe("pulled rows (critique M9)", () => {
       ["tt3", 0, 5],
     ]);
     expect(fromProgressRow(rows[0])).toEqual([
-      { metaId: "tt2", type: "series", name: "", videoId: "tt2:1:4", season: 1, episode: 4, position: 12, duration: 1400, updatedAt: 120 },
+      { metaId: "tt2", type: "series", name: "", videoId: "tt2:1:4", season: 1, episode: 4, position: 312, duration: 1400, updatedAt: 120 },
     ]);
     const all = fromProgressRow(toProgressRows("p1", list, true)[0])!;
     expect(all.map((p) => [p.videoId, p.updatedAt])).toEqual([
       ["tt2:1:3", 99],
       ["tt2:1:4", 120],
     ]);
+  });
+
+  test("progress: a few seconds of another episode never becomes the title's one row (test report 1, item 4)", () => {
+    const list = [watched("tt2:1:2", 1, 2, 100), { ...watched("tt2:2:1", 2, 1, 200), position: 12 }, { ...watched("tt4:1:1", 1, 1, 300), metaId: "tt4", position: 3 }];
+    const rows = toProgressRows("p1", list, false);
+    expect(rows.map((r) => [r.meta_id, r.updated_at])).toEqual([["tt2", 100]]);
+    expect(fromProgressRow(rows[0])!.map((p) => p.videoId)).toEqual(["tt2:1:2"]);
+    // Every episode, when asked for, still means every one.
+    expect(toProgressRows("p1", list, true).map((r) => r.meta_id)).toEqual(["tt2", "tt4"]);
   });
 
   test("progress rows: unknown entries, kinds and numbers beyond a u32 are left out", () => {
