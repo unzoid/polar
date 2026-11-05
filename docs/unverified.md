@@ -79,6 +79,18 @@ desktop with Android Studio: `bun run tauri android dev` with an emulator runnin
 on the home screen, the phone layout and bottom tab bar, a title plays in `<video>` where the phone
 can decode it.
 
+## Android TV (same APK, T-047)
+
+Written by reading only: the manifest's banner (`res/drawable-xhdpi/banner.png`, 320x180, the icon and
+"Polarity" in Open Sans Bold) and touch screen not required, and `MainActivity.kt` adding a `polarDevice`
+JavaScript interface before the first page loads, answering `isTv()` from `UiModeManager` (TV mode type) or the
+`android.software.leanback` feature. The Kotlin was never compiled here. The front end's side is tested
+(`detectTvDevice`, `startsInTvMode`). To check, in Android Studio start an Android TV emulator (API 34, 1080p) and
+`adb install` the `android-debug-apk` artifact (x86_64). Look for: the banner in the launcher's apps row; the app
+opening fullscreen in TV mode; the D-pad moving focus; Back closing the top layer and, on the home screen, leaving
+the app; leaving TV mode from the TV menu lasting until the app is closed, and TV mode back at the next start. On
+a phone, TV mode must stay off unless chosen. Fire TV: `UiModeManager` reports TV there too (untested).
+
 ## Saving in the background (R4, H8/M4)
 
 `polar.json` is now written by a background thread about a second after a change,

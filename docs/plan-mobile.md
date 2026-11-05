@@ -77,7 +77,8 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 4. T-044 Android libmpv engine.
 5. T-045 iOS project; unsigned build on the macOS runner.
 6. T-046 iOS libmpv engine and sandbox details.
-7. T-047 Android TV: manifest, banner, TV mode at start; TV emulator run.
+7. T-047 Android TV: manifest, banner, TV mode at start (built: a `polarDevice` JavaScript interface from
+   `MainActivity.kt` instead of a plugin command, so the answer is there before the first script runs); TV emulator run left.
 8. T-048 Apple TV: later (I-011); §4 is the plan.
 9. T-049 Docs: ARCHITECTURE §3 rows to "built", `docs/unverified.md` per device, README.
 

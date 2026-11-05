@@ -7,7 +7,7 @@ import { os as deviceOs, type Os } from "./device";
  *  - tablet:  the desktop layout with touch-sized targets.
  *  - phone:   the tabs move to a bar at the bottom, within thumb reach, and the content keeps clear of the
  *             notch and the home indicator.
- * TV is a mode, not a form factor: it has its own shell (src/tv) and is switched on by the user.
+ * TV is a mode, not a form factor: it has its own shell (src/tv), switched on by the user or, on a TV device, at start.
  */
 export type FormFactor = "desktop" | "tablet" | "phone";
 
