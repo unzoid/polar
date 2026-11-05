@@ -69,6 +69,26 @@ test("a title page adds to and removes from the Library", async ({ app }) => {
   await expect(card(app, "Northbound")).toHaveCount(0);
 });
 
+test("an episode's Sources and Download buttons show alike, on a dark fill, without hovering (#18)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
+  await expect(ep).toBeVisible();
+  await app.mouse.move(0, 0);
+  const look = (sel: string) =>
+    ep.locator(sel).evaluate((b) => {
+      const s = getComputedStyle(b);
+      const alpha = Number(/rgba?\(([^)]+)\)/.exec(s.backgroundColor)?.[1].split(",")[3] ?? 1);
+      return { opacity: s.opacity, alpha, color: s.color, size: b.getBoundingClientRect().width };
+    });
+  const sources = await look(".episode-sources");
+  const download = await look(".episode-download");
+  expect(sources).toEqual(download);
+  expect(sources.opacity).toBe("1");
+  expect(sources.color).toBe("rgb(255, 255, 255)");
+  expect(sources.alpha).toBeGreaterThanOrEqual(0.5);
+});
+
 test("a movie plays in the built-in player, pauses and closes", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
