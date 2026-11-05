@@ -193,6 +193,18 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
   (Trailer → YouTube, Credits) must still open in the browser and Downloads → Show in folder still reveal the file.
   A self-hosted Supabase (not `*.supabase.co`) is refused until its host is added to `connect-src`.
 
+## Add-on request headers on playback (R4 M19)
+
+- mpv now gets the stream's User-Agent/Referer/Origin from `behaviorHints.proxyHeaders.request` as
+  `http-header-fields`, set by `set_property` with a JSON list before each `loadfile`. Tested here: which headers
+  pass (`crates/player/src/headers.rs`) and that the link check sends them through a redirect (`probe.rs`
+  `sends_the_addons_headers_on_every_hop`). Not run: mpv itself. To check on Windows or macOS: install an add-on
+  whose streams carry `proxyHeaders` (or serve one from `scripts/open-films-addon.ts` with a Referer check on the
+  file server); before this change it downloaded but failed with "The source answered 403", now it plays. Then play
+  a normal source with an external subtitle to see no header is left over.
+- A source that needs a Cookie or Authorization header still fails to play (only downloads send those); on Linux
+  the built-in player can't send any header.
+
 ## Phone and tablet layouts (T-033)
 
 - The layouts were first checked by reading the CSS, and the form-factor rules by tests

@@ -23,7 +23,7 @@ import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
 import { streamKey } from "../components/StreamList";
 import { SourceFilterBar } from "../components/SourceFilters";
-import { failedStage, formatReport, sourceRow, STAGE_LABEL, type StartStage, type StartStep, useSourceFilters } from "../lib/playback";
+import { failedStage, formatReport, requestHeaders, sourceRow, STAGE_LABEL, type StartStage, type StartStep, useSourceFilters } from "../lib/playback";
 import { episodeState, isLocalFile, nextVideo, progressMap, seasonsOf, watchedFraction } from "../lib/library";
 import { WindowControls } from "../components/WindowControls";
 import { Scrubber } from "../components/player/Scrubber";
@@ -352,7 +352,7 @@ export function Player({
       // fetching the opening of a network stream only to seek away from it.
       const start = partyPosition(videoId) ?? resumePoint(source.resume);
       resumed.current = true;
-      v.load(source.state.url, start);
+      v.load(source.state.url, start, requestHeaders(source.state.stream));
     } else if (v instanceof HTMLVideoElement) {
       const url = source.state.url;
       const play = (src: string) => {
@@ -366,7 +366,7 @@ export function Player({
       const id = nextProbeId();
       const unlisten = listenProbe(id, (e) => logStep(...probeStep(e)));
       api
-        .streamProbe(url, id)
+        .streamProbe(url, id, requestHeaders(source.state.stream))
         .then(
           (final) => !cancelled && play(final),
           (e) => {

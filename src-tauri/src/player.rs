@@ -654,7 +654,9 @@ pub fn mpv_available() -> bool {
 }
 
 /// Load `url` (optionally starting at `start` seconds) and play. With `probe_id`,
-/// the link check reports its steps as `player://probe` events.
+/// the link check reports its steps as `player://probe` events. `headers` are
+/// the stream's `behaviorHints.proxyHeaders.request`; only those
+/// `polar_player::headers` passes reach the link check and mpv.
 #[tauri::command]
 pub async fn mpv_load(
     app: AppHandle,
@@ -663,6 +665,7 @@ pub async fn mpv_load(
     url: String,
     start: Option<f64>,
     probe_id: Option<u32>,
+    headers: Option<std::collections::HashMap<String, String>>,
 ) -> Result<(), CmdError> {
     // Web streams, or a finished download - never any other path on disk.
     let downloaded = app.state::<Arc<crate::downloads::Downloads>>().owns(&url);
@@ -670,7 +673,9 @@ pub async fn mpv_load(
         return Err(CmdError::Unsupported("only http(s) streams and downloads can be played".into()));
     }
     // A link that's not ready yet, or a placeholder clip in place of the video.
-    let url = if downloaded { url } else { crate::streamcheck::prepare(&app, &url, probe_id).await? };
+    let headers =
+        if downloaded { Vec::new() } else { polar_player::headers::playback_headers(&headers.unwrap_or_default()) };
+    let url = if downloaded { url } else { crate::streamcheck::prepare(&app, &url, headers.clone(), probe_id).await? };
     state.mpv.touch();
     state.mpv.ensure(&app, &window).await.map_err(CmdError::Player)?;
     let mut options = String::new();
@@ -680,6 +685,9 @@ pub async fn mpv_load(
     // A new file is measured afresh (autocrop): drop the last one's crop.
     state.mpv.loads.fetch_add(1, Ordering::SeqCst);
     state.mpv.request(json!(["set_property", "video-zoom", 0])).await.ok();
+    // The add-on's headers for this source, or none left over from the last one.
+    let fields = polar_player::headers::mpv_fields(&headers);
+    state.mpv.request(json!(["set_property", "http-header-fields", fields])).await.map_err(CmdError::Player)?;
     state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await.map_err(CmdError::Player)?;
     state.mpv.request(json!(["set_property", "pause", false])).await.map_err(CmdError::Player)?;
     state.mpv.set_visible(true).await;
