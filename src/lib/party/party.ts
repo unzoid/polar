@@ -63,7 +63,12 @@ let state: PartyState | null = null;
 let link: PartyLink | null = null;
 let self: Member | null = null;
 let rtts: number[] = [];
+/** The connection's intervals; cleared on leave. */
 let timers: number[] = [];
+/** One-off timeouts (join deadline, notes), each gone from here once it has run. */
+const pending = new Set<number>();
+/** Joined, and not yet placed after everyone already in the room (see `presence`). */
+let placeInLine = false;
 const waitingSince = new Map<string, number>();
 let pendingJoin: { resolve: () => void; reject: (e: Error) => void } | null = null;
 let noteId = 0;
@@ -71,6 +76,14 @@ let presenceSeen = false;
 
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
+
+function later(fn: () => void, ms: number) {
+  const t = window.setTimeout(() => {
+    pending.delete(t);
+    fn();
+  }, ms);
+  pending.add(t);
+}
 
 function update(patch: Partial<PartyState>) {
   if (!state) return;
@@ -150,14 +163,18 @@ export function joinParty(input: string, me: Pick<Member, "name" | "avatar">) {
   state = { code, status: "connecting", me: self.id, hostId: null, members: [self], playback: null, notes: [] };
   const joined = new Promise<void>((resolve, reject) => (pendingJoin = { resolve, reject }));
   connect(code);
-  timers.push(window.setTimeout(() => failJoin("There's no watch party with that code."), JOIN_TIMEOUT_MS));
+  placeInLine = true;
+  later(() => failJoin("There's no watch party with that code."), JOIN_TIMEOUT_MS);
   emit();
   return joined;
 }
 
 export function leaveParty() {
-  timers.forEach((t) => window.clearTimeout(t));
+  timers.forEach((t) => window.clearInterval(t));
   timers = [];
+  pending.forEach((t) => window.clearTimeout(t));
+  pending.clear();
+  placeInLine = false;
   link?.close();
   link = null;
   self = null;
@@ -320,6 +337,18 @@ function receive(raw: Record<string, unknown>) {
 
 function presence(list: Member[]) {
   if (!state || !self) return;
+  // Who hosts next goes by `joinedAt`. Each member's clock sets its own, and clocks
+  // differ, so on joining take the place after everyone already there instead.
+  if (placeInLine) {
+    placeInLine = false;
+    const last = Math.max(0, ...list.filter((m) => m.id !== self!.id).map((m) => m.joinedAt));
+    if (self.joinedAt <= last) {
+      self = { ...self, joinedAt: last + 1 };
+      link?.track(self);
+      const me = self;
+      list = list.map((m) => (m.id === me.id ? me : m));
+    }
+  }
   const members = [...list].sort((a, b) => a.joinedAt - b.joinedAt || a.id.localeCompare(b.id));
   const before = new Set(state.members.map((m) => m.id));
   const after = new Set(members.map((m) => m.id));
@@ -365,7 +394,5 @@ function note(who: Member | null, text: string) {
   if (!state) return;
   const n = { id: ++noteId, who, text };
   update({ notes: [...state.notes.slice(-2), n] });
-  timers.push(
-    window.setTimeout(() => state && update({ notes: state.notes.filter((x) => x.id !== n.id) }), NOTE_MS),
-  );
+  later(() => state && update({ notes: state.notes.filter((x) => x.id !== n.id) }), NOTE_MS);
 }

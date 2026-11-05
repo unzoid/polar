@@ -138,7 +138,7 @@ export function Player({
   startedRef.current = started;
   /** Why the link check turned the built-in player's source down (mpv reports its own). */
   const linkError = useRef<string | null>(null);
-  const [volume, setVolume] = useState(() => Number(localStorage.getItem("polar.volume") ?? 1));
+  const [volume, setVolume] = useState(savedVolume);
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,10 +147,11 @@ export function Player({
   const [nextDismissed, setNextDismissed] = useState(false);
   const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | "party" | null>(null);
   const updateSettings = useUpdateSettings();
-  // Settings → Playback → "Remember playback speed".
-  const [rate, setRateState] = useState(() => (settings?.rememberSpeed && settings.playbackSpeed > 0 ? settings.playbackSpeed : 1));
+  // Settings → Playback → "Remember playback speed" (settings may arrive after the player opens).
+  const [picked, setPicked] = useState<number>();
+  const rate = picked ?? (settings?.rememberSpeed && settings.playbackSpeed > 0 ? settings.playbackSpeed : 1);
   const setRate = (r: number) => {
-    setRateState(r);
+    setPicked(r);
     if (settings?.rememberSpeed) updateSettings.mutate({ playbackSpeed: r });
   };
   const seekStep = settings?.seekStep ?? 10;
@@ -1045,6 +1046,12 @@ function ActionButton({
       {glyph}
     </button>
   );
+}
+
+/** The volume last set, 0–1 (1 when none was, or it isn't a number). */
+function savedVolume() {
+  const v = Number(localStorage.getItem("polar.volume") ?? 1);
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
 }
 
 /** A short message over the player (a source skipped, an intro skipped) that clears itself. */

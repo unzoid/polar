@@ -2,6 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { api } from "../api";
 import { keys, useContinueWatching, useLibrary, useWatchHistory } from "../net/queries";
+import { concurrency } from "../net/limiter";
 import type { Meta, Video } from "../types";
 
 /**
@@ -16,6 +17,8 @@ const PAST_DAYS = 7;
 const FUTURE_DAYS = 90;
 /** Shows looked up at most (newest activity first). */
 const MAX_SHOWS = 60;
+/** Lookups in flight at once: the rest queue instead of asking for 60 shows in one go. */
+const lookup = concurrency(6);
 
 export interface CalendarEntry {
   show: Meta;
@@ -61,7 +64,7 @@ export function useCalendar(enabled = true) {
   const metas = useQueries({
     queries: ids.map((id) => ({
       queryKey: keys.meta("series", id),
-      queryFn: () => api.meta("series", id),
+      queryFn: () => lookup(() => api.meta("series", id)),
       staleTime: 60 * 60_000,
       enabled,
     })),

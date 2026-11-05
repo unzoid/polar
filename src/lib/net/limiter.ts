@@ -132,3 +132,22 @@ export const anilistLimiter = new Limiter({ burst: 10, perMinute: 20, retries: 1
 
 /** ani.zip publishes no limits; this is well under what one viewer's browsing needs. */
 export const aniZipLimiter = new Limiter({ burst: 20, perMinute: 120, retries: 1, defaultWait: 5_000, maxWait: 30_000 });
+
+/**
+ * At most `limit` of the calls passed to the returned function run at once; the rest wait their turn, in order.
+ * For fan-outs over our own backend (the Calendar's show lookups), where the cost is many requests at once.
+ */
+export function concurrency(limit: number) {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    if (running >= limit) await new Promise<void>((go) => waiting.push(go));
+    running++;
+    try {
+      return await task();
+    } finally {
+      running--;
+      waiting.shift()?.();
+    }
+  };
+}

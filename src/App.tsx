@@ -92,13 +92,17 @@ function SettingsRoute({ page }: { page?: string }) {
   return null;
 }
 
-/** Sign-in and profile picking come before the app itself; sign-out may stop to ask over any of them. */
+/**
+ * Sign-in and profile picking come before the app itself; sign-out may stop to ask over any of them.
+ * Settings → Appearance → "Reduce motion" covers all of it, the account screens included.
+ */
 export function App() {
+  const reduce = useSettings().data?.reduceMotion;
   return (
-    <>
+    <MotionConfig reducedMotion={reduce === "on" ? "always" : reduce === "off" ? "never" : "user"}>
       <Gate />
       <SignOutDialog />
-    </>
+    </MotionConfig>
   );
 }
 
@@ -186,7 +190,6 @@ function MainApp() {
   useEffect(() => {
     void appWindow.setZoom(uiScale > 0 ? uiScale : 1).catch(() => {});
   }, [uiScale]);
-  const reduce = settings?.reduceMotion;
 
   // Look for a new version shortly after launch, then every few hours (TV mode too).
   useEffect(() => startUpdateChecks(), []);
@@ -220,7 +223,7 @@ function MainApp() {
   }, []);
 
   return (
-    <MotionConfig reducedMotion={reduce === "on" ? "always" : reduce === "off" ? "never" : "user"}>
+    <>
       {tv ? (
         <Suspense fallback={null}>
           <TvApp />
@@ -229,7 +232,7 @@ function MainApp() {
         <DesktopApp />
       )}
       <PartyHost />
-    </MotionConfig>
+    </>
   );
 }
 

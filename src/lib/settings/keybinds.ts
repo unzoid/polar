@@ -81,13 +81,20 @@ const STORAGE = "polar.keybinds";
 
 const load = (): Record<Action, string[]> => ({ ...DEFAULT_BINDINGS, ...readBindings(storedJson(localStorage, STORAGE)) });
 
+/**
+ * Stored and synced combos write this OS's shortcut modifier (Ctrl, or ⌘ on a Mac) as "Mod", so
+ * Ctrl+K set on Windows arrives on a Mac as ⌘K and back (critique L5). Other modifiers stay as they are.
+ */
+export const toPortable = (combo: string, mod = MOD) => combo.split("+").map((k, i, all) => (i < all.length - 1 && k === mod ? "Mod" : k)).join("+");
+export const fromPortable = (combo: string, mod = MOD) => combo.split("+").map((k, i, all) => (i < all.length - 1 && k === "Mod" ? mod : k)).join("+");
+
 /** Stored or synced overrides: known actions only, each a list of combos (critique M9). */
 export function readBindings(v: unknown): Partial<Record<Action, string[]>> {
   if (!isRecord(v)) return {};
   return Object.fromEntries(
     Object.entries(v)
       .filter(([a, c]) => a in DEFAULT_BINDINGS && Array.isArray(c))
-      .map(([a, c]) => [a, strings(c).slice(0, MAX_BINDINGS)]),
+      .map(([a, c]) => [a, strings(c).slice(0, MAX_BINDINGS).map((k) => fromPortable(k))]),
   );
 }
 
@@ -97,7 +104,9 @@ const listeners = new Set<() => void>();
 /** Only what differs from the defaults is stored (and synced), so new defaults reach everyone else. */
 export const bindingOverrides = (): Partial<Record<Action, string[]>> =>
   Object.fromEntries(
-    Object.entries(bindings).filter(([a, combos]) => combos.join() !== DEFAULT_BINDINGS[a as Action].join()),
+    Object.entries(bindings)
+      .filter(([a, combos]) => combos.join() !== DEFAULT_BINDINGS[a as Action].join())
+      .map(([a, combos]) => [a, combos.map((k) => toPortable(k))]),
   );
 
 function commit(next: Record<Action, string[]>, { quiet = false } = {}) {
