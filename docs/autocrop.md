@@ -43,8 +43,19 @@ or 4:3 at 1920x1080, so the truth is known, and runs both detectors through the 
 per change of bars, bars never cropped, crop changes per minute, frames that cut picture off,
 frames that leave bars on screen. A second table counts how each crop change would be shown (§6):
 on the cut, following animated bars, eased because caught late, correcting a misread (at once
-or eased), and changes into a misread. Needs an ffmpeg built with `cropdetect` (a GPL build) and
-a test film (Sintel from download.blender.org).
+or eased), and changes into a misread. A third table gives, per shot, the frames that cut picture
+off, and our detector also runs at lower limits (16, 12, 8) for comparison. Needs an ffmpeg built
+with `cropdetect` (a GPL build) and a test film (Sintel from download.blender.org).
+
+**First results** (16 shots of 8 s each, 2026-11-05). On Tears of Steel our detector does
+better on every column: first crop 0 ms on average against 42, no frame cutting picture against
+2, and 13 of 15 crop changes on the cut. On Sintel it crops sooner (500 ms against 792) and leaves
+bars on fewer frames (40 against 115), but cuts picture on more (114 against 78), and as many
+with crisp edges ignored, so the extra cut comes from the readings, not the crisp lock. Likely
+cause, to be confirmed by the limit rows: cropdetect's `limit=0.09` is compared with
+limited-range luma as decoded, so a line is picture from about 7 steps above black (16), while
+our 24 steps over full-range luma is about 21 limited steps, so dim picture at the edge of
+Sintel's dark shots reads as bar.
 
 ## 3. Pre-roll: the crop is right on the first frame
 
@@ -185,5 +196,5 @@ sending the zoom on every frame until it settles.
 
 ## 7. Open
 
-- The measurement of §2 on real film, and whether our detector replaces cropdetect on desktop.
+- The limit for dark shots (§2's limit rows), then whether our detector replaces cropdetect on desktop.
 - Lookahead defaults per device, after §4's measurements.

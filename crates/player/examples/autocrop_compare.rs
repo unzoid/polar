@@ -1,18 +1,19 @@
 //! Our own bar detector (`polar_player::bars`) against FFmpeg's `cropdetect`
 //! on the same frames, both through the same `CropTracker`, scored against
-//! the bars the clip is known to have. `scripts/autocrop-compare.sh` makes
+//! the bars the clip is known to have. `scripts/autocrop-compare.ts` makes
 //! such a clip from any film and runs this; docs/autocrop.md says how to read
 //! the result.
 //!
 //! ```text
 //! autocrop_compare --size 1920x1080 --fps 24 --truth 0:0:0,6:138:0,... \
-//!     [--cropdetect cropdetect.txt] [--black 0] [--limit 24] < frames.gray
+//!     [--cropdetect cropdetect.txt] [--black 0] [--limit 24] [--also-limits 16,10] < frames.gray
 //! ```
 //!
 //! stdin: the clip's frames as raw 8-bit luma (`-f rawvideo -pix_fmt gray`).
 //! `--truth`: from each start time (seconds), the bars it has (top and
 //! bottom, left and right). `--cropdetect`: FFmpeg's `metadata=mode=print`
 //! output for `cropdetect=limit=0.09:round=2:reset=1` on the same clip.
+//! `--also-limits`: our detector again at each of these limits, a row each.
 
 use std::io::Read;
 
@@ -43,29 +44,41 @@ fn run() -> Result<(), String> {
         black: arg("--black").map_or(Ok(SDR.black), str::parse).map_err(|_| "--black: 0-255")?,
         limit: arg("--limit").map_or(Ok(SDR.limit), str::parse).map_err(|_| "--limit: 0-255")?,
     };
+    let also: Vec<u8> = match arg("--also-limits") {
+        Some(list) => list
+            .split(',')
+            .map(|l| l.parse().map_err(|_| "--also-limits: 0-255, comma-separated"))
+            .collect::<Result<_, _>>()?,
+        None => Vec::new(),
+    };
     let cropdetect = match arg("--cropdetect") {
         Some(path) => Some(parse_cropdetect(&std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?)),
         None => None,
     };
 
     let full = (w as i64, h as i64);
-    let mut ours = Run::new("own detector");
-    let mut ours_plain = Run::new("own detector, crisp edges ignored");
-    let mut theirs = Run::new("cropdetect");
+    let mut ours = Run::new("own detector".into());
+    let mut ours_plain = Run::new("own detector, crisp edges ignored".into());
+    let mut others: Vec<(u8, Run)> = also.iter().map(|&l| (l, Run::new(format!("own detector, limit {l}")))).collect();
+    let mut theirs = Run::new("cropdetect".into());
     let mut buf = vec![0u8; w * h];
     let mut stdin = std::io::stdin().lock();
     let mut n = 0usize;
     while read_frame(&mut stdin, &mut buf)? {
-        let want = truth_at(&truth, n as f64 / fps);
+        let (shot, want) = truth_at(&truth, n as f64 / fps);
         let frame = Frame { w, h, stride: w, format: PixelFormat::Luma8, data: &buf };
         let measured = detect(&frame, levels);
         ours.tracker.update_measured(1, full, full, measured);
         ours_plain.tracker.update(1, full, full, measured.map(|m| m.rect));
-        ours.score(want);
-        ours_plain.score(want);
+        ours.score(shot, want);
+        ours_plain.score(shot, want);
+        for (limit, run) in &mut others {
+            run.tracker.update_measured(1, full, full, detect(&frame, Levels { limit: *limit, ..levels }));
+            run.score(shot, want);
+        }
         if let Some(readings) = &cropdetect {
             theirs.tracker.update(1, full, full, readings.get(n).copied().flatten());
-            theirs.score(want);
+            theirs.score(shot, want);
         }
         n += 1;
     }
@@ -73,10 +86,12 @@ fn run() -> Result<(), String> {
         return Err("no frames on stdin".into());
     }
     let mut runs = vec![ours, ours_plain];
+    runs.extend(others.into_iter().map(|(_, run)| run));
     if cropdetect.is_some() {
         runs.push(theirs);
     }
     print!("{}", table(&runs, n, fps));
+    print!("{}", cuts_per_shot(&runs, &truth));
     Ok(())
 }
 
@@ -113,8 +128,9 @@ fn parse_truth(spec: &str) -> Result<Truth, String> {
     Ok(out)
 }
 
-fn truth_at(truth: &[(f64, (i64, i64))], t: f64) -> (i64, i64) {
-    truth.iter().rev().find(|(start, _)| *start <= t + 1e-9).map_or((0, 0), |(_, b)| *b)
+/// The shot (index into `truth`) at time `t` and its bars.
+fn truth_at(truth: &[(f64, (i64, i64))], t: f64) -> (usize, (i64, i64)) {
+    truth.iter().rposition(|(start, _)| *start <= t + 1e-9).map_or((0, (0, 0)), |i| (i, truth[i].1))
 }
 
 /// FFmpeg's `metadata=mode=print` lines: `frame:N pts:… pts_time:…` and then
@@ -144,12 +160,14 @@ fn parse_cropdetect(text: &str) -> Vec<Option<Rect>> {
 
 /// One method's tracker and its score so far.
 struct Run {
-    name: &'static str,
+    name: String,
     tracker: CropTracker,
     last: (i64, i64),
     changes: usize,
     /// Frames that cut picture off (more bar removed than there is).
     cut: usize,
+    /// The same per shot (index into the truth).
+    cut_in: Vec<usize>,
     /// Frames with bars left on screen that could have gone.
     left: usize,
     /// Per stretch of bars: frames until they were cropped (None: never).
@@ -166,13 +184,14 @@ struct Run {
 }
 
 impl Run {
-    fn new(name: &'static str) -> Self {
+    fn new(name: String) -> Self {
         Run {
             name,
             tracker: CropTracker::default(),
             last: (0, 0),
             changes: 0,
             cut: 0,
+            cut_in: Vec::new(),
             left: 0,
             locks: Vec::new(),
             timing: None,
@@ -182,7 +201,7 @@ impl Run {
         }
     }
 
-    fn score(&mut self, want: (i64, i64)) {
+    fn score(&mut self, shot: usize, want: (i64, i64)) {
         let shown = self.tracker.bars(1);
         let close = |a: i64, b: i64| (a - b).abs() <= SLACK;
         let right = |b: (i64, i64), want: (i64, i64)| close(b.0, want.0) && close(b.1, want.1);
@@ -203,6 +222,10 @@ impl Run {
         }
         if shown.0 > want.0 + SLACK || shown.1 > want.1 + SLACK {
             self.cut += 1;
+            if self.cut_in.len() <= shot {
+                self.cut_in.resize(shot + 1, 0);
+            }
+            self.cut_in[shot] += 1;
         } else if !close(shown.0, want.0) || !close(shown.1, want.1) {
             self.left += 1;
         }
@@ -265,6 +288,33 @@ fn table(runs: &[Run], frames: usize, fps: f64) -> String {
     out
 }
 
+/// Frames cutting picture off, per shot that has any: where to look first.
+fn cuts_per_shot(runs: &[Run], truth: &[(f64, (i64, i64))]) -> String {
+    let shots: Vec<usize> =
+        (0..truth.len()).filter(|&i| runs.iter().any(|r| r.cut_in.get(i).is_some_and(|&c| c > 0))).collect();
+    if shots.is_empty() {
+        return String::new();
+    }
+    let mut out =
+        "\nFrames cutting picture, per shot (start in the clip, bars top/bottom and left/right):\n\n| method |"
+            .to_string();
+    for &i in &shots {
+        let (start, (v, h)) = truth[i];
+        out += &format!(" {start:.2} s, {v}/{h} |");
+    }
+    out += "\n|---|";
+    out += &"---|".repeat(shots.len());
+    out += "\n";
+    for r in runs {
+        out += &format!("| {} |", r.name);
+        for &i in &shots {
+            out += &format!(" {} |", r.cut_in.get(i).copied().unwrap_or(0));
+        }
+        out += "\n";
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,9 +322,9 @@ mod tests {
     #[test]
     fn reads_truth_and_cropdetect_output() {
         let t = parse_truth("0:0:0,6:138:0,12.5:0:240").unwrap();
-        assert_eq!(truth_at(&t, 5.99), (0, 0));
-        assert_eq!(truth_at(&t, 6.0), (138, 0));
-        assert_eq!(truth_at(&t, 13.0), (0, 240));
+        assert_eq!(truth_at(&t, 5.99), (0, (0, 0)));
+        assert_eq!(truth_at(&t, 6.0), (1, (138, 0)));
+        assert_eq!(truth_at(&t, 13.0), (2, (0, 240)));
         assert!(parse_truth("0:0:0,0:1:1").is_err());
         assert!(parse_truth("0:0").is_err());
         let meta = "frame:0    pts:0       pts_time:0\nlavfi.cropdetect.x1=0\nlavfi.cropdetect.w=1920\nlavfi.cropdetect.h=800\n\
@@ -289,7 +339,7 @@ mod tests {
 
     #[test]
     fn scores_lock_time_cuts_and_changes() {
-        let mut r = Run::new("x");
+        let mut r = Run::new("x".into());
         // Truth: 2 frames full, then bars of 140 for 4 frames; the tracker is fed by hand.
         let full = Rect { w: 1920, h: 1080, x: 0, y: 0 };
         let scope = Rect { w: 1920, h: 800, x: 0, y: 140 };
@@ -303,7 +353,7 @@ mod tests {
         ];
         for (rect, want) in feed {
             r.tracker.update(1, (1920, 1080), (1920, 1080), Some(rect));
-            r.score(want);
+            r.score(usize::from(want != (0, 0)), want);
         }
         assert_eq!(r.finish(), vec![Some(3)], "a common shape: cropped on its 4th frame");
         assert_eq!((r.changes, r.cut, r.left), (1, 0, 3));
@@ -312,13 +362,16 @@ mod tests {
         let dark = Rect { w: 1920, h: 700, x: 0, y: 190 };
         for _ in 0..12 {
             r.tracker.update(1, (1920, 1080), (1920, 1080), Some(dark));
-            r.score((140, 0));
+            r.score(1, (140, 0));
         }
         for _ in 0..2 {
             r.tracker.update(1, (1920, 1080), (1920, 1080), Some(scope));
-            r.score((140, 0));
+            r.score(1, (140, 0));
         }
         assert_eq!(r.kinds, [0, 0, 1, 1, 0, 1], "{:?}", r.kinds);
+        let truth = [(0.0, (0, 0)), (2.0 / 24.0, (140, 0))];
+        let shots = cuts_per_shot(std::slice::from_ref(&r), &truth);
+        assert!(shots.contains("| 0.08 s, 140/0 |") && shots.contains(&format!("| x | {} |", r.cut)), "{shots}");
         let table = table(&[r], 20, 24.0);
         assert!(table.contains("| x | 0 | 0 | 1 | 1 / 0 | 1 |"), "{table}");
     }
