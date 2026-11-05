@@ -22,6 +22,8 @@
  *  - `data-nav-group`   Up/down stay inside it while there's something that way
  *                       (rows of filter chips above a list: down goes to the
  *                       next row of chips, not into the list beside them).
+ *  - `data-nav-loading` A row still loading: reachable by moving, never where
+ *                       focus is first placed.
  *  - `data-nav-own`     Handles its own arrow keys (sliders and the like).
  *  - `data-nav-keep`    A new page leaves focus here (focusWhenReady's
  *                       `respectKeep`): the section tabs, the search field.
@@ -83,13 +85,15 @@ export function landingIn(root: Element): HTMLElement | null {
     const inHome = landingIn(home);
     if (inHome) return inHome;
   }
-  const first = (sel: string) => [...root.querySelectorAll(sel)].find(isNavigable) ?? null;
+  // A loading row can take focus when moved to, but focus is never placed on one from nothing.
+  const first = (sel: string) => [...root.querySelectorAll(sel)].find((el): el is HTMLElement => isNavigable(el) && !el.hasAttribute("data-nav-loading")) ?? null;
   const remembered = memory.get(root);
   const recalled = remembered?.isConnected && root.contains(remembered) && isNavigable(remembered) ? remembered : null;
   if (root.hasAttribute("data-nav-prefer-entry")) {
     return first("[data-nav-entry]") ?? recalled ?? navigables(root)[0] ?? null;
   }
-  return recalled ?? first("[data-nav-default]") ?? first("[data-nav-entry]") ?? navigables(root)[0] ?? null;
+  const all = navigables(root);
+  return recalled ?? first("[data-nav-default]") ?? first("[data-nav-entry]") ?? all.find((el) => !el.hasAttribute("data-nav-loading")) ?? null;
 }
 
 // --- Geometry ---------------------------------------------------------------
