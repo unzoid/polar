@@ -598,6 +598,7 @@
   height: 100%;
   object-fit: cover;
   pointer-events: none;
+  transition: transform 600ms var(--ease-std);
 }
 .detail-mute {
   animation: fade-in var(--dur-base) var(--ease-std);

@@ -186,13 +186,18 @@
   gap: 0.75rem;
   margin-top: 0.75rem;
 }
-.hero-next {
+/* Previous and next, side by side at the card's corner (test report 1, item 15). */
+.hero-steps {
   position: absolute;
+  z-index: 2;
   right: var(--hero-pad);
   bottom: calc(var(--hero-pad) + 1.25rem);
+  display: flex;
+  gap: 0.5rem;
 }
 .hero-pager {
   position: absolute;
+  z-index: 2;
   left: var(--hero-pad);
   right: var(--hero-pad);
   bottom: 1rem;
@@ -217,7 +222,21 @@
   margin: 0 3px;
   border-radius: var(--r-pill);
   background: rgb(255 255 255 / 0.35);
-  overflow: hidden;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-std);
+}
+/* The dot is small; what takes the click is 24px across, reaching past it. */
+.hero-dot::before {
+  content: "";
+  position: absolute;
+  inset: -9px -4px;
+}
+.hero-dot:hover {
+  background: rgb(255 255 255 / 0.7);
+}
+/* The fill is clipped to the pill (the dot itself can't clip: its hit area reaches past it). */
+.hero-dot-fill {
+  border-radius: inherit;
 }
 /* Selected dot is a wider pill (swapped instantly, not animated) whose fill
    shows time until the next item — constant motion, so linear. */
@@ -777,7 +796,7 @@
   .hero-scrim {
     background: linear-gradient(to top, rgb(10 10 10 / 0.8) 0%, rgb(10 10 10 / 0.35) 45%, transparent 70%);
   }
-  .hero-next {
+  .hero-steps {
     top: var(--hero-pad);
     bottom: auto;
   }

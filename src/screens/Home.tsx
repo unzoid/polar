@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { prefetchTitlePage } from "../lib/anime";
 import { AmbientWash } from "../components/AmbientWash";
-import { ChevronRight, Play } from "../components/icons";
+import { ChevronLeft, ChevronRight, Play } from "../components/icons";
 import { Img } from "../components/Img";
 import { TitleHeading } from "../components/title/TitleHeading";
 import { LandscapeCard, PosterCard, useIntent } from "../components/PosterCard";
@@ -150,6 +150,13 @@ export function HeroCarousel({
         onPointerLeave={() => setPaused(false)}
         // The whole card opens the title, except where its own controls sit.
         onClick={(e) => !(e.target as Element).closest("button, a") && h.onClick()}
+        // ← and → step through the featured titles while focus is on the card's controls.
+        onKeyDown={(e) => {
+          if (count < 2 || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          setIndex((index + (e.key === "ArrowLeft" ? count - 1 : 1)) % count);
+        }}
         onContextMenu={h.onContextMenu}
       >
         <div className="hero-art">
@@ -187,14 +194,16 @@ export function HeroCarousel({
             ))}
           </div>
         </div>
-        <IconButton
-          variant="glass"
-          className="hero-next pressable"
-          label="Next featured"
-          onClick={() => setIndex((index + 1) % count)}
-        >
-          <ChevronRight size={22} />
-        </IconButton>
+        {count > 1 && (
+          <div className="hero-steps">
+            <IconButton variant="glass" className="hero-next pressable" label="Previous featured" onClick={() => setIndex((index - 1 + count) % count)}>
+              <ChevronLeft size={22} />
+            </IconButton>
+            <IconButton variant="glass" className="hero-next pressable" label="Next featured" onClick={() => setIndex((index + 1) % count)}>
+              <ChevronRight size={22} />
+            </IconButton>
+          </div>
+        )}
       </div>
       {count > 1 && <HeroPeek item={items[(index + 1) % count]} side="next" onClick={() => setIndex((index + 1) % count)} />}
       </div>

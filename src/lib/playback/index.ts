@@ -11,3 +11,4 @@ export * from "./titlePlayback";
 export * from "./trailers";
 export * from "./useTitlePlayback";
 export * from "./volume";
+export * from "./trailerBars";
