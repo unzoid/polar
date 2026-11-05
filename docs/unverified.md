@@ -133,6 +133,30 @@ How to check, with a TMDB key set in Settings:
 4. With Cinemeta unreachable the show still opens, with TMDB's numbers (log line
    `no IMDb numbering for tt…`).
 
+## Compact account storage (T-010, T-027)
+
+`supabase/migrations/20261105000000_compact_storage.sql` moves library and progress into
+`library` and `progress` without any show information, keeps one progress entry per title, takes
+keys and add-on links out of stored settings and drops the old tables (docs/supabase-storage.md).
+Checked here in PGlite (Postgres 17, `work/tmp/pgcheck/compact.ts`, 29 checks: copy, codec in SQL
+and TypeScript alike, both trigger modes, clamping, RLS between two users, playlist limit, the
+check script). Not checked: a real Supabase project, PostgREST's upsert through the trigger, and two
+devices.
+
+1. On a copy of the project run part 1 of `supabase/checks/compact_storage.sql`, apply the
+   migration, run part 2: the counts must match, every other query returns 0 rows or 0.
+2. Two devices signed in to one profile, both on this version: save a title and play an episode
+   on one; after the other's next sync (focus its window) the title is in its Library and Continue
+   Watching, with name and picture appearing once looked up. Library → Sort by Title works once
+   names are in.
+3. A device that had the titles before keeps its own names, pictures and every episode's position
+   after pulling (only the newest episode per title is on the server).
+4. Optional: run `supabase/optional/per_episode_progress.sql`, turn on Settings → Account → Sync
+   every episode on both devices, play different episodes of one show on each: both keep both.
+   `per_episode_progress_off.sql` goes back.
+5. A version older than this one, signed in after the migration: library and progress no longer
+   sync for it (expected, cut over at once); updating it pushes what it has.
+
 ## Earlier items
 
 - Settings → About → Cache and Credits cards (TMDB logo 12 px under the notice): look only.
