@@ -91,6 +91,11 @@ names hosts and reasons, never keys, links or what you watch, and stays under ab
 
 ## Contributing
 
+How the code is put together, and where each feature above lives: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The interface's components and conventions: [docs/ui-components.md](docs/ui-components.md). What could only be
+read, not run, before release, and how to check it: [docs/unverified.md](docs/unverified.md). Checks to run before
+a pull request: `bun run typecheck`, `bun run test`, and `cargo test --workspace`.
+
 Screenshots and recordings for the README use openly licensed films only: [docs/screenshots.md](docs/screenshots.md)
 explains how to play one in Polar and how to credit it.
 
