@@ -5,6 +5,10 @@
 //   bun scripts/release.ts 0.1.3 notes.md            build, then publish
 //   bun scripts/release.ts 0.1.3 notes.md --draft    build, upload as a draft (apps won't see it until published)
 //   bun scripts/release.ts 0.1.3 notes.md --no-build reuse the installers already in target/
+//   bun scripts/release.ts 0.1.3 notes.md --no-account  build without accounts (no sign-in)
+//
+// Accounts need VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY (environment
+// or .env); without them and without --no-account the build stops.
 //
 // notes.md is the "What's new" list: Markdown bullets, shown in the app's
 // update toast and in the "Updated to …" sheet after installing.
@@ -15,6 +19,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { requireAccountEnv } from "./accountEnv";
 
 const REPO = "unzoid/polar";
 const root = join(import.meta.dir, "..");
@@ -23,7 +28,7 @@ const flags = new Set(args.filter((a) => a.startsWith("--")));
 const [version, notesFile] = args.filter((a) => !a.startsWith("--"));
 
 if (!version || !/^\d+\.\d+\.\d+$/.test(version) || !notesFile) {
-  console.error("Usage: bun scripts/release.ts <x.y.z> <notes.md> [--draft] [--no-build]");
+  console.error("Usage: bun scripts/release.ts <x.y.z> <notes.md> [--draft] [--no-build] [--no-account]");
   process.exit(1);
 }
 const notes = readFileSync(notesFile, "utf8").trim();
@@ -33,6 +38,9 @@ function run(cmd: string, cmdArgs: string[], env?: Record<string, string>) {
   const r = spawnSync(cmd, cmdArgs, { cwd: root, stdio: "inherit", shell: process.platform === "win32", env: { ...process.env, ...env } });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
+
+// Accounts are built in: without their settings nobody could sign in (#14).
+if (!flags.has("--no-build")) requireAccountEnv(root, flags);
 
 // 1. One version everywhere.
 function bump(file: string, pattern: RegExp, replacement: string) {
