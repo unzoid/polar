@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { call, on } from "../lib/platform";
 import { type Action, getPrefs, keyEventFor, usePrefs } from "../lib/settings";
 import { getPadBindings, type PadButton } from "./padBindings";
+import { markHeldMove } from "./held";
 import { isTvMode, setTvMode } from "./tvMode";
 
 /**
@@ -328,6 +329,7 @@ function poll(now: number) {
         press(b);
       } else if (DIRECTIONS.has(b) && now >= h.next) {
         h.next = now + (now - h.since > FAST_AFTER ? repeat.fast : repeat.slow);
+        markHeldMove();
         press(b);
       }
     }

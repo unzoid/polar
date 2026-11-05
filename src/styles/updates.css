@@ -131,8 +131,10 @@
   font-weight: 600;
   text-decoration: none;
 }
-.whats-new-link:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .whats-new-link:hover {
+    text-decoration: underline;
+  }
 }
 
 /* Settings → About. */

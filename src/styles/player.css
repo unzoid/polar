@@ -222,7 +222,11 @@
    phone's own buttons (mute stays), and each action puts its label under its icon. */
 :root[data-form="phone"] .player-top {
   gap: 0.5rem;
-  padding: calc(0.5rem + var(--safe-top)) 0 3rem 0.5rem;
+  padding: calc(0.5rem + var(--safe-top)) var(--safe-right) 3rem calc(0.5rem + var(--safe-left));
+}
+:root[data-form="phone"] .player-bottom {
+  padding-left: max(2.5rem, var(--safe-left));
+  padding-right: max(2.5rem, var(--safe-right));
 }
 :root[data-form="phone"] .player-heading {
   position: static;
@@ -720,11 +724,11 @@
   gap: 1.125rem;
   width: min(30rem, 60vw);
   padding: 0.625rem;
-  /* The same frosted dark as the rest of the player's floating UI: no edge,
-     just a soft shadow to lift it off the picture. */
+  /* The same dark as the rest of the player's floating UI: no edge, just a
+     soft shadow to lift it off the picture. Opaque enough to need no blur,
+     which would re-filter every video frame (see the chrome's note). */
   border-radius: 1.25rem;
-  background: var(--surface-float-glass);
-  backdrop-filter: var(--blur-glass);
+  background: var(--surface-float);
   box-shadow: 0 1.5rem 3rem -1rem rgb(0 0 0 / 0.6);
 }
 .next-up-still {
@@ -872,6 +876,10 @@
     filter: blur(4px);
   }
 }
+/* Opened from a key: no materialize (Player.tsx optionsByKey). */
+.player[data-options-instant="true"] :is(.options-overlay, .video-backdrop, .options-columns) {
+  transition-duration: 0ms;
+}
 .options-overlay[data-open="false"] {
   opacity: 0;
   pointer-events: none;
@@ -956,6 +964,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   position: absolute;
   inset: 0;
   z-index: 1;
+  /* A double tap is ours (seek, fullscreen), never the browser's zoom. */
+  touch-action: manipulation;
 }
 .player-status {
   z-index: 2; /* above the surface so its buttons work; chrome still on top */
@@ -1178,9 +1188,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   font-weight: 650;
   letter-spacing: -0.005em;
   color: var(--text);
-  /* Same frosted dark as the Up Next card. */
-  background: var(--surface-float-glass);
-  backdrop-filter: var(--blur-glass);
+  /* Same dark as the Up Next card, no blur over the video. */
+  background: var(--surface-float);
   box-shadow: 0 1rem 2.5rem -0.75rem rgb(0 0 0 / 0.6);
   /* The lift moves in step with the chrome's fade (same duration), so the
      button never trails behind the controls it's making room for. */

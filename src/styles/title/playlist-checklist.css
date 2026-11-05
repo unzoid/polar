@@ -31,10 +31,15 @@
   text-align: left;
   outline: none;
 }
-.playlist-menu-item:hover,
 .playlist-menu-item:focus-visible {
   background: var(--fill-3);
   color: var(--text);
+}
+@media (hover: hover) and (pointer: fine) {
+  .playlist-menu-item:hover {
+    background: var(--fill-3);
+    color: var(--text);
+  }
 }
 .playlist-menu-check {
   display: grid;

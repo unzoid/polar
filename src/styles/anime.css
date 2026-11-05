@@ -378,8 +378,10 @@
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-std);
 }
-.anime-cast-toggle:hover {
-  background: rgb(255 255 255 / 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .anime-cast-toggle:hover {
+    background: rgb(255 255 255 / 0.08);
+  }
 }
 .anime-cast-toggle[aria-expanded="true"] svg {
   transform: rotate(180deg);

@@ -14,6 +14,8 @@ test("the phone layout: tab bar at the bottom, no window buttons", async ({ app 
   const height = app.viewportSize()!.height;
   expect(box!.y + box!.height).toBeGreaterThan(height - 120);
   await expect(app.getByRole("button", { name: "Minimize" })).toHaveCount(0);
+  // The shelves' paging paddles are a mouse thing: on touch they'd catch taps on the cards under them.
+  await expect(app.locator(".row-paddle").first()).toBeHidden();
   expect(await fitsWidth(app)).toBe(true);
 });
 

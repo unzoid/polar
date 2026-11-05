@@ -233,8 +233,10 @@
   position: absolute;
   inset: -9px -4px;
 }
-.hero-dot:hover {
-  background: rgb(255 255 255 / 0.7);
+@media (hover: hover) and (pointer: fine) {
+  .hero-dot:hover {
+    background: rgb(255 255 255 / 0.7);
+  }
 }
 /* The fill is clipped to the pill (the dot itself can't clip: its hit area reaches past it). */
 .hero-dot-fill {
@@ -428,6 +430,14 @@
   --edge-shown: 0;
   pointer-events: none;
 }
+/* Without a mouse the paddles never show, so they mustn't be there at all: a
+   tap on a shelf's edge paged it instead of opening the card under the finger,
+   and a swipe starting there didn't scroll. Fingers scroll the shelf. */
+@media (hover: none), (pointer: coarse) {
+  .row-paddle {
+    display: none;
+  }
+}
 
 /* --- Edge blur: the navbar's progressive blur, pointed any way. Stacked
    layers, each blurrier than the last and masked to a thinner band at the
@@ -587,7 +597,7 @@
   background: var(--glass-control);
   backdrop-filter: var(--blur-control);
   opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-std), transform var(--dur-fast) var(--ease-std);
+  transition: opacity var(--dur-fast) var(--ease-std), transform var(--dur-press) var(--ease-out);
   border: 0;
   padding: 0;
   color: inherit;

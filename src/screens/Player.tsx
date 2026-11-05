@@ -582,7 +582,15 @@ export function Player({
   const currentSourceIndex = useMemo(() => rankedStreams.findIndex((r) => streamKey(r) === currentKey), [rankedStreams, currentKey]);
 
   // --- Keyboard: instant, never animated -------------------------------------
-  const toggleOptions = (o: NonNullable<typeof options>) => setOptions((open) => (open === o ? null : o));
+  // A panel opened from a key (or a pad button) is there at once; a click keeps the frosted materialize.
+  const [optionsByKey, setOptionsByKey] = useState(false);
+  useEffect(() => {
+    if (!options) setOptionsByKey(false);
+  }, [options]);
+  const toggleOptions = (o: NonNullable<typeof options>) => {
+    setOptionsByKey(true);
+    setOptions((open) => (open === o ? null : o));
+  };
   // The page underneath has the keyboard already while the player fades out.
   usePlayerKeyboard(
     !leaving,
@@ -697,6 +705,7 @@ export function Player({
       data-chrome={chromeVisible}
       data-instant={chrome.instant}
       data-options={!!options}
+      data-options-instant={optionsByKey}
       data-started={started}
       onPointerMove={() => poke()}
       onPointerDown={() => poke()}
@@ -705,7 +714,7 @@ export function Player({
         <video ref={setVideoEl} className="player-video" playsInline style={subtitleCueVars(subStyle)} />
       )}
       {/* Click target over either engine: tap to play/pause, double-click for
-          fullscreen, wheel for volume. */}
+          fullscreen (on touch, a side's double-tap seeks), wheel for volume. */}
       <div
         className="player-surface"
         // Respond immediately; double-click adds fullscreen on top. Settings
@@ -717,7 +726,17 @@ export function Player({
           if (chromeAtPress.current) hideChrome();
           else poke();
         }}
-        onDoubleClick={() => void toggleFullscreen()}
+        // A finger double-taps the left or right third to skip back or ahead, as phone players do;
+        // the middle (and a mouse anywhere) toggles fullscreen.
+        onDoubleClick={(e) => {
+          const third = e.currentTarget.clientWidth / 3;
+          const x = e.nativeEvent.offsetX;
+          if (touch && (x < third || x > third * 2)) {
+            seekBy((x < third ? -1 : 1) * seekStep);
+            return poke(true);
+          }
+          void toggleFullscreen();
+        }}
         onWheel={(e) => {
           const wheel = settings?.wheelAction ?? "volume";
           if (wheel === "none") return;

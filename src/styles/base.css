@@ -21,8 +21,13 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow: hidden;
+  -webkit-user-select: none; /* WebKit (iOS, macOS) still needs the prefix */
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+/* A long press on a poster or a button opens the app's own menu, not iOS's image preview. */
+:root[data-touch="true"] :is(button, a, img) {
+  -webkit-touch-callout: none;
 }
 /* Windows draws web fonts unhinted with grayscale anti-aliasing, so light text
    on a dark background comes out thin and soft. A little more weight evens it

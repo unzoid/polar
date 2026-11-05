@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { followStep } from "../src/tv/follow";
+import { followStep, glideScroll, glideTarget } from "../src/tv/follow";
 
 test("a held direction glides: each frame closes part of the gap, never overshoots, then lands (re-test 20)", () => {
   let y = 0;
@@ -20,4 +20,30 @@ test("a target moved on (the next row while held) is followed from where the gli
   const before = y;
   y = followStep(y, 800, 16);
   expect(y).toBeGreaterThan(before);
+});
+
+test("a glide lands on its target where the scroll offset snaps to whole pixels, and a held key adds to where it's heading", () => {
+  // Frames by hand; an element whose scrollTop rounds like WebKit's at DPR 1.
+  const frames: FrameRequestCallback[] = [];
+  const g = globalThis as Record<string, unknown>;
+  const saved = { raf: g.requestAnimationFrame, doc: g.document, win: g.window };
+  g.requestAnimationFrame = (cb: FrameRequestCallback) => frames.push(cb);
+  g.document = { documentElement: { dataset: { reduceMotion: "off" } } };
+  let top = 0;
+  const el = { scrollHeight: 5000, clientHeight: 500, style: {} as CSSStyleDeclaration } as unknown as HTMLElement;
+  Object.defineProperty(el, "scrollTop", { get: () => top, set: (v: number) => void (top = Math.round(v)) });
+  try {
+    let now = performance.now();
+    glideScroll(el, "y", 400);
+    glideScroll(el, "y", (glideTarget(el, "y") ?? el.scrollTop) + 200);
+    expect(glideTarget(el, "y")).toBe(600);
+    for (let f = 0; f < 600 && frames.length; f++) frames.shift()!((now += 8));
+    expect(top).toBe(600);
+    expect(frames.length).toBe(0); // landed: no frame keeps running
+    expect(glideTarget(el, "y")).toBeUndefined();
+  } finally {
+    g.requestAnimationFrame = saved.raf;
+    g.document = saved.doc;
+    g.window = saved.win;
+  }
 });
