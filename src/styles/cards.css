@@ -760,6 +760,35 @@
   bottom: 28%;
 }
 
+/* --- Narrow screens (a phone, or a window as narrow as one): the hero's text
+   spans the card over a scrim from the bottom, and Next moves up out of its way. */
+@media (max-width: 600px) {
+  .hero-content,
+  .home .hero-content {
+    width: auto;
+    right: var(--hero-pad);
+  }
+  .hero-scrim {
+    background: linear-gradient(to top, rgb(10 10 10 / 0.8) 0%, rgb(10 10 10 / 0.35) 45%, transparent 70%);
+  }
+  .hero-next {
+    top: var(--hero-pad);
+    bottom: auto;
+  }
+  .home .hero {
+    --hero-h: clamp(420px, 68vh, 640px);
+  }
+  .home .hero-logo {
+    max-height: 112px;
+  }
+  .home .hero-description {
+    font-size: var(--fs-base);
+  }
+  .home .hero-actions .btn {
+    height: 46px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Keep the shadow/opacity feedback, drop the movement. */
   .card:hover .card-frame,

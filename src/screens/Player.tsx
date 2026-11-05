@@ -16,7 +16,7 @@ import {
   VolumeMuted,
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
-import { ease } from "../lib/ui";
+import { ease, useFormFactor } from "../lib/ui";
 import { appWindow, isMac, osName } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
@@ -101,6 +101,7 @@ export function Player({
   const pad = usePadGlyph(tv);
   const { data: meta } = useMeta(type, metaId);
   const { data: settings } = useSettings();
+  const { touch } = useFormFactor();
   // Engine: embedded mpv when installed (plays HEVC/MKV, AC3/DTS audio, every
   // subtitle format), else the WebView's own <video>.
   const engineQuery = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
@@ -796,9 +797,10 @@ export function Player({
       <div
         className="player-surface"
         // Respond immediately; double-click adds fullscreen on top. Settings
-        // can make a click only show/hide the controls instead.
+        // can make a click only show/hide the controls instead; a tap always
+        // does, as on every phone player (Play/Pause is in the controls).
         onClick={() => {
-          if (settings?.clickAction !== "controls") return togglePlay();
+          if (!touch && settings?.clickAction !== "controls") return togglePlay();
           if (chrome.visible) setChrome({ visible: false, instant: false });
           else poke();
         }}

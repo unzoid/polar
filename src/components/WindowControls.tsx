@@ -1,8 +1,8 @@
-import { appWindow as win, isMac } from "../lib/platform";
+import { appWindow as win, isDesktop, isMac } from "../lib/platform";
 
-/** Minimise / maximise / close for Windows' frameless window; macOS has its own traffic lights. */
+/** Minimise / maximise / close for the frameless window on Windows and Linux; macOS has its own traffic lights, phones and tablets no window. */
 export function WindowControls() {
-  if (isMac) return null;
+  if (isMac || !isDesktop) return null;
   return (
     <div className="window-controls">
       <button aria-label="Minimize" onClick={() => win.minimize()}>

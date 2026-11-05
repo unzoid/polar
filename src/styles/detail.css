@@ -670,6 +670,27 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* Narrow screens: the hero text takes the width, and a listed episode's number
+   moves above its title so the text keeps room beside the still. */
+@media (max-width: 600px) {
+  .detail-hero-main {
+    width: 100%;
+  }
+  .episode-card[data-layout="list"] .episode-card-main {
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    grid-template-areas:
+      "still num"
+      "still text";
+    align-items: start;
+    column-gap: 0.75rem;
+    row-gap: 0.125rem;
+    padding-right: 3.25rem;
+  }
+  .episode-number {
+    justify-self: start;
+    font-size: var(--fs-base);
+  }
+}
 
 /* Cast: faces in a sideways strip. */
 .people {
