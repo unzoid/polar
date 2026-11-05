@@ -69,6 +69,35 @@ test("a title page adds to and removes from the Library", async ({ app }) => {
   await expect(card(app, "Northbound")).toHaveCount(0);
 });
 
+test("a wheel turn down a show's page lands its season tabs below the navbar's blur (#20)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  await expect(app.getByRole("heading", { level: 1, name: "Fieldwork" })).toBeVisible();
+  const tabs = app.locator(".seasons-bar");
+  await expect(tabs).toBeVisible();
+  await app.locator(".detail-hero").hover();
+  await app.mouse.wheel(0, 120);
+  // The glide has landed when the tabs stop moving.
+  let last = NaN;
+  await expect.poll(async () => {
+    const y = (await tabs.boundingBox())!.y;
+    const still = y === last;
+    last = y;
+    return still;
+  }, { intervals: [300] }).toBe(true);
+  const band = await app.locator(".navbar-fade").boundingBox();
+  expect(last).toBeLessThan(400);
+  expect(last).toBeGreaterThanOrEqual(band!.y + band!.height);
+
+  // Back from the player, the page is where it was when the episode started.
+  await app.locator(".episode-card-main:not([disabled])").first().click();
+  const player = app.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  await app.keyboard.press("Escape");
+  await expect(player).toHaveCount(0);
+  expect((await tabs.boundingBox())!.y).toBe(last);
+});
+
 test("a movie plays in the built-in player, pauses and closes", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
