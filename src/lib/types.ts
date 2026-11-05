@@ -185,6 +185,20 @@ export interface SyncLibraryItem {
   updatedAt: number;
 }
 
+/** A title by id and kind: `space_untitled` lists those pulled without a name. */
+export interface TitleRef {
+  id: string;
+  type: ContentType;
+}
+
+/** Names and pictures found on this device for a pulled title (`space_fill_display`). */
+export interface TitleDisplay {
+  id: string;
+  name?: string;
+  poster?: string;
+  background?: string;
+}
+
 export interface LocalChanges {
   library: SyncLibraryItem[];
   progress: Progress[];

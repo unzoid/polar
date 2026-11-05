@@ -209,6 +209,8 @@ pub fn run() {
             sync::sync_changes,
             sync::sync_mark_pushed,
             sync::sync_apply,
+            sync::space_untitled,
+            sync::space_fill_display,
             player::mpv_available,
             player::mpv_load,
             streamcheck::stream_probe,

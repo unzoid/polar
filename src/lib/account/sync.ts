@@ -25,6 +25,7 @@ import {
 } from "../library/playlists";
 import { keys } from "../net/queryKeys";
 import { pushEach, pushSpace, unpushedCount, type PushDeps } from "./spacePush";
+import { fillUntitled, type DisplayDeps } from "./titleDisplay";
 
 const PERIOD_MS = 3 * 60_000;
 const AFTER_CHANGE_MS = 5_000;
@@ -97,6 +98,7 @@ async function run(): Promise<void> {
 
       if (isActive()) await syncSettings(space, backend, isActive);
       failures = 0;
+      void fillNames(space, isActive);
       // Profiles left with changes the last time they were used (switched away offline).
       await pushEach(others.filter((s) => s !== active), (s) => pushOne(s));
     } catch (e) {
@@ -112,6 +114,24 @@ async function run(): Promise<void> {
     }
   });
   return running;
+}
+
+const displayDeps: DisplayDeps = { untitled: api.untitled, fill: api.fillDisplay, meta: api.meta };
+/** Titles whose lookup failed this session: not asked for again every round. */
+const lookupFailed = new Set<string>();
+let filling = false;
+
+/** Names and pictures for titles pulled without them (titleDisplay.ts), in the background. */
+async function fillNames(space: string, isActive: () => boolean) {
+  if (filling) return;
+  filling = true;
+  try {
+    await fillUntitled(space, displayDeps, lookupFailed, isActive, refreshLocalViews);
+  } catch (e) {
+    console.warn("sync: could not look up titles", e);
+  } finally {
+    filling = false;
+  }
 }
 
 const deps = (): PushDeps => ({

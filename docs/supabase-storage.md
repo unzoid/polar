@@ -188,10 +188,12 @@ cascades through `profiles`. Pulls (`profile_id = $1 and synced_at > $2`) walk t
 
 ### 3.6 Names and pictures on the device
 
-A pulled title arrives with an id, a kind and times only. The device fills in its name and pictures
-and keeps them in its own store (`polar.json`), so each title is looked up at most once per device.
-Pictures are built from the id where the source has a fixed pattern; everything else is looked up
-through the title's metadata (`api.meta`, the call the title page makes).
+A pulled title arrives with an id, a kind and times only. After each sync round the device looks up
+every title it has no name for (`src/lib/account/titleDisplay.ts`: newest first, four at a time,
+through `api.meta`, the call the title page makes) and keeps the name and pictures in its own store
+(`polar.json`, commands `space_untitled` / `space_fill_display`, `crates/library/src/display.rs`),
+so each title is looked up once per device. Filling moves no times, so nothing is pushed back.
+Pictures the lookup didn't give are built from the id where the source has a fixed pattern:
 
 | Id | Name | Poster | Background | Source of the pattern |
 |---|---|---|---|---|
@@ -200,12 +202,11 @@ through the title's metadata (`api.meta`, the call the title page makes).
 | anything else (an add-on's own id) | looked up | looked up | looked up | no pattern: the add-on decides |
 | TMDB pictures | — | — | — | never built: [TMDB's image guide](https://developer.themoviedb.org/docs/image-basics) says the `file_path` comes from the movie or show's own record |
 
-A built picture that fails to load (metahub and Kitsu answer 404 for titles without one) falls back
-to the lookup once. All checked 2026-11-05.
+A title whose lookup fails is not asked for again until the app restarts. All patterns checked
+2026-11-05.
 
 The cost of keeping names off the server: a new device looks up every saved and started title once
-(through the limiter, newest first) before the Library can sort by title; until a name arrives the
-card shows the built poster, or a blank one.
+(newest first) before the Library can sort it by title; until its name arrives a card is blank.
 
 ### 3.7 Keys and add-on links
 

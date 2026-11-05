@@ -32,6 +32,7 @@ import type {
   SubtitleOption,
   SubtitleStyle,
   SyncLibraryItem,
+  TitleRef,
   Video,
 } from "./types";
 
@@ -125,6 +126,7 @@ export const contract = {
     videoId: true,
   } satisfies Keys<Progress>,
   SyncLibraryItem: { addedAt: true, deleted: true, id: true, name: true, poster: true, type: true, updatedAt: true } satisfies Keys<SyncLibraryItem>,
+  Untitled: { id: true, type: true } satisfies Keys<TitleRef>,
   // contract/app.json (src-tauri)
   CacheInfo: { bytes: true, path: true } satisfies Keys<CacheInfo>,
   CmdError: { code: true, message: true } satisfies Keys<CommandError>,

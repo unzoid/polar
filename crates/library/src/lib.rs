@@ -6,17 +6,20 @@
 //! - [`identity`]: canonical title ids and aliases (one show, one item).
 //! - [`space`]: library, progress, Continue Watching, history, re-keying.
 //! - [`sync`]: changes since the last push, and merging pulled ones.
+//! - [`display`]: names and pictures filled in for pulled titles.
 //! - [`opened`]: what to make of a data file read at start-up (missing, unreadable, corrupt).
 //! - [`saver`]: writing a data file in the background, all or nothing.
 
 #[cfg(test)]
 mod contract;
+pub mod display;
 pub mod identity;
 pub mod opened;
 pub mod saver;
 pub mod space;
 pub mod sync;
 
+pub use display::{Display, Untitled};
 pub use identity::{Aliases, AnimeLink};
 pub use space::{LibraryItem, Progress, Space};
 pub use sync::{Changes, SyncLibraryItem};
