@@ -18,7 +18,27 @@ the MSVC target the releases use and the macOS code (`cfg(target_os = "macos")`,
 Its tests (`cargo test -p polar`) were therefore never run here: since T-035 CI runs them on Linux,
 Windows and macOS on every push, including the downloads resume tests (`downloads.rs`, a local
 server answering ranges, whole files, the wrong part, 416, 403/503) and the error-code contract
-(`contract.rs` against `contract/error-codes.json`). Until CI has run once (I-013) they are unseen.
+(`contract.rs` against `contract/error-codes.json`). CI has never run: it first runs from the owner's push
+(after the desktop test and the history rewrite, I-013), so until then they are unseen.
+
+## CI workflow (`.github/workflows/ci.yml`, T-054)
+
+CI has never run: nothing here publishes to GitHub. Checked on the dev machine instead:
+
+- Every step of the `frontend` job: `bun install --frozen-lockfile`, `bun run test` (unit, SQL and
+  the DOM component tests in `tests/dom`), `bun run build`.
+- `cargo fmt --all --check`; `cargo clippy --all-targets --locked -- -D warnings` for the five core
+  crates, for `src-tauri` on Linux (stub system libraries) and for `src-tauri` on
+  `x86_64-pc-windows-gnu` (not the MSVC target the Windows runner uses).
+- Each action's pinned commit is the commit of the tag in its comment (`git ls-remote`, 2026-11-05):
+  checkout v7.0.1, setup-bun v2.2.0, rust-cache v2.9.3, cache v6.1.0, rust-toolchain `stable`.
+- The Linux packages the `rust` job installs exist under those names in Ubuntu 24.04, which
+  `ubuntu-latest` is (runner-images README), and in 26.04 (packages.ubuntu.com).
+
+Not checked: the workflow file against GitHub's schema (`actionlint` could not be run here:
+`actionlint .github/workflows/ci.yml` on a desktop does it), and anything about the runners
+themselves: WebKitGTK linking on Ubuntu, `cargo test -p polar` anywhere, the bundled-mpv fetch and
+cache on Windows, macOS. The first push shows these; a failing job prints its step.
 
 ## Saving in the background (R4, H8/M4)
 
