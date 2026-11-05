@@ -131,6 +131,37 @@
   --card-scale: 1.2;
 }
 
+/* Phone and tablet (data-form, data-touch: lib/platform/formFactor.ts). Desktop keeps
+   every value above; a narrow desktop window tightens by width instead (shell.css). */
+:root {
+  /* The bottom tab bar's height on a phone, safe area included; pages pad by it. */
+  --tabbar-h: 0px;
+  /* The notch / status bar and the home indicator, where the system draws over us. */
+  --safe-top: 0px;
+  --safe-bottom: 0px;
+  /* The smallest target a finger hits reliably (Apple 44pt, Material 48dp): 0 = no minimum. */
+  --hit: 0px;
+}
+:root[data-form="phone"],
+:root[data-form="tablet"] {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nav-h: calc(76px + var(--safe-top));
+}
+:root[data-form="phone"] {
+  --nav-h: calc(56px + var(--safe-top));
+  --tabbar-h: calc(56px + var(--safe-bottom));
+  --gutter: 1rem;
+  /* About three posters across a 390px screen, the rest peeking in. */
+  --poster-w: calc(112px * var(--card-scale));
+  --landscape-w: calc(232px * var(--card-scale));
+  --episode-w: calc(260px * var(--card-scale));
+}
+:root[data-touch="true"] {
+  --hit: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Settings → Appearance → Background: pure black, for OLED screens. */
 :root[data-theme="black"] {
   --bg: #000;

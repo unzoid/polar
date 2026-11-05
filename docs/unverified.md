@@ -184,6 +184,19 @@ as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not ru
 - Apple TV: docs/ARCHITECTURE.md §3 says tvOS has no web view and Tauri 2 doesn't target it (from Tauri's list of
   supported platforms: Windows, macOS, Linux, Android, iOS). Check before planning cycle 3.
 
+## Phone and tablet layouts (T-033)
+
+- No browser runs on this machine (a headless Chromium from npm hangs under the sandbox), so the layouts were
+  checked by reading the CSS, and the form-factor rules by tests (tests/formFactor.test.ts). Nothing here has
+  been seen on a phone or tablet: the mobile shells don't exist yet (cycle 3).
+- To check in a desktop browser now: `bun run dev`, open it in Chrome's device toolbar as a Pixel or iPhone
+  (the user agent makes it a phone; reload after switching). Look for: the tabs in a bar along the bottom,
+  More taking what doesn't fit; Back, search and the profile at the top; the last row of each page clear of the
+  tab bar; the home hero's text across the card with Next at its top right; a show's episode list with the
+  number above the title; no window buttons. As an iPad: the desktop layout with 44 px bar icons.
+- A desktop window narrower than 600 px now gets the hero and episode-list changes too (not the tab bar).
+- Touch: a tap on the playing video shows or hides the controls whatever "Clicking the video" says.
+
 ## Earlier items
 
 - Settings → About → Cache and Credits cards (TMDB logo 12 px under the notice): look only.

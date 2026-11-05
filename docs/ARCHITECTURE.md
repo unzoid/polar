@@ -66,8 +66,22 @@ size and input:
 - **Desktop**: the default layouts in `src/screens`, pointer and keyboard first.
 - **TV**: `src/tv` (`TvApp`, `TvChrome`, `shell.ts`), the same primitives with
   `variant="tv"`, focus moved by arrow keys, one Back stack (`lib/ui/dismiss.ts`).
-- **Phone and tablet**: not built yet. They will reuse the screens with breakpoints and a
-  touch variant rather than a third copy of each screen (planned in cycle 3).
+- **Phone and tablet**: the same screens, not a third copy. `src/lib/platform/formFactor.ts`
+  decides the form factor (Android and iOS: phone below a 600 px shortest side, else tablet;
+  a desktop system is a tablet only with no fine pointer) and whether it's touch;
+  `mirrorFormFactor` (lib/ui) puts both on the root as `data-form` and `data-touch`, and
+  `useFormFactor()` gives them to components.
+  - `data-form="phone"`: the tabs move to a bottom bar (`--tabbar-h`, pages pad by it), the
+    bar and pages keep clear of the notch and home indicator (`--safe-top`/`--safe-bottom`,
+    `viewport-fit=cover`), tighter gutters and smaller cards (tokens.css, shell.css).
+  - `data-form="tablet"`: the desktop layout with safe areas.
+  - `data-touch="true"`: targets at least `--hit` (44 px), and a tap on the playing video
+    shows the controls instead of pausing. Hover-only effects already sit behind
+    `@media (hover: hover) and (pointer: fine)`.
+  - Space, not device, decides the rest: `@media (max-width: …)` breakpoints (navbar 1100/860/
+    700, hero and episode list 600, detail 900, settings 820/560) apply to narrow desktop
+    windows as well.
+  - No window buttons off the desktop (`WindowControls`).
 
 ## 5. Adding a platform
 
