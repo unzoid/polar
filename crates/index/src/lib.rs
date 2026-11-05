@@ -16,12 +16,16 @@ mod cinemeta;
 pub mod curate;
 mod tmdb;
 
+use std::sync::Arc;
 use std::time::Duration;
+
+use tokio::sync::OnceCell;
 
 use polar_addon::{CatalogExtra, Manifest, ManifestCatalog, ManifestResource, Meta, MetaPreview};
 
 use cache::TtlCache;
 
+/// Titles per page of a TMDB catalog (`skip` counts titles, not pages).
 pub const PAGE_SIZE: u32 = 20;
 
 /// The catalogs every source must provide. Ids are stable; names are UI copy.
@@ -51,7 +55,8 @@ pub enum IndexError {
 
 impl From<reqwest::Error> for IndexError {
     fn from(e: reqwest::Error) -> Self {
-        Self::Upstream(e.to_string())
+        // Without the URL: a TMDB v3 key travels in the query string.
+        Self::Upstream(e.without_url().to_string())
     }
 }
 
@@ -72,7 +77,7 @@ pub struct IndexConfig {
 }
 
 enum Backend {
-    Tmdb(tmdb::Tmdb),
+    Tmdb(Box<tmdb::Tmdb>),
     Cinemeta(cinemeta::Cinemeta),
 }
 
@@ -81,7 +86,8 @@ pub struct Indexer {
     catalogs: TtlCache<String, Vec<MetaPreview>>,
     metas: TtlCache<String, Meta>,
     /// Candidate pools (several upstream pages each), shared by curated shelves.
-    pools: TtlCache<String, Vec<MetaPreview>>,
+    /// One fetch per pool however many shelves ask for it at once.
+    pools: TtlCache<String, Arc<OnceCell<Vec<MetaPreview>>>>,
     /// IMDb's episode numbering for TMDB series.
     numbering: cinemeta::Cinemeta,
 }
@@ -89,7 +95,7 @@ pub struct Indexer {
 impl Indexer {
     pub fn new(config: IndexConfig) -> Self {
         let backend = match config.tmdb_key.filter(|k| !k.trim().is_empty()) {
-            Some(key) => Backend::Tmdb(tmdb::Tmdb::new(key, config.language)),
+            Some(key) => Backend::Tmdb(Box::new(tmdb::Tmdb::new(key, config.language))),
             None => Backend::Cinemeta(cinemeta::Cinemeta::new()),
         };
         Self {
@@ -113,34 +119,35 @@ impl Indexer {
     pub async fn catalog(&self, ty: &str, id: &str, skip: u32, genre: Option<&str>) -> Result<Vec<MetaPreview>> {
         check_type(ty)?;
         let genre = genre.map(str::trim).filter(|g| !g.is_empty());
+        let c = match &self.backend {
+            // Its own cache: one growing list per catalog, sliced by `skip`.
+            Backend::Tmdb(t) => return t.catalog(ty, id, skip, genre).await,
+            Backend::Cinemeta(c) => c,
+        };
         let key = format!("{ty}/{id}/{}/{skip}", genre.unwrap_or(""));
         if let Some(hit) = self.catalogs.get(&key) {
             return Ok(hit);
         }
-        let page = skip / PAGE_SIZE + 1;
-        let metas = match &self.backend {
-            Backend::Tmdb(t) => t.catalog(ty, id, page, genre).await?,
-            Backend::Cinemeta(c) => match id {
-                "trending" => c.top(ty, skip, genre).await?,
-                "classics" => {
-                    let day = curate::today();
-                    let genres = match genre {
-                        Some(g) => vec![g],
-                        None => curate::classic_genres(ty, day, CLASSIC_GENRES),
-                    };
-                    let lists = futures::future::join_all(
-                        genres.iter().map(|g| self.pooled(format!("{ty}/{g}"), c.pool(ty, Some(g)))),
-                    )
-                    .await;
-                    let lists: Vec<Vec<MetaPreview>> = lists.into_iter().filter_map(|l| l.ok()).collect();
-                    paged(curate::classics(&lists, day), skip)
-                }
-                id if curate::is_curated(id) => {
-                    let pool = self.pooled(format!("{ty}/{}", genre.unwrap_or("")), c.pool(ty, genre)).await?;
-                    paged(curate::curate(id, &pool, curate::today()), skip)
-                }
-                _ => return Err(IndexError::NotFound),
-            },
+        let metas = match id {
+            "trending" => c.top(ty, skip, genre).await?,
+            "classics" => {
+                let day = curate::today();
+                let genres = match genre {
+                    Some(g) => vec![g],
+                    None => curate::classic_genres(ty, day, CLASSIC_GENRES),
+                };
+                let lists = futures::future::join_all(
+                    genres.iter().map(|g| self.pooled(format!("{ty}/{g}"), c.pool(ty, Some(g)))),
+                )
+                .await;
+                let lists: Vec<Vec<MetaPreview>> = lists.into_iter().filter_map(|l| l.ok()).collect();
+                paged(curate::classics(&lists, day), skip)
+            }
+            id if curate::is_curated(id) => {
+                let pool = self.pooled(format!("{ty}/{}", genre.unwrap_or("")), c.pool(ty, genre)).await?;
+                paged(curate::curate(id, &pool, curate::today()), skip)
+            }
+            _ => return Err(IndexError::NotFound),
         };
         self.catalogs.insert(key, metas.clone());
         Ok(metas)
@@ -178,12 +185,9 @@ impl Indexer {
         key: String,
         fetch: impl std::future::Future<Output = Result<Vec<MetaPreview>>>,
     ) -> Result<Vec<MetaPreview>> {
-        if let Some(hit) = self.pools.get(&key) {
-            return Ok(hit);
-        }
-        let pool = fetch.await?;
-        self.pools.insert(key, pool.clone());
-        Ok(pool)
+        // A failed fetch leaves the cell empty, so the next ask tries again.
+        let cell = self.pools.get_or_insert_with(key, || Arc::new(OnceCell::new()));
+        cell.get_or_try_init(|| fetch).await.cloned()
     }
 
     pub async fn search(&self, ty: &str, query: &str) -> Result<Vec<MetaPreview>> {

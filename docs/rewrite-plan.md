@@ -137,10 +137,19 @@ Done in the same migration, so the server is changed once:
   older partial files are picked up; a pause that lands as it finishes is completed on resume (416).
 - **H10 / H11** TMDB: page-stable pagination, a concurrency limit, 429 back-off, partial results not
   cached. **L14** one shared `reqwest::Client`.
+  H10/H11 done (`crates/index/src/tmdb.rs`, tested against a local stand-in): a TMDB catalog is one list per
+  (type, catalog, genre) read on page by page as `skip` grows, titles deduplicated, and `skip` slices it, so
+  dropped or repeated titles never shift later pages (the UI's `skip` = titles so far is unchanged); one ask
+  per catalog at a time; at most 12 TMDB requests in flight; 429/5xx tried 4 times after `Retry-After`
+  (capped 8 s) or 1, 2, 4 s; a failed `external_ids` lookup fails its page instead of thinning it (titles
+  already read are still handed out as a short page). Cinemeta pools are fetched once however many shelves
+  ask (`OnceCell` per pool; a failure is not kept). Left: the tmdb→IMDb id map is still memory-only (needs a
+  cache folder passed in), and L14 in `src-tauri` (`imdb.rs` builds a client per call).
 - **M1** Keys redacted from errors (the probe's redaction reused). **M13** body size caps.
   Addon half done: `AddonError::Http` drops the URL (an addon URL can hold a token); addon JSON capped at
   16 MB and `fetch_bytes` (subtitles) at 10 MB, refused mid-stream whatever `Content-Length` says (tested).
-  Left: TMDB key in errors (`crates/index`), `subtitle_vtt` limited to subtitle URLs, seekr/fillers bodies.
+  TMDB key: `reqwest` errors lose their URL (`without_url`) in `IndexError`, so the key can't reach the
+  UI or the polar-index HTTP API (tested). Left: `subtitle_vtt` limited to subtitle URLs, seekr/fillers bodies.
   **M14** `tracing`-style logging to a rotating file (only `log` + an existing writer if it needs no new
   crate; otherwise asked). **M17** `Mutex` unwraps replaced by a poison-tolerant helper.
   M17 done: `src-tauri/src/locks.rs` (`locked()`, `reading()`, `writing()`) everywhere outside tests, and the
