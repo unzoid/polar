@@ -1,5 +1,5 @@
 import { call, on } from "../../lib/platform";
-import type { StartStage, StepTone } from "../../lib/playback";
+import { mpvVolume, type StartStage, type StepTone } from "../../lib/playback";
 import { listenProbe, nextProbeId, probeStep } from "./useStartLog";
 import { errorCode, errorMessage, warnFailed } from "../../lib/errors";
 
@@ -75,6 +75,11 @@ export class MpvMedia extends EventTarget implements MediaLike {
   private vol = 1;
   private isMuted = false;
   private loaded = false;
+  /** Volume or mute changed while paused: the audio mpv buffered before has the old level. */
+  private staleAudio = false;
+  /** mpv is running (the first load went through); options set before that wait in `early`. */
+  private running = false;
+  private early = new Map<string, unknown>();
   /** A seek mpv hasn't started yet: time reports from before it are stale. */
   private seekPending = false;
   private seekStarted = false;
@@ -146,6 +151,10 @@ export class MpvMedia extends EventTarget implements MediaLike {
       } finally {
         unlisten();
       }
+      this.running = true;
+      // What the player set before mpv was up (subtitle style, volume, speed), now that it can take it.
+      for (const [name, value] of this.early) void this.set(name, value);
+      this.early.clear();
       this.step("Handed to mpv, opening the file", "info", "player");
       // mpv_load un-pauses explicitly; mpv only reports *changes*, so if it was
       // already unpaused no event comes — state it here instead of waiting.
@@ -164,6 +173,11 @@ export class MpvMedia extends EventTarget implements MediaLike {
     return call("mpv_command", { args });
   }
   set(name: string, value: unknown) {
+    // Before mpv runs there's nothing to set (the console filled with "mpv isn't running"): keep it for then.
+    if (!this.running) {
+      this.early.set(name, value);
+      return Promise.resolve();
+    }
     return call("mpv_set", { name, value }).catch(warnFailed(`mpv_set ${name}`));
   }
 
@@ -203,14 +217,17 @@ export class MpvMedia extends EventTarget implements MediaLike {
   get volume() {
     return this.vol;
   }
+  /** Amplitude 0–1, as a <video>'s (lib/playback/volume.ts makes it mpv's own). */
   set volume(v: number) {
+    if (v !== this.vol && this.isPaused && this.loaded) this.staleAudio = true;
     this.vol = v;
-    void this.set("volume", Math.round(v * 100));
+    void this.set("volume", mpvVolume(v));
   }
   get muted() {
     return this.isMuted;
   }
   set muted(m: boolean) {
+    if (m !== this.isMuted && this.isPaused && this.loaded) this.staleAudio = true;
     this.isMuted = m;
     void this.set("mute", m);
   }
@@ -224,6 +241,12 @@ export class MpvMedia extends EventTarget implements MediaLike {
   play() {
     this.time = this.currentTime;
     this.stamp = performance.now();
+    // The level changed while paused: an exact seek to where it is drops the audio buffered at the
+    // old level, so the first moment doesn't play too loud or too quiet (test report 1, item 14).
+    if (this.staleAudio) {
+      this.staleAudio = false;
+      void this.command("seek", this.time, "absolute+exact").catch(warnFailed("mpv seek"));
+    }
     return this.set("pause", false) as Promise<void>;
   }
   pause() {

@@ -314,6 +314,7 @@ function DesktopApp() {
             key={entry.key}
             className={entry.route.name === "detail" || entry.route.name === "anime-detail" ? "page page-pushed" : "page"}
             data-active={entry === topPage && !playing}
+            data-under-player={(entry === topPage && !!player) || undefined}
             aria-hidden={entry !== topPage || !!playing}
             inert={entry !== topPage || !!playing}
           >

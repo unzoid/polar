@@ -28,6 +28,7 @@ import {
   countAutoplay,
   requestHeaders,
   resetAutoplay,
+  sliderAmplitude,
   sourceRow,
   useResetAutoplayOnInput,
   useSourceFilters,
@@ -286,7 +287,7 @@ export function Player({
     resumed.current = false;
     setError(null);
     setBuffering(true);
-    v.volume = volume;
+    v.volume = sliderAmplitude(volume);
     if (v instanceof MpvMedia) {
       // Start at the resume point (or where the watch party is) directly: no
       // fetching the opening of a network stream only to seek away from it.
@@ -338,7 +339,7 @@ export function Player({
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.volume = volume;
+    v.volume = sliderAmplitude(volume);
     v.muted = muted;
     storeLocal("polar.volume", String(volume));
   }, [volume, muted, media]);

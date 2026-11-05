@@ -19,6 +19,9 @@
  *                       start edge, so your eye stays put as the shelf slides.
  *  - `data-nav-scroll`  A vertical scroller: "start" brings the focused
  *                       `data-nav-row` to the top, "center" centres it.
+ *  - `data-nav-group`   Up/down stay inside it while there's something that way
+ *                       (rows of filter chips above a list: down goes to the
+ *                       next row of chips, not into the list beside them).
  *  - `data-nav-own`     Handles its own arrow keys (sliders and the like).
  *  - `data-nav-keep`    A new page leaves focus here (focusWhenReady's
  *                       `respectKeep`): the section tabs, the search field.
@@ -137,8 +140,26 @@ function score(a: DOMRect, b: DOMRect, dir: Dir) {
   return along + side * 3 + drift * 0.05;
 }
 
-/** The best control in `dir` from `from`, among `candidates`. */
-function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
+/**
+ * The best control in `dir` from `from`, among `candidates`. Inside a `data-nav-group`, up and
+ * down look there first (test report 1, item 7): a short row of chips beside a wide list would
+ * otherwise lose to the list, which sits right under every chip.
+ */
+export function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
+  const horizontal = dir === "left" || dir === "right";
+  const group = horizontal ? null : from.closest("[data-nav-group]");
+  if (group) {
+    const inside = nearestOf(
+      from,
+      candidates.filter((c) => group.contains(c)),
+      dir,
+    );
+    if (inside) return inside;
+  }
+  return nearestOf(from, candidates, dir);
+}
+
+function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir) {
   const a = from.getBoundingClientRect();
   const horizontal = dir === "left" || dir === "right";
   // At the end of a shelf (or the navbar), left/right stops — it never jumps to another row.
