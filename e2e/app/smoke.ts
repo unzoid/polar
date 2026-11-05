@@ -23,7 +23,7 @@
  * TAURI_DRIVER=<path> the driver (default tauri-driver on PATH).
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -121,21 +121,64 @@ class Session {
     return this.run<boolean>("return arguments[0].checked", el);
   }
 
+  /** Whether the window still answers: on Windows the sign that the app has gone. */
+  answers() {
+    return wd("GET", `/session/${this.id}/title`).then(
+      () => true,
+      () => false,
+    );
+  }
+
   /**
    * Quits as someone would, with the window's Close button. The app writes what's still pending
    * (progress waits a second) as it exits; ending the WebDriver session kills it before that.
+   * If the app is still there after the click, the button is clicked from the page, then the
+   * window closed through the bridge the button uses, and what each said is in the error.
    */
   async quit() {
     const close = await until("the window's Close button", () => this.find(".window-controls button[aria-label=Close]"));
-    // The window can go before the click is answered.
-    await wd("POST", `/session/${this.id}/element/${close[ELEMENT]}/click`, {}).catch(() => {});
-    const gone = () =>
-      wd("GET", `/session/${this.id}/title`)
-        .then(() => false)
-        .catch(() => true);
-    await until("the app to quit", gone, 20_000);
-    await wd("DELETE", `/session/${this.id}`).catch(() => {});
+    const gone = async () => (running() ?? (await this.answers())) === false;
+    const said: string[] = [];
+    const tries: [string, () => Promise<unknown>][] = [
+      ["clicked", () => wd("POST", `/session/${this.id}/element/${close[ELEMENT]}/click`, {})],
+      ["clicked from the page", () => this.run("arguments[0].click()", close)],
+      ["closed through the bridge", () => this.invoke("plugin:window|close", { label: "main" })],
+    ];
+    for (const [how, act] of tries) {
+      // The window can go before the command is answered.
+      await act().then(
+        () => said.push(`${how}: ok`),
+        (e) => said.push(`${how}: ${e instanceof Error ? e.message : e}`),
+      );
+      if (await until("the app to quit", gone, 10_000).catch(() => false)) {
+        // Passes, since what's tested is what survives a restart, but shows on the run's summary.
+        if (how !== tries[0][0]) console.log(`::warning::the Close button didn't quit the app; it quit once ${how} (${said.join("; ")})`);
+        await wd("DELETE", `/session/${this.id}`).catch(() => {});
+        return;
+      }
+    }
+    const proc = running();
+    const state = `${proc === null ? "" : `process ${proc ? "running" : "gone"}, `}window ${(await this.answers()) ? "answering" : "gone"}`;
+    throw new Error(`timed out waiting for the app to quit (${said.join("; ")}; ${state})`);
   }
+}
+
+/**
+ * Whether the app's process runs, found by its executable in /proc on Linux: a closed window
+ * doesn't tell that the app has written everything and ended. Null elsewhere.
+ */
+function running(): boolean | null {
+  if (process.platform !== "linux") return null;
+  const exe = realpathSync(app);
+  for (const pid of readdirSync("/proc")) {
+    if (!/^\d+$/.test(pid)) continue;
+    try {
+      if (readlinkSync(`/proc/${pid}/exe`) === exe) return true;
+    } catch {
+      // Gone meanwhile, or another user's.
+    }
+  }
+  return false;
 }
 
 /** From the first screen to the app's sections: without an account if it asks. */
