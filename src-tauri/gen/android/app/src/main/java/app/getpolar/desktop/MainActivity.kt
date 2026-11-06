@@ -38,7 +38,8 @@ class MainActivity : TauriActivity() {
 
   // The web view arrives here (from wry); mpv's picture goes in a SurfaceView behind it, which shows
   // through while the page is transparent (playing). See src-tauri/src/player/android.rs.
-  override fun setContentView(view: View) {
+  override fun setContentView(view: View?) {
+    if (view == null) return super.setContentView(view)
     val stack = FrameLayout(this)
     val video = SurfaceView(this)
     video.holder.addCallback(MpvSurface)
