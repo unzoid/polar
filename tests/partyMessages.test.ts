@@ -81,3 +81,23 @@ test("forged pings don't skew the latency", () => {
   expect(roundTrip(500, 100)).toBeUndefined();
   expect(roundTrip(-1e9, 100)).toBeUndefined();
 });
+
+test("bye speaks for its sender", () => {
+  expect(parseMessage({ t: "bye", from: "b" })).toEqual({ t: "bye", from: "b" });
+  expect(parseMessage({ t: "bye" })).toBeNull();
+});
+
+test("a key holding several presence entries counts as its newest, wherever the server puts it", () => {
+  const entry = (seq: number, over: Record<string, unknown> = {}) => ({ id: "a", name: "Ash", avatar: "", joinedAt: 1, waiting: seq < 3, seq, ...over });
+  for (const metas of [
+    [entry(3), entry(1)],
+    [entry(1), entry(3)],
+  ]) {
+    expect(parsePresence({ a: metas })).toEqual([expect.objectContaining({ id: "a", seq: 3, waiting: false })]);
+  }
+  // Without numbers, the last one, as before; an invalid entry doesn't hide a valid one.
+  expect(parsePresence({ a: [entry(0, { seq: undefined, name: "Old" }), entry(0, { seq: undefined, name: "New" })] })[0].name).toBe("New");
+  expect(parsePresence({ a: [entry(2), { id: "a" }] })).toEqual([expect.objectContaining({ seq: 2 })]);
+  expect(parseMember({ ...entry(2), buffering: true, seq: -1 })).toEqual(expect.not.objectContaining({ seq: expect.anything() }));
+  expect(parseMember({ ...entry(2), buffering: true })?.buffering).toBe(true);
+});

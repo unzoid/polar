@@ -44,7 +44,11 @@ export interface Timeline {
   lag: number;
 }
 
-export type PartyMessage = { t: "ping"; from: string; sent: number } | { t: "hello"; from: string } | { t: "state"; from: string; tl: Timeline };
+export type PartyMessage =
+  | { t: "ping"; from: string; sent: number }
+  | { t: "hello"; from: string }
+  | { t: "bye"; from: string }
+  | { t: "state"; from: string; tl: Timeline };
 
 const ID_MAX = 64;
 const NAME_MAX = 40;
@@ -130,7 +134,8 @@ export function parseMessage(x: unknown): PartyMessage | null {
     case "ping":
       return finite(x.sent) ? { t: "ping", from, sent: x.sent } : null;
     case "hello":
-      return { t: "hello", from };
+    case "bye":
+      return { t: x.t, from };
     case "state": {
       const tl = parseTimeline(x.tl);
       // A timeline speaks for its sender only.
@@ -153,15 +158,27 @@ export function parseMember(x: unknown, key?: string): PartyPresence | undefined
     joinedAt: x.joinedAt,
     waiting: x.waiting === true,
     ...(x.away === true ? { away: true } : {}),
+    ...(x.buffering === true ? { buffering: true } : {}),
+    ...(Number.isSafeInteger(x.seq) && (x.seq as number) > 0 ? { seq: x.seq as number } : {}),
   };
 }
 
-/** The room's member list from a presence state (key -> entries, newest last). */
+/**
+ * The room's member list from a presence state (key -> entries). A key can
+ * hold more than one entry for a while (a reconnect's old one not yet
+ * expired, an update whose old entry hasn't been dropped), in no promised
+ * order: the highest `seq` is the member's newest, the last one if none has it.
+ */
 export function parsePresence(state: Record<string, unknown[]>): PartyPresence[] {
   const members: PartyPresence[] = [];
   for (const [key, metas] of Object.entries(state)) {
-    const m = Array.isArray(metas) && metas.length ? parseMember(metas[metas.length - 1], key) : undefined;
-    if (m) members.push(m);
+    if (!Array.isArray(metas)) continue;
+    let newest: PartyPresence | undefined;
+    for (const meta of metas) {
+      const m = parseMember(meta, key);
+      if (m && (!newest || (m.seq ?? 0) >= (newest.seq ?? 0))) newest = m;
+    }
+    if (newest) members.push(newest);
   }
   return members;
 }

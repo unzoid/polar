@@ -67,12 +67,51 @@ describe("Stremio export import (#12)", () => {
   test("reads titles and offers add-ons that aren't built in or installed", async () => {
     const exp = parseStremioExport(await sample(), ["org.example.two"]);
     expect(exp.items.map((i) => i.id)).toEqual(["tt0000001", "tt0000002", "tt0000003", "kitsu:42"]);
-    expect(exp.unsupported).toBe(2);
+    expect(exp.skipped).toEqual({ ids: 1, types: 1, unreadable: 0 });
     expect(exp.addons.map((a) => [a.id, a.name])).toEqual([["org.example.one", "Example One"]]);
     const [first, second, third] = exp.items;
     expect(first).toMatchObject({ inLibrary: true, addedAt: Date.parse("2025-05-01T10:00:00.000Z"), resume: { videoId: "tt0000001:2:2", position: 600, duration: 2400 } });
     expect(second).toMatchObject({ inLibrary: false, watchedMovie: true, resume: undefined });
     expect(third.resume).toBeUndefined();
+  });
+
+  test("a film in the library is counted wherever the file keeps it (#152)", () => {
+    const film = { _id: "tt0000005", type: "movie", name: "Night Ferry", removed: false, temp: false, _ctime: "2025-03-01T00:00:00.000Z", state: {} };
+    // Stremio's own buckets: items keyed by id, recently played titles apart.
+    const buckets = parseStremioExport(
+      JSON.stringify({
+        library: { uid: "0001", items: { tt0000005: film } },
+        library_recent: { uid: "0001", items: { "kitsu:42": { _id: "kitsu:42", type: "series", name: "Star Orchard", removed: false, state: {} } } },
+      }),
+    );
+    expect(buckets.items.map((i) => [i.id, i.inLibrary])).toEqual([
+      ["tt0000005", true],
+      ["kitsu:42", true],
+    ]);
+    // A wrapper holding the title's id itself, the item without one or a type; other casings; times in ms.
+    const wrapped = parseStremioExport(
+      JSON.stringify({
+        library: [
+          { __id: "tt0000006", _id: "0002", _mtimestamp: 1_750_000_000_000, d: { name: "Paper Kite", removed: false, state: { video_id: "tt0000006", timeOffset: 60_000, duration: 6_000_000 } } },
+          { _id: "0003", d: { _id: "TT0000007", type: "Movie", name: "Glass Harbour", removed: false, _mtime: 1_760_000_000_000, state: {} } },
+          { _id: "0004", d: { type: "movie", name: "No id" } },
+        ],
+      }),
+    );
+    expect(wrapped.items.map((i) => [i.id, i.type, i.inLibrary])).toEqual([
+      ["tt0000006", "movie", true],
+      ["tt0000007", "movie", true],
+    ]);
+    expect(wrapped.items[0]).toMatchObject({ lastWatched: 1_750_000_000_000, resume: { videoId: "tt0000006", position: 60, duration: 6000 } });
+    expect(wrapped.items[1].lastWatched).toBe(1_760_000_000_000);
+    expect(wrapped.skipped).toEqual({ ids: 0, types: 0, unreadable: 1 });
+  });
+
+  test("a series' ids are kept in Polarity's form, its episodes too", () => {
+    const exp = parseStremioExport(
+      JSON.stringify([{ _id: "TT0000008", type: "series", removed: true, temp: true, state: { video_id: "TT0000008:1:2", timeOffset: 5_000, duration: 10_000 } }]),
+    );
+    expect(exp.items[0]).toMatchObject({ id: "tt0000008", inLibrary: false, resume: { videoId: "tt0000008:1:2" } });
   });
 
   test("a file that isn't an export says so", () => {

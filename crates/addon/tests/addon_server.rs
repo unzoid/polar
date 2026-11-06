@@ -2,7 +2,7 @@
 //! HTTP errors, broken JSON and size caps, as a real add-on would answer them over HTTP.
 
 use polar_addon::client::JSON_MAX;
-use polar_addon::{AddonClient, AddonError};
+use polar_addon::{AddonClient, AddonError, VideoFile};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -39,6 +39,9 @@ fn route(path: &str) -> (u16, Vec<(&'static str, String)>, Vec<u8>) {
         "/stream/series/tt0005%3A1%3A1.json" => json(
             r#"{"streams":[{"url":"https://cdn.example/one.mp4","name":"Open","title":"1080p"},
               {"externalUrl":"https://example.org/watch"},{"ytId":"abc"}]}"#,
+        ),
+        "/subtitles/movie/tt0001/videoSize=4512345678&filename=Film%20%282010%29.1080p.mkv.json" => json(
+            r#"{"subtitles":[{"id":"1","url":"https://subs/1.srt","lang":"eng"},{"id":"2","url":"https://subs/2.srt","lang":"eng"}]}"#,
         ),
         "/subtitles/movie/tt0001.json" => json(r#"{"subtitles":[{"id":"1","url":"https://subs/1.srt","lang":"eng"}]}"#),
         "/meta/movie/broken.json" => json(r#"{"meta":"#),
@@ -139,8 +142,12 @@ fn streams_and_subtitles_come_back_as_sent() {
         assert_eq!(streams[0].url.as_deref(), Some("https://cdn.example/one.mp4"));
         assert_eq!(streams[1].external_url.as_deref(), Some("https://example.org/watch"));
         assert_eq!(streams[2].yt_id.as_deref(), Some("abc"));
-        let subs = client.subtitles(&base, "movie", "tt0001").await.unwrap();
+        let subs = client.subtitles(&base, "movie", "tt0001", &VideoFile::default()).await.unwrap();
         assert_eq!(subs.len(), 1);
+        // The playing file's size and name go along, as the protocol's extra arguments.
+        let file = VideoFile { size: Some(4_512_345_678), name: Some("Film (2010).1080p.mkv".into()) };
+        let subs = client.subtitles(&base, "movie", "tt0001", &file).await.unwrap();
+        assert_eq!(subs.len(), 2);
     });
 }
 

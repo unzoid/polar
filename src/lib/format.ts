@@ -42,6 +42,23 @@ export function isReleased(video: Video) {
   return !video.released || new Date(video.released).getTime() <= Date.now();
 }
 
+/** How many days before its listed date an episode can already be opened (#143). */
+export const EARLY_DAYS = 7;
+
+/**
+ * Can its sources be checked yet? Released, or listed for the coming week: streaming services often put an episode
+ * out days before the TV air date the listings carry (#143). Up Next and watched counts still go by `isReleased`.
+ */
+export function isOpenable(video: Video) {
+  return !video.released || new Date(video.released).getTime() <= Date.now() + EARLY_DAYS * 86_400_000;
+}
+
+/** The date line of an episode: its air date, "Airs …" when it may be out early, "Coming …" further ahead. */
+export function airLabel(video: Video) {
+  const date = formatDate(video.released);
+  return isReleased(video) ? date : isOpenable(video) ? `Airs ${date}` : `Coming ${date}`;
+}
+
 // Air dates are calendar dates (midnight UTC): read in UTC, so a timezone ahead doesn't show the next day.
 const dateFmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 export function formatDate(iso?: string) {

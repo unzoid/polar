@@ -28,6 +28,7 @@ import {
   autoplayStreak,
   countAutoplay,
   requestHeaders,
+  videoFile,
   READY_CHECKS,
   readinessNote,
   resetAutoplay,
@@ -58,7 +59,7 @@ import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/
 import { openSettings, usePrefs, withShortcut } from "../lib/settings";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
-import { episodeCode, formatDate, formatRemaining, formatTime, seasonLabel } from "../lib/format";
+import { airLabel, episodeCode, formatRemaining, formatTime, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/net";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, Stream, Video } from "../lib/types";
@@ -197,6 +198,8 @@ export function Player({
   const [subDelay, setSubDelay] = useState(0);
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
 
+  // Subtitle add-ons match on the file's size and name (React Query compares keys by value).
+  const playingFile = videoFile(source.state.status === "ready" ? source.state.stream : undefined);
   const tracks = useTracks(
     media,
     type,
@@ -207,6 +210,7 @@ export function Player({
       subtitleMode: settings?.subtitleMode ?? "always",
     },
     (patch) => updateSettings.mutate(patch),
+    playingFile,
   );
   useEffect(() => {
     if (engine !== "mpv") return;
@@ -267,7 +271,7 @@ export function Player({
   // A link is its own file: no release name for others to look for.
   const hint = useMemo(() => (link ? undefined : streamHint(playingStream)), [link, playingStream]);
   const partyMedia = link ? linkMedia(link) : { type, metaId, videoId, label: heading || undefined };
-  usePartySync({ media, current: partyMedia, started, buffering, hint });
+  usePartySync({ media, current: partyMedia, started, buffering, hint, leaving });
   const startHere = () => {
     const v = videoRef.current;
     if (!party && profile && v) startParty({ ...partyMedia, hint }, v.currentTime, v.paused, profile);
@@ -574,19 +578,15 @@ export function Player({
         .filter((v) => v.season === shownSeason)
         .map((v) => {
           const p = progressById.get(v.id);
-          const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
+          const { released, openable, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
           return {
             id: v.id,
             label: `${v.episode}. ${v.title}`,
-            detail: !released
-              ? `Coming ${formatDate(v.released)}`
-              : inProgress && p
-                ? formatRemaining(p.position, p.duration)
-                : formatDate(v.released),
+            detail: released && inProgress && p ? formatRemaining(p.position, p.duration) : airLabel(v),
             thumbnail: stillFor(v.id) ?? v.thumbnail ?? "",
             progress: watched ? undefined : fraction,
             badge: watched ? { text: "Watched" } : undefined,
-            disabled: !released,
+            disabled: !openable,
           };
         }),
     [meta, shownSeason, progressById],
