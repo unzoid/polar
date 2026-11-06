@@ -14,6 +14,11 @@
   border-radius: 4px;
 }
 
+/* A loading shelf out of view holds still: the shimmer repaints on every frame wherever it is (#134). */
+.row[data-offscreen] .skeleton {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
