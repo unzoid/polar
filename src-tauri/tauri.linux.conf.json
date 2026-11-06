@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "linux": {
+      "deb": { "depends": ["mpv"] },
+      "rpm": { "depends": ["mpv"] }
+    }
+  }
+}
