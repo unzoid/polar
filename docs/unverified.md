@@ -252,7 +252,9 @@ doesn't show within 0.6 s, or before iOS 17.4, an action sheet comes instead. On
     the dropdown with the current choice ticked; picking one changes the page.
 15. On iOS 17.0 to 17.3 (or if the menu never shows, after 0.6 s): an action sheet instead, the current
     choice with a tick after it, Playlists as a second sheet, and Cancel.
-16. VoiceOver reads the menus; the invisible button itself isn't announced.
+16. The profile avatar (top bar): a menu with the other profiles, Manage Profiles, Join Watch Party, Calendar
+    (while it isn't a tab), Settings, Account and Sign Out (Sign In for a guest), each doing what it says.
+17. VoiceOver reads the menus; the invisible button itself isn't announced.
 
 ## macOS release: sources of the bundled libraries
 
