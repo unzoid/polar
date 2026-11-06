@@ -3,9 +3,10 @@ import { onSystemBack } from "../platform/back";
 import { isTextField } from "./keyboard";
 
 /**
- * Android's back button and gesture (docs/plan-mobile.md §2.4) go through the same Back as Escape: an open
- * layer closes first (dismiss.ts), then the screen's own Back (the player, a pushed page, TV's Back).
- * Only at the start screen with nothing open does Back do something Escape doesn't.
+ * Android's back button and gesture (docs/plan-mobile.md §2.4), and iOS's swipe in from the left edge, go
+ * through the same Back as Escape: an open layer closes first (dismiss.ts), then the screen's own Back (the
+ * player, a pushed page, TV's Back). Only at a tab's own page does Android's Back do something Escape
+ * doesn't; iOS's swipe does nothing there, as in iOS's own apps.
  */
 
 export type Where = {
@@ -15,11 +16,14 @@ export type Where = {
   pushed: number;
   /** The tab at the bottom is Home. */
   atHome: boolean;
+  /** iOS's edge swipe rather than Android's Back. */
+  swipe?: boolean;
 };
 
-/** What Back does on a phone or tablet: Escape's Back, then Home, then the app goes to the background. */
-export function systemBackAction({ open, pushed, atHome }: Where): "escape" | "home" | "leave" {
+/** What Back does on a phone or tablet: Escape's Back, then (Android) Home, then the app goes to the background. */
+export function systemBackAction({ open, pushed, atHome, swipe }: Where): "escape" | "home" | "leave" | "none" {
   if (open || pushed > 0) return "escape";
+  if (swipe) return "none";
   return atHome ? "leave" : "home";
 }
 

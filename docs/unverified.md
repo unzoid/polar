@@ -160,6 +160,43 @@ it); the IPA (a zip) holds `licenses/mpv/` with each library's licence and `BUND
 Not built: Picture in picture, background audio, lock screen controls, AirPlay on iOS (#19 is macOS), signing
 and TestFlight (the owner's Apple developer account).
 
+## iOS player and layouts (#172)
+
+The first runs (simulator and an iPhone) showed a solid blue picture with sound, the status bar over the
+video, the bottom controls under the home indicator and a player Back that did nothing. Changed, none of it
+run on iOS here:
+- Blue picture: mpv draws with OpenGL ES on iOS, which can't map VideoToolbox's 10-bit frames (p010; HEVC
+  Main 10 and HDR files), and the picture stays one blue colour; mpv's own tracker has the same report for
+  iOS. mpv now asks VideoToolbox for 8-bit NV12 (`--hwdec-image-format=nv12`, `polar_player::tune::IOS_ARGS`),
+  which it maps. A frame mpv can't draw now shows black, never an old buffer. Not known: whether the file the
+  user tried was 10-bit; if an 8-bit file was blue too, the cause is elsewhere (step 1 below tells the two
+  apart).
+- Player Back: the window's fullscreen query, refused on phones, held it up; fixed for Android and iOS
+  alike in #164 (`lib/platform/window.ts`), after the build that was tried.
+- Status bar and home indicator: hidden and fading while the player is open (`ios/system_bars.m`, through
+  Tauri's root view controller), back when it closes.
+- Safe areas: the player's bars, title, notices, Up Next, Skip and the options' close button keep clear of
+  the insets on phones and tablets (e2e with an iPhone's insets, upright and sideways, and a tablet's).
+- iOS Back: a swipe in from the left edge (within 24 px) closes what's open, then leaves a pushed page or the
+  player; at a tab's own page it does nothing (Android's Back goes Home, then leaves the app).
+- iPad: the tablet layout in every window, Slide Over and narrow Split View included; there (under 600 px
+  wide) the player takes the phone's compact controls. Seen as screenshots at iPad sizes in a desktop
+  browser with an iPad user agent, not on an iPad.
+
+To check on an iPhone (notched, iOS 17 or later) and an iPad:
+1. Play an 8-bit H.264 file and a 10-bit HEVC (or HDR) one: both with a picture in the right colours, in
+   the simulator and on the device; Settings → Advanced → hardware decoding off plays too.
+2. While playing, landscape and portrait: no status bar; the home indicator fades after a few seconds and
+   comes back on a touch; every control (Back, title, mute, Fit/Fill, scrubber, Speed, Subtitles & Audio,
+   Sources, Skip, Up Next) visible and tappable clear of the Dynamic Island and the home indicator. Closing
+   the player brings the status bar back.
+3. The player's Back button leaves the player; a swipe in from the left edge does too, closes an open sheet
+   or menu first, leaves a title page, and does nothing on a tab's own page; a vertical scroll that starts
+   at the edge still scrolls.
+4. iPad, portrait and landscape, full screen, Split View (half, a third) and Slide Over, Stage Manager
+   windows resized: the tablet layout; under 600 px wide the player shows glyph-only actions and the title
+   beside Back. With a keyboard and a trackpad: Escape is Back, the shortcuts work, hover shows on cards.
+
 ## macOS release: sources of the bundled libraries
 
 `scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself

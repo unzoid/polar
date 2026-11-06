@@ -15,7 +15,7 @@ import {
   ownsArrows,
 } from "./spatial";
 import { dismissDepth, dismissTop, onDismissed, pressEscape, useSystemBack } from "../lib/ui";
-import { leaveApp } from "../lib/platform";
+import { leaveApp, systemBack } from "../lib/platform";
 import { Desktop } from "../components/icons";
 import { actionFor, shortcutText } from "../lib/settings";
 import { playSound } from "./sounds";
@@ -95,7 +95,7 @@ export function TvApp() {
   // menu open on Home leaves the app (Back on Home opens the menu, so the second Back leaves, as TV apps do).
   useSystemBack(() => {
     const onlyMenu = menuOpen && dismissDepth() === 1 && !playing && stack.length === 1 && activeTab.name === "home";
-    if (onlyMenu) void leaveApp();
+    if (onlyMenu && systemBack === "button") void leaveApp();
     else pressEscape();
   });
 

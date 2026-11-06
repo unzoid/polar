@@ -1,17 +1,20 @@
 import { exit, onBackButtonPress } from "@tauri-apps/api/app";
 import { inShell, type Unlisten } from "./bridge";
 import { os } from "./device";
+import { onEdgeSwipe } from "./edgeSwipe";
 
 /**
- * The system's Back: Android's back button and back gesture (a TV remote's Back too). Elsewhere the
- * keyboard's Escape is Back and nothing here runs. While a handler is registered the system no longer
- * goes back or closes the app by itself: the handler decides, and calls `leaveApp` at the root.
+ * The system's Back: Android's back button and back gesture (a TV remote's Back too), and on iOS, which
+ * has neither, a swipe in from the left edge (edgeSwipe.ts). Elsewhere the keyboard's Escape is Back and
+ * nothing here runs. While an Android handler is registered the system no longer goes back or closes the
+ * app by itself: the handler decides, and calls `leaveApp` at the root.
  */
-export const hasSystemBack = inShell && os === "android";
+export const systemBack: "button" | "swipe" | null = !inShell ? null : os === "android" ? "button" : os === "ios" ? "swipe" : null;
 
 /** Hear the system's Back until the returned function is called; a no-op where there is none. */
 export async function onSystemBack(handler: () => void): Promise<Unlisten> {
-  if (!hasSystemBack) return () => {};
+  if (systemBack === "swipe") return onEdgeSwipe(handler);
+  if (systemBack !== "button") return () => {};
   const listener = await onBackButtonPress(() => handler());
   return () => void listener.unregister();
 }
