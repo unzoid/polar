@@ -1,0 +1,48 @@
+# "/assign" and "/unassign" in an issue comment (scripts/issueAssign.ts). People outside the
+# repository can't assign themselves (a personal repository has no Triage role), but anyone who has
+# commented on an issue can be assigned to it, so the workflow assigns the commenter.
+name: Issue assign
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-assign-${{ github.event.issue.number }}
+
+jobs:
+  assign:
+    # Issues only, not pull requests, and only comments that start with a slash command.
+    if: ${{ !github.event.issue.pull_request && startsWith(github.event.comment.body, '/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/issueAssign.ts
+          sparse-checkout-cone-mode: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Assign or unassign the commenter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          USER_LOGIN: ${{ github.event.comment.user.login }}
+        # The comment is read from the event file by the script, never put into the command line.
+        run: |
+          others=$(gh issue list -R "$REPO" --assignee "$USER_LOGIN" --state open --limit 100 --json number --jq "[.[] | select(.number != $NUMBER)] | length")
+          OPEN_ASSIGNED="$others" bun scripts/issueAssign.ts > decision.json
+          action=$(jq -r .action decision.json)
+          case "$action" in
+            assign) gh issue edit "$NUMBER" -R "$REPO" --add-assignee "$USER_LOGIN" ;;
+            unassign) gh issue edit "$NUMBER" -R "$REPO" --remove-assignee "$USER_LOGIN" ;;
+          esac
+          if [ "$(jq -r '.reply // empty' decision.json)" != "" ]; then
+            jq -r .reply decision.json > reply.md
+            gh issue comment "$NUMBER" -R "$REPO" --body-file reply.md
+          fi
