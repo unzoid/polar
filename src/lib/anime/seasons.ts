@@ -31,6 +31,8 @@ export function isSeason(card: Pick<AnimeCard, "format" | "episodes">): boolean 
 
 export interface SeasonWalk {
   seasons: AnimeSeason[];
+  /** Every entry along the prequel/sequel links in watch order, the OVAs and specials between seasons too (#193). */
+  order: AnimeCard[];
   /** False when a step failed (AniList busy): the seasons found so far, to be asked again later. */
   complete: boolean;
 }
@@ -72,6 +74,7 @@ export async function walkSeasons(root: ChainLink, link: (id: number) => Promise
   let season = 0;
   return {
     seasons: chain.map((card) => ({ card, label: card.format === "MOVIE" ? "Movie" : `Season ${++season}` })),
+    order: all,
     complete,
   };
 }
