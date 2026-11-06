@@ -139,3 +139,31 @@ describe("keys and add-on links on every device (#89)", () => {
     expect(s.secretsState(P)).toBe("plain");
   });
 });
+
+describe("a server without the settings table (#16)", () => {
+  test("is logged once and reported for Settings → Account until settings sync again", async () => {
+    const { AccountError } = await import("../src/lib/account/backend");
+    const missing = {
+      settings: {
+        get: async () => {
+          throw new AccountError("not_set_up", "Could not find the table 'public.profile_settings'");
+        },
+      },
+    } as unknown as AccountBackend;
+    const warn = mock(() => {});
+    const original = console.warn;
+    console.warn = warn;
+    try {
+      on(device());
+      await s.syncSettings(P, missing, () => true);
+      await s.syncSettings(P, missing, () => true);
+      expect(s.settingsSyncProblem()).toBe("not_set_up");
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String((warn.mock.calls[0] as unknown[])[0])).toContain("profile_settings");
+      await round();
+      expect(s.settingsSyncProblem()).toBeNull();
+    } finally {
+      console.warn = original;
+    }
+  });
+});

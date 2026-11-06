@@ -3,7 +3,7 @@ import { TextField } from "../../components/ui/TextField";
 import { Edit, Lock, Trash } from "../../components/icons";
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
-import { removeSecretsPassphrase, secretsState, setSecretsPassphrase, settingsTooLarge, sync, unlockSecrets, useAccount } from "../../lib/account";
+import { removeSecretsPassphrase, secretsState, setSecretsPassphrase, sync, unlockSecrets, useAccount, useSettingsSyncProblem } from "../../lib/account";
 import { useSecretsNote } from "../../components/settings/secretsNote";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
@@ -12,6 +12,7 @@ import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, typ
 export function AccountPage() {
   const account = useAccount();
   const expand = useExpanded();
+  const settingsProblem = useSettingsSyncProblem();
 
   if (account.status === "guest") {
     return (
@@ -45,8 +46,13 @@ export function AccountPage() {
 
       <Card title="Sync">
         {account.profile && <SecretsRow profileId={account.profile.id} {...expand("secrets")} />}
-        {settingsTooLarge() && (
+        {settingsProblem === "too_large" && (
           <p className="settings-error">This profile's settings are too large to sync. Add-on links take the most room: remove some to sync again.</p>
+        )}
+        {settingsProblem === "not_set_up" && (
+          <p className="settings-error">
+            Settings and addons can't sync: the account server isn't set up for them yet. They stay on this device; your library and history still sync.
+          </p>
         )}
       </Card>
 
