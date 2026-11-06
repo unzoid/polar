@@ -1,5 +1,7 @@
 //! Device-level picture and sound options, as mpv settings.
 
+use crate::sampler::Sampling;
+
 /// Device-level picture and sound options (Settings → Subtitles & Audio and
 /// → Advanced). Presets, not raw values: `af` takes lavfi graphs, which can
 /// read files, so the page never gets to write it directly.
@@ -25,6 +27,12 @@ pub struct Tune {
     /// bars lands on the cut (docs/autocrop.md §4).
     #[serde(default = "on")]
     pub lookahead: bool,
+    /// With autocrop, where mpv is its own process (Windows, Linux): our
+    /// detector reads a screenshot of every frame instead of cropdetect
+    /// (docs/autocrop.md §2). Off: screenshots only around cropdetect's
+    /// changes. macOS always reads every frame, in memory.
+    #[serde(default)]
+    pub every_frame: bool,
 }
 
 fn on() -> bool {
@@ -50,6 +58,7 @@ impl Default for Tune {
             buffer: BufferSize::Normal,
             autocrop: false,
             lookahead: true,
+            every_frame: false,
         }
     }
 }
@@ -67,10 +76,26 @@ impl Tune {
         chain.join(",")
     }
 
-    /// Hardware decoding. Measuring the bars needs the decoded frames in
-    /// memory, so with autocrop on they're copied back from the GPU.
+    /// Whether autocrop runs cropdetect inside mpv. Not on macOS, where
+    /// libmpv hands our detector every frame, nor with [`Tune::every_frame`].
+    pub fn cropdetect(&self) -> bool {
+        self.autocrop && !self.every_frame && !cfg!(target_os = "macos")
+    }
+
+    /// Which frames our detector reads, with autocrop on ([`crate::sampler`]).
+    pub fn sampling(&self) -> Sampling {
+        if self.every_frame || cfg!(target_os = "macos") {
+            Sampling::EveryFrame
+        } else {
+            Sampling::AroundChanges
+        }
+    }
+
+    /// Hardware decoding. cropdetect needs the decoded frames in memory, so
+    /// while it runs they're copied back from the GPU. Screenshots for our
+    /// detector are taken from the GPU and need no copy-back.
     pub fn hwdec_mode(&self) -> &'static str {
-        match (self.hwdec, self.autocrop) {
+        match (self.hwdec, self.cropdetect()) {
             (false, _) => "no",
             (true, false) => "auto-safe",
             (true, true) => "auto-copy-safe",
@@ -101,6 +126,7 @@ mod tests {
             buffer: BufferSize::Large,
             autocrop: false,
             lookahead: true,
+            every_frame: false,
         };
         assert!(t.audio_filters().starts_with("lavfi=[pan=stereo") && t.audio_filters().contains("dynaudnorm"));
         let off = Tune { dialogue_boost: false, volume_leveling: false, ..t };
@@ -114,5 +140,24 @@ mod tests {
         assert!(serde_json::from_str::<Tune>(page).unwrap().lookahead);
         let off = page.replace('}', r#","lookahead":false}"#);
         assert!(!serde_json::from_str::<Tune>(&off).unwrap().lookahead);
+        assert!(!serde_json::from_str::<Tune>(page).unwrap().every_frame);
+    }
+
+    #[test]
+    fn every_frame_replaces_cropdetect_and_its_copy_back() {
+        let on = Tune { autocrop: true, ..Tune::default() };
+        let every = Tune { every_frame: true, ..on };
+        assert!(!every.cropdetect());
+        assert_eq!(every.sampling(), Sampling::EveryFrame);
+        assert_eq!(every.hwdec_mode(), "auto-safe");
+        assert!(!Tune { autocrop: false, ..on }.cropdetect());
+        if cfg!(target_os = "macos") {
+            assert!(!on.cropdetect());
+            assert_eq!(on.sampling(), Sampling::EveryFrame);
+        } else {
+            assert!(on.cropdetect());
+            assert_eq!(on.sampling(), Sampling::AroundChanges);
+            assert_eq!(on.hwdec_mode(), "auto-copy-safe");
+        }
     }
 }

@@ -62,12 +62,17 @@ pub fn decode_stored(file: &[u8]) -> Option<Image> {
     let mut prev = vec![0u8; line];
     let mut cur = vec![0u8; line];
     for row in raw.chunks_exact(line + 1) {
+        // What mpv writes at filter 0: RGB lines as they are, copied whole.
+        if row[0] == 0 && channels == 3 {
+            rgb.extend_from_slice(&row[1..]);
+            prev.copy_from_slice(&row[1..]);
+            continue;
+        }
         unfilter(row[0], &row[1..], &prev, &mut cur, channels)?;
-        for px in cur.chunks_exact(channels) {
-            match channels {
-                1 | 2 => rgb.extend_from_slice(&[px[0]; 3]),
-                _ => rgb.extend_from_slice(&px[..3]),
-            }
+        match channels {
+            1 | 2 => cur.chunks_exact(channels).for_each(|px| rgb.extend_from_slice(&[px[0]; 3])),
+            3 => rgb.extend_from_slice(&cur),
+            _ => cur.as_chunks::<4>().0.iter().for_each(|px| rgb.extend_from_slice(&px[..3])),
         }
         std::mem::swap(&mut prev, &mut cur);
     }

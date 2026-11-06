@@ -3,8 +3,10 @@
 Status, 2026-11-06: built and tested in `crates/player`: the detector and the crisp-edge lock
 (§2), the pre-roll's choice of opening bars (§3, `crop::opening_bars`, `CropTracker::open`),
 animated bars (§5, `CropTracker::following`), eased moves (§6, `motion::Glide`,
-`crop::CropZoom`). The desktop engine (`src-tauri/src/player/autocrop.rs`) now jumps on the cut
-and eases late changes, still with cropdetect's readings, which give no crisp edges. The
+`crop::CropZoom`). The desktop engine (`src-tauri/src/player/autocrop.rs`) jumps on the cut
+and eases late changes, and reads frames with our detector (§2, "Our detector on the desktop"):
+every frame on macOS, around cropdetect's changes on Windows and Linux, every frame there with a
+setting; built and type-checked, untested with a real mpv (docs/unverified.md). The
 pre-roll probe (§3) is wired in the desktop engine (`src-tauri/src/player/preroll.rs`) for
 mpv as its own process (Windows), not yet for libmpv in the app (macOS); it type-checks here and is untested with a real mpv
 (docs/unverified.md). The lookahead (§4) is wired there too, by range requests from a second
@@ -12,14 +14,15 @@ probe (way 2), untested with a real mpv and not yet measured.
 The aim is crop changes the viewer doesn't notice: a change on a cut jumps on the cut frame,
 and ease-out is the default for the rest.
 
-## 1. Today (desktop)
+## 1. Before our detector (desktop)
 
-mpv runs FFmpeg's `cropdetect` on every frame (`crop::CROPDETECT`, `reset=1`), and
-`CropTracker` (`crates/player/src/crop.rs`) decides from those readings which bars to remove;
-`src-tauri/src/player/autocrop.rs` turns that into `video-zoom`. What the viewer sees: the first
-crop comes a few frames into the film, and on a change of bars the crop follows a few frames
+mpv ran FFmpeg's `cropdetect` on every frame (`crop::CROPDETECT`, `reset=1`), and
+`CropTracker` (`crates/player/src/crop.rs`) decided from those readings which bars to remove;
+`src-tauri/src/player/autocrop.rs` turns that into `video-zoom`. What the viewer saw: the first
+crop came a few frames into the film, and on a change of bars the crop followed a few frames
 late (4 frames for a common shape, 12 for an odd one). Such a late change is eased
 (§6) and one seen on the frame it happens (back to full frame, picture in a cropped bar) jumps.
+cropdetect still reads each frame on Windows and Linux; §2 says where our detector takes over.
 
 ## 2. Our own detector (`crates/player/src/bars.rs`)
 
@@ -85,6 +88,47 @@ cut, no bars left) against 42 ms, 2 and 12 for cropdetect. What cuts picture on 
 shots (22 and 30 frames, cropdetect 42 and 35), dark scenes whose dim edges both detectors read
 as bar. The limit 8 row is slightly better on Sintel (49 and 2); 12 stays, for the grain these
 clips don't have.
+
+### Our detector on the desktop
+
+cropdetect runs inside mpv; our detector needs the frame's pixels, and gets them as a screenshot
+of the frame on screen in mpv's own copy (`video`: the decoded frame at its size, unzoomed, without
+subtitles). `polar_player::sampler` decides, frame by frame, which reading goes to the tracker:
+
+- **macOS: every frame, in memory.** libmpv runs in the app, so `screenshot-raw video` hands
+  the frame over as `bgr0` through a weak client of the player (`mac::Frames`,
+  `polar_mpv_frame` in `src-tauri/src/macos/mpv_view.m`). cropdetect isn't run, so hardware
+  decoding stays zero-copy (no copy-back, `Tune::hwdec_mode`).
+- **Windows and Linux, by default: around changes.** cropdetect reads each frame. When its
+  reading changes, a screenshot is taken (an uncompressed PNG, `--screenshot-png-compression=0`,
+  read by `polar_player::png` and deleted), then more, one at a time, while our readings keep
+  moving or the tracker follows animated bars (§5), until 3 in a row agree. Meanwhile only our
+  readings feed the tracker, so crisp edges and follow mode work as on every frame. A screenshot
+  that hasn't come within 12 frames gives way to cropdetect again.
+- **Windows and Linux, opt-in: every frame.** Settings → Advanced, "Check every frame for black
+  bars" (off by default, for powerful computers): a screenshot of every frame, one at a time,
+  and no cropdetect, so no copy-back either.
+
+A screenshot is of the frame on screen and arrives a frame or two after it was asked for, so a
+change it finds lands that much after its cut (cropdetect's readings run a frame ahead). The
+lookahead (§4) still puts known changes on the cut itself.
+
+**What it costs.** Per frame, measured here (`cargo run --release -p polar-player --example
+autocrop_cost`, one core of an i7-10710U), with a letterboxed picture:
+
+| frame | PNG per frame | written per second at 24 fps | read PNG + detect | detect on `bgr0` (macOS) |
+|---|---|---|---|---|
+| 1920x1080 | 6.22 MB | 149 MB | 5.6 ms | 0.64 ms |
+| 3840x2160 | 24.89 MB | 597 MB | 19.3 ms | 1.43 ms |
+
+So every frame on Windows writes about 150 MB a second for 1080p and 600 MB for 4K (each file is
+deleted at once, but the writes happen), and Polarity spends about an eighth of a core reading
+1080p (half a core for 4K). Around changes, the default, writes only for the second or so after a
+change. On macOS nothing is written and our side costs under 1.5 ms a frame. mpv's own share
+(reading the frame back from the GPU, writing the PNG) and the screenshots per second it keeps
+up with need the desktop build: the engine logs both every 10 s while screenshots are taken
+(`autocrop: N screenshots/s, N MB/s written, N ms each reading them here`), to be filled in here
+and in the setting's caption (docs/unverified.md).
 
 ## 3. Pre-roll: the crop is right on the first frame
 
@@ -236,7 +280,8 @@ past those two:
 - a change the lookahead missed, or one that falls between keyframes, so it is only seen live
   a few frames late;
 - no lookahead: switched off (phones, §4, or the setting), a live stream, or macOS (no probe):
-  every change cropdetect believes after 2, 4 or 12 frames is late and eased;
+  a change seen live is believed after 1 or 2 frames with crisp edges, 2, 4 or 12 otherwise, and
+  eased when late;
 - right after a seek, before the lookahead has caught up;
 - above all, the detector correcting its own misread: a dark or fading shot read as wider
   bars, then the picture lighting up again.
@@ -256,12 +301,6 @@ sending the zoom on every frame until it settles.
 
 ## 7. Open
 
-- Measured (§2): our detector is ahead of cropdetect on every column. Open is how the desktop
-  player would hand it every frame. There mpv runs cropdetect on each frame inside mpv; our
-  detector needs the frame's pixels. Where libmpv draws through the app (macOS, its render
-  API) a small copy of each frame could be read back; where mpv is its own process (Windows,
-  Linux) the IPC carries no frames, and a screenshot per frame would write ~6 MB each. Until
-  then the desktop keeps cropdetect per frame, with our detector in the pre-roll (§3) and the
-  lookahead (§4); follow mode (§5) needs crisp edges, which cropdetect doesn't give, so on the
-  desktop animated bars are still followed only as late changes.
+- Our detector on the desktop (§2): mpv's share of the cost and the screenshots per second it
+  keeps up with, from the desktop build, into §2's table and the setting's caption.
 - Lookahead defaults per device, after §4's measurements.

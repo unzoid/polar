@@ -54,6 +54,8 @@ export interface Prefs {
   autocrop: boolean;
   /** mpv, with autocrop: read ahead so a change of bars lands on the cut. */
   autocropLookahead: boolean;
+  /** mpv, with autocrop, Windows and Linux: our detector reads every frame (macOS always does). */
+  autocropEveryFrame: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
   /** Keep the last few searches. */
@@ -128,6 +130,7 @@ const DEFAULTS: Prefs = {
   deband: false,
   autocrop: false,
   autocropLookahead: true,
+  autocropEveryFrame: false,
   buffer: "normal",
   saveRecentSearches: true,
   searchSuggestions: true,

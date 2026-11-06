@@ -8,6 +8,7 @@
 //!   * [`bars`]: our own per-frame bar detector, for builds without `cropdetect`.
 //!   * [`lookahead`]: bar changes read ahead of the playhead, due on their cut.
 //!   * [`png`]: the uncompressed PNG screenshots autocrop's pre-roll probe reads.
+//!   * [`sampler`]: which frames our detector reads on the desktop, and which reading feeds the tracker.
 //!   * [`motion`]: eased crop moves (ease-out, spring, ease-in-out).
 //!   * [`headers`]: which of an add-on's request headers playback sends.
 //!   * [`passthrough`]: the ranges and paths of the shell's `trailer` protocol.
@@ -20,4 +21,5 @@ pub mod lookahead;
 pub mod motion;
 pub mod passthrough;
 pub mod png;
+pub mod sampler;
 pub mod tune;

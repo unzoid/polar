@@ -151,11 +151,16 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
     if was.hwdec_mode() != tune.hwdec_mode() {
         mpv.request(json!(["set_property", "hwdec", tune.hwdec_mode()])).await?;
     }
-    if was.autocrop != tune.autocrop {
-        if tune.autocrop {
+    // cropdetect runs unless our detector reads every frame (Tune::cropdetect).
+    if was.cropdetect() != tune.cropdetect() {
+        if tune.cropdetect() {
             mpv.request(json!(["vf", "add", CROPDETECT])).await?;
         } else {
             mpv.request(json!(["vf", "remove", "@autocrop"])).await?;
+        }
+    }
+    if was.autocrop != tune.autocrop {
+        if !tune.autocrop {
             mpv.request(json!(["set_property", "video-zoom", 0])).await?;
         }
         // Dialogue placed and sized by the window rather than the (zoomed)

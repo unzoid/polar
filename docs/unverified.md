@@ -434,6 +434,24 @@ against a real project.
     the probe's CPU time against playback alone. Then the defaults per device (§7).
 - Switching the lookahead on mid-file takes effect from the next file; macOS has no lookahead (no probe).
 
+## Our autocrop detector on the desktop (docs/autocrop.md §2)
+
+- `sampler::Sampler` (which reading feeds the tracker, when to take a screenshot) is tested in `crates/player`;
+  the engine side (`take_shot` in `src-tauri/src/player/autocrop.rs`) type-checks for Linux and Windows here,
+  and the macOS side (`polar_mpv_frame` in `src-tauri/src/macos/mpv_view.m`, `mac::Frames`) builds only on CI's
+  macOS runner. To check with autocrop on, on a scope film with bars changing (an IMAX sequence) and a film
+  that moves its own bars:
+  - Windows, default: the log's `autocrop:` lines show screenshots only around changes (none on a still
+    letterbox); a change of bars lands within a frame or two of its cut; moving bars are followed frame by
+    frame. Check that `screenshot-to-file … video` is the frame unzoomed (with the crop applied, our readings
+    still find the bars rather than full frame).
+  - Windows, "Check every frame for black bars" on: the log's screenshots per second and MB/s written, and mpv's
+    and Polarity's CPU in Task Manager against autocrop with the setting off, on a 1080p and a 4K file. Put
+    the numbers in docs/autocrop.md §2 and the setting's caption.
+  - macOS: every frame read in memory (`screenshot-raw video` through a weak client): the log's screenshots per
+    second (no MB written), CPU against autocrop off; a change lands within a frame or two of its cut; nothing
+    hangs when playback stops or the window hides mid-read; hardware decoding stays zero-copy.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The
