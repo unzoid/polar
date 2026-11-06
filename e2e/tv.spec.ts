@@ -148,3 +148,30 @@ test("in a title's Sources, holding OK on a row opens its menu; Info shows the s
   await expect(menu).toHaveCount(0);
   await expect(row).toBeFocused();
 });
+
+test("in the player's Sources, holding OK on a row opens its menu, Info opens the panel and Back returns to the row (#229)", async ({ app }) => {
+  await press(app, "ArrowDown", "ArrowRight", "ArrowRight", "Enter");
+  await expect(focused(app)).toHaveAccessibleName("Play First Episode");
+  await press(app, "Enter");
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Sources", exact: true }).click();
+  const row = app.getByRole("radiogroup", { name: "Sources" }).locator(".options-item").last();
+  await row.focus();
+  await app.keyboard.down("Enter");
+  await app.waitForTimeout(700);
+  await app.keyboard.up("Enter");
+  const menu = app.getByRole("menu", { name: "Source options" });
+  await expect(menu).toBeVisible();
+  await expect(focused(app)).toHaveAccessibleName("Info");
+  await press(app, "ArrowDown");
+  await expect(focused(app)).toHaveAccessibleName("Play This Source");
+  await press(app, "ArrowUp", "Enter");
+  const info = app.getByRole("dialog", { name: "Source Info" });
+  await expect(info.getByTestId("source-info-body")).toBeFocused();
+  expect(await info.textContent()).not.toContain("TOKEN0000");
+  await press(app, "Backspace");
+  await expect(info).toHaveCount(0);
+  await expect(row).toBeFocused();
+  // Still in the player, its Sources still open.
+  await expect(app.locator(".player")).toHaveCount(1);
+});

@@ -230,7 +230,7 @@ function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: bool
       className="options-item"
       data-rich={!!(o.detail || o.thumbnail)}
       data-ready={o.ready}
-      data-hold-ok={(o.onInfo && o.onMenu) || undefined}
+      data-hold-ok={o.onInfo && o.onMenu ? true : undefined}
       title={o.note}
       onClick={() => onSelect(o.id)}
       {...(o.onInfo ? press : {})}
