@@ -7,6 +7,7 @@ import { TextField, type TextFieldProps } from "../../components/ui/TextField";
 import { AccountError, useAccount } from "../../lib/account";
 import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
+import { Captcha } from "./Captcha";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** The server only sends a new code once a minute. */
@@ -34,11 +35,14 @@ export function AuthScreen() {
   const [error, setError] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
   const [sentAt, setSentAt] = useState(0);
+  // Each time the server asks for a CAPTCHA (#110) a fresh one: a token works once.
+  const [captcha, setCaptcha] = useState(0);
   const wait = useCountdown(sentAt, RESEND_AFTER_S);
 
   // Changing step: AnimatePresence plays the old step's exit, then mounts the next.
   const go = (s: Step) => {
     setError(null);
+    setCaptcha(0);
     setStep(s);
   };
 
@@ -60,9 +64,16 @@ export function AuthScreen() {
     }
   };
 
-  const send = () =>
+  const send = (captchaToken?: string) =>
     attempt(async () => {
-      await account.sendCode(email.trim());
+      try {
+        await account.sendCode(email.trim(), captchaToken);
+      } catch (e) {
+        if (!(e instanceof AccountError && e.code === "captcha_needed")) throw e;
+        setCaptcha((n) => n + 1);
+        return;
+      }
+      setCaptcha(0);
       setSentAt(Date.now());
       setCode("");
       if (step !== "code") go("code");
@@ -135,6 +146,7 @@ export function AuthScreen() {
                 Continue with email
               </Button>
             </div>
+            {captcha > 0 && <Captcha key={captcha} onToken={(t) => void send(t)} />}
             <ErrorLine error={error} />
             <button type="button" className="auth-link" onClick={() => go("start")}>
               Back to sign in
@@ -181,6 +193,7 @@ export function AuthScreen() {
                 Continue with login code
               </Button>
             </div>
+            {captcha > 0 && <Captcha key={captcha} onToken={(t) => void send(t)} />}
             <ErrorLine
               error={error}
               action={

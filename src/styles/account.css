@@ -197,6 +197,14 @@
 .auth-error .auth-link {
   margin-top: 0;
 }
+/* The CAPTCHA the server asked for (Captcha.tsx): Turnstile's widget, centred. */
+.auth-captcha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 65px;
+  margin-top: 0.875rem;
+}
 /* One step's content; AuthScreen animates it between steps (Motion). */
 .auth-body {
   display: flex;

@@ -6,7 +6,16 @@ import { createClient, type AuthError, type PostgrestError, type User } from "@s
 import type { AnimeLink } from "../library/identity";
 import type { Progress, SyncLibraryItem } from "../types";
 import { count, isRecord, listOf, str } from "../parse";
-import { AccountError, type AccountBackend, type AccountUser, type Profile, type RemotePlaylist } from "./backend";
+import {
+  AccountError,
+  isLimit,
+  type AccountBackend,
+  type AccountUser,
+  type Profile,
+  type PushResult,
+  type RemotePlaylist,
+  type SyncChanges,
+} from "./backend";
 import { parsePresence } from "../party/messages";
 import { normalizeAvatar } from "./avatars";
 import { fromHex, toHex } from "../library/playlistCodec";
@@ -95,8 +104,8 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
       },
       // New emails get the "Confirm signup" template, known ones the "Magic
       // Link" template; both must contain {{ .Token }} to send a code.
-      async sendCode(email) {
-        const { error } = await db.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+      async sendCode(email, captchaToken) {
+        const { error } = await db.auth.signInWithOtp({ email, options: { shouldCreateUser: true, captchaToken } });
         if (error) throw authError(error);
       },
       async verifyCode(email, code) {
@@ -164,22 +173,27 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
         };
       },
       async push(profileId, { library, progress, links }) {
-        for (const rows of chunks(library.map((i) => toLibraryRow(profileId, i)), 500)) {
-          const { error } = await db.from("library").upsert(rows, { onConflict: "profile_id,meta_id" });
-          if (error) throw dbError(error);
-        }
+        // A kind the account has no room left for (#110) is refused alone: the others still go.
+        let full: PushResult["full"];
+        /** Upserts in chunks; false when the server has no `anime_links` table yet. */
+        const send = async (kind: keyof SyncChanges, table: string, rows: object[], onConflict: string) => {
+          for (const part of chunks(rows, 500)) {
+            const { error } = await db.from(table).upsert(part, { onConflict });
+            if (!error) continue;
+            if (table === "anime_links" && isMissingTable(error)) return false;
+            const e = dbError(error);
+            if (!isLimit(e)) throw e;
+            full = { kinds: [...(full?.kinds ?? []), kind], error: full?.error ?? e };
+            break;
+          }
+          return true;
+        };
+        await send("library", "library", toLibraryRows(profileId, library), "profile_id,meta_id");
         const all = progress.length > 0 && (await everyEpisode());
         const { rows: progressRows, unsent } = toProgressRows(profileId, progress, all);
-        for (const rows of chunks(progressRows, 500)) {
-          const { error } = await db.from("progress").upsert(rows, { onConflict: "profile_id,meta_id" });
-          if (error) throw dbError(error);
-        }
-        for (const rows of chunks(links.map((l) => toLinkRow(profileId, l)), 500)) {
-          const { error } = await db.from("anime_links").upsert(rows, { onConflict: "profile_id,anilist" });
-          if (error && isMissingTable(error)) return { links: false, unsent };
-          if (error) throw dbError(error);
-        }
-        return { links: true, unsent };
+        await send("progress", "progress", progressRows, "profile_id,meta_id");
+        const stored = await send("links", "anime_links", links.map((l) => toLinkRow(profileId, l)), "profile_id,anilist");
+        return { links: stored, unsent, ...(full && { full }) };
       },
     },
 
@@ -287,6 +301,16 @@ export const toLibraryRow = (profileId: string, i: SyncLibraryItem) => ({
 });
 
 /**
+ * An id the server takes as `meta_id` (#110): 1 to 200 bytes, no control characters. A title
+ * with any other id stays on this device.
+ */
+export const syncableId = (id: string) => id.length > 0 && new TextEncoder().encode(id).length <= 200 && !/[\u0000-\u001f\u007f-\u009f]/.test(id);
+
+/** The library items the server takes, as rows. */
+export const toLibraryRows = (profileId: string, items: SyncLibraryItem[]) =>
+  items.filter((i) => syncableId(i.id)).map((i) => toLibraryRow(profileId, i));
+
+/**
  * A `library` row (LIBRARY_COLUMNS). It carries no name or poster: `name` comes back empty and
  * the device keeps or looks up its own. `added_at` is in seconds; an item never changed since it
  * was added gets its exact time back from `updated_at`.
@@ -307,6 +331,9 @@ export function fromLibraryRow(r: unknown): SyncLibraryItem | undefined {
   };
 }
 
+/** The most a title's progress may take on a server that keeps one entry (#110). */
+export const ONE_ENTRY_MAX = 512;
+
 /** Watched past the start (crates/library space.rs `Progress::started`): what Continue Watching counts. */
 const STARTED_S = 30;
 
@@ -315,11 +342,13 @@ const STARTED_S = 30;
  * newest entry watched past the start (what Continue Watching needs), so a few seconds of another
  * episode never take the place of the one being watched (test report 1, item 4); a title with no
  * such entry sends nothing. Other episodes stay on this device. A title whose entries can't be
- * packed is left out and listed in `unsent`, so it never holds back the others (#94).
+ * packed is left out and listed in `unsent`, so it never holds back the others (#94). A title the
+ * server would refuse (its id, or one entry past ONE_ENTRY_MAX: #110) stays on this device.
  */
 export function toProgressRows(profileId: string, progress: Progress[], everyEpisode: boolean) {
   const titles = new Map<string, Progress[]>();
   for (const p of progress) {
+    if (!syncableId(p.metaId)) continue;
     if (everyEpisode || p.position > STARTED_S) titles.set(p.metaId, [...(titles.get(p.metaId) ?? []), p]);
   }
   const rows = [];
@@ -335,11 +364,13 @@ export function toProgressRows(profileId: string, progress: Progress[], everyEpi
       updatedAt: p.updatedAt,
     }));
     try {
+      const packed = encodeEntries(metaId, entries);
+      if (!everyEpisode && packed.length > ONE_ENTRY_MAX) continue;
       rows.push({
         profile_id: profileId,
         meta_id: metaId,
         kind: newest.type === "series" ? SERIES : 0,
-        entries: toHex(encodeEntries(metaId, entries)),
+        entries: toHex(packed),
         updated_at: newestAt(entries),
       });
     } catch (e) {
@@ -436,6 +467,9 @@ function authError(e: AuthError): AccountError {
     case "otp_expired":
     case "invalid_credentials":
       return new AccountError("invalid_code", "That code is wrong or has expired.");
+    // CAPTCHA is on in the dashboard (#110): the request needs a solved one.
+    case "captcha_failed":
+      return new AccountError("captcha_needed", "Confirm you're a person to get a code.");
     case "otp_disabled":
     case "signup_disabled":
       return new AccountError("unknown", "Email sign-in is turned off for this server.");
@@ -449,7 +483,7 @@ function authError(e: AuthError): AccountError {
   return new AccountError("unknown", e.message || "Something went wrong.");
 }
 
-/** The limit triggers `raise exception 'profile_limit'` / `'playlist_limit'` (SQLSTATE P0001, the name as the message). */
+/** The limit triggers `raise exception 'profile_limit'`, `'library_limit'`… (SQLSTATE P0001, the name as the message). */
 const raised = (e: PostgrestError, name: string) => e.code === "P0001" && e.message === name;
 
 export function dbError(e: PostgrestError): AccountError {
@@ -457,7 +491,17 @@ export function dbError(e: PostgrestError): AccountError {
     return new AccountError("profile_limit", "An account can have up to 5 profiles.");
   }
   if (raised(e, "playlist_limit")) {
-    return new AccountError("playlist_limit", "A profile can have up to 100 playlists.");
+    return new AccountError("playlist_limit", "A profile can have up to 100 playlists, and keeps up to 1,000 with the ones removed lately.");
+  }
+  // The row caps of supabase/migrations/20261107000000_account_limits.sql (#110).
+  if (raised(e, "library_limit")) {
+    return new AccountError("library_limit", "The account's library is full: up to 5,000 titles a profile and 10,000 an account.");
+  }
+  if (raised(e, "progress_limit")) {
+    return new AccountError("progress_limit", "The account's watch history is full: up to 5,000 titles a profile and 10,000 an account.");
+  }
+  if (raised(e, "anime_links_limit")) {
+    return new AccountError("anime_links_limit", "The account's anime choices are full: up to 5,000 a profile.");
   }
   // profile_settings.data has a size check (critique M7).
   if (e.code === "23514" && /profile_settings/.test(e.message)) {

@@ -685,6 +685,20 @@ against a real project.
   is gone; start a download of a source that plays in a browser ("can't be downloaded"); play a source that answers
   404 (the loading screen says `Failed at the source's server`) and, with mpv missing from its folder, any source
   (`Failed at the player`). Signed in with 5 profiles, adding a sixth says "An account can have up to 5 profiles."
+- Account limits (#110; supabase/migrations/20261107000000_account_limits.sql, tested in PGlite:
+  tests/sql/accountLimits.test.ts). Not run on a real project. To check on a copy (docs/supabase-storage.md
+  §7, §8): apply the migration, run `supabase/checks/account_limits.sql` (every count 0, then the
+  validations go through) and `supabase/admin/account_usage.sql`; sign in and sync as usual (nothing
+  changes below the caps). The "Your account is full" toast (`AccountFullToast`) and syncing the other
+  kinds while one is full are tested in parts (spacePush, dbError), not in the running app.
+- CAPTCHA on sign-in (#110; `lib/account/captcha.ts`, `screens/account/Captcha.tsx`): never shown, since
+  no site key exists yet. Unverified: whether Turnstile's widget loads and passes in the app's web view
+  on each platform (pages come from `tauri://localhost` on macOS, Linux and iOS and
+  `http://tauri.localhost` on Windows and Android; the CSP allows `https://challenges.cloudflare.com`
+  as script and frame), and whether Supabase also asks for a CAPTCHA when the code is entered (the app
+  sends one only with the request for a code). To check, on each platform with a build carrying
+  `VITE_CAPTCHA_SITE_KEY` and CAPTCHA on in a test project: ask for a code: the check shows under the
+  button, and once passed the code is sent; enter the code: signed in. With CAPTCHA off: no check shows.
 - `polar.json` renamed `polarity.json` (#40; `polar_library::moved::take_over_or_keep`, tested on Linux): at
   the first start of this version the file is copied to `polarity.json` (owner-only on Linux and macOS), then
   the old one renamed `polar.json.moved`. If the copy can't be made, `polar.json` stays in use and the next start

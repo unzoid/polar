@@ -33,8 +33,12 @@ export type AccountErrorCode =
   | "invalid_email"
   | "invalid_code"
   | "rate_limited"
+  | "captcha_needed"
   | "profile_limit"
   | "playlist_limit"
+  | "library_limit"
+  | "progress_limit"
+  | "anime_links_limit"
   | "settings_too_large"
   | "not_set_up"
   | "network"
@@ -49,6 +53,17 @@ export class AccountError extends Error {
     super(message);
   }
 }
+
+/** What `sync.push` stored; `full` names the kinds refused for want of room, with the error. */
+export interface PushResult {
+  links: boolean;
+  unsent: string[];
+  full?: { kinds: (keyof SyncChanges)[]; error: AccountError };
+}
+
+/** The account has no room left for a kind of row (#110): the user is told; nothing else stops. */
+export const isLimit = (e: unknown): e is AccountError =>
+  e instanceof AccountError && ["library_limit", "progress_limit", "anime_links_limit", "playlist_limit"].includes(e.code);
 
 export interface PulledChanges {
   library: SyncLibraryItem[];
@@ -128,7 +143,8 @@ export interface AccountBackend {
      * Passwordless: email a one-time code. Creates the account if the email
      * is new, so signing in and signing up are the same flow.
      */
-    sendCode(email: string): Promise<void>;
+    /** `captchaToken`: once the server has asked for a CAPTCHA (`captcha_needed`), the solved one. */
+    sendCode(email: string, captchaToken?: string): Promise<void>;
     /** Exchange the emailed code for a session. */
     verifyCode(email: string, code: string): Promise<AccountUser>;
     signOut(): Promise<void>;
@@ -146,10 +162,12 @@ export interface AccountBackend {
   sync: {
     pull(profileId: string, cursor: string | null): Promise<PulledChanges>;
     /**
-     * Resolves to whether the links were stored (`false`: the server has no place for them yet) and
-     * the titles whose progress couldn't be sent (left unpushed, to go again).
+     * Resolves to whether the links were stored (`false`: the server has no place for them yet),
+     * the titles whose progress couldn't be sent (left unpushed, to go again) and, when the
+     * account's room for a kind ran out (#110), which kinds the server refused and why: the
+     * others still go.
      */
-    push(profileId: string, changes: SyncChanges): Promise<{ links: boolean; unsent: string[] }>;
+    push(profileId: string, changes: SyncChanges): Promise<PushResult>;
   };
 
   /** The profile's preferences as one small document (settingsSync.ts merges it per key). */

@@ -12,6 +12,8 @@ import { api } from "../api";
 import { queryClient } from "../net/queries";
 import { onSettingsChange } from "../settings/changes";
 import { backend } from ".";
+import { noteAccountFull } from "./accountFull";
+import { isLimit } from "./backend";
 import { applying as applyingSettings, syncSettings } from "./settingsSync";
 import {
   applyRemotePlaylists,
@@ -59,6 +61,7 @@ async function run(): Promise<void> {
     void fillNames(space, isActive);
     // Profiles left with changes the last time they were used (switched away offline).
     await pushEach(others.filter((s) => s !== active), pushOne);
+    for (const r of results) if (r.status === "rejected" && isLimit(r.reason)) noteAccountFull(r.reason);
     if (results.some((r) => r.status === "rejected")) {
       // Try again soon, then less often; focus and reconnecting also retry.
       if (isActive()) later(RETRY_MS[Math.min(failures++, RETRY_MS.length - 1)]);
@@ -90,15 +93,25 @@ async function syncSpace(space: string, isActive: () => boolean) {
   if (!isActive()) return; // switched profile mid-flight; its own run follows
   const changed = await api.syncApply(space, { library: remote.library, progress: remote.progress, links: remote.links }, remote.cursor);
   if (changed) refreshLocalViews();
+  // A kind the account had no room for (#110): the rest went and came, the round reports it.
+  if (local.full) throw local.full;
 }
 
 async function syncPlaylists(space: string) {
   const lists = playlistChanges();
   if (lists.space !== space) return;
-  if (lists.rows.length) await backend!.playlists.push(space, lists.rows);
-  markPlaylistsPushed(space, lists.receipt);
+  let full: unknown;
+  try {
+    if (lists.rows.length) await backend!.playlists.push(space, lists.rows);
+    markPlaylistsPushed(space, lists.receipt);
+  } catch (e) {
+    // No room for more playlists (#110): what's on the server still comes down.
+    if (!isLimit(e)) throw e;
+    full = e;
+  }
   const pulled = await backend!.playlists.pull(space, playlistsPulledAt(space));
   applyRemotePlaylists(space, pulled.playlists, pulled.cursor);
+  if (full) throw full;
 }
 
 const displayDeps: DisplayDeps = { untitled: api.untitled, fill: api.fillDisplay, meta: api.meta };
