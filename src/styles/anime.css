@@ -350,7 +350,68 @@
   font-weight: 550;
 }
 .anime-unavailable {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
   margin: 0;
+  color: var(--text-3);
+}
+/* Choosing the series an anime plays from by hand (components/anime/AnimeSeriesPick.tsx, #189). */
+.anime-pick-trigger {
+  /* A link in the caption line, lined up with the text around it. */
+  margin-inline: -0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--r-xs);
+  font: inherit;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  outline: none;
+}
+.anime-pick-trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .anime-pick-trigger:hover {
+    color: var(--text);
+  }
+}
+.anime-pick {
+  width: min(320px, calc(100vw - 24px));
+}
+.anime-pick .search-field {
+  margin: 0 0.25rem 0.375rem;
+}
+.anime-pick-item {
+  gap: 0.75rem;
+}
+.anime-pick-item[aria-current="true"] {
+  color: var(--text);
+}
+.anime-pick-poster {
+  flex: none;
+  width: 32px;
+  height: 48px;
+  border-radius: var(--r-xs);
+  background: var(--fill-2);
+  object-fit: cover;
+}
+.anime-pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.anime-pick-year {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.anime-pick-note {
+  margin: 0;
+  padding: 0.5rem 0.625rem;
   color: var(--text-3);
 }
 

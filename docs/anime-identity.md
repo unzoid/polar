@@ -65,6 +65,16 @@ see one title. The anime page already lines every AniList episode up with both i
    week, only when ani.zip fails (approved in I-001; `crates/anime/src/anime_lists.rs`, used by
    `fetchAniZip` in `src/lib/anime/anizip.ts`).
 
+For an entry with neither an IMDb nor a Kitsu id there (common for a show from the current
+season, #189), `animeImdb` (`src/lib/anime/search.ts`) goes on: the id lists' IMDb id, then the
+link stored for the entry (picked by the user, or found by title before), then a catalog search
+by each of the entry's titles (English, romaji, without a part name, AniList's synonyms, native).
+A result counts when its name is one of those titles and, for a series with aired episodes, it
+has most of them by air date; one the catalogs have no dated episodes for yet counts by its year.
+When nothing matches, the anime page says it isn't linked and offers "Choose the series": the
+user's pick is stored as the entry's link. A link found by title or stored is offered for
+change ("Wrong series?"); one a mapping gives is not.
+
 **Anime links.** For each canonical anime title Polarity stores one small record, the *link*:
 `{ anilist, mal?, kitsu? }`, plus `imdb` when canonical is a `tt`. It is the persisted form of
 what the in-memory maps hold today, and the alias set is derived from it (`anilist:N`, `mal:N`,

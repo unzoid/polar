@@ -26,6 +26,15 @@ export async function linkAnime(qc: QueryClient, link: Omit<AnimeLink, "updatedA
   sync.schedule();
 }
 
+/**
+ * The show the user picked for an entry by hand (#189), stored as its link: the entry plays from it from
+ * then on, on every device the space syncs to, and what was kept under its other ids moves onto it.
+ */
+export async function pickAnimeImdb(qc: QueryClient, link: Omit<AnimeLink, "updatedAt">) {
+  await linkAnime(qc, link);
+  await qc.invalidateQueries({ queryKey: keys.anime.imdb(link.anilist) });
+}
+
 /** The stored links. */
 export const animeLinks = (): Promise<AnimeLink[]> => (inShell ? api.animeLinks().catch(() => []) : Promise.resolve([]));
 

@@ -20,6 +20,7 @@ import { SourcePicker, useSourcePicker } from "../title/SourcePicker";
 import { TitleActions } from "../title/TitleActions";
 import { TitleHeading } from "../title/TitleHeading";
 import { openTrailer } from "../Trailer";
+import { AnimeSeriesPick } from "./AnimeSeriesPick";
 import { useAnimePlayback } from "./useAnimePlayback";
 import { Skeleton } from "../ui/Skeleton";
 
@@ -139,7 +140,12 @@ export function AnimeHero({
             </IconButton>
           )}
         </TitleActions>
-        {unavailable && <p className="anime-unavailable t-caption">{unavailable}</p>}
+        {(unavailable || pb.pickable) && (
+          <p className="anime-unavailable t-caption">
+            {unavailable}
+            {pb.pickable && <AnimeSeriesPick anime={item} isMovie={pb.isMovie} current={pb.metaId} mal={pb.malId} kitsu={pb.kitsu} />}
+          </p>
+        )}
       </div>
 
       <SourcePicker picker={picker} />

@@ -41,8 +41,8 @@ export function useAnimePlayback(anime: AnimeCard | Anime) {
   const kitsu = zip?.mappings.kitsu_id;
   // ani.zip's IMDb show, unless its episodes stop before this entry's (then the
   // show that has them), or the same title on Cinemeta when ani.zip has no link.
-  const { data: foundImdb, isPending: linking, isSuccess: imdbKnown } = useAnimeImdb(anime, zip);
-  const imdb = foundImdb ?? undefined;
+  const { data: found, isPending: linking, isSuccess: imdbKnown } = useAnimeImdb(anime, zip);
+  const imdb = found?.id;
   // The app's id for this show: its IMDb page, or (for the many with none) its Kitsu id, which the stream addons know.
   const metaId = imdb ?? (kitsu ? `kitsu:${kitsu}` : undefined);
   const { data: meta, isLoading: metaLoading } = useMeta(isMovie ? "movie" : "series", metaId ?? "", !!metaId);
@@ -79,5 +79,7 @@ export function useAnimePlayback(anime: AnimeCard | Anime) {
 
   // Until ani.zip and the link are known, there's nothing to say about sources yet.
   const loading = zip === undefined || linking;
-  return { zip, loading, metaId, meta, metaLoading, malId, episodes, byVideo, next, isMovie };
+  // A link no mapping gave (picked, or found by title) is one the user may need to change (#189).
+  const pickable = !loading && (!metaId || found?.by === "stored" || found?.by === "title");
+  return { zip, loading, metaId, meta, metaLoading, malId, kitsu, episodes, byVideo, next, isMovie, pickable };
 }
