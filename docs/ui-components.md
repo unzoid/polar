@@ -163,7 +163,7 @@ markup rather than a shared component.
 | `CollectionTile` | `screens/Library.tsx:174` | Library overview tiles. |
 | `CalendarItem`, `ScheduleSlot` | `screens/Calendar.tsx:66`; `screens/Anime.tsx:346` | Time-slotted rows. Same job, two class families. |
 | `TvCard`, `TvAnimeCard` | `tv/TvRails.tsx:21`; `tv/TvAnime.tsx:139` | One card with `data-shape`. Focus is the selection. Prefetch after 450 ms. Opens `TvCardMenu`. |
-| `Row` | `components/Row.tsx:9` | Desktop shelf: native scroll, paddles with `EdgeBlur`. |
+| `Row`, `RowPaddle` | `components/Row.tsx:9` | Desktop shelf: native scroll, paddles with `EdgeBlur`. `RowPaddle` is also the player episode rail's (#250). |
 | `TvRail`, `TvItemsRail`, `TvShelfRail`, `TvContinueRail`, `TvSkeletonRail`, `TvBrowse` | `tv/TvRails.tsx:115-226` | Focus-driven rails; the focused card stays pinned left. |
 | Shelf loaders | `Home.tsx:256` `CatalogRow`, `:281` `LazyShelf`; `Anime.tsx:218` `Shelf`, `:242` `GenreShelf`; `Search.tsx:72,81` | Same "Row + items or skeletons" job; two copies of the IntersectionObserver loader (M30). |
 | Poster grids | `Discover.tsx:65`, `Anime.tsx:502`, `Library.tsx:282,298,426,486` | `.poster-grid`; two copies of the infinite-scroll sentinel. |

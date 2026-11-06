@@ -108,18 +108,36 @@ export function Row({
         </header>
       )}
       <div className="row-viewport" data-start={edges.start} data-end={edges.end}>
-        <button className="row-paddle" data-dir="prev" onClick={() => page(-1)} aria-label="Scroll left" tabIndex={-1}>
-          <EdgeBlur />
-          <ChevronLeft size={22} />
-        </button>
+        <RowPaddle dir="prev" onPage={page} />
         <div className="row-scroller" ref={scroller}>
           {children}
         </div>
-        <button className="row-paddle" data-dir="next" onClick={() => page(1)} aria-label="Scroll right" tabIndex={-1}>
-          <EdgeBlur />
-          <ChevronRight size={22} />
-        </button>
+        <RowPaddle dir="next" onPage={page} />
       </div>
     </section>
+  );
+}
+
+/**
+ * One end of a sideways scroller: a blurred edge with a chevron that pages it. Home's shelves and
+ * the player's episode rail share it (#250). Its parent is a `.row-viewport` whose `data-start` and
+ * `data-end` say which ends are reached; cards.css shows the paddles while the viewport is hovered
+ * or holds the keyboard focus, and hides each at its end. It never takes the focus itself, so
+ * the arrow keys go on from the card they were on.
+ */
+export function RowPaddle({ dir, onPage }: { dir: "prev" | "next"; onPage: (dir: 1 | -1) => void }) {
+  const prev = dir === "prev";
+  return (
+    <button
+      className="row-paddle"
+      data-dir={dir}
+      onPointerDown={(e) => e.preventDefault()}
+      onClick={() => onPage(prev ? -1 : 1)}
+      aria-label={prev ? "Scroll left" : "Scroll right"}
+      tabIndex={-1}
+    >
+      <EdgeBlur />
+      {prev ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}
+    </button>
   );
 }
