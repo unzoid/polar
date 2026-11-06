@@ -431,3 +431,191 @@
     transform: none;
   }
 }
+
+/* --- Party menu (#156): the top bar's popover, TV mode's panel, and parts of
+   the player's Watch Party panel. Sections stacked, a hairline between. */
+.party-popover {
+  width: min(24rem, calc(100vw - 1.5rem));
+  max-height: min(42rem, calc(100vh - 5rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem 1rem 1.125rem;
+  border-radius: var(--r-lg);
+  background: var(--glass-heavy);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: 0 0 0 1px var(--glass-edge), var(--glass-highlight), 0 18px 48px var(--scrim-2);
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.party-popover[data-starting-style],
+.party-popover[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.97);
+}
+.party-menu {
+  display: flex;
+  flex-direction: column;
+}
+.party-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.875rem 0 0;
+  margin-top: 0.875rem;
+  border-top: 1px solid var(--hairline);
+}
+.party-menu .party-pane {
+  padding: 0;
+}
+.party-menu .party-code > span {
+  width: 2.25rem;
+  height: 2.75rem;
+  font-size: 1.375rem;
+}
+.party-stream {
+  margin-top: 0.875rem;
+}
+.party-actions .party-stream {
+  margin-top: 0;
+}
+/* The player panel's first column: the code, then what you can do. */
+.party-pane-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* What's on */
+.party-now {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+.party-now-poster {
+  flex: none;
+  width: 3.25rem;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--r-xs);
+  overflow: hidden;
+  background: var(--fill-2);
+}
+.party-now-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.party-now-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.party-now-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.party-now-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.3125rem;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* Host's per-row buttons, and joiners waiting */
+.party-member-actions {
+  display: flex;
+  flex: none;
+  gap: 0.375rem;
+}
+.party-member-detail[data-lost] {
+  color: var(--text-3);
+}
+.party-knockers {
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 0.25rem;
+}
+
+/* A setting row: text left, switch right; the whole row toggles. */
+.party-actions,
+.party-host {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+.party-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+}
+.party-switch-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.party-switch-text > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 0.3125rem;
+  font-weight: 500;
+}
+.party-switch-caption {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.btn.party-end {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  color: var(--danger);
+}
+
+/* The faces' dot: someone is waiting for the host to let them in. */
+.party-knock-dot {
+  position: absolute;
+  top: 7px;
+  right: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-round);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.55);
+}
+
+/* "Waiting for the host to let you in…" under the code field */
+.party-join-note {
+  grid-column: 1 / -1;
+  min-height: 1.25em;
+  margin: -0.25rem 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  transition: opacity var(--dur-fast) var(--ease-std);
+}
+.party-join-note[data-shown="false"] {
+  display: none;
+}
+.party-dialog-ok {
+  margin-top: 1.25rem;
+  min-width: 7rem;
+}
+/* Let In / Decline: small, so the joiner's name keeps its room. */
+.btn.party-mini {
+  height: 2rem;
+  padding: 0 0.875rem;
+  font-size: var(--fs-sm);
+}
+.party-member-more {
+  flex: none;
+  color: var(--text-2);
+}
+.party-note[data-system] {
+  padding-left: 0.875rem;
+}

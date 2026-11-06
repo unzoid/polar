@@ -106,6 +106,8 @@ export interface PartyPresence {
   away?: boolean;
   /** Stalled mid-video: shown, not waited for. */
   buffering?: boolean;
+  /** Just joined, not yet let in by the host: not shown as a member, not listened to (#156). */
+  knock?: boolean;
   /** Counts up with each update this member sends, so the newest entry wins when presence holds more than one. */
   seq?: number;
 }

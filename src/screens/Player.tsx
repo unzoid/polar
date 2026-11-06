@@ -73,6 +73,7 @@ import { getParty, partyAvailable, partyPosition, startParty, streamHint, usePar
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
+import { PartyActions, PartyHostControls } from "../components/party/PartyMenu";
 import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage, storeLocal } from "../lib/errors";
@@ -1105,8 +1106,22 @@ export function Player({
           columns={
             party
               ? [
-                  { title: "Watch Party", size: "medium", options: [], onSelect: () => {}, content: <PartyInvite party={party} /> },
+                  {
+                    title: "Watch Party",
+                    size: "medium",
+                    options: [],
+                    onSelect: () => {},
+                    content: (
+                      <div className="party-pane-stack">
+                        <PartyInvite party={party} leave={false} />
+                        <PartyActions party={party} onGo={() => setOptions(null)} />
+                      </div>
+                    ),
+                  },
                   { title: "Watching", size: "medium", options: [], onSelect: () => {}, content: <PartyMembers party={party} /> },
+                  ...(party.hostId === party.me
+                    ? [{ title: "Host", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyHostControls party={party} /> }]
+                    : []),
                 ]
               : [{ title: "Watch Party", size: "medium", options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={startHere} /> }]
           }

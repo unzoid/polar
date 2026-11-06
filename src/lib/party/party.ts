@@ -15,7 +15,19 @@ import type { StreamHint } from "./messages";
 import type { Stream } from "../types";
 
 export type { PartyMedia, StreamHint } from "./messages";
-export { CODE_LENGTH, memberStatus, normalizeCode, type Member, type MemberStatus, type PartyNote, type PartyState, type Playback } from "./room";
+export {
+  BEHIND_SHOWN,
+  CODE_LENGTH,
+  memberStatus,
+  normalizeCode,
+  type Member,
+  type MemberPosition,
+  type MemberStatus,
+  type PartyExit,
+  type PartyNote,
+  type PartyState,
+  type Playback,
+} from "./room";
 
 const browserClock: PartyClock = {
   now: () => performance.now(),
@@ -50,12 +62,28 @@ export const {
   setPartyWaiting,
   setPartyBuffering,
   setPartyAway,
+  reportPosition,
+  behind,
+  syncNow,
+  setQuiet,
+  setRules,
+  makeHost,
+  kick,
+  admit,
+  deny,
+  endParty,
+  dismissExit,
 } = room;
 
 export const partyAvailable = () => !!backend;
 
 export function useParty() {
   return useSyncExternalStore(room.subscribe, room.getParty);
+}
+
+/** Why the party ended here (removed, ended by the host), until the viewer has read it. */
+export function usePartyExit() {
+  return useSyncExternalStore(room.subscribe, room.getExit);
 }
 
 /** What others need to find the same file, without the URL itself. */
@@ -85,5 +113,23 @@ export function useJoinPartyOpen() {
       return () => joinListeners.delete(l);
     },
     () => joinOpen,
+  );
+}
+
+// --- Party menu (TV mode's panel; the desktop opens it from the top bar) -----
+
+let menuOpen = false;
+const menuListeners = new Set<() => void>();
+export function setPartyMenuOpen(open: boolean) {
+  menuOpen = open;
+  menuListeners.forEach((l) => l());
+}
+export function usePartyMenuOpen() {
+  return useSyncExternalStore(
+    (l) => {
+      menuListeners.add(l);
+      return () => menuListeners.delete(l);
+    },
+    () => menuOpen,
   );
 }

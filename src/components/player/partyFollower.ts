@@ -130,6 +130,15 @@ export function createPartyFollower(d: FollowerDeps) {
     restart() {
       synced = false;
     },
+    /** Sync now: straight to where the room is, however close this player already thinks it is. */
+    jump() {
+      const p = onRoom();
+      if (stopped || !p || !d.started()) return;
+      seekSent = null;
+      setRate(1);
+      const hold = p.paused || p.held;
+      seek(hold ? p.position : d.expected(p) + seekLag);
+    },
     /** Leaving the player: from here on nothing this player does is the room's. */
     stop() {
       stopped = true;
