@@ -74,6 +74,11 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
             // Checked here: each entry must carry the key it was tracked under (critique M11).
             if (mine()) onPresence(parsePresence(c.presenceState()));
           });
+          // Why the server is about to close the channel (ClientPresenceRateLimitReached, #227), said with CLOSED.
+          let why = "";
+          c.on("system", {}, (payload: { status?: string; message?: string }) => {
+            if (mine() && payload?.status === "error") why = String(payload.message ?? "").slice(0, 120);
+          });
           const fail = (err?: Error) => {
             if (!mine()) return;
             const message = err?.message ?? "";
@@ -90,6 +95,9 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
                   void c.track(current);
                   onStatus("joined");
                 } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") fail(err);
+                // Closed by the server, not by us (takeDown stops this channel being ours first): nothing
+                // reopens it but `reconnect()`. Broadcasts still go out over REST meanwhile.
+                else if (status === "CLOSED") onStatus("closed", { setup: false, message: why });
               }),
             )
             .catch(fail);

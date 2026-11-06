@@ -75,7 +75,8 @@ export type PartyMessage =
   | { t: "ping"; from: string; sent: number; seq?: number }
   | { t: "hello"; from: string }
   | { t: "bye"; from: string }
-  | { t: "state"; from: string; tl: Timeline }
+  /** `no`: the host refuses that timeline (a member's change it didn't take, #227); whoever holds it takes this one instead. */
+  | { t: "state"; from: string; tl: Timeline; no?: Pick<Timeline, "v" | "by"> }
   | { t: "rules"; from: string; rules: RoomRules }
   /** Host: let this joiner in. */
   | { t: "admit"; from: string; to: string }
@@ -195,7 +196,10 @@ export function parseMessage(x: unknown): PartyMessage | null {
       // From someone other than its author it's passed on (the host's heartbeat, an answer to
       // a newcomer): room.ts decides whose it takes (`relayTakes`).
       const tl = parseTimeline(x.tl);
-      return tl ? { t: "state", from, tl } : null;
+      if (!tl) return null;
+      const noBy = isRecord(x.no) ? id(x.no.by) : undefined;
+      const noV = isRecord(x.no) ? x.no.v : undefined;
+      return noBy && Number.isSafeInteger(noV) && (noV as number) > 0 ? { t: "state", from, tl, no: { v: noV as number, by: noBy } } : { t: "state", from, tl };
     }
     case "rules": {
       const rules = parseRules(x.rules);
