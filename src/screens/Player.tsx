@@ -43,7 +43,8 @@ import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
 import { SkipButton, useSkipSegments } from "../components/player/SkipSegments";
 import { OptionsOverlay, type OptionItem } from "../components/player/OptionsOverlay";
-import { SkipIcon } from "../components/player/icons";
+import { SeekButton } from "../components/player/SeekButton";
+import { VolumeHud, type VolumePing } from "../components/player/VolumeHud";
 import { useTracks } from "../components/player/useTracks";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -168,6 +169,9 @@ export function Player({
   /** Why the link check turned the built-in player's source down (mpv reports its own). */
   const linkError = useRef<string | null>(null);
   const [volume, setVolume] = useState(savedVolume);
+  // TV mode: each volume press from the controller or remote shows the volume HUD.
+  const [volumePing, setVolumePing] = useState<VolumePing>({ n: 0, dir: "up" });
+  const pingVolume = (dir: VolumePing["dir"]) => tv && setVolumePing((p) => ({ n: p.n + 1, dir }));
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +188,9 @@ export function Player({
     if (settings?.rememberSpeed) updateSettings.mutate({ playbackSpeed: r });
   };
   const seekStep = settings?.seekStep ?? 10;
+  // Each seek from the centre buttons, a double-tap, or the seek keys (and so the controller): SeekButton shows the jump.
+  const [kicks, setKicks] = useState({ back: 0, forward: 0 });
+  const kick = (dir: "back" | "forward") => setKicks((k) => ({ ...k, [dir]: k[dir] + 1 }));
   const hideAfter = Math.max(1, settings?.controlsHideSecs ?? 2) * 1000;
   const countdown = Math.max(3, settings?.autoplayCountdown ?? 8);
   const timeDisplay = settings?.timeDisplay ?? "remaining";
@@ -518,11 +525,12 @@ export function Player({
   }, []);
 
   const onAutoSkipped = useCallback((label: string) => flashNotice(label, 2500), [flashNotice]);
-  const { preferFileChapters } = usePrefs();
+  const { preferFileChapters, autoSkipDelay } = usePrefs();
   const skip = useSkipSegments({
     videoId,
     started,
     autoSkip: { intro: !!settings?.autoSkip, recap: settings?.autoSkipRecaps ?? !!settings?.autoSkip },
+    autoSkipDelay,
     media,
     preferFile: preferFileChapters,
     seekTo,
@@ -653,19 +661,24 @@ export function Player({
           return true;
         case "seekBack":
           seekBy(-seekStep);
+          kick("back");
           return true;
         case "seekForward":
           seekBy(seekStep);
+          kick("forward");
           return true;
         case "volumeUp":
           setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
+          pingVolume("up");
           setMuted(false);
           return true;
         case "volumeDown":
           setVolume((v) => Math.max(0, +(v - 0.1).toFixed(2)));
+          pingVolume("down");
           return true;
         case "mute":
           setMuted((m) => !m);
+          pingVolume("mute");
           return true;
         case "fullscreen":
           void toggleFullscreen();
@@ -703,7 +716,13 @@ export function Player({
       }
       return false;
     },
-    () => poke(true),
+    // TV: volume keys show only the volume HUD, not the whole player.
+    (action) => {
+      if (tv && (action === "volumeUp" || action === "volumeDown" || action === "mute")) return;
+      // A seek with the controls hidden shows just its skip button and the "+10" (SeekButton), not the controls.
+      if (!chromeVisible && (action === "seekBack" || action === "seekForward")) return;
+      poke(true);
+    },
   );
 
   // Warm the next episode's sources well before the credits.
@@ -785,6 +804,7 @@ export function Player({
           const x = e.nativeEvent.offsetX;
           if (touch && (x < third || x > third * 2)) {
             seekBy((x < third ? -1 : 1) * seekStep);
+            kick(x < third ? "back" : "forward");
             return poke(true);
           }
           void toggleFullscreen();
@@ -882,9 +902,14 @@ export function Player({
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
       {ready && started && (
         <div className="player-center">
-          <IconButton variant="transport" onClick={() => seekBy(-seekStep)} label={`Back ${seekStep} seconds`} title={withShortcut(`Back ${seekStep}s`, "seekBack")}>
-            <SkipIcon direction="back" seconds={seekStep} size={56} />
-          </IconButton>
+          <SeekButton
+            direction="back"
+            seconds={seekStep}
+            kick={kicks.back}
+            onPress={() => (seekBy(-seekStep), kick("back"))}
+            label={`Back ${seekStep} seconds`}
+            title={withShortcut(`Back ${seekStep}s`, "seekBack")}
+          />
           <IconButton variant="transport" className="player-transport-main" onClick={togglePlay} label={paused ? "Play" : "Pause"} title={withShortcut("Play/Pause", "playPause")}>
             {buffering ? (
               <Spinner className="player-spinner" size={52} label="Buffering" />
@@ -894,9 +919,14 @@ export function Player({
               <Pause size={64} fill="currentColor" strokeWidth={0} />
             )}
           </IconButton>
-          <IconButton variant="transport" onClick={() => seekBy(seekStep)} label={`Forward ${seekStep} seconds`} title={withShortcut(`Forward ${seekStep}s`, "seekForward")}>
-            <SkipIcon direction="forward" seconds={seekStep} size={56} />
-          </IconButton>
+          <SeekButton
+            direction="forward"
+            seconds={seekStep}
+            kick={kicks.forward}
+            onPress={() => (seekBy(seekStep), kick("forward"))}
+            label={`Forward ${seekStep} seconds`}
+            title={withShortcut(`Forward ${seekStep}s`, "seekForward")}
+          />
         </div>
       )}
 
@@ -996,10 +1026,15 @@ export function Player({
         ]}
       />
 
+      {tv && <VolumeHud volume={volume} muted={muted} ping={volumePing} media={media} />}
+
       <SkipButton
         active={started ? skip.active : null}
         onSkip={skip.skipActive}
         chromeVisible={chromeVisible}
+        countdown={skip.countdown}
+        paused={paused}
+        onCountdownEnd={skip.finishCountdown}
         glyph={showNextUp ? null : pad("skipOrNext", "nextEpisode")}
       />
 

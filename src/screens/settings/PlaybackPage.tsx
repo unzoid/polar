@@ -36,6 +36,7 @@ export function PlaybackPage() {
           checked={recapsOn}
           onChange={(v) => update.mutate({ autoSkipRecaps: v })}
         />
+        {(data.autoSkip || recapsOn) && <SettingRow id="autoSkipDelay" />}
         <SettingRow id="preferFileChapters" />
       </Card>
 

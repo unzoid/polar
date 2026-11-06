@@ -137,9 +137,7 @@ function DetailHero({
           item={item}
           playlist
           download={item.type === "movie"}
-          downloadVideo={isSeries && next?.video && isReleased(next.video) ? next.video : undefined}
         >
-          {isSeries && meta && <BatchDownload item={meta} videos={downloadableEpisodes(meta.videos)} />}
           {trailer.visible && (
             <IconButton
               variant="glass"

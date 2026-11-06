@@ -84,6 +84,7 @@ const ROWS: Record<Exclude<CategoryId, "anime">, string[]> = {
     "autoplayCountdown",
     "stillWatchingAfter",
     "autoSkip",
+    "autoSkipDelay",
     "autocrop",
     "resumePlayback",
     "seekStep",

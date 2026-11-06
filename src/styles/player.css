@@ -142,13 +142,28 @@
 .player-action:active {
   transform: scale(0.92);
 }
-.player[data-chrome="false"] .player-center {
+/* With the chrome hidden its parts fade one by one rather than the whole
+   centre, so one can stay up alone: the spinner while buffering, and a seek
+   button while it shows a jump made from the keyboard or remote ("+10"). */
+.seek-control {
+  transition: opacity var(--dur-base) var(--ease-std);
+}
+.player[data-chrome="false"] .player-center > * {
+  opacity: 0;
+}
+.player[data-buffering="true"][data-chrome="false"] .player-center > .player-transport-main,
+.player[data-chrome="false"] .player-center > .seek-control[data-active="true"] {
+  opacity: 1;
+}
+/* A seek makes the player report buffering for a moment: while its jump shows,
+   that must not bring the spinner and play button along. */
+.player[data-chrome="false"] .player-center:has(> .seek-control[data-active="true"]) > .player-transport-main {
   opacity: 0;
 }
 .player[data-chrome="false"] .player-transport {
   pointer-events: none;
 }
-.player[data-instant="true"] .player-center {
+.player[data-instant="true"] .player-center > * {
   transition: none;
 }
 
@@ -304,7 +319,8 @@
   display: grid;
   place-items: center;
   overflow: clip; /* unlike hidden, can't be scrolled by focus() or script */
-  background: #000;
+  /* No fill: until the frosted copy has a frame, the live video shows through
+     the shade — a solid fill here dips the screen to black on open. */
   cursor: default;
 }
 /* Layer 1: the frosted video (see VideoBackdrop.tsx). Scaled past the edges
@@ -857,13 +873,16 @@
   margin-left: 0;
 }
 
-/* Overlay motion. The frosted picture materializes rather than popping in:
-   the layer fades (300ms) while the backdrop pulls out of focus — blur 0→14px
-   and scale 1→1.08 over 500ms on a gentle curve — so the sharp video beneath
-   reads as defocusing into the material. Columns rise 8px. Exit retraces the
-   same path in 160ms: closing is the system getting out of the way.
-   filter/transform/opacity all run on the compositor, and the backdrop is a
-   tiny canvas, so the half-second blur stays cheap while the video decodes. */
+/* Overlay motion. The shade and columns fade in (300ms) over the live video;
+   the frosted copy cross-fades in on top of that video as soon as it has a
+   frame (data-ready, VideoBackdrop.tsx) — for <video> that's the next frame,
+   for mpv the snapshot round-trip. The sharp picture dissolving into its
+   blurred copy reads as defocusing, with no empty frame between them. The
+   blur itself isn't animated: the copy is a 160×90 thumbnail, so at blur 0
+   it would show blocky pixels instead of a sharp picture. The copy's 1.08
+   overscan (hiding its softened edges) is static — under a 14px blur the
+   offset from the sharp video is invisible mid-fade. Columns rise 8px. Exit is one
+   160ms fade of the whole layer: closing is the system getting out of the way. */
 .options-overlay {
   transition: opacity var(--dur-slow) var(--ease-out);
   @starting-style {
@@ -871,19 +890,11 @@
   }
 }
 .video-backdrop {
-  transition:
-    filter 500ms var(--ease-drawer),
-    transform 500ms var(--ease-drawer);
-  @starting-style {
-    filter: blur(0px);
-    transform: scale(1);
-  }
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-out);
 }
-.options-overlay[data-open="false"] .video-backdrop {
-  filter: blur(0px);
-  transform: scale(1);
-  transition-duration: var(--dur-fast);
-  transition-timing-function: var(--ease-out);
+.video-backdrop[data-ready] {
+  opacity: 1;
 }
 .options-columns {
   transition:
@@ -907,19 +918,11 @@
   transform: translateY(4px);
   transition-duration: var(--dur-fast);
 }
-/* Reduced motion: a plain cross-fade — no rise, no zoom. The blur still
-   eases in (it isn't movement), it just doesn't scale. */
+/* Reduced motion: a plain cross-fade — the columns don't rise. The frosted
+   copy's fade stays (it isn't movement). */
 @media (prefers-reduced-motion: reduce) {
   .options-columns {
     transition: none;
-  }
-  .video-backdrop,
-  .options-overlay[data-open="false"] .video-backdrop {
-    transform: scale(1.08);
-    transition-property: filter;
-    @starting-style {
-      transform: scale(1.08);
-    }
   }
 }
 
@@ -997,15 +1000,6 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   color: var(--text);
   pointer-events: none;
 }
-/* While buffering, the spinner stays visible even when the chrome has faded —
-   but alone: the skip buttons fade with the rest. */
-.player[data-buffering="true"][data-chrome="false"] .player-center {
-  opacity: 1;
-}
-.player[data-buffering="true"][data-chrome="false"] .player-transport:not(.player-transport-main) {
-  opacity: 0;
-}
-
 /* --- Column header with controls (Sources: addon filter + sort). */
 .options-head {
   flex-shrink: 0;
@@ -1254,11 +1248,41 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 .player[data-options="true"] .skip-button {
   visibility: hidden;
 }
+/* Auto-skip countdown: a lighter fill sweeps left to right behind the label;
+   when it reaches the end, the skip happens (animationend, SkipSegments.tsx).
+   Constant motion, so linear. Holds while paused or while a picker covers it. */
+.skip-button {
+  overflow: hidden;
+  isolation: isolate;
+}
+.skip-countdown {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  /* currentColor: reads on the dark button and on its light hover/focus state alike. */
+  background: currentColor;
+  opacity: 0.16;
+  transform-origin: left;
+  animation: countdown linear both;
+}
+.skip-countdown[data-paused="true"],
+.player[data-options="true"] .skip-countdown {
+  animation-play-state: paused;
+}
 @media (prefers-reduced-motion: reduce) {
   .skip-button,
   .skip-button[data-visible="false"] {
     transform: none;
     transition-property: opacity, background-color, color;
+  }
+  /* No sweep: the fill brightens in place over the same time, and still ends in the skip. */
+  .skip-countdown {
+    animation-name: countdown-fade;
+  }
+}
+@keyframes countdown-fade {
+  from {
+    opacity: 0;
   }
 }
 
@@ -1510,4 +1534,132 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   padding: 0 0.2em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+
+/* Centre skip buttons, Netflix-style (SeekButton.tsx). A press sends the
+   number out of the ring to the side it jumps to, where the running total
+   ("+10", "+20") shows; once presses stop it fades and the number slides back.
+   The arrow's swing is WAAPI in SkipIcon. The total sits outside the button,
+   whose hover circle clips. */
+.skip-icon-part {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+}
+.skip-icon-number {
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    translate var(--dur-base) var(--ease-out);
+}
+.skip-icon-number[data-out="true"] {
+  opacity: 0;
+  translate: 7px 0;
+}
+.skip-icon-number[data-out="true"][data-direction="back"] {
+  translate: -7px 0;
+}
+.seek-control {
+  position: relative;
+  display: grid;
+}
+.seek-amount {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 0.25rem);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text);
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.4));
+  pointer-events: none;
+  /* Idle: tucked back toward the ring, invisible. Out: in place beside it. */
+  translate: 0 -50%;
+  transform: translateX(-1.25rem);
+  opacity: 0;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+.seek-control[data-direction="back"] .seek-amount {
+  left: auto;
+  right: calc(100% + 0.25rem);
+  transform: translateX(1.25rem);
+}
+.seek-control[data-active="true"] .seek-amount {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skip-icon-number[data-out="true"],
+  .seek-amount,
+  .seek-control[data-direction="back"] .seek-amount {
+    translate: 0 -50%;
+    transform: none;
+  }
+  .skip-icon-number[data-out="true"] {
+    translate: none;
+  }
+}
+/* --- TV volume HUD (VolumeHud.tsx), after iOS: a frosted pill close to the
+   left edge, filling from the bottom. The frost is a
+   blurred copy of just the part of the frame behind the pill (VideoBackdrop,
+   crop), so it always matches the picture there; until it has a frame, a
+   plain translucent grey stands in. Rounded with a squircle corner.
+   Centred with margins: transform is Motion's. */
+.volume-hud {
+  --hud-left: 1.25rem;
+  --hud-w: 3.25rem;
+  --hud-h: 13rem;
+  position: absolute;
+  left: var(--hud-left);
+  inset-block: 0;
+  margin-block: auto;
+  z-index: 5;
+  width: var(--hud-w);
+  height: var(--hud-h);
+  pointer-events: none;
+}
+.volume-hud-pill {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  background: rgb(70 70 70 / 0.6);
+  /* Apple's continuous corner where the webview has it; a plain round one otherwise. */
+  border-radius: calc(var(--hud-w) * 0.42);
+  corner-shape: squircle;
+}
+/* A canvas of exactly the part of the frame behind the pill (paintCrop), already
+   blurred: none of the full-screen backdrop's zoom or CSS blur applies. */
+.volume-hud-backdrop {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  filter: none;
+  z-index: -1;
+}
+/* Darken the frost a little, as iOS does, so the white fill and label read on any frame. */
+.volume-hud-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.22);
+}
+/* The fill lets a little of the picture through, so it takes the scene's tint. */
+.volume-hud-fill {
+  position: absolute;
+  inset: 0;
+  background: rgb(255 255 255 / 0.84);
+  transform-origin: bottom;
+}
+.volume-hud-icon {
+  position: absolute;
+  left: 50%;
+  bottom: 0.875rem;
+  translate: -50% 0;
+  color: #fff;
+  transition: color var(--dur-fast) var(--ease-std);
+}
+.volume-hud-icon[data-covered="true"] {
+  color: rgb(0 0 0 / 0.42);
 }

@@ -12,9 +12,9 @@ function isBack(e: KeyboardEvent): boolean {
  * The player's keyboard: shortcuts as bound in Settings → Controls, and Esc
  * (on TV also Backspace and Back), which always backs out. `onAction` returns whether it handled the key; it
  * may change every render (the listener is bound once and calls the latest).
- * Instant, never animated: `onHandled` runs after each handled key.
+ * Instant, never animated: `onHandled` runs after each handled key, with its action.
  */
-export function usePlayerKeyboard(enabled: boolean, onAction: (action: Action | "escape") => boolean, onHandled: () => void) {
+export function usePlayerKeyboard(enabled: boolean, onAction: (action: Action | "escape") => boolean, onHandled: (action: Action | "escape") => void) {
   const latest = useRef({ onAction, onHandled });
   latest.current = { onAction, onHandled };
   useEffect(() => {
@@ -26,7 +26,7 @@ export function usePlayerKeyboard(enabled: boolean, onAction: (action: Action | 
       const action = isBack(e) ? "escape" : actionFor(e, "player");
       if (action && latest.current.onAction(action)) {
         e.preventDefault();
-        latest.current.onHandled();
+        latest.current.onHandled(action);
       }
     };
     window.addEventListener("keydown", onKey);
