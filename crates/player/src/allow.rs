@@ -33,6 +33,18 @@ pub const ALLOWED_PROPERTIES: &[&str] = &[
     "sub-delay",
 ];
 
+/// Properties the UI only reads (`get_property`): what the subtitle preview
+/// needs to size itself as mpv sizes subtitles.
+pub const READ_ONLY_PROPERTIES: &[&str] = &[
+    "osd-dimensions",
+    "sub-font-size",
+    "sub-margin-x",
+    "sub-margin-y",
+    "sub-scale-by-window",
+    "sub-scale-with-window",
+    "sub-use-margins",
+];
+
 /// Media and subtitles only ever come from the network (addons, or a server
 /// on this machine); never local files or mpv's special protocols.
 pub fn is_web_url(url: &str) -> bool {
@@ -46,7 +58,8 @@ pub fn check_command(args: &[Value]) -> Result<(), String> {
         return Err(format!("mpv command `{name}` isn't allowed"));
     }
     match name {
-        "set" | "get_property" => check_property(args.get(1).and_then(Value::as_str).unwrap_or_default()),
+        "set" => check_property(args.get(1).and_then(Value::as_str).unwrap_or_default()),
+        "get_property" => check_readable(args.get(1).and_then(Value::as_str).unwrap_or_default()),
         "sub-add" => match args.get(1).and_then(Value::as_str) {
             Some(url) if is_web_url(url) => Ok(()),
             _ => Err("subtitles must be an http(s) URL".into()),
@@ -60,6 +73,15 @@ pub fn check_property(name: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("mpv property `{name}` isn't allowed"))
+    }
+}
+
+/// A property the UI may read: any it may set, and the read-only ones.
+pub fn check_readable(name: &str) -> Result<(), String> {
+    if READ_ONLY_PROPERTIES.contains(&name) {
+        Ok(())
+    } else {
+        check_property(name)
     }
 }
 
@@ -79,6 +101,10 @@ mod tests {
         assert!(check_command(&[json!("sub-add"), json!("C:/secret.txt")]).is_err());
         assert!(check_command(&[]).is_err());
         assert!(check_property("screenshot-directory").is_err());
+        assert!(check_command(&[json!("get_property"), json!("osd-dimensions")]).is_ok());
+        assert!(check_command(&[json!("get_property"), json!("sub-margin-y")]).is_ok());
+        assert!(check_command(&[json!("set"), json!("sub-margin-y"), json!(0)]).is_err());
+        assert!(check_command(&[json!("get_property"), json!("screenshot-directory")]).is_err());
         assert!(!is_web_url("file:///C:/x.mkv") && is_web_url("HTTP://127.0.0.1:8080/a.mkv"));
     }
 }

@@ -1650,15 +1650,18 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 
 /* Live sample above the blur, sized and placed like mpv draws subtitles:
    its font size and margins are in 720p units, scaled to the window height. */
+/* Sized and placed in SubtitleSettings.tsx (subtitleSize.ts), as the player
+   draws a line: one line is --sub-line high, its bottom --sub-bottom above
+   the window's. */
 .sub-preview {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(22 / 720 * 100vh + var(--sub-raise) * 1vh);
+  bottom: var(--sub-bottom);
   z-index: 3;
   display: flex;
   justify-content: center;
-  padding: 0 10vw;
+  padding: 0 var(--sub-side);
   pointer-events: none;
   transition: opacity var(--dur-fast) var(--ease-std);
 }
@@ -1672,18 +1675,19 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   max-width: 100%;
   text-align: center;
   white-space: pre-line;
+  line-height: var(--sub-line);
 }
 .sub-preview-text {
   font-family: var(--sub-font, "Segoe UI Semibold"), "Segoe UI", var(--font);
   font-weight: var(--sub-weight, 600);
-  font-size: calc(42 / 720 * 100vh * var(--sub-scale));
-  line-height: 1.22;
+  font-size: var(--sub-size);
+  line-height: var(--sub-line);
   color: var(--sub-color);
-  -webkit-text-stroke: calc(var(--sub-edge-w) * 2 / 720 * 100vh) var(--sub-edge);
+  -webkit-text-stroke: var(--sub-stroke) var(--sub-edge);
   paint-order: stroke fill;
-  text-shadow: 0 calc(1 / 720 * 100vh) calc(1 / 720 * 100vh) var(--scrim-2);
+  text-shadow: var(--sub-text-shadow);
   background: var(--sub-bg);
-  padding: 0 0.2em;
+  padding: var(--sub-pad);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }

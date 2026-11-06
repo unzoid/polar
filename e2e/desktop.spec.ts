@@ -1,4 +1,4 @@
-import { card, clock, expect, test } from "./fixtures";
+import { card, clock, expect, partySurfaces, test } from "./fixtures";
 
 // The desktop layout (also run in WebKit on CI). Titles come from src/lib/platform/fake/fixtures.ts.
 
@@ -219,6 +219,18 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await app.mouse.click((audio!.x + audio!.width + subs!.x) / 2, audio!.y + 40);
   await app.mouse.click(audio!.x - 12, audio!.y + 40);
   await expect(overlay).toBeVisible();
+  // The subtitle preview is set like the built-in player's cues (#228): ::cue's
+  // clamp(1.25rem, 2.4vw, 2.25rem) at the bottom, following a resized window.
+  await app.getByRole("button", { name: "Subtitle settings" }).click();
+  const sample = app.locator(".sub-preview-text");
+  const cueSize = () => sample.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  await expect.poll(cueSize).toBeCloseTo(1440 * 0.024, 1);
+  await app.setViewportSize({ width: 1000, height: 700 });
+  await expect.poll(cueSize).toBeCloseTo(24, 1);
+  const line = await app.locator(".sub-preview").boundingBox();
+  expect(Math.abs(line!.y + line!.height - 700)).toBeLessThan(1);
+  await app.setViewportSize({ width: 1440, height: 900 });
+  await app.getByRole("button", { name: "Subtitle settings" }).click();
   await app.mouse.click(8, 8 + 450);
   await expect(app.locator(".options-overlay")).toHaveCount(0);
 
@@ -601,10 +613,18 @@ test("the player's episode rail reaches every episode by wheel and paddles, and 
 
   // The paddle at the start pages back to the first episode.
   const prev = app.locator(".episode-rail-paddle[data-dir=prev]");
-  for (let i = 0; i < 10 && (await rail.evaluate((el) => el.scrollLeft)) > 4; i++) {
-    await prev.click();
-    await app.waitForTimeout(600);
-  }
+  // Where the rail rests once a paddle's smooth scroll has ended: mid-glide it can still read
+  // more than 4 px and then reach the start, hiding the paddle the next click waits for.
+  const restingLeft = async () => {
+    let last = await rail.evaluate((el) => el.scrollLeft);
+    for (;;) {
+      await app.waitForTimeout(150);
+      const now = await rail.evaluate((el) => el.scrollLeft);
+      if (Math.abs(now - last) < 0.5) return now;
+      last = now;
+    }
+  };
+  for (let i = 0; i < 10 && (await restingLeft()) > 4; i++) await prev.click();
   expect(await rail.evaluate((el) => el.scrollLeft)).toBeLessThanOrEqual(4);
   await expect(prev).toHaveCSS("opacity", "0");
 
@@ -628,4 +648,36 @@ test("the player's episode rail reaches every episode by wheel and paddles, and 
   await app.locator(".episode-card-main:not([disabled])").first().click();
   await app.getByRole("button", { name: "Episodes", exact: true }).click();
   await expect(rail).toBeVisible();
+});
+
+test.describe("signed in, on a fresh profile", () => {
+  test.use({ account: true });
+
+  test("starting a watch party in the player leaves one party panel up, with the focus in it (#247)", async ({ app }) => {
+    await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+    await card(app, "The Glass Orchard").click();
+    await app.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+    await app.getByRole("button", { name: "Watch Party", exact: true }).click();
+    await expect(partySurfaces(app)).toHaveCount(1);
+    await app.getByRole("button", { name: "Start a Watch Party" }).click();
+    await expect(app.getByRole("button", { name: "End Party" })).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(1);
+    // What had the focus (Start) is gone: it moves to sharing the code, inside the panel.
+    await expect(app.getByRole("button", { name: "Copy Invite" })).toBeFocused();
+  });
+
+  test("a link watched from the Join a Watch Party dialog closes the dialog before the player's panel opens (#247)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Join Watch Party" }).click();
+    await expect(partySurfaces(app)).toHaveCount(1);
+    await app.getByRole("textbox", { name: "Video link" }).fill("https://media.example/film.mp4");
+    await app.getByRole("button", { name: "Watch", exact: true }).click();
+    await expect(app.locator(".player")).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(0);
+    await app.locator(".player").hover();
+    await app.getByRole("button", { name: /^Watch Party \(1\)$/ }).click();
+    await expect(app.getByRole("button", { name: "End Party" })).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(1);
+  });
 });
