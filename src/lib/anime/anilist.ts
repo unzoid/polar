@@ -5,7 +5,7 @@ import { keys } from "../net/queryKeys";
 import { anilistLimiter, limitedFetch, PRIORITY, type Priority } from "../net/limiter";
 import { readCached, writeCached } from "../net/deviceCache";
 import { isRecord, listOf, str } from "../parse";
-import { readAnime, readLinked, readPage, readSlot } from "./responses";
+import { readAnime, readChained, readLinked, readPage, readRecommendations, readSlot } from "./responses";
 import { walkSeasons } from "./seasons";
 import { cardsShown } from "./franchise";
 
@@ -190,7 +190,8 @@ export interface Anime extends AnimeCard {
   relations: { edges: { relationType: RelationType; node: AnimeCard }[] };
   characters: { edges: CharacterEdge[] };
   staff: { edges: { role: string; node: Person }[] };
-  recommendations: { nodes: { mediaRecommendation: AnimeCard | null }[] };
+  /** AniList's recommendations, best rated first; `rating` is its users' net votes, `hasNextPage` whether more were left. */
+  recommendations: { nodes: { rating: number; mediaRecommendation: AnimeCard | null }[]; hasNextPage?: boolean };
   externalLinks: { site: string; url: string; type?: string | null; color?: string | null; icon?: string | null; language?: string | null }[];
   rankings: { rank: number; type: "RATED" | "POPULAR"; context: string; allTime: boolean; season?: MediaSeason | null; year?: number | null }[];
   airingSchedule: { nodes: { episode: number; airingAt: number }[] };
@@ -211,16 +212,15 @@ const CARD = `
 /** The prequel/sequel ids a list needs to show each franchise once (lib/anime/franchise.ts). */
 const CHAIN = "relations { edges { relationType(version: 2) node { id } } }";
 
+/** An entry's recommendations, a page at a time: each card with its rating and the prequel/sequel ids "If You Liked This" groups by (#191). */
+const RECS_PER_PAGE = 16;
+const RECS = `pageInfo { hasNextPage } nodes { rating mediaRecommendation { ${CARD} ${CHAIN} } }`;
+
 /** A card on the Anime page, where the carousel and the TV stage show its synopsis. */
 const LISTED = `${CARD} description(asHtml: false) ${CHAIN}`;
 
 /** A listed card with its prequel/sequel ids as `chain`. */
-function readListed(hit: unknown): AnimeCard | undefined {
-  const linked = readLinked(hit);
-  if (!linked) return undefined;
-  const { relations, ...card } = linked;
-  return { ...card, chain: relations.edges.filter((e) => e.relationType === "PREQUEL" || e.relationType === "SEQUEL").map((e) => e.node.id) };
-}
+const readListed = readChained;
 /** A list as it came: each entry with its prequel/sequel ids, grouped into franchises where it's shown ({@link useCardsShown}). */
 const listed = (v: unknown) => listOf(v, readListed);
 
@@ -477,12 +477,33 @@ const ANIME_QUERY = `query ($id: Int) {
           }
         }
         staff(sort: [RELEVANCE, ID], perPage: 12) { edges { role node { id name { full native } image { large } } } }
-        recommendations(sort: [RATING_DESC, ID], perPage: 16) { nodes { mediaRecommendation { ${CARD} } } }
+        recommendations(sort: [RATING_DESC, ID], perPage: ${RECS_PER_PAGE}) { ${RECS} }
         externalLinks { site url type color icon language }
         rankings { rank type context allTime season year }
         airingSchedule(perPage: 50) { nodes { episode airingAt } }
       }
     }`;
+
+/**
+ * An entry's second page of recommendations, for when grouping by franchise left its first too few to
+ * fill the row (lib/anime/likedThis.ts).
+ */
+export function useMoreRecommendations(id: number, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.anime.moreRecommendations(id),
+    staleTime: 30 * 60_000,
+    enabled,
+    queryFn: async ({ signal }) => {
+      const data = await gql(
+        `query ($id: Int) { Media(id: $id, type: ANIME) { recommendations(sort: [RATING_DESC, ID], page: 2, perPage: ${RECS_PER_PAGE}) { ${RECS} } } }`,
+        { id },
+        signal,
+        { priority: PRIORITY.near },
+      );
+      return readRecommendations(isRecord(data.Media) ? data.Media.recommendations : undefined);
+    },
+  });
+}
 
 export interface AiringSlot {
   id: number;
