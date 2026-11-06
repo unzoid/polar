@@ -271,4 +271,3 @@ export const statusOf = (p: PartyState, id: string) => {
   const m = p.members.find((x) => x.id === id);
   return m ? memberStatus(m, p.playback) : "gone";
 };
-

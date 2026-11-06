@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  endParty,
-  expectedPosition,
-  leaveParty,
-  setQuiet,
-  setRules,
-  syncNow,
-  type PartyState,
-} from "../../lib/party";
+import { endParty, expectedPosition, leaveParty, setQuiet, setRules, syncNow, type PartyState } from "../../lib/party";
 import { formatTime } from "../../lib/format";
 import { useMeta } from "../../lib/net";
 import { useRouter } from "../../lib/router";
