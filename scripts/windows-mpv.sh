@@ -189,7 +189,10 @@ tar -cf - --exclude=.git -C "$work" src | xz -T0 >stage/sources.tar.xz
 ls src >stage/packed.txt
 
 toolchain
-build mpv mpv-packaging
+# mpv first: mpv-packaging copies d3dcompiler_43.dll into mpv's package folder, which only exists
+# once mpv is built (in one ninja call the two run in any order).
+build mpv
+build mpv-packaging
 
 # Anything downloaded during the build isn't in the sources archive.
 late=$(ls src | comm -13 stage/packed.txt -)
@@ -237,7 +240,19 @@ tar -cf "$out/polarity-windows-mpv-sources.tar" --exclude=winbuild/.git --transf
 package=$(echo build/mpv-x86_64-*-git-*/)
 mpv="$out/mpv"
 mkdir -p "$mpv"
-cp "$package/mpv.exe" "$package/d3dcompiler_43.dll" "$mpv/"
+# d3dcompiler_43.dll comes from mpv-packaging (unpacked into its folder), not from the mpv build.
+# Windows 10 and later have d3dcompiler_47.dll, which mpv tries first; this one is the fallback
+# every mpv Windows build ships.
+d3d=
+for f in "$package/d3dcompiler_43.dll" src/mpv-packaging/x86_64/d3dcompiler_43.dll; do
+	[ -f "$f" ] && d3d=$f && break
+done
+[ -n "$d3d" ] || {
+	echo "windows-mpv.sh: no d3dcompiler_43.dll in $package or src/mpv-packaging/x86_64; they hold:" >&2
+	ls -la "$package" src/mpv-packaging src/mpv-packaging/x86_64 >&2 || true
+	exit 1
+}
+cp "$package/mpv.exe" "$d3d" "$mpv/"
 cp src/mpv/LICENSE.GPL "$mpv/LICENSE.GPL.txt"
 cp src/mpv/Copyright "$mpv/COPYRIGHT.txt"
 cp src/ffmpeg/COPYING.GPLv3 "$mpv/FFmpeg-COPYING.GPLv3.txt"
