@@ -219,6 +219,37 @@ test("settings change and stay changed", async ({ app }) => {
   await expect(settings).toHaveCount(0);
 });
 
+test("while a downloaded episode plays, its copy is the first source and picking it goes back to the file (#23)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
+  await ep.getByRole("button", { name: "Download Episode" }).click();
+  await app.locator(".sheet .stream-row").first().click();
+  await expect(ep.getByRole("button", { name: "Delete Downloaded Episode" })).toBeVisible();
+
+  await ep.locator(".episode-card-main").click();
+  const video = app.locator(".player video");
+  await expect(video).toHaveAttribute("src", /\/downloads\/.+\.mkv$/);
+  const sources = app.getByRole("radiogroup", { name: "Sources" });
+  const open = async () => {
+    await app.getByRole("button", { name: "Sources", exact: true }).click();
+    await expect(sources).toBeVisible();
+  };
+  await open();
+  const copy = sources.getByRole("radio").first();
+  await expect(copy).toContainText("Downloaded copy");
+  await expect(copy).toContainText("On this device");
+  await expect(copy).toHaveAttribute("aria-checked", "true");
+
+  // Another source, then back to the copy.
+  await sources.getByRole("radio").nth(2).click();
+  await expect(video).toHaveAttribute("src", /^https:\/\/media\.example\//);
+  await open();
+  await expect(sources.getByRole("radio").first()).toHaveAttribute("aria-checked", "false");
+  await sources.getByRole("radio").first().click();
+  await expect(video).toHaveAttribute("src", /\/downloads\/.+\.mkv$/);
+});
+
 test("a Stremio export is read, previewed and imported; its add-ons are only listed (#12)", async ({ app }) => {
   const file = {
     addons: {
