@@ -45,6 +45,7 @@ export const keys = {
   mpv: ["mpv"] as const,
   discord: ["discord"] as const,
   storeProblem: ["store-problem"] as const,
+  secretsPlace: ["secrets-place"] as const,
   appVersion: ["app-version"] as const,
   marketplace: ["marketplace"] as const,
 

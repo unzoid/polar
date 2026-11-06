@@ -3,8 +3,10 @@
 //! than about twice that. `src-tauri/src/logging.rs` hands it to `tracing`.
 //!
 //! What goes in is what the app writes there: hosts and plain reasons, never
-//! keys, add-on links or titles. A file that can't be opened or written is
-//! skipped quietly: logging must never stop the app.
+//! keys, add-on links or titles. Links that slip in anyway (an error that
+//! quotes its URL) are cut to their host on the way, as Copy Details does: add-on
+//! and stream links carry keys and tokens (#195). A file that can't be opened or
+//! written is skipped quietly: logging must never stop the app.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -74,16 +76,85 @@ impl Inner {
     }
 }
 
-/// `buf` with the home folder written as `~`, or None when it isn't in it.
-fn hide_home(buf: &[u8], home: &[String]) -> Option<Vec<u8>> {
-    if home.is_empty() {
+/// `text` with every link (`scheme://…`) cut to `<host>`, or None when there is none. The
+/// user name and password, path, query and fragment are what carry keys; the host stays, to
+/// say which server it was.
+fn hide_links(text: &str) -> Option<String> {
+    if !text.contains("://") {
         return None;
     }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(sep) = rest.find("://") {
+        let scheme_len =
+            rest[..sep].bytes().rev().take_while(|b| b.is_ascii_alphanumeric() || b"+.-".contains(b)).count();
+        let start = sep - scheme_len;
+        let after = &rest[sep + 3..];
+        out.push_str(&rest[..start]);
+        if scheme_len == 0 {
+            // Not a link after all ("a :// b"): kept as it was.
+            out.push_str("://");
+            rest = after;
+            continue;
+        }
+        // An IPv6 host's brackets belong to the link; a sentence's comma or full stop doesn't.
+        let from = if after.starts_with('[') { after.find(']').map_or(0, |i| i + 1) } else { 0 };
+        let end = after[from..]
+            .find(|c: char| c.is_whitespace() || "\"'<>`)]}|^".contains(c))
+            .map_or(after.len(), |i| i + from);
+        let end = after[..end].trim_end_matches(['.', ',', ';', ':', '!', '?']).len().max(from);
+        let link = &after[..end];
+        let authority = &link[..link.find(['/', '?', '#']).unwrap_or(link.len())];
+        out.push('<');
+        out.push_str(&host_shown(authority.rsplit('@').next().unwrap_or_default()));
+        out.push('>');
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    Some(out)
+}
+
+/// A link's host as the log names it: addresses on the user's own network aren't written
+/// (AGENTS.md: no LAN addresses in logs), as in Copy Details (`src/lib/playback/startLog.ts`).
+fn host_shown(host_port: &str) -> String {
+    let host = match host_port.rsplit_once(':') {
+        Some((h, port)) if port.bytes().all(|b| b.is_ascii_digit()) && !h.ends_with(':') => h,
+        _ => host_port,
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    if host.eq_ignore_ascii_case("localhost") {
+        return "this computer".into();
+    }
+    match host.parse::<std::net::IpAddr>() {
+        Ok(ip) if ip.is_loopback() => "this computer".into(),
+        Ok(std::net::IpAddr::V4(v4)) if v4.is_private() || v4.is_link_local() => "a device on your network".into(),
+        Ok(std::net::IpAddr::V6(v6))
+            if (v6.segments()[0] & 0xfe00) == 0xfc00 || (v6.segments()[0] & 0xffc0) == 0xfe80 =>
+        {
+            "a device on your network".into()
+        }
+        _ => host_port.into(),
+    }
+}
+
+/// `buf` with links cut to their host and the home folder written as `~`, or None when it
+/// has neither.
+fn hide(buf: &[u8], home: &[String]) -> Option<Vec<u8>> {
     let text = String::from_utf8_lossy(buf);
-    if !home.iter().any(|h| text.contains(h.as_str())) {
+    let linked = hide_links(&text);
+    let text = linked.as_deref().unwrap_or(&text);
+    match hide_home(text, home) {
+        Some(out) => Some(out.into_bytes()),
+        None => linked.map(String::into_bytes),
+    }
+}
+
+/// `text` with the home folder written as `~`, or None when it isn't in it.
+fn hide_home(text: &str, home: &[String]) -> Option<String> {
+    if home.is_empty() || !home.iter().any(|h| text.contains(h.as_str())) {
         return None;
     }
-    let mut out = text.into_owned();
+    let mut out = text.to_owned();
     for h in home {
         let mut from = 0;
         while let Some(at) = out[from..].find(h.as_str()).map(|i| i + from) {
@@ -97,13 +168,13 @@ fn hide_home(buf: &[u8], home: &[String]) -> Option<Vec<u8>> {
             from = at + 1;
         }
     }
-    Some(out.into_bytes())
+    Some(out)
 }
 
 impl Write for LogFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut inner = self.0.lock().unwrap_or_else(|p| p.into_inner());
-        let hidden = hide_home(buf, &inner.home);
+        let hidden = hide(buf, &inner.home);
         let bytes = hidden.as_deref().unwrap_or(buf);
         match inner.file(bytes.len() as u64).and_then(|f| f.write_all(bytes)) {
             Ok(()) => {}
@@ -159,6 +230,33 @@ mod tests {
         assert!(text.starts_with(r"ERROR polar_lib::store: can't read ~\AppData\Roaming\app\polar.json"), "{text}");
         assert!(text.contains("and ~/x"), "{text}");
         assert!(text.contains(r"but not C:\Users\Adam"), "{text}");
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn links_and_the_keys_in_them_never_reach_the_file() {
+        let d = dir("links");
+        let path = d.join("polar.log");
+        let mut log = LogFile::new(&path, 10_000).hiding_home(Path::new("/home/ada"));
+        log.write_all(
+            b"WARN polar_addon: error sending request for url (https://addon.example.com/a8Fk2LmQ9xZ3pR7tY1wB/stream/movie/tt0000000.json)\n",
+        )
+        .unwrap();
+        log.write_all(b"manifest https://user:TOKEN@media.example.com/manifest.json?apikey=xxx#frag failed, then \"http://192.0.2.1:11470/x?token=xxx\"\n").unwrap();
+        log.write_all(b"a :// b, file at /home/ada/.config/app\n").unwrap();
+        log.write_all(b"server http://192.168.1.20:11470/x, http://[fd00::1]:80/ and http://localhost:3000/y\n")
+            .unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        for secret in ["a8Fk2LmQ9xZ3pR7tY1wB", "TOKEN", "apikey", "xxx", "tt0000000", "frag", "user"] {
+            assert!(!text.contains(secret), "{secret} in {text}");
+        }
+        assert!(text.contains("for url (<addon.example.com>)"), "{text}");
+        assert!(text.contains("manifest <media.example.com> failed, then \"<192.0.2.1:11470>\""), "{text}");
+        assert!(text.contains("a :// b, file at ~/.config/app"), "{text}");
+        assert!(
+            text.contains("server <a device on your network>, <a device on your network> and <this computer>"),
+            "{text}"
+        );
         fs::remove_dir_all(&d).unwrap();
     }
 

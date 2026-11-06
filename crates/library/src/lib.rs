@@ -11,6 +11,7 @@
 //! - [`saver`]: writing a data file in the background, all or nothing.
 //! - [`logfile`]: the app's log file, kept to a size.
 //! - [`keychain`]: how a secret of any size is laid out in the system's keychain.
+//! - [`vault`]: API keys and add-on links kept in the keychain instead of the data file.
 
 #[cfg(test)]
 mod contract;
@@ -24,6 +25,7 @@ pub mod opened;
 pub mod saver;
 pub mod space;
 pub mod sync;
+pub mod vault;
 
 pub use display::{Display, Untitled};
 pub use identity::{Aliases, AnimeLink};

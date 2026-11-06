@@ -9,6 +9,13 @@ import type { Settings as SettingsT } from "../../lib/types";
 import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../components/settings/rows";
 import { useSecretsNote } from "../../components/settings/secretsNote";
+import { useKeyGate, type KeyKind } from "../../components/settings/KeyWarning";
+
+/** Which warning a save needs: one for each key it sets that wasn't set to that before. */
+function added(pairs: [next: string, before: string | null | undefined][]): KeyKind | null {
+  const n = pairs.filter(([next, before]) => next && next !== (before ?? "")).length;
+  return n === 0 ? null : n === 1 ? "key" : "keys";
+}
 
 export function ServicesPage() {
   const expand = useExpanded();
@@ -31,6 +38,7 @@ function RatingsRow(props: Expandable) {
   useEffect(() => setMdb(data?.mdblistKey ?? ""), [data?.mdblistKey]);
   useEffect(() => setOmdb(data?.omdbKey ?? ""), [data?.omdbKey]);
   const save = useSaveSettings(() => qc.invalidateQueries({ queryKey: keys.ratingsAll }));
+  const gate = useKeyGate();
   if (!data) return null;
   const on = !!(data.mdblistKey || data.omdbKey);
   const dirty = mdb.trim() !== (data.mdblistKey ?? "") || omdb.trim() !== (data.omdbKey ?? "");
@@ -52,7 +60,14 @@ function RatingsRow(props: Expandable) {
         className="settings-expand-form settings-expand-form-stack"
         onSubmit={(e) => {
           e.preventDefault();
-          save.mutate({ mdblistKey: mdb.trim() || null, omdbKey: omdb.trim() || null });
+          const [m, o] = [mdb.trim(), omdb.trim()];
+          gate.guard(
+            added([
+              [m, data.mdblistKey],
+              [o, data.omdbKey],
+            ]),
+            () => save.mutate({ mdblistKey: m || null, omdbKey: o || null }),
+          );
         }}
       >
         <TextField
@@ -77,6 +92,7 @@ function RatingsRow(props: Expandable) {
           {save.isPending ? "Saving…" : "Save"}
         </Button>
       </form>
+      {gate.warning}
     </ExpandRow>
   );
 }
@@ -103,6 +119,7 @@ function ArtworkRow(props: Expandable) {
   const save = useSaveSettings(() => {
     for (const k of [keys.catalogAll, keys.discoverAll, keys.metaAll, keys.featured]) qc.invalidateQueries({ queryKey: k });
   });
+  const gate = useKeyGate();
   if (!data) return null;
   const on = !!data.tmdbKey;
 
@@ -127,8 +144,9 @@ function ArtworkRow(props: Expandable) {
         saved={data.tmdbKey ?? ""}
         pending={save.isPending}
         pendingLabel="Saving…"
-        onSubmit={(k) => save.mutate({ tmdbKey: k || null })}
+        onSubmit={(k) => gate.guard(added([[k, data.tmdbKey]]), () => save.mutate({ tmdbKey: k || null }))}
       />
+      {gate.warning}
     </ExpandRow>
   );
 }
@@ -141,6 +159,7 @@ function PreviewsRow(props: Expandable) {
   useEffect(() => setKey(data?.seekrKey ?? ""), [data?.seekrKey]);
   const verify = useMutation({ mutationFn: (k: string) => api.seekrValidate(k) });
   const save = useSaveSettings(() => qc.invalidateQueries({ queryKey: keys.seekrAll }));
+  const gate = useKeyGate();
   if (!data) return null;
 
   const hasKey = !!data.seekrKey;
@@ -170,7 +189,7 @@ function PreviewsRow(props: Expandable) {
           e.preventDefault();
           const k = key.trim();
           if (k) verify.mutate(k);
-          save.mutate({ seekrKey: k || null, seekPreviews: k ? true : data.seekPreviews });
+          gate.guard(added([[k, data.seekrKey]]), () => save.mutate({ seekrKey: k || null, seekPreviews: k ? true : data.seekPreviews }));
         }}
       >
         <TextField
@@ -188,6 +207,7 @@ function PreviewsRow(props: Expandable) {
           {saved && key ? "Check" : "Save"}
         </Button>
       </form>
+      {gate.warning}
       {status && (
         <p className={`settings-expand-text${(verify.isSuccess && !verify.data) || verify.isError ? " settings-error" : ""}`}>
           {status}

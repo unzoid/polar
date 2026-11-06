@@ -39,6 +39,8 @@ pub struct AppState {
     pub store: Arc<Mutex<store::Store>>,
     /// Writes `store` to disk in the background.
     pub saver: Saver,
+    /// Where `store`'s API keys and add-on links are kept (#195).
+    pub vault: Arc<Mutex<keychain::Vault>>,
     pub seekr: seekr::Seekr,
     pub mpv: player::Mpv,
     pub introdb: introdb::IntroDb,
@@ -93,15 +95,17 @@ impl AppState {
 /// progress every 5 s, so at most one write each time.
 const SAVE_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// The background writer for `store`: encodes under the lock (no disk I/O
-/// there), writes outside it.
-fn store_saver(store: Arc<Mutex<store::Store>>) -> Saver {
+/// The background writer for `store`: takes a snapshot under the lock (no disk I/O
+/// there), moves its keys and add-on links into the keychain and writes it outside it.
+fn store_saver(store: Arc<Mutex<store::Store>>, vault: Arc<Mutex<keychain::Vault>>) -> Saver {
     Saver::spawn(SAVE_DELAY, move || {
-        let (path, bytes) = {
+        let (path, mut file) = {
             // A panic elsewhere mid-change still leaves data worth keeping.
             let store = store.locked();
-            (store.path().to_owned(), store.encode()?)
+            (store.path().to_owned(), store.snapshot()?)
         };
+        keychain::take_secrets(&vault, &mut file);
+        let bytes = serde_json::to_vec(&file).map_err(|e| e.to_string())?;
         write_atomic(&path, &bytes).map_err(|e| {
             tracing::warn!("{} wasn't saved: {e}", path.display());
             e.to_string()
@@ -190,7 +194,11 @@ pub fn run() {
             let path = data_file(&dir);
             migrate_legacy_store(&dir, &path);
             downloads::manage(app.handle(), &dir)?;
-            let store = Arc::new(Mutex::new(store::Store::load(path)));
+            let mut store = store::Store::load(path);
+            let (vault, secrets) = keychain::open_vault(&store.data);
+            store.data.fill_secrets(&secrets);
+            let store = Arc::new(Mutex::new(store));
+            let vault = Arc::new(Mutex::new(vault));
             let cache = app.path().app_cache_dir()?;
             #[cfg(target_os = "android")]
             {
@@ -202,7 +210,8 @@ pub fn run() {
                 indexer: RwLock::new(Arc::new(indexer)),
                 addons: AddonClient::new(),
                 subtitle_urls: Default::default(),
-                saver: store_saver(store.clone()),
+                saver: store_saver(store.clone(), vault.clone()),
+                vault,
                 store,
                 seekr: seekr::Seekr::default(),
                 mpv: player::Mpv::default(),
@@ -264,6 +273,7 @@ pub fn run() {
             keychain::keychain_get,
             keychain::keychain_set,
             keychain::keychain_delete,
+            keychain::secrets_place,
             downloads::downloads_list,
             downloads::download_start,
             downloads::download_pause,

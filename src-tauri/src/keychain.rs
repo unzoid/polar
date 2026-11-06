@@ -1,8 +1,9 @@
-//! The sign-in session in the system's keychain: Keychain on macOS,
+//! The sign-in session, API keys and add-on links in the system's keychain: Keychain on macOS,
 //! Credential Manager on Windows, the Secret Service on Linux. The web view's auth client
 //! stores its session through these commands (src/lib/platform/keychain.ts); where there is no
 //! keychain, or it refuses, the commands fail and the web view keeps the session itself, as
-//! before. API keys stay in polarity.json (I-008).
+//! before; settings sync keeps its copy of the keys the same way (`polar.sync.<profile>`). Keys and links are taken out of polarity.json by the saver ([`open_vault`],
+//! [`take_secrets`], laid out by `polar_library::vault`); the web view can't read them here.
 //!
 //! How a value is split to fit is `polar_library::keychain`; this file only talks to the
 //! `keyring` crate. Phone builds have no `keyring` here yet: every command says unavailable.
@@ -10,16 +11,21 @@
 use std::sync::Mutex;
 
 use polar_library::keychain::{Chunked, SecretStore, StoreError};
+use polar_library::vault::{self, Place, Secrets};
+use tauri::State;
 
 use crate::commands::{CmdError, Result};
+use crate::locks::Locked;
+use crate::AppState;
 
 /// The service every entry is filed under: the app id, so it stays when the name changes.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 const SERVICE: &str = "app.getpolar.desktop";
 
-/// What the web view may keep here: the auth client's own keys, nothing else.
+/// What the web view may keep here: the auth client's own keys and settings sync's copy of the
+/// keys and passphrase (src/lib/account/localSecrets.ts), nothing else; never [`vault::NAME`].
 fn allowed(name: &str) -> bool {
-    name.starts_with("polar.auth")
+    (name.starts_with("polar.auth") || name.starts_with("polar.sync."))
         && name.len() <= 64
         && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b'_')
 }
@@ -33,7 +39,7 @@ const MAX_ENTRY: usize = 1 << 20;
 /// One at a time: a split value is several entries, and two writes must not interleave.
 static LOCK: Mutex<()> = Mutex::new(());
 
-struct System;
+pub struct System;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 impl System {
@@ -88,6 +94,40 @@ impl SecretStore for System {
     }
 }
 
+/// The keychain side of `polarity.json` for this run.
+pub type Vault = vault::Vault<System>;
+
+/// Reads the keychain's secrets when `data`'s file says they are there; returns them to fill in.
+/// Blocks: called once at start-up, before anything needs a key.
+pub fn open_vault(data: &crate::store::Data) -> (Vault, Secrets) {
+    let file = serde_json::to_value(data).unwrap_or_default();
+    let _one = LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let (vault, fill) = Vault::open(Chunked::new(System, MAX_ENTRY), &file);
+    match vault.place() {
+        Place::Unreadable => {
+            tracing::warn!("the keychain couldn't be read: keys and add-on links kept there aren't loaded")
+        }
+        Place::Keychain => tracing::info!("keys and add-on links read from the keychain"),
+        Place::File => {}
+    }
+    (vault, fill)
+}
+
+/// Moves `file`'s secrets into the keychain before the saver writes it (on the saver's thread).
+pub fn take_secrets(vault: &Mutex<Vault>, file: &mut serde_json::Value) {
+    let _one = LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Err(e) = vault.locked().take(file) {
+        // Says which kind of failure, never a value.
+        tracing::warn!("keys and add-on links stay in polarity.json: {e}");
+    }
+}
+
+/// Where this device keeps its keys and add-on links: `keychain`, `file` or `unreadable`.
+#[tauri::command]
+pub fn secrets_place(state: State<'_, AppState>) -> Place {
+    state.vault.locked().place()
+}
+
 /// Runs `f` on the keychain off the async runtime: a keychain call can wait on a prompt or D-Bus.
 async fn with_keychain<T: Send + 'static>(
     name: String,
@@ -134,11 +174,15 @@ mod tests {
     use super::allowed;
 
     #[test]
-    fn only_the_auth_clients_names() {
+    fn only_the_web_views_own_names() {
         assert!(allowed("polar.auth"));
         assert!(allowed("polar.auth-code-verifier"));
         assert!(allowed("polar.auth-user"));
         assert!(!allowed("polar.settings"));
+        assert!(!allowed(polar_library::vault::NAME));
+        assert!(allowed("polar.sync.local"));
+        assert!(allowed("polar.sync.00000000-0000-4000-8000-000000000000"));
+        assert!(!allowed("polar.syncx"));
         assert!(!allowed("tmdb"));
         assert!(!allowed("polar.auth\u{0}x"));
         assert!(!allowed("polar.auth/../x"));

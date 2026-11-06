@@ -28,6 +28,7 @@ import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { StoreProblemToast } from "./components/StoreProblemToast";
 import { AccountFullToast } from "./components/AccountFullToast";
+import { SecretsSyncToast } from "./components/SecretsSyncToast";
 import { Skeleton } from "./components/ui/Skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { titlePageQuery } from "./lib/anime";
@@ -347,6 +348,7 @@ function DesktopApp() {
       {/* After Settings: it reports changes made there too, so it must never be under it or inert with the page. */}
       <StoreProblemToast tv={false} />
       <AccountFullToast tv={false} />
+      <SecretsSyncToast tv={false} />
       {!playing && <CardMenuHost />}
       <TrailerHost />
     </div>

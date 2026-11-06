@@ -79,3 +79,19 @@ test("the copied report has every step, redacted", () => {
   expect(report).toContain("<evil.example.com>");
   expect(report).not.toContain("/key/abc");
 });
+
+test("no key-like string from an add-on link reaches Copy Details", () => {
+  const config = btoa(JSON.stringify({ apiKey: "xxx" }));
+  const links = [
+    "https://addon.example.com/a8Fk2LmQ9xZ3pR7tY1wB/stream/movie/tt0000000.json",
+    `https://addon.example.com/${config}/manifest.json`,
+    "https://user:TOKEN@media.example.com/film.mkv?apikey=xxx#frag",
+  ];
+  const report = formatReport(
+    links.map((l, i) => ({ at: i * 100, text: `Asked ${l} and got nothing`, tone: "warn" as const })),
+    { app: "0.17.0", platform: "Linux", backend: "mpv", outcome: "Failed." },
+  );
+  for (const secret of ["a8Fk2LmQ9xZ3pR7tY1wB", config, "TOKEN", "apikey", "xxx", "tt0000000", "frag", "user:"]) expect(report).not.toContain(secret);
+  expect(report).toContain("Asked <addon.example.com> and got nothing");
+  expect(report).toContain("Asked <media.example.com> and got nothing");
+});

@@ -6,7 +6,9 @@ import { keys, useAddons } from "../../lib/net";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded } from "../../components/settings/rows";
-import { useSecretsNote } from "../../components/settings/secretsNote";
+import { showWhereStored, useSecretsNote } from "../../components/settings/secretsNote";
+import { useKeyGate, useSecretsPlain } from "../../components/settings/KeyWarning";
+import { linkHasKey } from "../../lib/account";
 
 const hintsTried = new Set<string>();
 
@@ -16,6 +18,8 @@ export function AddonsPage() {
   const [url, setUrl] = useState("");
   const expand = useExpanded();
   const note = useSecretsNote();
+  const gate = useKeyGate();
+  const plain = useSecretsPlain();
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: keys.addons });
@@ -45,9 +49,16 @@ export function AddonsPage() {
       {!!addons?.length && (
         <Card title="Installed" footer={note}>
           {addons.map((a) => (
-            <ExpandRow key={a.manifest.id} icon={Puzzle} title={a.manifest.name} {...expand(a.manifest.id)}>
+            <ExpandRow
+              key={a.manifest.id}
+              icon={Puzzle}
+              title={a.manifest.name}
+              caption={linkHasKey(a.manifestUrl) ? "This link contains a key" : undefined}
+              {...expand(a.manifest.id)}
+            >
               {a.manifest.description && <p className="settings-expand-text">{a.manifest.description}</p>}
               <p className="settings-expand-text settings-url">{a.manifestUrl}</p>
+              {linkHasKey(a.manifestUrl) && <KeyedLinkNote plain={plain} />}
               <div className="settings-expand-actions">
                 {a.manifest.behaviorHints?.configurable && (
                   <Button
@@ -78,14 +89,30 @@ export function AddonsPage() {
           placeholder="https://…/manifest.json"
           value={url}
           onChange={setUrl}
-          onSubmit={(u) => install.mutate(u)}
+          onSubmit={(u) => gate.guard(linkHasKey(u) ? "link" : null, () => install.mutate(u))}
           submit="Install"
           glyph={<Plus size={16} />}
           pending={install.isPending}
           pendingLabel="Installing…"
           error={install.isError && errorMessage(install.error)}
         />
+        {gate.warning}
       </Card>
     </>
+  );
+}
+
+/** Under an installed add-on whose link holds a key (#195); the warning too while keys sync unencrypted. */
+function KeyedLinkNote({ plain }: { plain: boolean }) {
+  return (
+    <p className="settings-expand-text settings-keyed" data-keyed-link>
+      <strong>This link contains a key.</strong>{" "}
+      {plain
+        ? "It's stored on your account unencrypted: anyone with access to the account server could read it. Set a passphrase to encrypt it. "
+        : "Keep it to yourself: anyone with the link can use what the key opens. "}
+      <button type="button" className="settings-link" onClick={showWhereStored}>
+        {plain ? "Set a passphrase" : "What's stored where"}
+      </button>
+    </p>
   );
 }

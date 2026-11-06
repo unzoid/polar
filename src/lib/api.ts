@@ -14,6 +14,7 @@ import type {
   Playable,
   Readiness,
   Progress,
+  SecretsPlace,
   Settings,
   Stream,
   StreamsResult,
@@ -138,4 +139,6 @@ export const api = {
   discordPresence: (activity: DiscordActivity | null) => call<void>("discord_presence", { activity }).catch(() => {}),
   /** Why saved data couldn't be read at start-up; `null` when it could. */
   storeProblem: () => call<string | null>("store_problem"),
+  /** Where this device keeps API keys and add-on links: the system's keychain, or the data file. */
+  secretsPlace: () => call<SecretsPlace>("secrets_place"),
 };

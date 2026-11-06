@@ -1,7 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { api } from "../../lib/api";
-import { sync } from "../../lib/account";
+import { linkHasKey, sync } from "../../lib/account";
+import { useKeyGate } from "./KeyWarning";
 import { errorMessage } from "../../lib/errors";
 import { needsMeta, parseStremioExport, planImport, watchedCount, type ImportChoice, type Skipped, type StremioExport } from "../../lib/library";
 import { concurrency, keys, useAddons } from "../../lib/net";
@@ -81,6 +82,7 @@ export function StremioImport() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [step, setStep] = useState<string | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const gate = useKeyGate();
 
   const read = async (f: File | undefined) => {
     if (!f) return;
@@ -218,7 +220,11 @@ export function StremioImport() {
         >
           <ToggleRow title="All add-ons" caption={count(offered.length, "add-on")} checked={all} disabled={busy} onChange={(v) => setPicked(new Set(v ? offered.map((a) => a.id) : []))} />
           {offered.map((a) => (
-            <ToggleRow key={a.id} title={a.name} caption={a.description} checked={picked.has(a.id)} disabled={busy} onChange={(v) => toggle(a.id, v)} />
+            <ToggleRow
+              key={a.id}
+              title={a.name}
+              caption={linkHasKey(a.url) ? `${a.description ? `${a.description} · ` : ""}This link contains a key` : a.description}
+              checked={picked.has(a.id)} disabled={busy} onChange={(v) => toggle(a.id, v)} />
           ))}
         </Card>
       )}
@@ -233,8 +239,9 @@ export function StremioImport() {
             disabled={!!nothing}
             pending={busy}
             pendingLabel="Importing…"
-            onClick={() => void run()}
+            onClick={() => gate.guard(offered.some((a) => picked.has(a.id) && linkHasKey(a.url)) ? "link" : null, () => void run())}
           />
+          {gate.warning}
           {error && <p className="settings-error">{error}</p>}
         </Card>
       )}

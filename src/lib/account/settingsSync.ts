@@ -41,7 +41,13 @@ import {
   type Lock,
 } from "./settingsDoc";
 import type { Secrets } from "./secrets";
+import { forgetNotices, noteFirstPlainSync, secretsExposed } from "./secretsNotice";
+import { forgetPrivate, privateOf, ready, setPrivate } from "./localSecrets";
 
+/**
+ * This device's copy of a profile's settings, as last agreed with the server. Its secrets, missing
+ * links and the passphrase are kept apart, in the keychain where there is one (localSecrets.ts, #195).
+ */
 interface Saved {
   /** The document as last agreed with the server (secrets in plain text: this device's own). */
   doc: Doc;
@@ -52,21 +58,11 @@ interface Saved {
 }
 
 const storageKey = (space: string) => `polar.settingsSync.${space}`;
-const passphraseKey = (space: string) => `polar.secretsPassphrase.${space}`;
 
-/** This profile's passphrase on this device. Before #89 it was the bare passphrase. */
-function readLock(space: string): Lock {
-  const raw = localStorage.getItem(passphraseKey(space));
-  if (!raw) return {};
-  const v = storedJson(localStorage, passphraseKey(space));
-  if (!isRecord(v)) return { passphrase: raw };
-  const text = (x: unknown) => (typeof x === "string" && x ? x : undefined);
-  const pending = v.pending === "set" || v.pending === "remove" ? v.pending : undefined;
-  return { passphrase: text(v.passphrase), previous: text(v.previous), pending };
-}
+/** This profile's passphrase on this device. */
+const readLock = (space: string): Lock => privateOf(space).lock;
 function writeLock(space: string, lock: Lock) {
-  if (lock.passphrase) storeLocal(passphraseKey(space), JSON.stringify(lock));
-  else localStorage.removeItem(passphraseKey(space));
+  setPrivate(space, { ...privateOf(space), lock: lock.passphrase ? lock : {} });
 }
 
 /** Settings → Account: a new passphrase for this account's keys and add-on links; the next round seals them with it. */
@@ -136,13 +132,11 @@ function load(space: string): Saved | null {
   const v = storedJson(localStorage, storageKey(space));
   if (!isRecord(v) || !isRecord(v.doc)) return null;
   const doc = readDoc(v.doc);
-  if (isRecord(v.doc.secrets)) doc.secrets = { keys: readKeys(v.doc.secrets.keys), addons: strings(v.doc.secrets.addons) };
+  const own = privateOf(space);
+  if (own.secrets) doc.secrets = own.secrets;
   if (typeof v.doc.unopened === "string") doc.unopened = v.doc.unopened;
-  return { doc, at: typeof v.at === "number" ? v.at : 0, missing: strings(v.missing) };
+  return { doc, at: typeof v.at === "number" ? v.at : 0, missing: own.missing };
 }
-
-const readKeys = (v: unknown): Record<string, string> =>
-  isRecord(v) ? Object.fromEntries(Object.entries(v).filter((e): e is [string, string] => typeof e[1] === "string")) : {};
 
 /**
  * A document from the server or this device's copy, another version's included, as far as it
@@ -165,10 +159,15 @@ const knows = {
   keybinds: (k: string) => k in DEFAULT_BINDINGS,
   prefs: (k: string) => (SYNCED_PREFS as readonly string[]).includes(k),
 };
-const save = (space: string, s: Saved) => storeLocal(storageKey(space), JSON.stringify(s));
+function save(space: string, { doc: { secrets, ...doc }, at, missing }: Saved) {
+  setPrivate(space, { ...privateOf(space), secrets, missing });
+  storeLocal(storageKey(space), JSON.stringify({ doc, at }));
+}
 export const forgetSettings = (space: string) => {
   localStorage.removeItem(storageKey(space));
-  localStorage.removeItem(passphraseKey(space));
+  localStorage.removeItem(`polar.secretsPassphrase.${space}`);
+  forgetPrivate(space);
+  forgetNotices(space);
 };
 
 /** True while a synced doc is being written locally, so it isn't pushed straight back. */
@@ -265,6 +264,7 @@ const restoring = new Map<string, Promise<void>>();
 /** Entering a profile: put back what this device last synced for it. */
 export function restoreSettings(space: string): Promise<void> {
   const run = (async () => {
+    await ready(space);
     const saved = load(space);
     if (!saved) return;
     const missing = await apply(saved.doc);
@@ -295,6 +295,7 @@ export function markDeviceSettings() {
  * add-ons in plain text, so signing out gives the device back exactly what it had.
  */
 export async function keepDeviceSettings(space: string) {
+  await Promise.all([ready(DEVICE), ready(space)]);
   if (localStorage.getItem(OWNER_KEY) === DEVICE) {
     const missing = load(DEVICE)?.missing ?? [];
     save(DEVICE, { doc: await current(null, missing), at: 0, missing });
@@ -316,6 +317,7 @@ export async function restoreDeviceSettings() {
  * from this device (`setupSources`, `copySetup`). Returns whether it cleared anything.
  */
 export async function startProfile(space: string): Promise<boolean> {
+  await ready(space);
   if (load(space) || getPrefs().shareAddonsAndKeys) return false;
   const [settings, installed, bundled] = await Promise.all([api.settings(), api.addons(), api.bundledAddons().catch(() => [] as string[])]);
   const own = settings as unknown as Record<string, unknown>;
@@ -354,8 +356,15 @@ export function setupSources(space: string, others: string[]): SetupSource[] {
   });
 }
 
+/** Reads the sets `setupSources` counts from the keychain; once per run each. */
+export async function setupSourcesReady(space: string, others: string[]): Promise<true> {
+  await Promise.all([DEVICE, ...others.filter((id) => id !== space)].map(ready));
+  return true;
+}
+
 /** Settings → Account's offer, taken: `from`'s keys and add-ons added to what this profile has. They sync as any change does. */
 export async function copySetup(from: string): Promise<string[]> {
+  await ready(from);
   const secrets = load(from)?.doc.secrets;
   if (!secrets) return [];
   const settings = await api.settings();
@@ -374,6 +383,7 @@ export async function copySetup(from: string): Promise<string[]> {
  */
 export async function syncSettings(space: string, backend: AccountBackend, isActive: () => boolean) {
   await restoring.get(space)?.catch(() => {});
+  await ready(space);
   for (let tries = 0; tries < 3; tries++) {
     let remote;
     try {
@@ -404,6 +414,8 @@ export async function syncSettings(space: string, backend: AccountBackend, isAct
     else if (!sameDoc(local, saved.doc) || lock.pending) next = local;
     else return;
 
+    // This device's keys are about to reach the account readable (#195): said once.
+    if (!saved && !seal && !next.unopened && secretsExposed(local.secrets)) noteFirstPlainSync(space);
     let missing = saved?.missing ?? [];
     if (theirs && !sameDoc(next, local)) missing = await apply(next);
     setLocked(space, !!next.unopened);

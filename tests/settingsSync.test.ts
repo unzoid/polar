@@ -7,11 +7,13 @@ import type { AccountBackend } from "../src/lib/account/backend";
  */
 interface Device {
   storage: Map<string, string>;
+  keychain: Map<string, string>;
   settings: Record<string, unknown>;
   addons: string[];
 }
 const device = (keys: Record<string, string> = {}, addons: string[] = []): Device => ({
   storage: new Map(),
+  keychain: new Map(),
   settings: { seekStep: 10, tmdbKey: null, omdbKey: null, ...keys },
   addons,
 });
@@ -51,6 +53,14 @@ const server = {
 let s: typeof import("../src/lib/account/settingsSync");
 beforeAll(async () => {
   s = await import("../src/lib/account/settingsSync");
+  // Each device's keychain: its own map, apart from its web view storage (#195).
+  const { setPrivateStorage } = await import("../src/lib/account/localSecrets");
+  setPrivateStorage({
+    getItem: async (k) => dev.keychain.get(k) ?? null,
+    setItem: async (k, v) => void dev.keychain.set(k, v),
+    removeItem: async (k) => void dev.keychain.delete(k),
+    peek: (k) => dev.keychain.get(k) ?? null,
+  });
 });
 const P = "profile";
 const round = () => s.syncSettings(P, server, () => true);
@@ -60,8 +70,15 @@ describe("keys and add-on links on every device (#89)", () => {
   const b = device({ omdbKey: "key-b" });
 
   test("with no passphrase they travel as they are, and a new device keeps its own key too", async () => {
+    const { onFirstPlainSync } = await import("../src/lib/account/secretsNotice");
+    const told: string[] = [];
+    const stop = onFirstPlainSync((space) => told.push(space));
     on(a);
     await round();
+    // #195: each device says once that its keys went up readable.
+    expect(told).toEqual([P]);
+    await round();
+    expect(told).toEqual([P]);
     expect(stored!.data.secrets).toEqual({ keys: { tmdbKey: "key-a" }, addons: ["https://addon.example.com/manifest.json"] });
     on(b);
     await round();
@@ -69,6 +86,8 @@ describe("keys and add-on links on every device (#89)", () => {
     expect(b.settings.omdbKey).toBe("key-b");
     expect(b.addons).toEqual(["https://addon.example.com/manifest.json"]);
     expect(s.secretsState(P)).toBe("plain");
+    expect(told).toEqual([P, P]);
+    stop();
   });
 
   test("a passphrase set on one device seals them; the other leaves the seal alone and asks", async () => {
@@ -138,6 +157,43 @@ describe("keys and add-on links on every device (#89)", () => {
     await round();
     expect(stored!.data.sealed).toBeUndefined();
     expect(s.secretsState(P)).toBe("plain");
+  });
+});
+
+describe("this device's copy of the keys (#195)", () => {
+  test("its keys, links and passphrase are in the keychain, not the web view's storage", async () => {
+    stored = null;
+    const d = device({ tmdbKey: "key-d" }, ["https://addon.example.com/TOKEN/manifest.json"]);
+    on(d);
+    s.setSecretsPassphrase(P, "staple");
+    await round();
+    const web = JSON.stringify([...d.storage]);
+    expect(web).not.toContain("key-d");
+    expect(web).not.toContain("TOKEN");
+    expect(web).not.toContain("staple");
+    expect(d.storage.has(`polar.settingsSync.${P}`)).toBe(true);
+    const kept = d.keychain.get(`polar.sync.${P}`)!;
+    expect(kept).toContain("key-d");
+    expect(kept).toContain("staple");
+    expect(s.secretsState(P)).toBe("sealed");
+  });
+
+  test("a copy an older build left in the web view's storage moves to the keychain", async () => {
+    const e = device({ tmdbKey: "key-e" });
+    on(e);
+    const doc = { settings: {}, keybinds: {}, prefs: {}, secrets: { keys: { tmdbKey: "key-e" }, addons: [] } };
+    e.storage.set(`polar.settingsSync.legacy`, JSON.stringify({ doc, at: 5, missing: ["https://addon.example.com/TOKEN/manifest.json"] }));
+    e.storage.set(`polar.secretsPassphrase.legacy`, JSON.stringify({ passphrase: "old" }));
+    await s.restoreSettings("legacy");
+    const web = JSON.stringify([...e.storage]);
+    expect(web).not.toContain("key-e");
+    expect(web).not.toContain("TOKEN");
+    expect(e.storage.has("polar.secretsPassphrase.legacy")).toBe(false);
+    expect(JSON.parse(e.storage.get("polar.settingsSync.legacy")!).at).toBe(5);
+    const kept = JSON.parse(e.keychain.get("polar.sync.legacy")!);
+    expect(kept.secrets.keys.tmdbKey).toBe("key-e");
+    expect(kept.lock.passphrase).toBe("old");
+    expect(s.secretsState("legacy")).toBe("sealed");
   });
 });
 

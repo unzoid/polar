@@ -96,13 +96,14 @@ bun run index
 1. Open Settings and add the URL of an add-on you use (one that follows the Stremio add-on protocol).
 2. Optionally add a TMDB API key.
 
-Settings, keys and add-on URLs are kept in `polarity.json` in the app's data folder (called `polar.json` in
-earlier versions; the first start renames it and keeps the old one as `polar.json.moved`). On Linux and macOS
-only your user account can read it, and Windows keeps app data per user, but it isn't encrypted:
-other programs running as you can read your keys. Your sign-in session is kept in the system's
-keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service such as GNOME Keyring
-or KWallet on Linux), under `app.getpolar.desktop`; where there is none, the app keeps it itself, as
-before. Signed in to an account, your settings, keys and add-on URLs sync between your devices.
+Settings, the library and history are kept in `polarity.json` in the app's data folder (called `polar.json` in
+earlier versions; the first start renames it and keeps the old one as `polar.json.moved`). API keys, add-on
+URLs and your sign-in session are kept in the system's keychain (Keychain on macOS, Credential Manager on
+Windows, the Secret Service such as GNOME Keyring or KWallet on Linux), under `app.getpolar.desktop`.
+Where there is none (phones for now, a Linux desktop without a Secret Service) they stay in `polarity.json`:
+on Linux and macOS only your user account can read it, and Windows keeps app data per user, but it isn't
+encrypted, so other programs running as you can read your keys. Settings → Account → API keys and addons
+says which applies on your device. Signed in to an account, your settings, keys and add-on URLs sync between your devices.
 Keys and add-on URLs are protected by your sign-in but stored readable on the server, unless you set
 a passphrase in Settings → Account → API keys and addons: then they travel encrypted, and each
 device asks for the passphrase once.
