@@ -6,7 +6,8 @@
 //   bun scripts/bundle-libmpv.ts [path/to/libmpv.2.dylib]   (default: Homebrew's)
 //
 // Writes src-tauri/vendor/libmpv/tauri.conf.json, a config fragment listing
-// the libraries for the bundle: `tauri build --config src-tauri/vendor/libmpv/tauri.conf.json`.
+// the libraries for the bundle: `tauri build --config src-tauri/vendor/libmpv/tauri.conf.json`,
+// and formulae.json, the Homebrew kegs they came from (macSources.ts packs their sources).
 //
 // The libraries run on the macOS version (and CPU) they were built for:
 // Homebrew's bottles target the Mac they were installed on. The fragment
@@ -14,6 +15,7 @@
 import { copyFileSync, chmodSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { kegsOf } from "./macSources";
 
 if (process.platform !== "darwin") process.exit(0);
 
@@ -103,8 +105,10 @@ const list = [...libs.keys()].map((p) => {
 writeFileSync(
   join(out, "licenses", "BUNDLED.txt"),
   `Polarity plays video with mpv (https://mpv.io, GPLv2+), built by Homebrew with the libraries below.\n` +
-    `Source code for each is linked from its Homebrew formula page.\n\n${list.join("\n")}\n`,
+    `The exact source code of each, with Homebrew's build recipes, is attached to every release of Polarity for macOS\n` +
+    `on GitHub (Polarity_<version>_aarch64_mpv-sources.tar), and linked from its Homebrew formula page.\n\n${list.join("\n")}\n`,
 );
+writeFileSync(join(out, "formulae.json"), JSON.stringify(kegsOf([...libs.keys()]), null, 2));
 
 // 4. The config fragment for `tauri build --config`.
 const minos = run("vtool", ["-show-build", realpathSync(source)]).match(/minos (\d+\.\d+)/)?.[1];
