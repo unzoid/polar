@@ -1,0 +1,39 @@
+name: Security vulnerability
+description: Ask for a private channel to report a vulnerability. Never put the details here, this issue is public.
+labels: [security]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Don't describe the vulnerability here.** Issues are public, so anyone could use the details before it's fixed.
+
+        If the repository's Security tab offers "Report a vulnerability", use that instead and skip this form. Otherwise, send this form and the maintainers will reply with a private way to share the details. See [SECURITY.md](https://github.com/unzoid/polarity/blob/master/SECURITY.md) for what is in scope.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Roughly what it affects
+      description: Only the area, nothing that hints at how it works.
+      options:
+        - The app on a device
+        - The account server or sync
+        - The website
+        - The build or release process
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How serious you think it is
+      options:
+        - Other people's data could be read or changed
+        - Someone could run code on a user's device
+        - Something smaller
+        - Not sure
+  - type: checkboxes
+    id: nodetails
+    attributes:
+      label: Before you send
+      options:
+        - label: This issue contains no details of the vulnerability, no steps to reproduce it and no proof of concept.
+          required: true
