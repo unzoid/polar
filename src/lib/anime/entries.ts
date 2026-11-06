@@ -25,6 +25,8 @@ export type EpisodeRun = [season: number, first: number, last: number, number: n
 export interface EntryRecord {
   title: AnimeTitle;
   cover?: string;
+  /** AniList's banner of the entry: its page's background with seasons as separate shows (#194). */
+  banner?: string;
   runs: EpisodeRun[];
   /** ms, when it was last lined up: when two entries claim an episode, the later wins. */
   at: number;
@@ -74,7 +76,7 @@ function readSaved(v: unknown): Saved {
       if (!isRecord(e) || !isRecord(e.title) || count(anilist) === undefined) continue;
       const runs = listOf(e.runs, (r) => (Array.isArray(r) && r.length === 4 && r.every((n) => count(n) !== undefined) ? (r as EpisodeRun) : undefined));
       const title: AnimeTitle = { romaji: str(e.title.romaji), english: str(e.title.english), native: str(e.title.native) };
-      (out[titleId] ??= {})[anilist] = { title, cover: str(e.cover), runs, at: count(e.at) ?? 0 };
+      (out[titleId] ??= {})[anilist] = { title, cover: str(e.cover), banner: str(e.banner), runs, at: count(e.at) ?? 0 };
     }
   }
   return out;
@@ -101,13 +103,13 @@ export function entryStore(storage: KeyValue | undefined, now: () => number = Da
 
   return {
     /** An entry's episodes as they were lined up with its title's videos: `[videoId, number in the entry]`. Replaces what it had. */
-    remember(titleId: string, anilist: number, show: { title: AnimeTitle; cover?: string | null }, episodes: [string, number][]) {
+    remember(titleId: string, anilist: number, show: { title: AnimeTitle; cover?: string | null; banner?: string | null }, episodes: [string, number][]) {
       const runs = runsOf(titleId, episodes);
       if (!runs.length) return;
       const all = load();
       const entries = (all[titleId] ??= {});
       const old = entries[anilist];
-      const next: EntryRecord = { title: show.title, cover: show.cover ?? undefined, runs, at: now() };
+      const next: EntryRecord = { title: show.title, cover: show.cover ?? undefined, banner: show.banner ?? undefined, runs, at: now() };
       if (old && JSON.stringify({ ...old, at: 0 }) === JSON.stringify({ ...next, at: 0 }) && now() - old.at < 86_400_000) return;
       entries[anilist] = next;
       save();
@@ -137,11 +139,16 @@ export function entryStore(storage: KeyValue | undefined, now: () => number = Da
 }
 
 /**
- * A title's page as one entry's (TV mode with seasons as separate shows): the entry's name and poster,
- * and only its episodes, as one season numbered as in the entry. Each keeps its video id, so playing
- * and progress stay the stored title's.
+ * A title's page as one entry's (TV mode with seasons as separate shows): the entry's name, poster and
+ * banner as its background (#194: the title's own is the same for every season), and only its episodes,
+ * as one season numbered as in the entry. Each keeps its video id, so playing and progress stay the
+ * stored title's.
  */
-export function entryMeta<M extends { name: string; poster?: string; logo?: string; videos: Video[] }>(meta: M, entry: EntryRecord, name: string): M {
+export function entryMeta<M extends { name: string; poster?: string; background?: string; logo?: string; videos: Video[] }>(
+  meta: M,
+  entry: EntryRecord,
+  name: string,
+): M {
   const videos = meta.videos.flatMap((v) => {
     const ref = parseVideoId(v.id);
     if (ref?.episode === undefined) return [];
@@ -149,7 +156,7 @@ export function entryMeta<M extends { name: string; poster?: string; logo?: stri
     const run = entry.runs.find(([s, first, last]) => s === season && first <= episode && episode <= last);
     return run ? [{ ...v, season: 1, episode: run[3] + episode - run[1] }] : [];
   });
-  return { ...meta, name, poster: entry.cover ?? meta.poster, logo: undefined, videos };
+  return { ...meta, name, poster: entry.cover ?? meta.poster, background: entry.banner ?? meta.background, logo: undefined, videos };
 }
 
 export const animeEntries = entryStore(typeof localStorage === "undefined" ? undefined : localStorage);
