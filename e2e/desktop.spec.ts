@@ -211,6 +211,17 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await app.waitForTimeout(1500);
   expect(await clock(app)).toBe(paused);
 
+  // A click that misses a control inside the panel, or lands just past it, leaves it open; clearly outside closes it (#202).
+  await app.getByRole("button", { name: "Subtitles & Audio", exact: true }).click();
+  const overlay = app.locator(".options-overlay[data-open=true]");
+  await expect(overlay).toBeVisible();
+  const [audio, subs] = await Promise.all([0, 1].map((i) => app.locator(".options-column").nth(i).boundingBox()));
+  await app.mouse.click((audio!.x + audio!.width + subs!.x) / 2, audio!.y + 40);
+  await app.mouse.click(audio!.x - 12, audio!.y + 40);
+  await expect(overlay).toBeVisible();
+  await app.mouse.click(8, 8 + 450);
+  await expect(app.locator(".options-overlay")).toHaveCount(0);
+
   await app.getByRole("button", { name: "Sources", exact: true }).click();
   // The source bar's controls never stick out past the list (re-test N9), at any width.
   for (const width of [1440, 1100]) {
