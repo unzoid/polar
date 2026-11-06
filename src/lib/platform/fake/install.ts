@@ -87,12 +87,25 @@ const commands: Record<string, (a: Args) => unknown> = {
   // Discord: what the player sends is kept for browser tests to read.
   discord_available: () => true,
   discord_presence: (a) => void ((window as { __discord?: unknown[] }).__discord ??= []).push(a.activity),
-  resolve_stream: (a) => ({ kind: "url", url: (a.stream as { url: string }).url }),
-  torrent_open: () => Promise.reject({ code: "unsupported", message: "Torrent sources play in the desktop app." }),
+  resolve_stream: (a) => {
+    const stream = a.stream as { url?: string; infoHash?: string };
+    return stream.infoHash ? { kind: "torrent" } : { kind: "url", url: stream.url };
+  },
+  // Each open is counted for browser tests (#137); the fake has no engine.
+  torrent_open: () => {
+    const w = window as { __torrentOpens?: number };
+    w.__torrentOpens = (w.__torrentOpens ?? 0) + 1;
+    return Promise.reject({ code: "unsupported", message: "Torrent sources play in the desktop app." });
+  },
   torrent_close: () => undefined,
   stream_probe: (a) => a.url,
   // One source a placeholder, the rest quick (#21).
-  stream_ready: (a) => (String(a.url).endsWith("/1.mp4") ? { state: "notReady", reason: "Not ready at the source" } : { state: "ready", ms: 400 }),
+  stream_ready: (a) =>
+    String(a.url).endsWith("/1.mp4")
+      ? { state: "notReady", reason: "Not ready at the source" }
+      : String(a.url).endsWith(".html")
+        ? { state: "notReady", reason: "Answered with a page, not a video" }
+        : { state: "ready", ms: 400 },
   space_untitled: () => [],
   sync_changes: () => ({ library: [], progress: [], links: [], cursor: 0, pulledAt: null }),
   // Window, app and plugin calls: answered with nothing.

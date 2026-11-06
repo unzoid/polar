@@ -15,11 +15,12 @@
 //
 // Signing key: ~/.tauri/polar.key (or TAURI_SIGNING_PRIVATE_KEY). Back it up:
 // without it, installed copies can't verify — and so won't take — new builds.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { requireAccountEnv } from "./accountEnv";
+import { mpvVersion, vendoredMpvVersion } from "./windowsMpv";
 
 const REPO = "unzoid/polar";
 const root = join(import.meta.dir, "..");
@@ -79,6 +80,20 @@ for (const f of [setup, `${setup}.sig`, msi, `${msi}.sig`]) {
     process.exit(1);
   }
 }
+// The bundled mpv.exe must be the build of this checkout's scripts/windows-mpv.lock, with the exact
+// sources it was built from beside it (scripts/fetch-mpv.ts): those are attached to the release.
+const mpv = vendoredMpvVersion(root);
+if (mpv !== mpvVersion(root)) {
+  console.error(
+    mpv
+      ? `src-tauri/vendor/mpv holds mpv build ${mpv}, not ${mpvVersion(root)}: delete src-tauri/vendor/mpv and build again.`
+      : "src-tauri/vendor/mpv isn't a whole mpv build with its sources (empty stand-ins?): delete it and build again.",
+  );
+  process.exit(1);
+}
+const sourcesFrom = join(root, "src-tauri", "vendor", "mpv-sources", "polarity-windows-mpv-sources.tar");
+const sources = join(bundle, `Polarity_${version}_x64_mpv-sources.tar`);
+copyFileSync(sourcesFrom, sources);
 const download = (file: string) => `https://github.com/${REPO}/releases/download/v${version}/${file.split(/[\\/]/).pop()}`;
 const sig = (file: string) => readFileSync(`${file}.sig`, "utf8").trim();
 const nsis = { signature: sig(setup), url: download(setup) };
@@ -103,7 +118,7 @@ const body = `Polarity for Windows (x64).
 ### What's new
 ${notes}
 
-mpv is still bundled (GPLv2+); its license and source links are installed under \`licenses/mpv\`.
+mpv is bundled (GPLv2+, with FFmpeg and the libraries listed in \`licenses/mpv/BUNDLED.txt\`); its licences are installed under \`licenses/mpv\`, and the exact source code it was built from, with the build scripts, is \`Polarity_${version}_x64_mpv-sources.tar\` below.
 `;
 const bodyPath = join(bundle, "release-body.md");
 writeFileSync(bodyPath, body);
@@ -113,6 +128,6 @@ run("gh", [
   "--title", `"Polarity ${version}"`,
   "--notes-file", `"${bodyPath}"`,
   ...(flags.has("--draft") ? ["--draft"] : []),
-  `"${setup}"`, `"${msi}"`, `"${feedPath}"`,
+  `"${setup}"`, `"${msi}"`, `"${feedPath}"`, `"${sources}"`,
 ]);
 console.log(`\nReleased Polarity ${version}. Commit the version bump: git commit -am "Release ${version}"`);

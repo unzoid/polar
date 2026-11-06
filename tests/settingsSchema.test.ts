@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import "./storageStub";
 import { readdirSync, readFileSync } from "node:fs";
 import { getPrefs, type Prefs } from "../src/lib/settings/prefs";
 import {

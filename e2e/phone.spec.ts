@@ -96,3 +96,94 @@ test("on touch, an episode's Sources and Download buttons are always there, in t
     expect(await ep.locator(sel).evaluate((b) => getComputedStyle(b).opacity)).toBe("1");
   }
 });
+
+test("a phone has no TV mode (#141)", async ({ app }) => {
+  await expect(app.getByRole("button", { name: "TV mode" })).toHaveCount(0);
+});
+
+test("the season picker keeps its own row on a phone (#151)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).tap();
+  await card(app, "Kingsbridge").tap();
+  const picker = app.locator(".seasons-picker");
+  await expect(picker).toBeVisible();
+  const box = await picker.boundingBox();
+  // The whole bar's width, not squeezed beside Download Season and the layout switch.
+  expect(box!.width).toBeGreaterThan(app.viewportSize()!.width * 0.8);
+  expect(await fitsWidth(app)).toBe(true);
+});
+
+test("settings on a phone: the sections, then one section with a way back", async ({ app }) => {
+  await app.getByRole("button", { name: /^Profile/ }).tap();
+  await app.getByRole("menuitem", { name: "Settings" }).tap();
+  // Not by name: on a phone the header shows only the open section, and that names the dialog ("Browsing").
+  const settings = app.getByRole("dialog");
+  await expect(settings).toHaveAccessibleName(/^Settings/);
+  const browsing = settings.getByRole("button", { name: "Browsing", exact: true });
+  await expect(browsing).toBeVisible();
+  await browsing.tap();
+  await expect(settings.getByRole("switch", { name: /^Show the Calendar/ })).toBeVisible();
+  await expect(settings).toHaveAccessibleName("Browsing");
+  await expect(browsing).toBeHidden();
+  await settings.getByRole("button", { name: "All settings" }).tap();
+  await expect(browsing).toBeVisible();
+  await settings.getByRole("button", { name: "Close settings" }).tap();
+  await expect(settings).toHaveCount(0);
+});
+
+/** A notched phone's insets (in CSS px), set on the page as the webview would report them. */
+async function insets(page: Page, i: { top: number; right: number; bottom: number; left: number }) {
+  await page.evaluate((i) => {
+    const s = document.documentElement.style;
+    for (const [side, px] of Object.entries(i)) s.setProperty(`--safe-${side}`, `${px}px`);
+  }, i);
+}
+
+/** Every control in the player's bars lies inside the screen less the insets. */
+async function controlsClearOf(page: Page, i: { top: number; right: number; bottom: number; left: number }) {
+  const { width, height } = page.viewportSize()!;
+  const boxes = await page.locator(".player :is(.player-top, .player-bottom) :is(button, input)").evaluateAll((els) =>
+    els.filter((e) => (e as HTMLElement).offsetParent).map((e) => ({ name: e.getAttribute("aria-label") ?? e.textContent, ...e.getBoundingClientRect().toJSON() })),
+  );
+  expect(boxes.length).toBeGreaterThan(3);
+  for (const b of boxes) {
+    expect.soft(b.top, `${b.name} below the top inset`).toBeGreaterThanOrEqual(i.top);
+    expect.soft(b.bottom, `${b.name} above the bottom inset`).toBeLessThanOrEqual(height - i.bottom);
+    expect.soft(b.left, `${b.name} right of the left inset`).toBeGreaterThanOrEqual(i.left);
+    expect.soft(b.right, `${b.name} left of the right inset`).toBeLessThanOrEqual(width - i.right);
+  }
+}
+
+async function openPlayer(page: Page) {
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).tap();
+  await card(page, "The Glass Orchard").tap();
+  await page.getByRole("button", { name: "Play", exact: true }).tap();
+  const player = page.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  await expect(player).toHaveAttribute("data-chrome", "false");
+  await player.tap({ position: { x: 200, y: 300 } });
+  await expect(player).toHaveAttribute("data-chrome", "true");
+}
+
+test("the player's controls keep clear of the notch and the home indicator, upright and sideways (#172)", async ({ app }) => {
+  const upright = { top: 59, right: 0, bottom: 34, left: 0 };
+  await insets(app, upright);
+  await openPlayer(app);
+  await controlsClearOf(app, upright);
+
+  await app.setViewportSize({ width: 915, height: 412 });
+  const sideways = { top: 0, right: 59, bottom: 21, left: 59 };
+  await insets(app, sideways);
+  await controlsClearOf(app, sideways);
+});
+
+test.describe("on a tablet", () => {
+  test.use({ viewport: { width: 1180, height: 820 } });
+
+  test("the player's controls keep clear of the status bar and the home indicator (#172)", async ({ app }) => {
+    await expect(app.locator("html")).toHaveAttribute("data-form", "tablet");
+    const tablet = { top: 24, right: 0, bottom: 20, left: 0 };
+    await insets(app, tablet);
+    await openPlayer(app);
+    await controlsClearOf(app, tablet);
+  });
+});

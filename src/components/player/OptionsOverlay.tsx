@@ -36,8 +36,10 @@ export interface OptionColumn {
   onSelect: (id: string) => void;
   /** Shown when the column has nothing to pick. */
   empty?: string;
-  /** Wide columns hold rich rows (episodes, sources); narrow ones plain labels. */
-  size?: "narrow" | "medium" | "wide";
+  /** Wide columns hold rich rows (sources); narrow ones plain labels; full spans the screen (the episode rail). */
+  size?: "narrow" | "medium" | "wide" | "full";
+  /** The title is for screen readers only: the header stands in for it (the season dropdown above the episodes). */
+  titleHidden?: boolean;
   /** Controls shown beside the title (filters, sort). */
   header?: ReactNode;
   /** Shown instead of the rows (e.g. subtitle settings in place of the language list). */
@@ -146,7 +148,9 @@ export function OptionsOverlay({
         {columns.map((col, c) => (
           <section key={col.title} className="options-column" data-column={c} data-size={col.size ?? "narrow"}>
             <div className="options-head">
-              <h2 className="options-title">{col.title}</h2>
+              <h2 className="options-title" data-hidden={col.titleHidden || undefined}>
+                {col.title}
+              </h2>
               {col.header}
             </div>
             {col.content ? (

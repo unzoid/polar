@@ -58,11 +58,11 @@ machine (see `docs/unverified.md`).
 
 | Platform | Shell | Player | Storage and keys | Window | Input | Updates | State |
 |---|---|---|---|---|---|---|---|
-| Windows | Tauri 2, WebView2 | mpv process in the window (bundled by `scripts/fetch-mpv.ts`), `<video>` without it | `polarity.json` in `%APPDATA%` (Tauri's app data folder) | frameless, our buttons | keyboard, mouse, controllers (gilrs: XInput / Windows.Gaming.Input) | self-update, quiet installer | built |
+| Windows | Tauri 2, WebView2 | mpv process in the window (built by `scripts/windows-mpv.sh` in CI, bundled by `scripts/fetch-mpv.ts`), `<video>` without it | `polarity.json` in `%APPDATA%` (Tauri's app data folder) | frameless, our buttons | keyboard, mouse, controllers (gilrs: XInput / Windows.Gaming.Input) | self-update, quiet installer | built |
 | macOS | Tauri 2, WKWebView | libmpv inside the app (`macos/mpv_view.m`) | app data folder, 0600 | transparent title bar, system traffic lights | keyboard (⌘), trackpad, controllers (gilrs: IOKit) | self-update | built |
 | Linux | Tauri 2, WebKitGTK | `<video>` only: mpv can't draw into a GTK window yet, so `mpv_available` is false | XDG data folder, 0600 | our buttons | keyboard, mouse, controllers (gilrs: evdev) | self-update for an AppImage install, if a release carries one | built; mpv embedding not built |
 | Android (phone, tablet) | Tauri 2 mobile, Android System WebView (`mobile_entry_point` in `lib.rs`) | libmpv inside the app, drawing into a `SurfaceView` behind the web view (`player/android.rs`, built in CI by `scripts/android-mpv.sh`); `<video>` when the APK has no libmpv | app-private storage | the whole screen | touch; the back button and gesture as Back (`lib/platform/back.ts`, `lib/ui/systemBack.ts`: open layer, page, Home, then the app goes to the background); the web view ends at the on-screen keyboard (`MainActivity.kt`); keyboard and controllers through the WebView | Play Store / sideload; `canUpdate` false | project in `src-tauri/gen/android`, debug APK built in CI, started in an emulator nightly (`e2e/android/smoke.sh`; never run on a device yet); phone and tablet layouts built (§4) |
-| iOS, iPadOS | Tauri 2 mobile, WKWebView | `<video>` (AVFoundation: HEVC yes, MKV/AC3/DTS no); a libmpv view is cycle 3 work | app sandbox | the whole screen | touch; controllers through the Gamepad API | App Store; `canUpdate` false | not built: no Xcode project; phone and tablet layouts built (§4), not yet seen on a device |
+| iOS, iPadOS | Tauri 2 mobile, WKWebView | libmpv inside the app, drawing behind the web view (`ios/mpv_view.m`, `player/apple.rs`; an LGPL build made in CI by `scripts/ios-mpv.sh`; VideoToolbox frames in 8-bit NV12, which OpenGL ES can take); `<video>` (AVFoundation) when the build has no libmpv | app sandbox; downloads in the app's own folder, kept out of backups | the whole screen; the player hides the status bar and lets the home indicator fade (`ios/system_bars.m`) | touch; a swipe in from the left edge as Back (`lib/platform/edgeSwipe.ts`: open layer, then page; nothing at a tab's own page); controllers through the Gamepad API | App Store; `canUpdate` false | Xcode project generated in CI (`tauri ios init`), unsigned IPA built there; never run on a device or the simulator; phone and tablet layouts built (§4) |
 | Android TV | the Android build with a leanback launcher entry and a 320x180 banner; touch screen not required | as Android | as Android | fullscreen, TV mode on at every start (`MainActivity.kt` tells the page through `polarDevice.isTv()`, `isTvDevice` in `lib/platform/device.ts`) | remote D-pad as arrow keys, Back (the system Back as Escape; Back with only the menu open on Home leaves), controllers | Play Store | built into the same APK (manifest, banner, TV mode at start); never run on a TV or the TV emulator |
 | Apple TV (tvOS) | none yet: tvOS has no web view, and Tauri 2 doesn't target it | — | — | — | — | — | needs a native tvOS app (SwiftUI) using the core crates through a C/Swift binding; cycle 3 decides |
 
@@ -76,13 +76,17 @@ size and input:
   `variant="tv"`, focus moved by arrow keys, one Back stack (`lib/ui/dismiss.ts`).
 - **Phone and tablet**: the same screens, not a third copy. `src/lib/platform/formFactor.ts`
   decides the form factor (Android and iOS: phone below a 600 px shortest side, else tablet;
-  a desktop system is a tablet only with no fine pointer) and whether it's touch;
-  `mirrorFormFactor` (lib/ui) puts both on the root as `data-form` and `data-touch`, and
-  `useFormFactor()` gives them to components.
+  an iPad is a tablet in every window, Split View and Slide Over too; a desktop system is a
+  tablet only with no fine pointer), whether it's touch, and whether the window is compact;
+  `mirrorFormFactor` (lib/ui) puts them on the root as `data-form`, `data-touch` and
+  `data-compact`, and `useFormFactor()` gives them to components.
   - `data-form="phone"`: the tabs move to a bottom bar (`--tabbar-h`, pages pad by it), the
     bar and pages keep clear of the notch and home indicator (`--safe-top`/`--safe-bottom`,
     `viewport-fit=cover`), tighter gutters and smaller cards (tokens.css, shell.css).
   - `data-form="tablet"`: the desktop layout with safe areas.
+  - `data-compact="true"`: a phone or tablet window narrower than 600 px (a phone upright, an
+    iPad's Slide Over or narrow Split View): the player's title moves beside Back, its actions
+    become glyphs spread across the width, its options stack (player.css).
   - `data-touch="true"`: targets at least `--hit` (44 px), and a tap on the playing video
     shows the controls instead of pausing. Hover-only effects already sit behind
     `@media (hover: hover) and (pointer: fine)`.
@@ -127,7 +131,7 @@ read, not run, here.
 | Downloads | `components/DownloadButton.tsx`, Library → Downloads | `library/downloads.ts` | `downloads.rs` |
 | Right-click menu on cards | `components/CardMenu.tsx`; TV `tv/TvCardMenu.tsx` | `library/titleActions.ts` | — |
 | Accounts and profiles, synced | `screens/account/*` (own chunks), `components/ProfileMenu.tsx`, `Avatar.tsx` | `account/*` (`supabase.ts`, `sync.ts`, `settingsSync.ts`, `progressCodec.ts`) | `crates/library/src/sync.rs`, `supabase/migrations` (`docs/supabase-storage.md`) |
-| Watch parties | `components/party/*`, `components/player/usePartySync.ts`; TV `tv/TvJoinParty.tsx` | `party/party.ts`, `party/messages.ts` | Supabase Realtime (no server of ours) |
+| Watch parties | `components/party/*` (`PartyMenu.tsx`: the party menu), `components/player/usePartySync.ts` + `partyFollower.ts`; TV `tv/TvJoinParty.tsx`, `tv/TvPartyMenu.tsx` | `party/room.ts` (one room, clock and server injected; tests/partySim.ts simulates members for tests/partySync.test.ts and tests/partyMenu.test.ts), `party/party.ts`, `party/messages.ts` | Supabase Realtime (no server of ours) |
 | TV mode, controller and remote | `src/tv` (own chunk) | `settings/keybinds.ts`, `ui/dismiss.ts` | `controllers.rs` |
 
 ## 7. How sync flows

@@ -11,16 +11,22 @@ test("home shows the hero, Continue Watching and rows", async ({ app }) => {
 test("the featured carousel's active dot fills with a round end (#33)", async ({ app }) => {
   const fill = app.locator(".hero-dot-fill");
   await expect(fill).toHaveCount(1);
-  // Halfway through: a scaled fill would squash its rounded end flat, a rounded clip keeps it.
+  // Halfway through: a scaled fill would squash its rounded end flat; a whole pill slid halfway in under a
+  // rounded clip keeps it. Sliding is a transform, which the compositor runs (no repaint per frame, #134).
   const style = await fill.evaluate((el) => {
     const [a] = el.getAnimations();
     a.pause();
     a.currentTime = Number(a.effect!.getComputedTiming().duration) / 2;
     const s = getComputedStyle(el);
-    return { transform: s.transform, clipPath: s.clipPath };
+    const clip = getComputedStyle(el.parentElement!);
+    return { transform: s.transform, width: el.getBoundingClientRect().width, clipPath: s.clipPath, overflow: clip.overflow, radius: clip.borderRadius };
   });
-  expect(style.transform).toBe("none");
-  expect(style.clipPath).toMatch(/^inset\(0px 50% 0px 0px round/);
+  const m = style.transform.match(/^matrix\(1, 0, 0, 1, (-?[\d.]+), 0\)$/);
+  expect(m, style.transform).not.toBeNull();
+  expect(Number(m![1])).toBeCloseTo(-style.width / 2, 0);
+  expect(style.clipPath).toBe("none");
+  expect(style.overflow).toBe("hidden");
+  expect(style.radius).not.toBe("0px");
 });
 
 test("each section opens", async ({ app }) => {
@@ -297,7 +303,11 @@ test("Settings → Sources has the torrent limits, kept on this device (#47)", a
   let settings = await open();
   await expect(settings.getByRole("heading", { name: "Torrent Sources" })).toBeVisible();
   await expect(settings.getByText("Torrent cache limit")).toBeVisible();
-  await expect(settings.getByText("Torrent speed limit")).toBeVisible();
+  await expect(settings.getByText("Torrent download limit")).toBeVisible();
+  // Upload has a limit of its own, on by default; download has none (#137).
+  await expect(settings.getByRole("textbox", { name: "Torrent upload limit" })).toHaveValue("4");
+  await expect(settings.getByRole("textbox", { name: "Torrent download limit" })).toHaveValue("");
+  await expect(settings.getByRole("switch", { name: /^Explain torrent playback first/ })).toBeChecked();
   const sharing = settings.getByRole("switch", { name: /^Keep sharing after playback/ });
   // Nothing is shared after playback until the user turns it on.
   await expect(sharing).not.toBeChecked();
@@ -309,6 +319,40 @@ test("Settings → Sources has the torrent limits, kept on this device (#47)", a
   settings = await open();
   await expect(settings.getByRole("switch", { name: /^Keep sharing after playback/ })).toBeChecked();
   expect(await app.evaluate(() => JSON.parse(localStorage.getItem("polar.prefs") ?? "{}").torrentKeepSharing)).toBe(true);
+});
+
+test("the first torrent source shows a notice once: Cancel plays nothing, Play goes on and it doesn't come back (#137)", async ({ app }) => {
+  await app.addInitScript(() => localStorage.setItem("polar.fakeTorrents", "1"));
+  await app.reload();
+  const opens = () => app.evaluate(() => (window as { __torrentOpens?: number }).__torrentOpens ?? 0);
+  const play = async () => {
+    await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+    await card(app, "The Glass Orchard").click();
+    await app.getByRole("button", { name: "Play", exact: true }).click();
+  };
+  const notice = app.getByRole("dialog", { name: "Torrent playback" });
+  const player = app.locator(".player");
+
+  await play();
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText("from your add-on");
+  await expect(notice.getByRole("textbox", { name: "Upload limit" })).toHaveValue("4");
+  await notice.getByRole("button", { name: "Cancel" }).click();
+  await expect(player).toHaveCount(0);
+  expect(await opens()).toBe(0);
+
+  await play();
+  await notice.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await expect.poll(opens).toBe(1);
+  expect(await app.evaluate(() => JSON.parse(localStorage.getItem("polar.prefs") ?? "{}").torrentNotice)).toBe(false);
+  await app.keyboard.press("Escape");
+  await expect(player).toHaveCount(0);
+
+  // Once Play was chosen, the next torrent opens straight away.
+  await play();
+  await expect.poll(opens).toBe(2);
+  await expect(notice).toHaveCount(0);
 });
 
 test("a source list marks its first links ready or not ready, checked ahead of time (#21)", async ({ app }) => {

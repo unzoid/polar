@@ -21,6 +21,8 @@ pub fn endpoint(role: &str) -> String {
     }
 }
 
+/// Not on iOS, where mpv is handed its end of a socket pair instead (`start_engine`).
+#[cfg_attr(target_os = "ios", allow(dead_code))]
 pub async fn connect(endpoint: &str) -> std::io::Result<Stream> {
     #[cfg(windows)]
     {

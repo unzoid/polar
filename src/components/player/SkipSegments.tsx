@@ -33,6 +33,7 @@ export function useSkipSegments({
   preferFile,
   seekTo,
   onAutoSkipped,
+  online: lookUp = true,
 }: {
   videoId: string;
   started: boolean;
@@ -46,6 +47,8 @@ export function useSkipSegments({
   preferFile: boolean;
   seekTo: (t: number) => void;
   onAutoSkipped: (label: string) => void;
+  /** Ask IntroDB and AniSkip; off for a pasted link, which they can't know. */
+  online?: boolean;
 }) {
   const { data: online } = useQuery({
     queryKey: keys.skipSegments(videoId),
@@ -59,6 +62,7 @@ export function useSkipSegments({
     },
     staleTime: 60 * 60_000,
     retry: 1,
+    enabled: lookUp,
   });
 
   const [fromFile, setFromFile] = useState<Partial<SkipSegments>>({});

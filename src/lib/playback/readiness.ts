@@ -93,5 +93,7 @@ export const startsIn = (ms: number) => `starts in ${(Math.max(ms, 100) / 1000).
 export function readinessNote(r: Readiness): { short: string; long: string } | undefined {
   if (r.state === "ready") return { short: `Ready · ${startsIn(r.ms)}`, long: `Ready to play: this link answered with the video in ${(Math.max(r.ms, 100) / 1000).toFixed(1)} s` };
   if (r.state === "notReady") return { short: r.reason, long: r.reason };
+  if (r.state === "slow")
+    return { short: "Slow to answer", long: `No answer within ${Math.round(r.ms / 1000)} s. Some servers take a while to open a file: this one may still play.` };
   return undefined;
 }

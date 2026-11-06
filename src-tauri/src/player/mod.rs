@@ -10,8 +10,9 @@
 //!     its own process drawing into our HWND (`--wid`). On macOS a window
 //!     handle can't be shared with another process, so libmpv runs inside the
 //!     app and draws into a layer under the webview (`macos/mpv_view.m`).
-//!     On Android libmpv also runs inside the app, drawing into a surface
-//!     behind the webview ([`android`]).
+//!     On iOS libmpv runs inside the app the same way, behind the web view
+//!     (`ios/mpv_view.m`, [`apple`] for both). On Android libmpv also runs
+//!     inside the app, drawing into a surface behind the webview ([`android`]).
 //!   * We drive it over its JSON IPC (a named pipe on Windows, a Unix socket
 //!     elsewhere): commands go in with a
 //!     `request_id`, replies and property changes come back as lines.
@@ -28,6 +29,8 @@
 
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(mpv_apple)]
+mod apple;
 #[cfg(target_os = "android")]
 pub use android::preload;
 mod autocrop;
@@ -40,7 +43,7 @@ pub use commands::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Child;
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+#[cfg(not(mpv_in_app))]
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
@@ -125,12 +128,12 @@ pub(super) fn shots_dir() -> PathBuf {
     scratch_dir().join(format!("polar-mpv-{}", std::process::id()))
 }
 
-/// What runs mpv: its own process, or (macOS, Android) libmpv inside the app.
+/// What runs mpv: its own process, or (macOS, iOS, Android) libmpv inside the app.
 enum Engine {
-    #[cfg_attr(any(target_os = "macos", target_os = "android"), allow(dead_code))]
+    #[cfg_attr(mpv_in_app, allow(dead_code))]
     Process(Process),
-    #[cfg(target_os = "macos")]
-    InApp(mac::Player),
+    #[cfg(mpv_apple)]
+    InApp(apple::Player),
     #[cfg(target_os = "android")]
     InApp(android::Player),
 }
@@ -139,7 +142,7 @@ impl Engine {
     fn alive(&mut self) -> bool {
         match self {
             Engine::Process(child) => matches!(child.locked().try_wait(), Ok(None)),
-            #[cfg(any(target_os = "macos", target_os = "android"))]
+            #[cfg(mpv_in_app)]
             Engine::InApp(_) => true,
         }
     }
@@ -147,7 +150,7 @@ impl Engine {
     fn kill(self) {
         match self {
             Engine::Process(child) => kill_process(&child),
-            #[cfg(any(target_os = "macos", target_os = "android"))]
+            #[cfg(mpv_in_app)]
             Engine::InApp(player) => drop(player),
         }
     }
@@ -208,7 +211,7 @@ fn kill_process(child: &Process) {
 const MPV_EXE: &str = if cfg!(windows) { "mpv.exe" } else { "mpv" };
 
 /// mpv: next to our binary (bundled), on PATH, or a standard install.
-#[cfg_attr(any(target_os = "macos", target_os = "android"), allow(dead_code))]
+#[cfg_attr(mpv_in_app, allow(dead_code))]
 pub fn mpv_binary() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
@@ -274,133 +277,15 @@ pub fn mpv_library() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-/// libmpv inside the app on macOS; the drawing side lives in `macos/mpv_view.m`.
-#[cfg(target_os = "macos")]
-mod mac {
-    use std::ffi::{c_char, c_int, c_void, CStr, CString};
-    use std::path::Path;
-
-    extern "C" {
-        fn polar_mpv_create(
-            libpath: *const c_char,
-            nswindow: *mut c_void,
-            keys: *const *const c_char,
-            vals: *const *const c_char,
-            n: c_int,
-            err: *mut c_char,
-            errlen: usize,
-        ) -> *mut c_void;
-        fn polar_mpv_set_visible(player: *mut c_void, visible: c_int);
-        fn polar_mpv_destroy(player: *mut c_void);
-        fn polar_mpv_frames_open(player: *mut c_void) -> *mut c_void;
-        fn polar_mpv_frames_close(client: *mut c_void);
-        fn polar_mpv_frame(
-            client: *mut c_void,
-            w: *mut i64,
-            h: *mut i64,
-            stride: *mut i64,
-            data: *mut *const u8,
-            len: *mut usize,
-        ) -> *mut c_void;
-        fn polar_mpv_frame_free(frame: *mut c_void);
-    }
-
-    pub struct Player(*mut c_void);
-
-    // The pointer is only ever used through the functions above, which do
-    // their AppKit work on the main thread themselves.
-    unsafe impl Send for Player {}
-
-    impl Player {
-        /// Start mpv with `options` (name, value) and attach its video to the
-        /// window at `nswindow`. Blocks while the main thread sets it up.
-        pub fn start(lib: &Path, nswindow: usize, options: &[(String, String)]) -> Result<Self, String> {
-            let c = |s: &str| CString::new(s).map_err(|e| e.to_string());
-            let lib = c(&lib.to_string_lossy())?;
-            let keys = options.iter().map(|(k, _)| c(k)).collect::<Result<Vec<_>, _>>()?;
-            let vals = options.iter().map(|(_, v)| c(v)).collect::<Result<Vec<_>, _>>()?;
-            let key_ptrs: Vec<*const c_char> = keys.iter().map(|k| k.as_ptr()).collect();
-            let val_ptrs: Vec<*const c_char> = vals.iter().map(|v| v.as_ptr()).collect();
-            let mut err = [0 as c_char; 512];
-            let ptr = unsafe {
-                polar_mpv_create(
-                    lib.as_ptr(),
-                    nswindow as *mut c_void,
-                    key_ptrs.as_ptr(),
-                    val_ptrs.as_ptr(),
-                    options.len() as c_int,
-                    err.as_mut_ptr(),
-                    err.len(),
-                )
-            };
-            if ptr.is_null() {
-                let msg = unsafe { CStr::from_ptr(err.as_ptr()) }.to_string_lossy().into_owned();
-                return Err(if msg.is_empty() { "mpv couldn't start".into() } else { msg });
-            }
-            Ok(Self(ptr))
-        }
-
-        pub fn set_visible(&self, visible: bool) {
-            unsafe { polar_mpv_set_visible(self.0, visible as c_int) }
-        }
-
-        /// A reader of the frames this player shows, for autocrop, or `None`
-        /// when this libmpv can't hand them over.
-        pub fn frames(&self) -> Option<Frames> {
-            let client = unsafe { polar_mpv_frames_open(self.0) };
-            (!client.is_null()).then_some(Frames(client))
-        }
-    }
-
-    /// A weak client of the player's mpv: once the player is gone, reading
-    /// fails instead of touching a freed core.
-    pub struct Frames(*mut c_void);
-
-    // libmpv's client functions may be called from any thread.
-    unsafe impl Send for Frames {}
-    unsafe impl Sync for Frames {}
-
-    impl Frames {
-        /// `read` the frame shown now, unzoomed, in memory (`bgr0`); `None`
-        /// when mpv has none or the player is gone. Blocks while mpv reads
-        /// it back: call it off the async threads.
-        pub fn read<R>(&self, read: impl FnOnce(polar_player::bars::Frame<'_>) -> R) -> Option<R> {
-            let (mut w, mut h, mut stride, mut data, mut len) = (0i64, 0i64, 0i64, std::ptr::null(), 0usize);
-            let frame = unsafe { polar_mpv_frame(self.0, &mut w, &mut h, &mut stride, &mut data, &mut len) };
-            if frame.is_null() {
-                return None;
-            }
-            let ok = w > 0 && h > 0 && stride > 0 && !data.is_null();
-            let result = ok.then(|| {
-                let bytes = unsafe { std::slice::from_raw_parts(data, len) };
-                read(polar_player::bars::Frame {
-                    w: w as usize,
-                    h: h as usize,
-                    stride: stride as usize,
-                    format: polar_player::bars::PixelFormat::Bgr0,
-                    data: bytes,
-                })
-            });
-            unsafe { polar_mpv_frame_free(frame) };
-            result
-        }
-    }
-
-    impl Drop for Frames {
-        fn drop(&mut self) {
-            unsafe { polar_mpv_frames_close(self.0) }
-        }
-    }
-
-    impl Drop for Player {
-        fn drop(&mut self) {
-            unsafe { polar_mpv_destroy(self.0) }
-        }
-    }
+/// libmpv on iOS: the framework embedded in the app (scripts/ios-mpv.sh builds it).
+#[cfg(target_os = "ios")]
+pub fn mpv_library() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    Some(exe.parent()?.join("Frameworks/Libmpv.framework/Libmpv")).filter(|p| p.is_file())
 }
 
 /// The native view mpv draws into (`--wid`).
-#[cfg_attr(any(target_os = "macos", target_os = "android"), allow(dead_code))]
+#[cfg_attr(mpv_in_app, allow(dead_code))]
 fn window_id(window: &WebviewWindow) -> Result<String, String> {
     #[cfg(windows)]
     {
@@ -417,7 +302,7 @@ fn window_id(window: &WebviewWindow) -> Result<String, String> {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+#[cfg(not(mpv_in_app))]
 /// Rendering: Direct3D 11 on Windows (lighter than Vulkan, zero-copy with
 /// d3d11va); elsewhere mpv's own choice for the platform.
 fn gpu_args() -> Vec<String> {
@@ -507,10 +392,13 @@ impl Mpv {
             "--demuxer-max-bytes=64MiB".into(),
             "--demuxer-max-back-bytes=16MiB".into(),
         ]);
+        // iPhones and iPads: their cache, audio output, certificates and VideoToolbox frames.
+        #[cfg(target_os = "ios")]
+        base.extend(polar_player::tune::IOS_ARGS.iter().map(|a| a.to_string()));
         let (engine, client) = start_engine(window, base, &pipe).await?;
         *self.process.locked() = match &engine {
             Engine::Process(child) => Some(child.clone()),
-            #[cfg(any(target_os = "macos", target_os = "android"))]
+            #[cfg(mpv_in_app)]
             Engine::InApp(_) => None,
         };
         let (reader, writer) = tokio::io::split(client);
@@ -575,14 +463,14 @@ impl Mpv {
         let _ = std::fs::remove_dir_all(shots_dir());
     }
 
-    /// Show or hide the video layer (macOS, where it's ours to manage; on
+    /// Show or hide the video layer (macOS and iOS, where it's ours to manage; on
     /// Windows mpv's child window and on Android its surface simply sit under the page).
     async fn set_visible(&self, visible: bool) {
-        #[cfg(target_os = "macos")]
+        #[cfg(mpv_apple)]
         if let Some(Conn { engine: Engine::InApp(player), .. }) = self.conn.lock().await.as_ref() {
             player.set_visible(visible);
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(mpv_apple))]
         let _ = visible;
     }
 
@@ -612,7 +500,7 @@ impl Mpv {
 }
 
 /// Start mpv for `window` with `base` options and connect to its IPC.
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+#[cfg(not(mpv_in_app))]
 async fn start_engine(
     window: &WebviewWindow,
     mut base: Vec<String>,
@@ -646,10 +534,53 @@ async fn start_engine(window: &WebviewWindow, base: Vec<String>, pipe: &str) -> 
         .filter_map(|a| a.strip_prefix("--")?.split_once('='))
         .map(|(k, v)| (k.to_owned(), v.to_owned()))
         .collect();
-    let player = tokio::task::spawn_blocking(move || mac::Player::start(&lib, nswindow, &options))
+    let player = tokio::task::spawn_blocking(move || apple::Player::start(&lib, nswindow, &options))
         .await
         .map_err(|e| e.to_string())??;
     Ok((Engine::InApp(player), connect_in_app(pipe).await?))
+}
+
+/// iOS: libmpv in-process as on macOS, drawing behind the web view (`ios/mpv_view.m`). Its
+/// control connection is one end of a socket pair handed to mpv (`--input-ipc-client`) rather
+/// than a socket file: the app's folder paths can be longer than a socket's name may be (104
+/// bytes), on the simulator always.
+#[cfg(target_os = "ios")]
+async fn start_engine(window: &WebviewWindow, base: Vec<String>, _pipe: &str) -> Result<(Engine, IpcStream), String> {
+    use std::os::fd::AsRawFd;
+
+    let lib = mpv_library().ok_or("this build has no libmpv")?;
+    let webview = web_view(window).await?;
+    let (ours, theirs) = std::os::unix::net::UnixStream::pair().map_err(|e| e.to_string())?;
+    ours.set_nonblocking(true).map_err(|e| e.to_string())?;
+    let client = IpcStream::from_std(ours).map_err(|e| e.to_string())?;
+    let fd = format!("--input-ipc-client=fd://{}", theirs.as_raw_fd());
+    let options: Vec<(String, String)> = base
+        .iter()
+        .map(String::as_str)
+        .filter(|a| !a.starts_with("--input-ipc-server="))
+        .chain(MODERN_ARGS.iter().copied())
+        .chain(["--vo=libmpv", fd.as_str()])
+        .filter_map(|a| a.strip_prefix("--")?.split_once('='))
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+    let player = tokio::task::spawn_blocking(move || apple::Player::start(&lib, webview, &options))
+        .await
+        .map_err(|e| e.to_string())??;
+    // mpv owns its end now and closes it when it quits; until it started, dropping it here closed it.
+    std::mem::forget(theirs);
+    Ok((Engine::InApp(player), client))
+}
+
+/// The window's `WKWebView`, which the video goes behind on iOS.
+#[cfg(target_os = "ios")]
+async fn web_view(window: &WebviewWindow) -> Result<usize, String> {
+    let (tx, rx) = oneshot::channel();
+    window
+        .with_webview(move |webview| {
+            let _ = tx.send(webview.inner() as usize);
+        })
+        .map_err(|e| e.to_string())?;
+    rx.await.map_err(|_| "the web view went away".to_owned())
 }
 
 /// Android: libmpv in-process, drawing into the surface behind the webview ([`android`]).
@@ -686,7 +617,7 @@ async fn connect_in_app(pipe: &str) -> Result<IpcStream, String> {
 /// Spawn mpv and connect to its IPC pipe. `Ok(None)` means mpv exited before
 /// the pipe appeared (only reported when `modern` is set, so the caller can
 /// retry without the newer options).
-#[cfg(not(any(target_os = "macos", target_os = "android")))]
+#[cfg(not(mpv_in_app))]
 async fn launch(
     bin: &PathBuf,
     base: &[String],

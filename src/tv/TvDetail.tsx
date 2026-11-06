@@ -11,7 +11,7 @@ import { ProgressBar } from "../components/title/Card";
 import { Still } from "../components/StillPlaceholder";
 import { animeEntries, entryMeta, pickTitle, stillFor } from "../lib/anime";
 import { StreamList } from "../components/StreamList";
-import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel, shortRuntime } from "../lib/format";
+import { airLabel, episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel, shortRuntime } from "../lib/format";
 import { usePlayTarget, useTitlePlayback } from "../lib/playback";
 import { useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "../lib/net";
 import { usePrefs } from "../lib/settings";
@@ -392,10 +392,10 @@ function EpisodesPanel({
       <div className="tv-scroll tv-episodes-list" ref={list} data-nav-scroll="center" data-nav-memory>
         {episodes.map((v) => {
           const p = map.get(v.id);
-          const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
+          const { released, openable, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
           const isEntry = v.id === entryId;
           const status = !released
-            ? `Coming ${formatDate(v.released)}`
+            ? airLabel(v)
             : inProgress && p
               ? formatRemaining(p.position, p.duration)
               : [shortRuntime(meta.runtime), formatDate(v.released)].filter(Boolean).join(" · ");
@@ -403,7 +403,7 @@ function EpisodesPanel({
             <div key={v.id} className="tv-episode" data-nav-row data-video={v.id} data-unwatched={!watched}>
               <button
                 className="tv-episode-main"
-                disabled={!released}
+                disabled={!openable}
                 data-nav-entry={isEntry || undefined}
                 data-nav-default={isEntry || undefined}
                 // A started episode keeps the file it was playing.
@@ -427,7 +427,7 @@ function EpisodesPanel({
                   <span className="tv-episode-status">{status}</span>
                 </span>
               </button>
-              {released && (
+              {openable && (
                 <button className="tv-episode-sources" onClick={() => onSources(v)} aria-label={`Sources for episode ${v.episode}`}>
                   <Sources size={26} />
                 </button>

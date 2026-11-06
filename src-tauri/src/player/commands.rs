@@ -14,7 +14,7 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 use super::autocrop::autocrop;
 #[cfg(windows)]
 use super::mpv_binary;
-#[cfg(target_os = "macos")]
+#[cfg(mpv_apple)]
 use super::mpv_library;
 use super::preroll::{opening, Opening};
 use crate::commands::CmdError;
@@ -22,19 +22,35 @@ use crate::locks::Locked;
 use crate::AppState;
 
 /// Whether mpv can be the player here: it must be installed and able to draw
-/// into our window, which only Windows (`--wid`), macOS and Android (libmpv in
-/// the app) can do so far (see [`window_id`]). Elsewhere the player uses the
+/// into our window, which only Windows (`--wid`), macOS, iOS and Android (libmpv
+/// in the app) can do so far (see [`window_id`]). Elsewhere the player uses the
 /// webview's `<video>`.
 #[tauri::command]
 pub fn mpv_available() -> bool {
-    #[cfg(target_os = "macos")]
+    #[cfg(mpv_apple)]
     return mpv_library().is_some();
     #[cfg(windows)]
     return mpv_binary().is_some();
     #[cfg(target_os = "android")]
     return super::android::available();
-    #[cfg(not(any(windows, target_os = "macos", target_os = "android")))]
+    #[cfg(not(any(windows, mpv_in_app)))]
     false
+}
+
+/// Hide the system's bars while the player is open, and show them again when it closes. On
+/// iPhones and iPads: the status bar, and the home indicator until the screen is touched
+/// (ios/system_bars.m). Elsewhere nothing changes.
+#[tauri::command]
+pub fn player_system_bars(hidden: bool) {
+    #[cfg(target_os = "ios")]
+    {
+        extern "C" {
+            fn polar_set_system_bars_hidden(hide: std::ffi::c_int);
+        }
+        unsafe { polar_set_system_bars_hidden(hidden.into()) }
+    }
+    #[cfg(not(target_os = "ios"))]
+    let _ = hidden;
 }
 
 /// Load `url` (optionally starting at `start` seconds) and play. With `probe_id`,

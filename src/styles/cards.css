@@ -108,13 +108,18 @@
   --wash: blur(40px) saturate(1.5) brightness(0.75);
   filter: var(--wash);
   transform: scale(1.15); /* hide the blur's soft edges */
-  transition: opacity 600ms var(--ease-std);
+  transition:
+    opacity 600ms var(--ease-std),
+    visibility 600ms;
 }
 .hero-ambient canvas[data-baked] {
   filter: none;
 }
+/* Hidden once faded out (#134): every canvas is a compositor layer the size of
+   the window while it's visible, even at no opacity. */
 .hero-ambient canvas[data-current="false"] {
   opacity: 0;
+  visibility: hidden;
 }
 .hero-art {
   position: absolute;
@@ -243,9 +248,12 @@
     background: rgb(255 255 255 / 0.7);
   }
 }
-/* The fill is clipped to the pill (the dot itself can't clip: its hit area reaches past it). */
-.hero-dot-fill {
+/* The fill is clipped to the pill by a span of its own (the dot itself can't clip: its hit area reaches past it). */
+.hero-dot-clip {
+  position: absolute;
+  inset: 0;
   border-radius: inherit;
+  overflow: hidden;
 }
 /* Selected dot is a wider pill (swapped instantly, not animated) whose fill
    shows time until the next item — constant motion, so linear. */
@@ -256,16 +264,19 @@
 .hero-dot-fill {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   background: var(--text);
   animation: dot-fill linear both;
 }
-/* A clip rounded at its right end (the fill's own radius rounds the left), not scaleX: scaling would squash the end flat. */
+/* A whole pill sliding in from the left under the clip, so its right end stays round (#33); not scaleX,
+   which would squash the end flat, and not a clip-path, which the browser redraws on the main thread on
+   every frame for as long as Home is open (#134). A transform runs on the compositor. */
 @keyframes dot-fill {
   from {
-    clip-path: inset(0 100% 0 0 round 0 999px 999px 0);
+    transform: translateX(-100%);
   }
   to {
-    clip-path: inset(0 0 0 0 round 0 999px 999px 0);
+    transform: none;
   }
 }
 .hero-dot[aria-selected="true"]:not(:has(.hero-dot-fill)) {
@@ -322,7 +333,18 @@
   margin-top: 3rem;
   gap: 3.5rem;
 }
-.home .row-header {
+/* A long page's shelves out of view aren't drawn at all (#134): every frame that draws anything (a hover, a
+   fade) otherwise lays out the paint of the whole page for the compositor again, and Home holds a few
+   thousand elements. Their last height is kept, so nothing moves. The padding keeps the scroller's 4px
+   below the shelf (margin-block: -4px) inside what the shelf draws. Chromium only (main.tsx): WebKit
+   doesn't scroll to an element inside a shelf it skips. */
+:root[data-engine="chromium"] .home .row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 22rem;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+}
+.row-header {
   margin-bottom: 0.4rem;
 }
 .home .row-header h2 {
@@ -484,6 +506,26 @@
   --edge-shown: 0;
   pointer-events: none;
 }
+/* A shelf's edges blur only while they show (#134). Each blur layer is its own
+   compositor layer even when transparent, and a long page has two edges of
+   four layers per shelf: hundreds, laid out again on every scrolled frame. The
+   blur goes once the fade-out has finished, and comes at once with the fade-in. */
+.row-paddle .edge-blur i {
+  backdrop-filter: none;
+  transition:
+    opacity var(--dur-fast) var(--ease-std),
+    backdrop-filter 0s linear var(--dur-fast);
+}
+@media (hover: hover) and (pointer: fine) {
+  .row-viewport:hover .row-paddle .edge-blur i {
+    backdrop-filter: var(--edge-filter);
+    transition: opacity var(--dur-fast) var(--ease-std);
+  }
+}
+.row-viewport[data-start="true"] .row-paddle[data-dir="prev"] .edge-blur i,
+.row-viewport[data-end="true"] .row-paddle[data-dir="next"] .edge-blur i {
+  backdrop-filter: none;
+}
 /* Without a mouse the paddles never show, so they mustn't be there at all: a
    tap on a shelf's edge paged it instead of opening the card under the finger,
    and a swipe starting there didn't scroll. Fingers scroll the shelf. */
@@ -517,6 +559,9 @@
   -webkit-mask-image: var(--fade);
   mask-image: var(--fade);
 }
+.edge-blur i {
+  backdrop-filter: var(--edge-filter);
+}
 .edge-blur::before {
   content: "";
   background: rgb(0 0 0 / var(--edge-tint, 0.3));
@@ -524,22 +569,22 @@
   --end: 92%;
 }
 .edge-blur i:nth-child(1) {
-  backdrop-filter: blur(calc(2px * var(--edge-strength, 1)));
+  --edge-filter: blur(calc(2px * var(--edge-strength, 1)));
   --solid: 45%;
   --end: 100%;
 }
 .edge-blur i:nth-child(2) {
-  backdrop-filter: blur(calc(6px * var(--edge-strength, 1)));
+  --edge-filter: blur(calc(6px * var(--edge-strength, 1)));
   --solid: 32%;
   --end: 82%;
 }
 .edge-blur i:nth-child(3) {
-  backdrop-filter: blur(calc(14px * var(--edge-strength, 1)));
+  --edge-filter: blur(calc(14px * var(--edge-strength, 1)));
   --solid: 20%;
   --end: 64%;
 }
 .edge-blur i:nth-child(4) {
-  backdrop-filter: blur(calc(28px * var(--edge-strength, 1)));
+  --edge-filter: blur(calc(28px * var(--edge-strength, 1)));
   --solid: 0%;
   --end: 44%;
 }
@@ -889,6 +934,79 @@
 /* A phone swipes the card (Home.tsx useHeroSwipe); the dots still pick one. */
 :root[data-form="phone"] .hero-steps {
   display: none;
+}
+/* A phone's featured card, as Netflix's: the art with the title treatment centred low on it,
+   the kind and genres under it, and two equal buttons across the bottom (Watch Now | Save).
+   The synopsis waits on the title's page; on a card this size it covered the picture. */
+:root[data-form="phone"] .hero {
+  padding-top: calc(var(--nav-h) + 0.25rem);
+}
+:root[data-form="phone"] .hero-card {
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.14),
+    0 24px 48px -24px rgb(0 0 0 / 0.9);
+}
+:root[data-form="phone"] .hero-scrim {
+  background: linear-gradient(to top, rgb(0 0 0 / 0.85) 0%, rgb(0 0 0 / 0.45) 30%, transparent 55%);
+}
+:root[data-form="phone"] :is(.hero-content, .home .hero-content) {
+  left: 1rem;
+  right: 1rem;
+  bottom: 2.25rem;
+  width: auto;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+:root[data-form="phone"] :is(.hero-logo, .home .hero-logo) {
+  max-width: 82%;
+  max-height: 96px;
+  margin-bottom: 0.25rem;
+  object-position: center bottom;
+}
+:root[data-form="phone"] .hero-title {
+  text-align: center;
+}
+:root[data-form="phone"] :is(.hero-kind, .home .hero-kind) {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+:root[data-form="phone"] .hero-description {
+  display: none;
+}
+:root[data-form="phone"] .hero-actions {
+  align-self: stretch;
+  gap: 0.625rem;
+  margin-top: 0.5rem;
+}
+:root[data-form="phone"] :is(.hero-actions, .home .hero-actions) .btn {
+  flex: 1 1 0;
+  justify-content: center;
+  height: 44px;
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  font-size: var(--fs-base);
+  font-weight: 650;
+}
+:root[data-form="phone"] :is(.hero-actions, .home .hero-actions) .btn svg {
+  width: 20px;
+  height: 20px;
+}
+:root[data-form="phone"] .hero-pager {
+  bottom: 0.625rem;
+}
+:root[data-form="phone"] .hero-dots {
+  padding: 3px 4px;
+  background: none;
+  backdrop-filter: none;
+}
+:root[data-form="phone"] .hero-dot {
+  width: 6px;
+  height: 6px;
+}
+:root[data-form="phone"] .hero-dot[aria-selected="true"] {
+  width: 18px;
 }
 
 @media (prefers-reduced-motion: reduce) {

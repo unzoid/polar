@@ -104,6 +104,12 @@ export interface PartyPresence {
   waiting: boolean;
   /** Out of the player, browsing for what's next: still in the room, but it doesn't wait for them. */
   away?: boolean;
+  /** Stalled mid-video: shown, not waited for. */
+  buffering?: boolean;
+  /** Just joined, not yet let in by the host: not shown as a member, not listened to (#156). */
+  knock?: boolean;
+  /** Counts up with each update this member sends, so the newest entry wins when presence holds more than one. */
+  seq?: number;
 }
 
 /** A live watch-party room: small messages to everyone in it, and who's there. */

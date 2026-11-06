@@ -8,6 +8,7 @@
   "RankedStream": ["addon","label","quality","score","stream"],
   "Readiness.notReady": ["reason","state"],
   "Readiness.ready": ["ms","state"],
+  "Readiness.slow": ["ms","state"],
   "Readiness.unchecked": ["state"],
   "Stream": ["behaviorHints","description","externalUrl","fileIdx","infoHash","name","sources","title","url","ytId"],
   "StreamQuality": ["codec","direct","dolbyVision","hdr","languages","lowQualitySource","resolution","sizeBytes","source","tags"],

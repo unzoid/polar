@@ -2,3 +2,12 @@
 .empty-state {
   padding: 3rem var(--gutter) 3rem var(--content-start);
 }
+/* A phone: centred in the room under the heading, as a phone app's empty screens are. */
+:root[data-form="phone"] .empty-state {
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: 4rem var(--gutter);
+  text-align: center;
+  text-wrap: balance;
+  color: var(--text-2);
+}

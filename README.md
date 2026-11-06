@@ -27,7 +27,7 @@
 - Skip intros and recaps, and skip filler episodes in anime
 - Subtitle, sound and picture settings that apply straight away, even mid-video
 - Source filters, and a check of a stream before it plays
-- Torrent streams that your own add-ons return play with a built-in engine on desktop, with a cache limit, an optional speed limit and nothing shared after playback unless you turn it on
+- Torrent streams that your own add-ons return play with a built-in engine on desktop, after a one-time notice of what that does, with a cache limit, an upload limit (on by default), an optional download limit and nothing shared after playback unless you turn it on
 - Resume where you left off
 - AirPlay to an Apple TV or AirPlay TV on macOS, for files the receiver can play
 
@@ -109,6 +109,9 @@ explains how to play one in Polarity and how to credit it.
 ## Licence
 
 MIT, see [LICENSE](LICENSE). Bundled fonts, avatars and mpv keep their own licences: [docs/licensing.md](docs/licensing.md).
+
+## Donate
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/polarityapp)
 
 ## Built with
 

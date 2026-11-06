@@ -19,7 +19,7 @@ import {
   useRecommend,
   useSettings,
 } from "../lib/net";
-import { prefersReducedMotion, useNearViewport } from "../lib/ui";
+import { prefersReducedMotion, useFormFactor, useNearViewport } from "../lib/ui";
 import { useRouter } from "../lib/router";
 import { progressItem, shelfKey, shelfRoute, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/catalog";
 import { cardMenu } from "../components/CardMenu";
@@ -193,7 +193,9 @@ export function HeroCarousel({
                 onClick={() => setIndex(i)}
               >
                 {i === index && !paused && (
-                  <span key={index} className="hero-dot-fill" style={{ animationDuration: `${ADVANCE_MS}ms` }} />
+                  <span key={index} className="hero-dot-clip">
+                    <span className="hero-dot-fill" style={{ animationDuration: `${ADVANCE_MS}ms` }} />
+                  </span>
                 )}
               </button>
             ))}
@@ -271,6 +273,8 @@ function HeroContent({ item }: { item: MetaPreview }) {
   const { navigate } = useRouter();
   const intent = useIntent(item);
   const open = () => navigate({ name: "detail", type: item.type, id: item.id, preview: item });
+  // A phone's card is Netflix's: Watch Now and Save side by side, each half the width (cards.css).
+  const phone = useFormFactor().form === "phone";
 
   return (
     <div className="hero-content">
@@ -281,7 +285,7 @@ function HeroContent({ item }: { item: MetaPreview }) {
         <Button variant="primary" onClick={open} {...intent}>
           <Play size={18} fill="currentColor" /> Watch Now
         </Button>
-        <LibraryButton item={item} />
+        <LibraryButton item={item} labelled={phone} />
       </div>
     </div>
   );

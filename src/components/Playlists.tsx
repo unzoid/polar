@@ -32,7 +32,8 @@ export function PlaylistButton({ item }: { item: MetaPreview }) {
       >
         <PlaylistIcon size={20} />
       </PopoverTrigger>
-      <PopoverPopup sideOffset={8} align="start" className="playlist-menu">
+      {/* Centred under its round button, as the download menu beside it is; kept off the screen's edges. */}
+      <PopoverPopup sideOffset={8} align="center" collisionPadding={12} className="playlist-menu">
         <p className="playlist-menu-title">Save to playlist</p>
         <PlaylistChecklist item={item} look="popover" />
       </PopoverPopup>

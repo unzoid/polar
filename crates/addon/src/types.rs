@@ -271,6 +271,14 @@ pub struct Subtitle {
     pub lang: String,
 }
 
+/// What a subtitles request says about the video playing, from its stream's
+/// `behaviorHints` (`videoSize`, `filename`). Empty when nothing is playing yet.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct VideoFile {
+    pub size: Option<u64>,
+    pub name: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubtitlesResponse {
     #[serde(default)]

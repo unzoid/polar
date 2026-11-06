@@ -14,6 +14,7 @@
 import { normalizeAvatar } from "../account/avatars";
 import type { PartyPresence } from "../account/backend";
 import type { ContentType } from "../types";
+import { checkLink, isLinkId, linkId } from "./links";
 
 export interface StreamHint {
   release?: string;
@@ -26,6 +27,8 @@ export interface PartyMedia {
   /** "S1:E5 · Title", for "Sam put on …". */
   label?: string;
   hint?: StreamHint;
+  /** A pasted link (#136): each member's player opens it itself. Its ids are `linkId(url)`. */
+  url?: string;
 }
 
 export interface Timeline {
@@ -41,9 +44,51 @@ export interface Timeline {
   lag: number;
 }
 
-export type PartyMessage = { t: "ping"; from: string; sent: number } | { t: "hello"; from: string } | { t: "state"; from: string; tl: Timeline };
+/**
+ * How the room runs, set by its host (#156). Versioned like the timeline:
+ * the highest `v` from whoever hosts wins.
+ */
+export interface RoomRules {
+  v: number;
+  /** Who the host handed the role to; null: the first in line hosts. */
+  host: string | null;
+  /** No new joins: the code stops working until unlocked. */
+  locked: boolean;
+  /** Who may play, pause, seek and change episodes. */
+  control: "everyone" | "host";
+  /** Hold playback while someone is loading the video. */
+  wait: boolean;
+  /** New joiners wait for the host's OK. */
+  approve: boolean;
+  /** Removed by the host: not shown, not listened to. */
+  out: string[];
+}
+
+export const DEFAULT_RULES: RoomRules = { v: 0, host: null, locked: false, control: "everyone", wait: true, approve: false, out: [] };
+
+/** Why a joiner was turned away. */
+export type Refusal = "locked" | "denied";
+
+export type PartyMessage =
+  | { t: "ping"; from: string; sent: number }
+  | { t: "hello"; from: string }
+  | { t: "bye"; from: string }
+  | { t: "state"; from: string; tl: Timeline }
+  | { t: "rules"; from: string; rules: RoomRules }
+  /** Host: let this joiner in. */
+  | { t: "admit"; from: string; to: string }
+  /** Host: turn this joiner away. */
+  | { t: "refuse"; from: string; to: string; why: Refusal }
+  /** Host: remove this member. */
+  | { t: "kick"; from: string; to: string }
+  /** Host: the party is over for everyone. */
+  | { t: "end"; from: string }
+  /** Where this member's player is, for "3 s behind". */
+  | { t: "at"; from: string; videoId: string; position: number; paused: boolean; lag: number };
 
 const ID_MAX = 64;
+/** More removals than any real party makes; the oldest drop off. */
+export const OUT_MAX = 50;
 const NAME_MAX = 40;
 const MEDIA_ID_MAX = 200;
 const LABEL_MAX = 120;
@@ -87,6 +132,12 @@ export function parseMedia(x: unknown): PartyMedia | undefined {
   const videoId = mediaId(x.videoId);
   if (!metaId || !videoId) return undefined;
   const media: PartyMedia = { type: x.type, metaId, videoId };
+  if (x.url !== undefined) {
+    // A link must be one the app would share itself, and its ids must be its own: no other title's ids on it.
+    const link = typeof x.url === "string" ? checkLink(x.url) : undefined;
+    if (!link?.ok || link.url !== x.url || videoId !== linkId(link.url) || metaId !== videoId) return undefined;
+    media.url = link.url;
+  } else if (isLinkId(metaId) || isLinkId(videoId)) return undefined;
   const label = text(x.label, LABEL_MAX);
   if (label) media.label = label;
   const release = isRecord(x.hint) ? text(x.hint.release, RELEASE_MAX) : undefined;
@@ -112,6 +163,16 @@ export function parseTimeline(x: unknown): Timeline | undefined {
   };
 }
 
+export function parseRules(x: unknown): RoomRules | undefined {
+  if (!isRecord(x) || !Number.isSafeInteger(x.v) || (x.v as number) < 1) return undefined;
+  if (typeof x.locked !== "boolean" || typeof x.wait !== "boolean" || typeof x.approve !== "boolean") return undefined;
+  if (x.control !== "everyone" && x.control !== "host") return undefined;
+  const host = x.host === null ? null : id(x.host);
+  if (host === undefined || !Array.isArray(x.out)) return undefined;
+  const out = x.out.map(id).filter((o): o is string => !!o);
+  return { v: x.v as number, host, locked: x.locked, control: x.control, wait: x.wait, approve: x.approve, out: [...new Set(out)].slice(-OUT_MAX) };
+}
+
 /** A broadcast message, or null if it isn't one this version understands. */
 export function parseMessage(x: unknown): PartyMessage | null {
   if (!isRecord(x)) return null;
@@ -121,11 +182,32 @@ export function parseMessage(x: unknown): PartyMessage | null {
     case "ping":
       return finite(x.sent) ? { t: "ping", from, sent: x.sent } : null;
     case "hello":
-      return { t: "hello", from };
+    case "bye":
+      return { t: x.t, from };
     case "state": {
       const tl = parseTimeline(x.tl);
       // A timeline speaks for its sender only.
       return tl && tl.by === from ? { t: "state", from, tl } : null;
+    }
+    case "rules": {
+      const rules = parseRules(x.rules);
+      return rules ? { t: "rules", from, rules } : null;
+    }
+    case "admit":
+    case "kick": {
+      const to = id(x.to);
+      return to ? { t: x.t, from, to } : null;
+    }
+    case "refuse": {
+      const to = id(x.to);
+      return to && (x.why === "locked" || x.why === "denied") ? { t: "refuse", from, to, why: x.why } : null;
+    }
+    case "end":
+      return { t: "end", from };
+    case "at": {
+      const videoId = mediaId(x.videoId);
+      if (!videoId || !finite(x.position) || typeof x.paused !== "boolean") return null;
+      return { t: "at", from, videoId, position: clamp(x.position, 0, POSITION_MAX), paused: x.paused, lag: finite(x.lag) ? clamp(x.lag, 0, LAG_MAX) : 0 };
     }
     default:
       return null;
@@ -144,27 +226,49 @@ export function parseMember(x: unknown, key?: string): PartyPresence | undefined
     joinedAt: x.joinedAt,
     waiting: x.waiting === true,
     ...(x.away === true ? { away: true } : {}),
+    ...(x.buffering === true ? { buffering: true } : {}),
+    ...(x.knock === true ? { knock: true } : {}),
+    ...(Number.isSafeInteger(x.seq) && (x.seq as number) > 0 ? { seq: x.seq as number } : {}),
   };
 }
 
-/** The room's member list from a presence state (key -> entries, newest last). */
+/**
+ * The room's member list from a presence state (key -> entries). A key can
+ * hold more than one entry for a while (a reconnect's old one not yet
+ * expired, an update whose old entry hasn't been dropped), in no promised
+ * order: the highest `seq` is the member's newest, the last one if none has it.
+ */
 export function parsePresence(state: Record<string, unknown[]>): PartyPresence[] {
   const members: PartyPresence[] = [];
   for (const [key, metas] of Object.entries(state)) {
-    const m = Array.isArray(metas) && metas.length ? parseMember(metas[metas.length - 1], key) : undefined;
-    if (m) members.push(m);
+    if (!Array.isArray(metas)) continue;
+    let newest: PartyPresence | undefined;
+    for (const meta of metas) {
+      const m = parseMember(meta, key);
+      if (m && (!newest || (m.seq ?? 0) >= (newest.seq ?? 0))) newest = m;
+    }
+    if (newest) members.push(newest);
   }
   return members;
 }
 
 /**
  * Whether an incoming timeline replaces ours: newer by (version, author), from
- * someone in the room, and not too far ahead unless it's the host's. `members`
+ * someone in the room (the host, if only the host controls playback), and not
+ * too far ahead unless it's the host's. `members`
  * is null until the first presence list has arrived (a joiner may hear the
  * timeline first).
  */
-export function takesOver(cur: Pick<Timeline, "v" | "by"> | null, tl: Timeline, members: readonly { id: string }[] | null, hostId: string | null) {
+export function takesOver(
+  cur: Pick<Timeline, "v" | "by"> | null,
+  tl: Timeline,
+  members: readonly { id: string }[] | null,
+  hostId: string | null,
+  hostOnly = false,
+) {
   if (members && !members.some((m) => m.id === tl.by)) return false;
+  // Only the host controls playback (#156): a member's action doesn't count, however new.
+  if (hostOnly && hostId && tl.by !== hostId) return false;
   if (!cur) return true;
   if (tl.v < cur.v || (tl.v === cur.v && tl.by < cur.by)) return false;
   return tl.v - cur.v <= V_JUMP_MAX || tl.by === hostId;

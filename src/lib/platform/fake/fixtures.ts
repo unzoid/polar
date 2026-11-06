@@ -338,9 +338,23 @@ function worstStreams(): StreamsResult {
   };
 }
 
+/** Browser tests of torrent sources (#137) set this: every source is then a made-up torrent. */
+export const TORRENTS = localStorage.getItem("polar.fakeTorrents") === "1";
+
 export function streams(): StreamsResult {
   if (WORST === "empty") return { streams: [], failed: [] };
   if (WORST) return worstStreams();
+  if (TORRENTS)
+    return {
+      streams: [1080, 720].map((resolution, k) => ({
+        addon: "Open Films",
+        stream: { infoHash: String(k).repeat(40), fileIdx: 0, name: `Open Films\n${resolution}p`, title: "WEB-DL" },
+        quality: { resolution, hdr: false, dolbyVision: false, sizeBytes: 2e9, lowQualitySource: false, direct: false, languages: ["en"], tags: [] },
+        score: 100 - k * 10,
+        label: `${resolution}p`,
+      })),
+      failed: [],
+    };
   // Two add-ons and four picture sizes: the source bar shows all its controls (quality, add-on, Filters).
   const rows: [string, number, boolean, number, string][] = [
     ["Open Films", 2160, true, 14.2e9, "WEB-DL HDR10"],

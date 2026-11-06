@@ -18,7 +18,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { appWindow, isMac } from "../lib/platform";
+import { appWindow, isDesktop, isMac } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -28,6 +28,7 @@ import {
   autoplayStreak,
   countAutoplay,
   requestHeaders,
+  videoFile,
   READY_CHECKS,
   readinessNote,
   resetAutoplay,
@@ -43,8 +44,10 @@ import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
 import { SkipButton, useSkipSegments } from "../components/player/SkipSegments";
 import { OptionsOverlay, type OptionItem } from "../components/player/OptionsOverlay";
-import { SeekButton } from "../components/player/SeekButton";
 import { VolumeHud, type VolumePing } from "../components/player/VolumeHud";
+import { EpisodeRail } from "../components/player/EpisodeRail";
+import { Dropdown } from "../components/Dropdown";
+import { SkipTransport } from "../components/player/SkipTransport";
 import { useTracks } from "../components/player/useTracks";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -56,10 +59,10 @@ import {
 } from "../components/player/SubtitleSettings";
 import { MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
-import { usePrefs, withShortcut } from "../lib/settings";
+import { getPrefs, openSettings, setPrefs, usePrefs, withShortcut } from "../lib/settings";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
-import { episodeCode, formatDate, formatRemaining, formatTime, seasonLabel } from "../lib/format";
+import { airLabel, episodeCode, formatRemaining, formatTime, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/net";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, Stream, Video } from "../lib/types";
@@ -67,15 +70,17 @@ import { playContext, stillFor } from "../lib/anime";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
-import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
+import { getParty, isLinkId, linkLabel, linkMedia, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
-import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
+import { LinkForm, PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
+import { PartyActions, PartyHostControls } from "../components/party/PartyMenu";
 import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage, storeLocal } from "../lib/errors";
 import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
 import { PlayerStatus } from "../components/player/PlayerStatus";
+import { TorrentNotice } from "../components/player/TorrentNotice";
 import { PlayerClock, TIME_DISPLAYS } from "../components/player/PlayerClock";
 import { useMediaTime } from "../components/player/useMediaTime";
 import { usePlayerChrome } from "../components/player/usePlayerChrome";
@@ -110,7 +115,10 @@ export function Player({
   const tv = useTvMode();
   // With a controller in TV mode, controls show the button that triggers them.
   const pad = usePadGlyph(tv);
-  const { data: meta } = useMeta(type, metaId);
+  // A link pasted into a watch party (#136): no title behind it, so no title page, episodes, sources,
+  // progress or lookups by id; it plays the URL it came with.
+  const link = isLinkId(metaId) ? stream?.url : undefined;
+  const { data: meta } = useMeta(type, metaId, !isLinkId(metaId));
   const { data: settings } = useSettings();
   const { touch } = useFormFactor();
   // Engine: embedded mpv when installed (plays every codec, AC3/DTS audio, every
@@ -188,7 +196,7 @@ export function Player({
     if (settings?.rememberSpeed) updateSettings.mutate({ playbackSpeed: r });
   };
   const seekStep = settings?.seekStep ?? 10;
-  // Each seek from the centre buttons, a double-tap, or the seek keys (and so the controller): SeekButton shows the jump.
+  // Each seek from the centre buttons, a double-tap, or the seek keys (and so the controller): SkipTransport shows the jump.
   const [kicks, setKicks] = useState({ back: 0, forward: 0 });
   const kick = (dir: "back" | "forward") => setKicks((k) => ({ ...k, [dir]: k[dir] + 1 }));
   const hideAfter = Math.max(1, settings?.controlsHideSecs ?? 2) * 1000;
@@ -200,6 +208,8 @@ export function Player({
   const [subDelay, setSubDelay] = useState(0);
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
 
+  // Subtitle add-ons match on the file's size and name (React Query compares keys by value).
+  const playingFile = videoFile(source.state.status === "ready" ? source.state.stream : undefined);
   const tracks = useTracks(
     media,
     type,
@@ -210,6 +220,7 @@ export function Player({
       subtitleMode: settings?.subtitleMode ?? "always",
     },
     (patch) => updateSettings.mutate(patch),
+    playingFile,
   );
   useEffect(() => {
     if (engine !== "mpv") return;
@@ -236,7 +247,7 @@ export function Player({
   const { data: seekTrack } = useQuery({
     queryKey: keys.seekr(videoId, durationS),
     queryFn: () => api.seekPreviews(videoId, durationS * 1000),
-    enabled: !!settings?.seekPreviews && !!settings?.seekrKey && durationS > 0,
+    enabled: !!settings?.seekPreviews && !!settings?.seekrKey && durationS > 0 && !link,
     staleTime: Infinity,
     retry: false,
   });
@@ -262,14 +273,15 @@ export function Player({
     }
     return { next: n, skipped };
   }, [meta, type, videoId, animeSkipFiller]);
-  const title = meta?.name ?? "";
+  const title = link ? stream?.name || linkLabel(link) : (meta?.name ?? "");
   const heading = current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
 
   // --- Watch party ------------------------------------------------------------
   const playingStream = source.state.status === "ready" ? source.state.stream : undefined;
-  const hint = useMemo(() => streamHint(playingStream), [playingStream]);
-  const partyMedia = { type, metaId, videoId, label: heading || undefined };
-  usePartySync({ media, current: partyMedia, started, buffering, hint });
+  // A link is its own file: no release name for others to look for.
+  const hint = useMemo(() => (link ? undefined : streamHint(playingStream)), [link, playingStream]);
+  const partyMedia = link ? linkMedia(link) : { type, metaId, videoId, label: heading || undefined };
+  usePartySync({ media, current: partyMedia, started, buffering, hint, leaving });
   const startHere = () => {
     const v = videoRef.current;
     if (!party && profile && v) startParty({ ...partyMedia, hint }, v.currentTime, v.paused, profile);
@@ -535,7 +547,18 @@ export function Player({
     preferFile: preferFileChapters,
     seekTo,
     onAutoSkipped,
+    online: !link,
   });
+
+  // A phone or tablet has no window to make fullscreen: its button fits the picture inside the
+  // screen or fills the screen with it, cropping the edges (#148, #149). Autocrop (Settings →
+  // Advanced) still takes the black bars off a fitted picture.
+  const { videoFill } = usePrefs();
+  const fill = !isDesktop && videoFill;
+  useEffect(() => {
+    if (engine === "mpv" && !isDesktop) void mpv.set("panscan", fill ? 1 : 0);
+  }, [engine, mpv, fill]);
+  const toggleFill = useCallback(() => setPrefs({ videoFill: !getPrefs().videoFill }), []);
 
   const toggleFullscreen = useCallback(async () => {
     if (tv) return;
@@ -576,19 +599,15 @@ export function Player({
         .filter((v) => v.season === shownSeason)
         .map((v) => {
           const p = progressById.get(v.id);
-          const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
+          const { released, openable, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
           return {
             id: v.id,
             label: `${v.episode}. ${v.title}`,
-            detail: !released
-              ? `Coming ${formatDate(v.released)}`
-              : inProgress && p
-                ? formatRemaining(p.position, p.duration)
-                : formatDate(v.released),
+            detail: released && inProgress && p ? formatRemaining(p.position, p.duration) : airLabel(v),
             thumbnail: stillFor(v.id) ?? v.thumbnail ?? "",
             progress: watched ? undefined : fraction,
             badge: watched ? { text: "Watched" } : undefined,
-            disabled: !released,
+            disabled: !openable,
           };
         }),
     [meta, shownSeason, progressById],
@@ -651,9 +670,10 @@ export function Player({
     setOptionsByKey(true);
     setOptions((open) => (open === o ? null : o));
   };
-  // The page underneath has the keyboard already while the player fades out.
+  // The page underneath has the keyboard already while the player fades out; the torrent notice has it while it's up.
+  const torrentNotice = source.state.status === "notice";
   usePlayerKeyboard(
-    !leaving,
+    !leaving && !torrentNotice,
     (action) => {
       switch (action) {
         case "playPause":
@@ -689,8 +709,11 @@ export function Player({
         case "nextEpisode":
           if (next) playVideo(next.id);
           return true;
-        case "tracks":
         case "sources":
+          if (link) return false;
+          toggleOptions(action);
+          return true;
+        case "tracks":
         case "speed":
           toggleOptions(action);
           return true;
@@ -719,7 +742,7 @@ export function Player({
     // TV: volume keys show only the volume HUD, not the whole player.
     (action) => {
       if (tv && (action === "volumeUp" || action === "volumeDown" || action === "mute")) return;
-      // A seek with the controls hidden shows just its skip button and the "+10" (SeekButton), not the controls.
+      // A seek with the controls hidden shows just its skip button and the "+10" (SkipTransport), not the controls.
       if (!chromeVisible && (action === "seekBack" || action === "seekForward")) return;
       poke(true);
     },
@@ -772,6 +795,7 @@ export function Player({
     <div
       className="player"
       data-engine={engine ?? undefined}
+      data-fill={fill || undefined}
       data-buffering={buffering && ready}
       data-chrome={chromeVisible}
       data-instant={chrome.instant}
@@ -807,6 +831,7 @@ export function Player({
             kick(x < third ? "back" : "forward");
             return poke(true);
           }
+          if (!isDesktop) return toggleFill();
           void toggleFullscreen();
         }}
         onWheel={(e) => {
@@ -830,14 +855,33 @@ export function Player({
             state={source.state}
             error={error}
             logo={meta?.logo}
-            name={meta?.name}
+            name={link ? title : meta?.name}
             background={meta?.background}
             steps={steps}
             backend={engine === "html" ? "built-in" : (engine ?? "not chosen yet")}
-            onSources={() => setOptions("sources")}
+            onSources={link ? undefined : () => setOptions("sources")}
           />
         )}
       </AnimatePresence>
+
+      {torrentNotice && !leaving && (
+        <TorrentNotice
+          onPlay={() => source.answerNotice(true)}
+          onCancel={() => {
+            source.answerNotice(false);
+            void exit();
+          }}
+          onSettings={
+            tv
+              ? undefined
+              : () => {
+                  source.answerNotice(false);
+                  void exit();
+                  openSettings("sources");
+                }
+          }
+        />
+      )}
 
       {airplay.casting && (
         <div className="player-casting">
@@ -890,9 +934,14 @@ export function Player({
               <Cast size={22} />
             </IconButton>
           )}
-          {!tv && (
+          {!tv && isDesktop && (
             <IconButton variant="player" onClick={() => void toggleFullscreen()} label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
               {fullscreen ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
+            </IconButton>
+          )}
+          {!tv && !isDesktop && (
+            <IconButton variant="player" onClick={toggleFill} label={fill ? "Fit to screen" : "Fill screen"} aria-pressed={fill}>
+              {fill ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
             </IconButton>
           )}
         </div>
@@ -902,11 +951,11 @@ export function Player({
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
       {ready && started && (
         <div className="player-center">
-          <SeekButton
+          <SkipTransport
             direction="back"
             seconds={seekStep}
             kick={kicks.back}
-            onPress={() => (seekBy(-seekStep), kick("back"))}
+            onSkip={() => (seekBy(-seekStep), kick("back"))}
             label={`Back ${seekStep} seconds`}
             title={withShortcut(`Back ${seekStep}s`, "seekBack")}
           />
@@ -919,11 +968,11 @@ export function Player({
               <Pause size={64} fill="currentColor" strokeWidth={0} />
             )}
           </IconButton>
-          <SeekButton
+          <SkipTransport
             direction="forward"
             seconds={seekStep}
             kick={kicks.forward}
-            onPress={() => (seekBy(seekStep), kick("forward"))}
+            onSkip={() => (seekBy(seekStep), kick("forward"))}
             label={`Forward ${seekStep} seconds`}
             title={withShortcut(`Forward ${seekStep}s`, "seekForward")}
           />
@@ -948,7 +997,7 @@ export function Player({
             <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
           <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={() => setOptions("tracks")} />
-          <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />
+          {!link && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
           {canParty && !airplay.casting && (
             <ActionButton
               icon={<WatchParty size={22} />}
@@ -1089,14 +1138,48 @@ export function Player({
           open={options === "party"}
           onClose={() => setOptions(null)}
           media={media}
-          columns={
-            party
+          columns={[
+            ...(party
               ? [
-                  { title: "Watch Party", size: "medium", options: [], onSelect: () => {}, content: <PartyInvite party={party} /> },
-                  { title: "Watching", size: "medium", options: [], onSelect: () => {}, content: <PartyMembers party={party} /> },
+                  {
+                    title: "Watch Party",
+                    size: "medium" as const,
+                    options: [],
+                    onSelect: () => {},
+                    content: (
+                      <div className="party-pane-stack">
+                        <PartyInvite party={party} leave={false} />
+                        <PartyActions party={party} onGo={() => setOptions(null)} />
+                      </div>
+                    ),
+                  },
+                  { title: "Watching", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyMembers party={party} /> },
+                  ...(party.hostId === party.me
+                    ? [{ title: "Host", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyHostControls party={party} /> }]
+                    : []),
                 ]
-              : [{ title: "Watch Party", size: "medium", options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={startHere} /> }]
-          }
+              : [{ title: "Watch Party", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={startHere} /> }]),
+            // TV mode: no pasting on a remote; links others put on still play there.
+            ...(tv
+              ? []
+              : [
+                  {
+                    title: "Watch a Link",
+                    size: "medium" as const,
+                    options: [],
+                    onSelect: () => {},
+                    content: (
+                      <div className="party-pane">
+                        <p className="party-lede">
+                          {party ? "Put a video file or stream from the web on for everyone." : "Start a party on a video file or stream from the web."}{" "}
+                          Everyone's app opens the link itself, after seeing it.
+                        </p>
+                        <LinkForm me={profile!} onDone={() => setOptions(null)} />
+                      </div>
+                    ),
+                  },
+                ]),
+          ]}
         />
       )}
 
@@ -1104,21 +1187,56 @@ export function Player({
         open={options === "episodes"}
         onClose={() => setOptions(null)}
         media={media}
-        columns={[
-          {
-            title: "Seasons",
-            value: String(shownSeason),
-            options: seasons.map((n) => ({ id: String(n), label: seasonLabel(n) })),
-            onSelect: (id) => setPickSeason(Number(id)), // browse; playback continues
-          },
-          {
-            title: "Episodes",
-            size: "wide",
-            value: videoId,
-            options: episodeItems,
-            onSelect: (id) => id !== videoId && playVideo(id),
-          },
-        ]}
+        columns={
+          tv || !meta
+            ? [
+                {
+                  title: "Seasons",
+                  value: String(shownSeason),
+                  options: seasons.map((n) => ({ id: String(n), label: seasonLabel(n) })),
+                  onSelect: (id) => setPickSeason(Number(id)), // browse; playback continues
+                },
+                {
+                  title: "Episodes",
+                  size: "wide",
+                  value: videoId,
+                  options: episodeItems,
+                  onSelect: (id) => id !== videoId && playVideo(id),
+                },
+              ]
+            : // A pointer or a finger: the season to browse in a dropdown, its episodes side by side under it.
+              [
+                {
+                  title: "Episodes",
+                  size: "full",
+                  titleHidden: true,
+                  header: (
+                    <Dropdown
+                      label="Season"
+                      size="large"
+                      value={String(shownSeason)}
+                      onChange={(id) => setPickSeason(Number(id))} // browse; playback continues
+                      options={seasons.map((n) => ({ value: String(n), label: seasonLabel(n) }))}
+                    />
+                  ),
+                  options: [],
+                  onSelect: () => {},
+                  content: (
+                    <EpisodeRail
+                      meta={meta}
+                      episodes={meta.videos.filter((v) => v.season === shownSeason)}
+                      playing={videoId}
+                      progress={progressById}
+                      still={(v) => stillFor(v.id) ?? v.thumbnail}
+                      onPlay={(id) => {
+                        setOptions(null);
+                        playVideo(id);
+                      }}
+                    />
+                  ),
+                },
+              ]
+        }
       />
       <OptionsOverlay
         open={options === "sources"}
@@ -1177,9 +1295,10 @@ function ActionButton({
   onClick: () => void;
 }) {
   return (
-    <button className="player-action pressable" onClick={onClick}>
+    // Named by its label even where the label isn't drawn (a phone held upright shows the glyphs alone).
+    <button className="player-action pressable" onClick={onClick} aria-label={label} title={label}>
       {icon}
-      <span>{label}</span>
+      <span aria-hidden>{label}</span>
       {glyph}
     </button>
   );

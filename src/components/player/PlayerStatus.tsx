@@ -42,18 +42,19 @@ export function PlayerStatus({
   background?: string;
   steps: StartStep[];
   backend: string;
-  onSources: () => void;
+  /** Left out where there's nothing else to choose (a pasted link). */
+  onSources?: () => void;
 }) {
   const failed = state.status === "failed" || !!error;
   const stageAt = failed ? failedStage(steps) : undefined;
 
-  const stage = state.status === "searching" ? "searching" : state.status === "resolving" ? "resolving" : "starting";
+  const stage = state.status === "searching" ? "searching" : state.status === "resolving" || state.status === "notice" ? "resolving" : "starting";
   const message = failed
     ? (error ?? (state.status === "failed" ? state.reason : ""))
     : stage === "searching"
       ? "Finding the best source"
       : stage === "resolving"
-        ? `Connecting${state.status === "resolving" && state.label ? ` · ${state.label}` : ""}`
+        ? `Connecting${(state.status === "resolving" || state.status === "notice") && state.label ? ` · ${state.label}` : ""}`
         : "Starting";
 
   return (
@@ -91,9 +92,11 @@ export function PlayerStatus({
         {failed && (
           <div className="player-status-actions">
             {/* Focused, so Enter (or a controller's A) picks it straight away. */}
-            <Button variant="primary" onClick={onSources} autoFocus>
-              <Sources size={17} /> Choose Another Source
-            </Button>
+            {onSources && (
+              <Button variant="primary" onClick={onSources} autoFocus>
+                <Sources size={17} /> Choose Another Source
+              </Button>
+            )}
             <CopyDetails steps={steps} backend={backend} outcome={message} stage={stageAt} />
           </div>
         )}
