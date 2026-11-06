@@ -3,6 +3,7 @@ import { partyAvailable, setJoinPartyOpen } from "../lib/party";
 import { useRouter } from "../lib/router";
 import { useAccount } from "../lib/account";
 import { openSettings } from "../lib/settings";
+import { useSettings } from "../lib/net";
 import { Avatar } from "./Avatar";
 import { MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "./ui/Menu";
 
@@ -10,7 +11,8 @@ import { MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "./ui/
 const GUEST_AVATAR = "guest";
 
 /**
- * Navbar avatar, always there: Settings lives in its menu, for everyone.
+ * Navbar avatar, always there: Settings lives in its menu, for everyone, and
+ * the Calendar while it isn't a navbar tab.
  * Without an account it's a template "Guest" profile (Settings, Sign In);
  * signed in it adds switching profiles, managing them, the account and
  * signing out.
@@ -23,6 +25,8 @@ export function ProfileMenu() {
   const name = me?.name ?? "Guest";
   const avatar = me?.avatar ?? GUEST_AVATAR;
   const { tab } = useRouter();
+  // While Settings → Browsing → Show the Calendar makes it a navbar tab, it isn't listed here too (#92).
+  const { data: settings } = useSettings();
 
   return (
     <MenuRoot modal={false}>
@@ -53,9 +57,11 @@ export function ProfileMenu() {
             Join Watch Party
           </MenuItem>
         )}
-        <MenuItem icon={<Calendar />} onClick={() => tab({ name: "calendar" })}>
-          Calendar
-        </MenuItem>
+        {!settings?.showCalendar && (
+          <MenuItem icon={<Calendar />} onClick={() => tab({ name: "calendar" })}>
+            Calendar
+          </MenuItem>
+        )}
         <MenuItem icon={<Settings />} onClick={() => openSettings()}>
           Settings
         </MenuItem>

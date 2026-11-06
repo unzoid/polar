@@ -39,6 +39,24 @@ test("each section opens", async ({ app }) => {
   await expect(card(app, "Night Ferry")).toBeVisible();
 });
 
+test("the Calendar is in the profile menu only while it isn't a navbar tab (#92)", async ({ app }) => {
+  const nav = app.getByRole("navigation", { name: "Primary" });
+  const profile = app.getByRole("button", { name: /^Profile/ });
+  await expect(nav.getByRole("button", { name: "Calendar", exact: true })).toHaveCount(0);
+  await profile.click();
+  await expect(app.getByRole("menuitem", { name: "Calendar" })).toBeVisible();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Browsing", exact: true }).click();
+  await settings.getByRole("switch", { name: /^Show the Calendar/ }).click();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "Calendar", exact: true })).toBeVisible();
+  await profile.click();
+  await expect(app.getByRole("menuitem", { name: "Settings" })).toBeVisible();
+  await expect(app.getByRole("menuitem", { name: "Calendar" })).toHaveCount(0);
+});
+
 test("search finds movies and series", async ({ app }) => {
   await app.getByRole("button", { name: "Search", exact: true }).click();
   await app.keyboard.type("orchard");
