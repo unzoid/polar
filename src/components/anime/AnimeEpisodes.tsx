@@ -88,7 +88,8 @@ export function AnimeEpisodes({
     if (flags && pb.metaId)
       playContext.filler(
         pb.metaId,
-        pb.episodes.filter((e) => flags.get(e.number)?.filler).map((e) => e.number),
+        pb.episodes.flatMap((e) => (e.video ? [e.video.id] : [])),
+        pb.episodes.flatMap((e) => (e.video && flags.get(e.number)?.filler ? [e.video.id] : [])),
       );
   }, [flags, pb.episodes, pb.metaId]);
 

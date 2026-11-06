@@ -648,16 +648,17 @@ export function Player({
       const note = ready && readinessNote(ready);
       return {
         id: String(rank.get(r) ?? -1),
-        label: n === 0 && match && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
+        label: n === 0 && match && !r.otherEpisode && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
         // Filters that only order the list: what doesn't match follows under its own heading.
-        heading: n === sourceFilters.matched && !match ? "Other sources" : undefined,
-        detail: [note?.short, row.size, row.detail].filter(Boolean).join(" · "),
+        heading:
+          n === sourceFilters.otherEpisodes ? "Other episodes" : n === sourceFilters.matched && n < sourceFilters.otherEpisodes ? "Other sources" : undefined,
+        detail: [note?.short, row.size, r.otherEpisode ? r.fileEpisode : null, row.detail].filter(Boolean).join(" · "),
         badge: r.quality.lowQualitySource ? { text: "CAM", tone: "bad" as const } : undefined,
         ready: ready?.state === "ready" ? "yes" : ready?.state === "notReady" ? "no" : undefined,
         note: note?.long,
       };
       });
-  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.sort, readiness]);
+  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.otherEpisodes, sourceFilters.sort, readiness]);
   const sourceOptions = useMemo<OptionItem[]>(
     () =>
       downloaded

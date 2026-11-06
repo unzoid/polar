@@ -62,8 +62,11 @@ export const api = {
   search: (query: string) => call<SearchResults>("search", { query }),
   // Anime with no IMDb page carry a Kitsu id; no metadata addon serves those, so they're built from AniList.
   meta: (type: ContentType, id: string) => (isKitsuId(id) ? kitsuMeta(type, id) : call<Meta>("meta", { ty: type, id })),
-  streams: (type: ContentType, videoId: string) =>
-    call<StreamsResult>("streams", { ty: type, videoId, altIds: playContext.altIds(videoId) ?? null }),
+  /** Also asked by the episode's other ids; files are checked against its absolute number too (anime). */
+  streams: (type: ContentType, videoId: string) => {
+    const absolute = playContext.absolute(videoId);
+    return call<StreamsResult>("streams", { ty: type, videoId, altIds: playContext.altIds(videoId) ?? null, absolute: absolute === undefined ? null : [absolute] });
+  },
   resolveStream: (stream: Stream) => call<Playable>("resolve_stream", { stream }),
   /** Start playing a torrent source (replacing the one playing); its steps arrive as `player://torrent` with `stepId`. */
   torrentOpen: (stream: Stream, limits: TorrentLimits, stepId: number) => call<TorrentLink>("torrent_open", { stream, limits, stepId }),

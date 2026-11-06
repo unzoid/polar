@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::join_all;
-use polar_addon::{rank_streams_filtered, Meta, MetaPreview, RankedStream, Stream};
+use polar_addon::{rank_asked, Asked, Meta, MetaPreview, RankedStream, Stream, WantedEpisode};
 use polar_index::Indexer;
 use polar_library::AnimeLink;
 use serde::Serialize;
@@ -145,9 +145,13 @@ pub async fn streams(
     video_id: String,
     // Other ids for the same episode (an anime's Kitsu id): asked of every addon that serves them, results merged.
     alt_ids: Option<Vec<String>>,
+    // The episode's absolute number(s), when the app knows them (an anime's): a file numbered that way is this episode.
+    absolute: Option<Vec<u32>>,
 ) -> Result<StreamsResult> {
     let mut ids = vec![video_id];
     ids.extend(alt_ids.unwrap_or_default());
+    // What every file is checked against: another episode's file is listed last and never picked by itself.
+    let wanted = WantedEpisode::from_ids(ids.iter().map(String::as_str), &absolute.unwrap_or_default());
 
     // One request per (addon, id) the addon claims to serve.
     let jobs: Vec<(InstalledAddon, String)> = installed(&state)
@@ -165,7 +169,7 @@ pub async fn streams(
     let results = join_all(jobs.iter().map(|(a, id)| async move {
         let fetch = client.streams(&a.manifest_url, kind, id);
         let res = tokio::time::timeout(ADDON_TIMEOUT, fetch).await;
-        (a, res)
+        (a, id, res)
     }))
     .await;
 
@@ -173,11 +177,15 @@ pub async fn streams(
     let mut all = Vec::new();
     let mut failed: Vec<&InstalledAddon> = Vec::new();
     let mut answered = std::collections::HashSet::new();
-    for (a, res) in results {
+    for (a, id, res) in results {
         match res {
             Ok(Ok(streams)) => {
                 answered.insert(&a.manifest_url);
-                all.extend(streams.into_iter().map(|s| (a.manifest.name.clone(), s)));
+                all.extend(streams.into_iter().map(|stream| Asked {
+                    addon: a.manifest.name.clone(),
+                    request: Some(id.clone()),
+                    stream,
+                }));
             }
             _ => failed.push(a),
         }
@@ -191,7 +199,7 @@ pub async fn streams(
         .map(|a| a.manifest.name.clone())
         .collect();
     let filter = state.store.locked().data.settings.stream_filter(&ty);
-    let (streams, hidden) = rank_streams_filtered(all, &filter);
+    let (streams, hidden) = rank_asked(all, &filter, wanted.as_ref());
     Ok(StreamsResult { streams, failed, hidden })
 }
 

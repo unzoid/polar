@@ -111,8 +111,11 @@ handful of integers.
   `anilist:`, `mal:`, episode ids) and `canonicalId()`. The anime pages (desktop `AnimeDetail`, TV
   `TvAnime`) call `linkAnime` (`src/lib/anime/links.ts`) once the IMDb lookup has answered; the
   command ignores a link it already has, so no time changes and sync has nothing to send. What a
-  page lines up per episode (absolute number, MAL/Kitsu ids, filler) is kept in localStorage by
-  `src/lib/anime/playContext.ts` (per canonical title, 300 most recent), which replaced the
+  page lines up per episode (its number in the entry, that entry's MAL/Kitsu ids, the number from
+  the start of the show, filler) is kept in localStorage by
+  `src/lib/anime/playContext.ts` (per canonical title, 300 most recent; ids per episode, since
+  one IMDb show is often several entries; numbers past the entry's end or claimed twice are
+  dropped, #225), which replaced the
   in-memory `altIds`/`aniskip`/`filler` maps, so AniSkip, Kitsu alt ids and skip-filler work from
   Continue Watching and after a restart. AniSkip for a `kitsu:N:E` video with no context takes
   the MAL id from the stored link. The anime page reads progress played under `kitsu:N:E` as the
