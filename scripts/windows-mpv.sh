@@ -9,7 +9,8 @@
 # long part; run again on the same work dir to go on.
 # Runs in mpv-winbuild-cmake's own build image (Arch Linux with cmake, ninja, meson, nasm, ...;
 # CI pins it). The first build also builds the toolchain: LLVM (clang, lld) with the image's clang,
-# then MinGW-w64 and LLVM's runtimes (compiler-rt, libunwind, libc++) for Windows; about two hours.
+# then MinGW-w64 and LLVM's runtimes (compiler-rt, libunwind, libc++) for Windows, and Rust; about
+# two hours.
 # Plain x86-64 (no -v3: no AVX2 needed), C++ runtime libc++ linked statically, UCRT.
 #
 # Writes into <work dir>/out:
@@ -161,10 +162,19 @@ done
 [ $bad -eq 0 ] || exit 1
 
 # The toolchain as upstream's CI builds it: clang and lld first, as a target of their own (MinGW-w64's
-# CRT and the other toolchain targets don't depend on it, yet are compiled with it), then the rest.
+# CRT and the other toolchain targets don't depend on it, yet are compiled with it), Rust (for
+# subrandr), then the rest. Each part only once in a work dir: once the sources are cloned, every
+# cmake run has winbuild touch each package's download stamp (custom_steps.cmake's check-git), so
+# asking again would rebuild LLVM, then libc++ over its own installed headers, where libc++'s
+# string.h no longer reaches MinGW's (memcmp, memset undeclared). The packages don't depend on
+# the toolchain's targets, so nothing else asks.
+built() { [ -n "$(find build/toolchain -path "*/$1-stamp/$1-done" -print -quit 2>/dev/null)" ]; }
 toolchain() {
-	build llvm
-	build llvm-clang
+	built llvm-clang || {
+		build llvm
+		build llvm-clang
+	}
+	built rustup || build rustup
 }
 
 if [ "${2:-}" = toolchain ]; then
