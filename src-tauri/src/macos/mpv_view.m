@@ -16,6 +16,7 @@
 #import <OpenGL/OpenGL.h>
 #include <dlfcn.h>
 #include <stdatomic.h>
+#include <string.h>
 
 #pragma clang diagnostic ignored "-Wdeprecated-declarations" // OpenGL: deprecated, still what libmpv's render API offers here
 
@@ -35,6 +36,15 @@ enum {
 };
 #define MPV_RENDER_UPDATE_FRAME 1
 
+// Results of commands (screenshot-raw), from client.h.
+typedef struct mpv_node {
+    union { char *string; int flag; int64_t int64; double double_; struct mpv_node_list *list; struct mpv_byte_array *ba; } u;
+    int format;
+} mpv_node;
+typedef struct mpv_node_list { int num; mpv_node *values; char **keys; } mpv_node_list;
+typedef struct mpv_byte_array { void *data; size_t size; } mpv_byte_array;
+enum { MPV_FORMAT_INT64 = 4, MPV_FORMAT_NODE_MAP = 8, MPV_FORMAT_BYTE_ARRAY = 9 };
+
 static struct {
     mpv_handle *(*create)(void);
     int (*set_option_string)(mpv_handle *, const char *, const char *);
@@ -47,6 +57,11 @@ static struct {
     int (*render_render)(mpv_render_context *, mpv_render_param *);
     void (*render_report_swap)(mpv_render_context *);
     void (*render_free)(mpv_render_context *);
+    // Autocrop's frames; optional, so an older libmpv still plays.
+    mpv_handle *(*create_weak_client)(mpv_handle *, const char *);
+    void (*destroy)(mpv_handle *);
+    int (*command_ret)(mpv_handle *, const char **, mpv_node *);
+    void (*free_node_contents)(mpv_node *);
 } mpv;
 
 static void *libmpv;
@@ -68,6 +83,10 @@ static int load_libmpv(const char *path, char *err, size_t errlen) {
     SYM(render_report_swap, "mpv_render_context_report_swap")
     SYM(render_free, "mpv_render_context_free")
 #undef SYM
+    *(void **)&mpv.create_weak_client = dlsym(h, "mpv_create_weak_client");
+    *(void **)&mpv.destroy = dlsym(h, "mpv_destroy");
+    *(void **)&mpv.command_ret = dlsym(h, "mpv_command_ret");
+    *(void **)&mpv.free_node_contents = dlsym(h, "mpv_free_node_contents");
     libmpv = h;
     return 1;
 }
@@ -313,4 +332,63 @@ void polar_mpv_destroy(void *player) {
     // unless that's where we are (app exit, where blocking briefly is fine).
     if ([NSThread isMainThread]) mpv.terminate_destroy(h);
     else dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ mpv.terminate_destroy(h); });
+}
+
+// --- Autocrop's frames (docs/autocrop.md §2) --------------------------------
+//
+// Our bar detector reads every frame. The frame on screen is zoomed past the
+// bars it removed, so it reads mpv's own copy: `screenshot-raw video` hands
+// over the decoded frame at its own size, unzoomed and without subtitles, in
+// memory (bgr0). Through a weak client of its own, so a read that's still
+// running when the player goes away fails instead of touching a freed core.
+
+/// A client for polar_mpv_frame, or NULL when this libmpv lacks what it needs.
+void *polar_mpv_frames_open(void *player) {
+    Player *p = player;
+    if (!p || !mpv.create_weak_client || !mpv.destroy || !mpv.command_ret || !mpv.free_node_contents) return NULL;
+    return mpv.create_weak_client(p->mpv, "autocrop");
+}
+
+void polar_mpv_frames_close(void *client) {
+    if (client) mpv.destroy(client);
+}
+
+/// The frame shown now: fills the size, the bytes from one line to the next
+/// and the pixels (4 bytes each: blue, green, red, padding), and returns what
+/// polar_mpv_frame_free releases; NULL if mpv has no frame. Blocks until mpv
+/// has read the frame back: never call it on the main thread.
+void *polar_mpv_frame(void *client, int64_t *w, int64_t *h, int64_t *stride, const uint8_t **data, size_t *len) {
+    if (!client) return NULL;
+    mpv_node *node = calloc(1, sizeof(mpv_node));
+    if (!node) return NULL;
+    const char *args[] = { "screenshot-raw", "video", NULL };
+    if (mpv.command_ret(client, args, node) < 0) { free(node); return NULL; }
+    int found = 0;
+    if (node->format == MPV_FORMAT_NODE_MAP && node->u.list) {
+        for (int i = 0; i < node->u.list->num; i++) {
+            const char *key = node->u.list->keys[i];
+            mpv_node *v = &node->u.list->values[i];
+            if (v->format == MPV_FORMAT_INT64) {
+                if (!strcmp(key, "w")) { *w = v->u.int64; found |= 1; }
+                else if (!strcmp(key, "h")) { *h = v->u.int64; found |= 2; }
+                else if (!strcmp(key, "stride")) { *stride = v->u.int64; found |= 4; }
+            } else if (v->format == MPV_FORMAT_BYTE_ARRAY && !strcmp(key, "data") && v->u.ba) {
+                *data = v->u.ba->data;
+                *len = v->u.ba->size;
+                found |= 8;
+            }
+        }
+    }
+    if (found != 15) {
+        mpv.free_node_contents(node);
+        free(node);
+        return NULL;
+    }
+    return node;
+}
+
+void polar_mpv_frame_free(void *frame) {
+    if (!frame) return;
+    mpv.free_node_contents(frame);
+    free(frame);
 }

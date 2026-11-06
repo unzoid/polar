@@ -23,7 +23,8 @@
 //! down after a few idle minutes (to give its memory back) and when the app exits.
 //!
 //! Here: [`Mpv`], the engines and the IPC reader. [`commands`] holds the
-//! `mpv_*` commands, [`autocrop`] the black-bar zoom, [`ipc`] the transport.
+//! `mpv_*` commands, [`autocrop`] the black-bar zoom, [`preroll`] its probe of
+//! the opening, [`ipc`] the transport.
 
 #[cfg(target_os = "android")]
 mod android;
@@ -32,6 +33,7 @@ pub use android::preload;
 mod autocrop;
 mod commands;
 mod ipc;
+mod preroll;
 
 pub use commands::*;
 
@@ -52,6 +54,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use autocrop::CROP_OBSERVE_BASE;
 use ipc::Stream as IpcStream;
 
+use polar_player::lookahead::Schedule;
 use polar_player::tune::Tune;
 
 use crate::locks::Locked;
@@ -181,6 +184,16 @@ pub struct Mpv {
     /// Where the reader sends autocrop's observed properties: the running
     /// task's number and channel ([`CROP_OBSERVE_BASE`]).
     crop_events: StdMutex<Option<CropSink>>,
+    /// The current load's opening crop from the pre-roll probe, for the
+    /// autocrop loop to start its tracker with.
+    opening: StdMutex<Option<preroll::Opening>>,
+    /// The current load's link and header fields, for the lookahead's probe.
+    source: StdMutex<Option<(u64, String, Vec<String>)>>,
+    /// The lookahead's bar changes ahead of the playhead (docs/autocrop.md §4).
+    ahead: StdMutex<Option<Schedule>>,
+    /// The `time-pos` of the frame shown last, as `f64` bits (NaN: none
+    /// yet this load), from the autocrop loop for the lookahead.
+    playhead: AtomicU64,
     /// The running mpv process, also held by its `Conn`; see [`Mpv::kill`].
     process: StdMutex<Option<Process>>,
 }
@@ -279,6 +292,17 @@ mod mac {
         ) -> *mut c_void;
         fn polar_mpv_set_visible(player: *mut c_void, visible: c_int);
         fn polar_mpv_destroy(player: *mut c_void);
+        fn polar_mpv_frames_open(player: *mut c_void) -> *mut c_void;
+        fn polar_mpv_frames_close(client: *mut c_void);
+        fn polar_mpv_frame(
+            client: *mut c_void,
+            w: *mut i64,
+            h: *mut i64,
+            stride: *mut i64,
+            data: *mut *const u8,
+            len: *mut usize,
+        ) -> *mut c_void;
+        fn polar_mpv_frame_free(frame: *mut c_void);
     }
 
     pub struct Player(*mut c_void);
@@ -318,6 +342,53 @@ mod mac {
 
         pub fn set_visible(&self, visible: bool) {
             unsafe { polar_mpv_set_visible(self.0, visible as c_int) }
+        }
+
+        /// A reader of the frames this player shows, for autocrop, or `None`
+        /// when this libmpv can't hand them over.
+        pub fn frames(&self) -> Option<Frames> {
+            let client = unsafe { polar_mpv_frames_open(self.0) };
+            (!client.is_null()).then_some(Frames(client))
+        }
+    }
+
+    /// A weak client of the player's mpv: once the player is gone, reading
+    /// fails instead of touching a freed core.
+    pub struct Frames(*mut c_void);
+
+    // libmpv's client functions may be called from any thread.
+    unsafe impl Send for Frames {}
+    unsafe impl Sync for Frames {}
+
+    impl Frames {
+        /// `read` the frame shown now, unzoomed, in memory (`bgr0`); `None`
+        /// when mpv has none or the player is gone. Blocks while mpv reads
+        /// it back: call it off the async threads.
+        pub fn read<R>(&self, read: impl FnOnce(polar_player::bars::Frame<'_>) -> R) -> Option<R> {
+            let (mut w, mut h, mut stride, mut data, mut len) = (0i64, 0i64, 0i64, std::ptr::null(), 0usize);
+            let frame = unsafe { polar_mpv_frame(self.0, &mut w, &mut h, &mut stride, &mut data, &mut len) };
+            if frame.is_null() {
+                return None;
+            }
+            let ok = w > 0 && h > 0 && stride > 0 && !data.is_null();
+            let result = ok.then(|| {
+                let bytes = unsafe { std::slice::from_raw_parts(data, len) };
+                read(polar_player::bars::Frame {
+                    w: w as usize,
+                    h: h as usize,
+                    stride: stride as usize,
+                    format: polar_player::bars::PixelFormat::Bgr0,
+                    data: bytes,
+                })
+            });
+            unsafe { polar_mpv_frame_free(frame) };
+            result
+        }
+    }
+
+    impl Drop for Frames {
+        fn drop(&mut self) {
+            unsafe { polar_mpv_frames_close(self.0) }
         }
     }
 
@@ -371,7 +442,7 @@ impl Mpv {
             stale.engine.kill();
         }
 
-        let pipe = ipc::endpoint();
+        let pipe = ipc::endpoint("mpv");
         let shots = shots_dir();
         let _ = std::fs::create_dir_all(&shots);
         // Compiled shaders persist here, so the first frame after an app
@@ -415,6 +486,12 @@ impl Mpv {
             "--sub-color=#FFFFFFFF".into(),
             "--screenshot-format=jpg".into(),
             "--screenshot-jpeg-quality=70".into(),
+            // Autocrop's screenshots for our detector (autocrop.rs): PNG
+            // stored, not compressed, 8 bits, read by polar_player::png.
+            "--screenshot-png-compression=0".into(),
+            "--screenshot-png-filter=0".into(),
+            "--screenshot-high-bit-depth=no".into(),
+            "--screenshot-tag-colorspace=no".into(),
             format!("--screenshot-directory={}", shots.display()),
         ];
         // Fonts the app ships for subtitles (OpenDyslexic): mpv otherwise
@@ -426,7 +503,7 @@ impl Mpv {
         // that fits in their memory, as mpv-android sizes it.
         #[cfg(target_os = "android")]
         base.extend([
-            format!("--hwdec={}", polar_player::tune::android_hwdec("auto-safe")),
+            format!("--hwdec={}", polar_player::tune::Tune::default().android_hwdec()),
             "--demuxer-max-bytes=64MiB".into(),
             "--demuxer-max-back-bytes=16MiB".into(),
         ]);
@@ -494,6 +571,7 @@ impl Mpv {
                 }
             }
         }
+        preroll::kill_all();
         let _ = std::fs::remove_dir_all(shots_dir());
     }
 

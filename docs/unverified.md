@@ -428,6 +428,62 @@ against a real project.
 - Shortcuts synced between a Mac and a PC: Ctrl+K set on Windows arrives as ⌘K on the Mac. Tested as functions
   only; check by changing a ⌘ shortcut on one machine and looking at Settings → Controls on the other.
 
+## Eased autocrop moves (docs/autocrop.md §6)
+
+- `crop::CropZoom` and `CropTracker::on_cut` are tested in `crates/player`; their wiring in
+  `src-tauri/src/player/autocrop.rs` only type-checks here (no mpv, no WebKitGTK). Unknown: whether mpv shows
+  a `video-zoom` sent on every frame smoothly (no dropped or doubled steps), and whether a jump lands on the
+  cut frame itself, with `--video-sync=display-resample` and without. To check: play a film with bars that change
+  mid-shot on the desktop build and watch the crop settle.
+
+## Autocrop pre-roll probe (docs/autocrop.md §3)
+
+- `crop::opening_points`, `crop::opening_bars`, `CropTracker::open`, the PNG reader (`polar_player::png`) and
+  the detector on RGB screenshots are tested in `crates/player`; the probe itself
+  (`src-tauri/src/player/preroll.rs`) and its wiring in `mpv_load` and the autocrop loop only type-check here
+  (no mpv binary may run on this machine). Unknown, to check on the Windows build with autocrop on:
+  - that `screenshot-to-file … video` works with `--vo=null --screenshot-sw=yes` and writes a PNG with stored
+    (uncompressed) data at `--screenshot-png-compression=0` (if not, the probe finds nothing and playback starts
+    uncropped, as before: no harm, but no gain);
+  - how many of the 8 keyframes arrive within the 1.5 s budget on a typical stream (log line
+    `autocrop pre-roll: N readings` at debug level), and that a scope film's first frame is already cropped;
+  - that the probe's mpv is gone after each load (Task Manager) and its `probe-N` folder removed;
+  - HDR: whether software screenshots of PQ video are tone-mapped enough for the HDR levels to read the bars.
+- macOS has no probe yet (libmpv in the app, no second instance): films start uncropped there, as before.
+
+## Autocrop lookahead (docs/autocrop.md §4)
+
+- `lookahead::Schedule` and its hand-over to `CropTracker::cut` are tested in `crates/player`; the engine side
+  (`preroll::ahead`, a second probe that follows the playhead, and `take` per frame in the autocrop loop) only
+  type-checks here. To check on the Windows build with autocrop and "Look ahead for bar changes" on:
+  - that the probe's `seek 0.1 relative+keyframes` (doubled while it lands on the same keyframe) steps keyframe
+    by keyframe, and stays about 60 s ahead of the playhead (a scope film with an IMAX sequence: the crop
+    should jump on the cut frame into and out of it);
+  - frame-exact landing, with `--video-sync=display-resample` and without (§4);
+  - that it starts again after a seek back, a seek forward and a pause; that its mpv (`ahead-N`) is gone after
+    the next load, after switching it off, and when the app closes;
+  - cost, 10 minutes each on a 10 Mbit/s MKV and an HLS stream: extra bytes (the probe's `raw-input-rate`),
+    the probe's CPU time against playback alone. Then the defaults per device (§7).
+- Switching the lookahead on mid-file takes effect from the next file; macOS has no lookahead (no probe).
+
+## Our autocrop detector on the desktop (docs/autocrop.md §2)
+
+- `sampler::Sampler` (which reading feeds the tracker, when to take a screenshot) is tested in `crates/player`;
+  the engine side (`take_shot` in `src-tauri/src/player/autocrop.rs`) type-checks for Linux and Windows here,
+  and the macOS side (`polar_mpv_frame` in `src-tauri/src/macos/mpv_view.m`, `mac::Frames`) builds only on CI's
+  macOS runner. To check with autocrop on, on a scope film with bars changing (an IMAX sequence) and a film
+  that moves its own bars:
+  - Windows, default: the log's `autocrop:` lines show screenshots only around changes (none on a still
+    letterbox); a change of bars lands within a frame or two of its cut; moving bars are followed frame by
+    frame. Check that `screenshot-to-file … video` is the frame unzoomed (with the crop applied, our readings
+    still find the bars rather than full frame).
+  - Windows, "Check every frame for black bars" on: the log's screenshots per second and MB/s written, and mpv's
+    and Polarity's CPU in Task Manager against autocrop with the setting off, on a 1080p and a 4K file. Put
+    the numbers in docs/autocrop.md §2 and the setting's caption.
+  - macOS: every frame read in memory (`screenshot-raw video` through a weak client): the log's screenshots per
+    second (no MB written), CPU against autocrop off; a change lands within a frame or two of its cut; nothing
+    hangs when playback stops or the window hides mid-read; hardware decoding stays zero-copy.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The

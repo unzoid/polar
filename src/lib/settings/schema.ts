@@ -958,6 +958,25 @@ export const SETTINGS: SettingDef[] = [
     tv: "Crop Black Bars",
   },
   {
+    id: "autocropLookahead",
+    page: "advanced",
+    title: "Look ahead for bar changes",
+    caption: "Reads a little of the video ahead, so a change of black bars happens exactly on the scene cut. Uses some extra data.",
+    keywords: "autocrop crop black bars lookahead scene cut",
+    bind: p("autocropLookahead"),
+    control: toggle,
+  },
+  {
+    id: "autocropEveryFrame",
+    page: "advanced",
+    title: "Check every frame for black bars",
+    caption:
+      "Reads every frame for bars, not only when they seem to change, so bars that move with the picture are followed exactly. For powerful computers: uses more CPU and writes about 150 MB a second to disk for 1080p video (600 MB for 4K).",
+    keywords: "autocrop crop black bars every frame detector cpu disk",
+    bind: p("autocropEveryFrame"),
+    control: toggle,
+  },
+  {
     id: "buffer",
     page: "advanced",
     title: "Buffer",
