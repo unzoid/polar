@@ -15,6 +15,15 @@ export function landscapeArt({ imdb, bannerImage, cover }: { imdb: string | null
 }
 
 /**
+ * The pictures an upright anime card tries, in turn (#27): the linked IMDb title's poster, the same for
+ * every season of a show, then the entry's own AniList cover.
+ */
+export function posterArt({ imdb, cover }: { imdb: string | null | undefined; cover?: string | null }): string[] {
+  const poster = imdb?.startsWith("tt") ? `https://images.metahub.space/poster/medium/${imdb}/img` : null;
+  return [poster, cover].filter((u, i, all): u is string => !!u && all.indexOf(u) === i);
+}
+
+/**
  * An AniList entry's IMDb id from the anime id lists kept on the device (no request per card);
  * undefined while looking, null when it has none.
  */
@@ -42,10 +51,20 @@ export function linkedImdb(anilistId: number, listed: string | null | undefined,
 }
 
 /**
- * A TV landscape card's preview with {@link landscapeArt} as its picture: the linked backdrop, then the
- * preview's own (ani.zip's fanart or the banner), then the cover. No picture until the link is known.
+ * A TV card's preview with the linked art as its picture: on a landscape card {@link landscapeArt} (the
+ * linked backdrop, then the preview's own: ani.zip's fanart or the banner, then the cover), on a poster
+ * {@link posterArt}. No picture until the link is known.
  */
-export function withLinkedArt(preview: MetaPreview, imdb: string | null | undefined): { item: MetaPreview; fallbacks: string[] } {
+export function withLinkedArt(
+  preview: MetaPreview,
+  imdb: string | null | undefined,
+  shape: "landscape" | "poster" = "landscape",
+): { item: MetaPreview; fallbacks: string[] } {
+  if (shape === "poster") {
+    if (imdb === undefined) return { item: { ...preview, poster: undefined }, fallbacks: [] };
+    const [poster, ...fallbacks] = posterArt({ imdb, cover: preview.poster });
+    return { item: { ...preview, poster }, fallbacks };
+  }
   if (imdb === undefined) return { item: { ...preview, background: undefined }, fallbacks: [] };
   const [background, ...fallbacks] = landscapeArt({ imdb, bannerImage: preview.background, cover: preview.poster });
   return { item: { ...preview, background }, fallbacks };

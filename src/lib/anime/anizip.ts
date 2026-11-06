@@ -125,29 +125,29 @@ export function animeArt(
 }
 
 /**
- * The logo at the top of an anime's page (re-test N1). `aniZipLogo` is `animeArt`'s: set only for a
- * franchise's first entry. ani.zip's logos carry no language (one show's is in Japanese script), so
- * the linked IMDb title's logo comes first (the catalog's, English with a TMDB key); while that title
- * loads, the name shows rather than a logo that may change. `readable` false: a logo of unknown
- * language, so the page puts the name under it.
+ * The background and logo of a grouped anime's page, the same on every season tab (#27). They come
+ * from the general title the franchise's first entry is linked to (`meta`, fetched in the app's
+ * metadata language, so its logo is in that language where one exists), else from `animeArt` of the
+ * first entry (ani.zip's, whose logos carry no language). `imdb` is that title's id: undefined while it's being found, null when there's none.
+ * Until it and its title have answered there's no art and no logo (the name shows), so nothing
+ * changes once drawn.
  */
-export function heroLogo({
-  aniZipLogo,
-  metaId,
+export function franchiseArt({
+  imdb,
   meta,
   metaLoading,
+  first,
 }: {
-  aniZipLogo: string | undefined;
-  metaId: string | undefined;
-  meta: { logo?: string | null } | undefined;
+  imdb: string | null | undefined;
+  meta: { background?: string | null; logo?: string | null } | undefined;
   metaLoading: boolean;
-}): { logo: string | undefined; readable: boolean } {
-  if (!aniZipLogo) return { logo: undefined, readable: true };
-  if (metaId?.startsWith("tt")) {
-    if (metaLoading) return { logo: undefined, readable: true };
-    if (meta?.logo) return { logo: meta.logo, readable: true };
-  }
-  return { logo: aniZipLogo, readable: false };
+  /** `animeArt` of the franchise's first entry, with its own ani.zip. */
+  first: { background?: string; logo?: string };
+}): { background: string | undefined; logo: string | undefined } {
+  const linked = imdb?.startsWith("tt");
+  if (imdb === undefined || (linked && metaLoading)) return { background: undefined, logo: undefined };
+  const general = linked ? meta : undefined;
+  return { background: general?.background ?? first.background, logo: general?.logo ?? first.logo };
 }
 
 /** The regular episodes (not specials), in order. */

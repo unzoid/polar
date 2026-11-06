@@ -4,7 +4,6 @@ import {
   cleanDescription,
   countdown,
   FORMAT_LABEL,
-  heroLogo,
   heroSubtitle,
   SEASON_LABEL,
   STATUS_LABEL,
@@ -39,14 +38,15 @@ export function AnimeHero({
 }: {
   item: AnimeCard;
   anime?: Anime;
+  /** The franchise's logo (`franchiseArt`), the same on every season tab: this entry's name shows under it. */
   logo?: string;
   name: string;
-  /** The id it plays from, once known (the page's backdrop trailer is that title's). */
-  onImdb?: (id: string | undefined) => void;
+  /** The id it plays from: undefined until known, null when there's none (the page's backdrop trailer is that title's). */
+  onImdb?: (id: string | null | undefined) => void;
   trailer?: { visible: boolean; muted: boolean; toggleMute: () => void };
 }) {
   const pb = useAnimePlayback(anime ?? item);
-  useEffect(() => onImdb?.(pb.metaId), [onImdb, pb.metaId]);
+  useEffect(() => onImdb?.(pb.loading ? undefined : (pb.metaId ?? null)), [onImdb, pb.loading, pb.metaId]);
   const picker = useSourcePicker();
   const prefs = usePrefs();
 
@@ -68,8 +68,7 @@ export function AnimeHero({
       : !pb.metaLoading && pb.metaId && !target && !pb.isMovie
         ? "No episodes to play yet"
         : undefined;
-  const shownLogo = heroLogo({ aniZipLogo: logo, metaId: pb.metaId, meta: pb.meta, metaLoading: pb.metaLoading });
-  const subtitle = heroSubtitle(item.title, prefs.animeTitles, !!shownLogo.logo);
+  const subtitle = heroSubtitle(item.title, prefs.animeTitles, !!logo);
   const score = useAnimeScore()(item.averageScore);
   const studio = anime?.studios.edges.find((e) => e.isMain && e.node.isAnimationStudio)?.node.name;
   const next = item.nextAiringEpisode;
@@ -78,7 +77,7 @@ export function AnimeHero({
   return (
     <section className="detail-hero anime-hero">
       <div className="detail-hero-main">
-        <TitleHeading name={name} logo={shownLogo.logo} look="detail" />
+        <TitleHeading name={name} logo={logo} look="detail" />
         {subtitle && <p className="anime-native t-callout">{subtitle}</p>}
         <p className="detail-facts anime-meta-line t-callout tabular">
           {score && (
