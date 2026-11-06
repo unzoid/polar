@@ -963,3 +963,8 @@ video.trailer-video {
   flex: none;
   color: var(--text-3);
 }
+/* A shelf waiting its turn behind a rate limit (#109): beside its heading, quiet. */
+.row-note {
+  color: var(--text-3);
+  white-space: nowrap;
+}

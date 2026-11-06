@@ -122,10 +122,15 @@ export function TvCard({
 }
 
 /** One horizontal shelf. Its focused card stays pinned to the left edge as it scrolls. */
-export function TvRail({ title, children }: { title?: string; children: ReactNode }) {
+export function TvRail({ title, note, children }: { title?: string; note?: string; children: ReactNode }) {
   return (
     <section className="tv-rail" data-nav-row data-nav-memory>
-      {title && <h2 className="tv-rail-title">{title}</h2>}
+      {title && (
+        <h2 className="tv-rail-title">
+          {title}
+          {note && <span className="tv-rail-note"> · {note}</span>}
+        </h2>
+      )}
       <div className="tv-rail-track" data-nav-rail>
         {children}
       </div>
@@ -137,7 +142,7 @@ export function TvRail({ title, children }: { title?: string; children: ReactNod
  * A shelf still loading. Its first card can take focus, so moving down stops here instead of
  * jumping over it (test report 1, item 20); when the cards arrive, focus moves onto them.
  */
-export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; shape: Shape; count?: number }) {
+export function TvSkeletonRail({ title, shape, count = 8, note }: { title?: string; shape: Shape; count?: number; note?: string }) {
   const first = useRef<HTMLSpanElement>(null);
   useLayoutEffect(
     () => () => {
@@ -147,7 +152,7 @@ export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; sh
     [],
   );
   return (
-    <TvRail title={title}>
+    <TvRail title={title} note={note}>
       {Array.from({ length: count }, (_, i) =>
         i === 0 ? (
           <span key={i} ref={first} className="tv-card tv-card-skeleton" data-shape={shape} tabIndex={0} role="img" aria-label="Loading" data-nav-loading>

@@ -15,7 +15,7 @@ first (see `AGENTS.md`).
 | IMDb suggestion | Cast photo when the catalog has none | `src/lib/catalog/personPhoto.ts` | None | None published |
 | MDBList | Scores from several sites, certification | `src-tauri/src/ratings.rs` | The user's own | 1,000 a day on the free tier, cached 6 h |
 | OMDb | Scores, awards, rating | `ratings.rs` | The user's own | 1,000 a day on the free tier |
-| AniList GraphQL | Anime catalog, seasons, schedule, relations, characters, search | `src/lib/anime/anilist.ts`, `src/lib/net/limiter.ts` | None | 90 a minute (30 while degraded); a 429 means a minute's wait |
+| AniList GraphQL | Anime catalog, seasons, schedule, relations, characters, search | `src/lib/anime/anilist.ts`, `src/lib/net/limiter.ts` | None | 90 a minute (30 while degraded); a 429 means a minute's wait. Requests wait in one queue, most urgent first (an opened page, then rows on screen); rows and pages are kept on the device up to a day |
 | Jikan | Filler and recap episodes | `crates/anime/src/fillers.rs` | None | 60 a minute, 3 a second; 400 ms between pages |
 | animefillerlist.com | Filler episodes when Jikan knows none | `crates/anime/src/fillers.rs` | None | One page per show, cached 24 h |
 | ani.zip | Ids across anime and general sources, per-episode data, art | `src/lib/anime/anizip.ts` | None | None published |

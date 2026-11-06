@@ -46,11 +46,47 @@ export const realClock: Clock = {
     }),
 };
 
+/**
+ * How urgent a request is; lower goes first once the burst is spent (#109). Between two
+ * levels is fine: the rest of a row on screen (1.5) goes after every row's first cards.
+ */
+export const PRIORITY = {
+  /** The page the user just opened. */
+  page: 0,
+  /** Rows and cards on screen. */
+  visible: 1,
+  /** Rows just below the screen. */
+  near: 2,
+  /** Prefetching, rows far away: held back while the host is degraded. */
+  background: 3,
+} as const;
+
+/** A level, or how to read it when the request's turn comes (a row scrolled into view moves up). */
+export type Priority = number | (() => number);
+
+/** After this long waiting, a request that isn't background work makes the host "busy" (shown to the user). */
+export const BUSY_AFTER = 3000;
+
+interface Waiter {
+  priority: () => number;
+  since: number;
+  seq: number;
+  go: () => void;
+}
+
 export class Limiter {
   private tokens: number;
   private at: number;
   private pausedUntil = 0;
   private perMs: number;
+  private hostLimit: number | undefined;
+  private waiting: Waiter[] = [];
+  private seq = 0;
+  private running = false;
+  private nap: AbortController | undefined;
+  private listeners = new Set<() => void>();
+  /** A pause is on, or a request that isn't background work has waited past {@link BUSY_AFTER}. */
+  busy = false;
 
   constructor(
     readonly limits: HostLimits,
@@ -61,24 +97,111 @@ export class Limiter {
     this.perMs = limits.perMinute / 60_000;
   }
 
-  /** Waits until a request may go. */
-  async take(signal?: AbortSignal): Promise<void> {
-    for (;;) {
-      if (signal?.aborted) throw signal.reason;
-      const now = this.clock.now();
-      if (now > this.at) {
-        this.tokens = Math.min(this.limits.burst, this.tokens + (now - this.at) * this.perMs);
-        this.at = now;
+  /** The host told us it's in its reduced mode (AniList's 30 a minute instead of 90). */
+  get reduced() {
+    return this.hostLimit !== undefined && this.hostLimit < 60;
+  }
+
+  /**
+   * Waits until a request may go. Once the burst is spent, waiters go by `priority`, then in
+   * order of arrival; while the host is {@link reduced}, background work only goes when the bucket
+   * is full again, so it never takes a turn from anything on screen.
+   */
+  take(signal?: AbortSignal, priority: Priority = PRIORITY.visible): Promise<void> {
+    if (signal?.aborted) return Promise.reject(signal.reason);
+    return new Promise<void>((resolve, reject) => {
+      const abort = () => {
+        this.waiting = this.waiting.filter((w) => w !== waiter);
+        reject(signal!.reason);
+        this.wake();
+      };
+      const waiter: Waiter = {
+        priority: typeof priority === "function" ? priority : () => priority,
+        since: this.clock.now(),
+        seq: this.seq++,
+        go: () => {
+          signal?.removeEventListener("abort", abort);
+          resolve();
+        },
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      this.waiting.push(waiter);
+      this.wake();
+      void this.run();
+    });
+  }
+
+  /** Look at the queue again now: a waiter came, left, or changed its priority. */
+  wake() {
+    this.nap?.abort();
+  }
+
+  /** Called whenever {@link busy} changes. */
+  subscribe(listener: () => void) {
+    this.listeners.add(listener);
+    return () => void this.listeners.delete(listener);
+  }
+
+  private setBusy(busy: boolean) {
+    if (busy === this.busy) return;
+    this.busy = busy;
+    for (const l of this.listeners) l();
+  }
+
+  private async run() {
+    if (this.running) return;
+    this.running = true;
+    try {
+      while (this.waiting.length) {
+        const now = this.clock.now();
+        if (now > this.at) {
+          this.tokens = Math.min(this.limits.burst, this.tokens + (now - this.at) * this.perMs);
+          this.at = now;
+        }
+        const ready = this.tokens >= this.limits.burst || !this.reduced;
+        const urgent = this.waiting.filter((w) => w.priority() < PRIORITY.background);
+        const oldest = Math.min(...urgent.map((w) => w.since));
+        const paused = now < this.pausedUntil;
+        this.setBusy(paused || now - oldest >= BUSY_AFTER);
+
+        let wait: number;
+        if (paused) {
+          wait = this.pausedUntil - now;
+        } else {
+          const next = this.next(ready);
+          if (next && this.tokens >= 1) {
+            this.tokens -= 1;
+            this.waiting = this.waiting.filter((w) => w !== next);
+            next.go();
+            continue;
+          }
+          // No token yet, or only background work left while the host is degraded: until the bucket is full.
+          wait = Math.ceil(((next ? 1 : this.limits.burst) - this.tokens) / this.perMs);
+        }
+        if (!this.busy && urgent.length) wait = Math.min(wait, oldest + BUSY_AFTER - now);
+        this.nap = new AbortController();
+        await this.clock.sleep(Math.max(1, wait), this.nap.signal).catch(() => {});
       }
-      if (now < this.pausedUntil) {
-        await this.clock.sleep(this.pausedUntil - now, signal);
-      } else if (this.tokens >= 1) {
-        this.tokens -= 1;
-        return;
-      } else {
-        await this.clock.sleep(Math.ceil((1 - this.tokens) / this.perMs), signal);
+    } finally {
+      this.running = false;
+      this.nap = undefined;
+      this.setBusy(false);
+    }
+  }
+
+  /** The waiter whose turn it is: most urgent first, then first come. */
+  private next(backgroundToo: boolean): Waiter | undefined {
+    let best: Waiter | undefined;
+    let bestP = Infinity;
+    for (const w of this.waiting) {
+      const p = w.priority();
+      if (p >= PRIORITY.background && !backgroundToo) continue;
+      if (p < bestP || (p === bestP && best && w.seq < best.seq)) {
+        best = w;
+        bestP = p;
       }
     }
+    return best;
   }
 
   /** Nobody goes for `ms`, and the burst starts empty after it. */
@@ -87,6 +210,7 @@ export class Limiter {
     this.tokens = 0;
     // Refilling starts when the pause ends.
     this.at = this.pausedUntil;
+    this.setBusy(true);
   }
 
   /**
@@ -95,6 +219,7 @@ export class Limiter {
    */
   setLimit(perMinute: number) {
     if (!Number.isFinite(perMinute) || perMinute <= 0) return;
+    this.hostLimit = perMinute;
     this.perMs = Math.max(1, perMinute - this.limits.burst) / 60_000;
   }
 }
@@ -108,16 +233,16 @@ export function retryAfter(header: string | null, now: number): number | null {
   return Number.isNaN(date) ? null : Math.max(0, date - now);
 }
 
-/** `fetch` within the host's budget, waiting out its 429s. */
+/** `fetch` within the host's budget, waiting out its 429s; after a pause, the most urgent request goes first. */
 export async function limitedFetch(
   limiter: Limiter,
   url: string,
   init: RequestInit = {},
-  { fetch: doFetch = fetch, clock = realClock }: { fetch?: typeof fetch; clock?: Clock } = {},
+  { fetch: doFetch = fetch, clock = realClock, priority }: { fetch?: typeof fetch; clock?: Clock; priority?: Priority } = {},
 ): Promise<Response> {
   const signal = init.signal ?? undefined;
   for (let attempt = 0; ; attempt++) {
-    await limiter.take(signal);
+    await limiter.take(signal, priority);
     const res = await doFetch(url, init);
     const limit = res.headers.get("X-RateLimit-Limit");
     if (limit) limiter.setLimit(Number(limit));

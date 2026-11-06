@@ -1987,3 +1987,8 @@
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
+/* A rail waiting its turn behind a rate limit (#109). */
+.tv-rail-note {
+  font-weight: 500;
+  color: var(--text-3);
+}

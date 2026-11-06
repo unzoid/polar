@@ -7,6 +7,7 @@ import {
   seasonOf,
   useAiringToday,
   useAnimeGenre,
+  useAniListBusy,
   useAnimeHome,
   type Anime,
   type AnimeCard,
@@ -136,7 +137,9 @@ export function TvAnimeRail({
   chip?: (a: AnimeCard) => string | undefined;
 }) {
   const { matureContent } = usePrefs();
-  if (!items) return <TvSkeletonRail title={title} shape={shape} />;
+  // Waiting its turn behind AniList's limit: said beside the title (#109).
+  const busy = useAniListBusy();
+  if (!items) return <TvSkeletonRail title={title} shape={shape} note={busy ? "AniList is busy, loading…" : undefined} />;
   // TV has no blur: the stage would show the art full-size the moment the
   // card has focus, so "blur" leaves it out here too.
   const kept = matureContent === "show" ? items : items.filter((a) => !isMature(a));

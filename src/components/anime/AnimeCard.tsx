@@ -4,7 +4,7 @@ import {
   aniZipQuery,
   cardFacts,
   countdown,
-  fetchAnime,
+  prefetchAnime,
   FORMAT_LABEL,
   isMature,
   landscapeArt,
@@ -21,7 +21,6 @@ import { api } from "../../lib/api";
 import { useCardIntent } from "../../lib/ui";
 import { ArtTitle, Card } from "../title/Card";
 import { Star, Warning } from "../icons";
-import { keys } from "../../lib/net";
 
 /**
  * Settings → Browsing → Mature content, "blur": the art behind dark frosted
@@ -72,7 +71,7 @@ export function useAnimeHandlers() {
 export function useOpenAnime(item: Media) {
   const qc = useQueryClient();
   const intent = useCardIntent(
-    () => void qc.prefetchQuery({ queryKey: keys.anime.media(item.id), queryFn: () => fetchAnime(item.id), staleTime: 30 * 60_000 }),
+    () => void prefetchAnime(qc, item.id),
     INTENT_DELAY,
   );
   return { ...useAnimeHandlers()(item), ...intent };

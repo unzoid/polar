@@ -27,6 +27,45 @@ export function useNearViewport<T extends Element>(eager = false, margin = 700):
   return [ref, near];
 }
 
+/** Where an element is against the visible part of its page. */
+export type ViewportPlace = "in" | "near" | "far";
+
+/**
+ * {@link useNearViewport}'s latch, plus where the element is now, kept in a ref so it can be read when
+ * it's needed (a queued request's turn) without re-rendering; `onChange` hears each move. "near" is
+ * within `margin` px above or below the visible part.
+ */
+export function useViewportPlace<T extends Element>(onChange?: () => void, margin = 700): [RefObject<T | null>, boolean, RefObject<ViewportPlace>] {
+  const ref = useRef<T>(null);
+  const place = useRef<ViewportPlace>("far");
+  const [near, setNear] = useState(false);
+  const changed = useRef(onChange);
+  changed.current = onChange;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let inView = false;
+    let close = false;
+    const update = () => {
+      const next: ViewportPlace = inView ? "in" : close ? "near" : "far";
+      if (close) setNear(true);
+      if (next === place.current) return;
+      place.current = next;
+      changed.current?.();
+    };
+    const root = scrollRoot(el);
+    const seen = new IntersectionObserver(([e]) => ((inView = e.isIntersecting), update()), { root });
+    const around = new IntersectionObserver(([e]) => ((close = e.isIntersecting), update()), { root, rootMargin: `${margin}px 0px ${margin}px 0px` });
+    seen.observe(el);
+    around.observe(el);
+    return () => {
+      seen.disconnect();
+      around.disconnect();
+    };
+  }, [margin]);
+  return [ref, near, place];
+}
+
 /** The part of an infinite query a grid needs. */
 export type Pager = {
   hasNextPage: boolean;
