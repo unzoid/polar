@@ -72,6 +72,71 @@ impl Default for Probe {
     }
 }
 
+/// Whether a source's link would start playing now (#21), from one look at it ahead of time:
+/// the same request pressing Play makes, once, with a short deadline and no retries.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "state", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum Readiness {
+    /// It answered with the video, `ms` after the request went out (redirects included).
+    Ready { ms: u64 },
+    /// It didn't: why, in a few plain words ("Not ready at the source", "Didn't answer").
+    NotReady { reason: String },
+    /// Not checked (not a web link).
+    Unchecked,
+}
+
+/// How long a readiness check waits: a link slower than this isn't "ready to play".
+pub const READY_DEADLINE: Duration = Duration::from_secs(3);
+
+/// One look at `url` with the player's `headers`: see [`Readiness`].
+pub async fn readiness(url: &str, headers: Vec<(String, String)>) -> Readiness {
+    let probe = Probe {
+        retry_after: Vec::new(),
+        connect_timeout: READY_DEADLINE,
+        timeout: READY_DEADLINE,
+        deadline: READY_DEADLINE,
+        headers,
+    };
+    probe.readiness(url).await
+}
+
+impl Probe {
+    /// [`readiness`] with these timings (tests shorten them). A server on this machine is
+    /// checked too: it's quick, and a self-hosted one is a source like any other.
+    pub async fn readiness(&self, url: &str) -> Readiness {
+        let Ok(start) = Url::parse(url) else { return Readiness::Unchecked };
+        let started = Instant::now();
+        let mut events = Vec::new();
+        let result = self.check(start, &mut |e| events.push(e)).await;
+        judge(result, &events, ms(started))
+    }
+}
+
+/// What a probe's outcome and steps say about the link being ready.
+fn judge(result: Result<String, String>, events: &[ProbeEvent], ms: u64) -> Readiness {
+    let not_ready = |reason: &str| Readiness::NotReady { reason: reason.into() };
+    let response = events.iter().rev().find_map(|e| match e {
+        ProbeEvent::Response { status, content_type, .. } => Some((*status, content_type.as_deref())),
+        _ => None,
+    });
+    match (result, events.last()) {
+        (Err(why), _) if why.contains("placeholder") => not_ready("Not ready at the source"),
+        (Err(_), _) => match response {
+            Some((status, _)) => Readiness::NotReady { reason: format!("The link answered {status}") },
+            None => not_ready("Didn't answer"),
+        },
+        (Ok(_), Some(ProbeEvent::Skipped { .. })) | (Ok(_), None) => Readiness::Unchecked,
+        (Ok(_), Some(ProbeEvent::Unreachable { .. })) => not_ready("Didn't answer"),
+        (Ok(_), _) => match response {
+            Some((_, Some(t))) if t.starts_with("text/") || t.contains("json") || t.contains("xml") => {
+                not_ready("Answered with a page, not a video")
+            }
+            Some(_) => Readiness::Ready { ms },
+            None => Readiness::Unchecked,
+        },
+    }
+}
+
 /// Smaller than any real episode; the addons' status clips are ~100 KB.
 const PLACEHOLDER_MAX_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_REDIRECTS: usize = 10;
@@ -513,6 +578,64 @@ mod tests {
             .await;
             let (r, _) = run(&format!("{base}/clip")).await;
             assert!(r.unwrap_err().contains("placeholder"));
+        })
+    }
+
+    #[test]
+    fn readiness_ready_placeholder_error_page_and_silence() {
+        block(async {
+            let base = serve(|path, _| match path {
+                "/film.mkv" => answer(
+                    "206 Partial Content",
+                    &[("Content-Type", "video/x-matroska"), ("Content-Range", "bytes 0-1023/4000000000")],
+                ),
+                "/start" => answer("302 Found", &[("Location", "/film.mkv")]),
+                "/clip" => answer(
+                    "206 Partial Content",
+                    &[("Content-Type", "video/mp4"), ("Content-Range", "bytes 0-1023/136909")],
+                ),
+                "/page" => answer("200 OK", &[("Content-Type", "text/html; charset=utf-8"), ("Content-Length", "0")]),
+                "/busy" => answer("503 Service Unavailable", &[]),
+                _ => answer("404 Not Found", &[]),
+            })
+            .await;
+            let check = |path: &str| {
+                let url = format!("{base}{path}");
+                async move { Probe { retry_after: vec![], ..Probe::default() }.readiness(&url).await }
+            };
+            assert!(matches!(check("/start").await, Readiness::Ready { .. }));
+            assert_eq!(check("/clip").await, Readiness::NotReady { reason: "Not ready at the source".into() });
+            assert_eq!(check("/gone").await, Readiness::NotReady { reason: "The link answered 404".into() });
+            assert_eq!(check("/busy").await, Readiness::NotReady { reason: "The link answered 503".into() });
+            assert_eq!(
+                check("/page").await,
+                Readiness::NotReady { reason: "Answered with a page, not a video".into() }
+            );
+            assert_eq!(
+                Probe::default().readiness("not a link").await,
+                Readiness::Unchecked,
+                "not a link: nothing to check"
+            );
+        })
+    }
+
+    #[test]
+    fn readiness_of_a_link_that_doesnt_answer_in_time() {
+        block(async {
+            // Accepts and never answers.
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}/slow", listener.local_addr().unwrap());
+            tokio::spawn(async move {
+                let mut held = vec![];
+                loop {
+                    let (sock, _) = listener.accept().await.unwrap();
+                    held.push(sock);
+                }
+            });
+            let short = Duration::from_millis(200);
+            let probe =
+                Probe { retry_after: vec![], connect_timeout: short, timeout: short, deadline: short, headers: vec![] };
+            assert_eq!(probe.readiness(&url).await, Readiness::NotReady { reason: "Didn't answer".into() });
         })
     }
 

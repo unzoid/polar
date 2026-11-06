@@ -116,6 +116,9 @@ export interface StreamQuality {
   source?: string | null;
 }
 
+/** Whether a source's link would start now (#21), from one look at it ahead of time. */
+export type Readiness = { state: "ready"; ms: number } | { state: "notReady"; reason: string } | { state: "unchecked" };
+
 export interface RankedStream {
   stream: Stream;
   addon: string;

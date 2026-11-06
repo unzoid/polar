@@ -12,6 +12,7 @@ import type {
   Meta,
   MetaPreview,
   Playable,
+  Readiness,
   Progress,
   Settings,
   Stream,
@@ -62,6 +63,8 @@ export const api = {
   /** The link check mpv_load runs, for the built-in player: the URL to open, or why it won't play. */
   streamProbe: (url: string, probeId: number, headers: Record<string, string> | null = null) =>
     call<string>("stream_probe", { url, probeId, headers }),
+  /** One look at a source's link ahead of time (#21): ready to play, or why not. */
+  streamReady: (url: string, headers: Record<string, string> | null = null) => call<Readiness>("stream_ready", { url, headers }),
   subtitles: (type: ContentType, videoId: string) =>
     call<SubtitleOption[]>("subtitles", { ty: type, videoId }),
   subtitleVtt: (url: string) => call<string>("subtitle_vtt", { url }),
