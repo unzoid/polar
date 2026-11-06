@@ -74,6 +74,8 @@ export const Speed = icon(S24.ClockIcon, S20.ClockIcon, S16.ClockIcon);
 export const Trash = icon(S24.TrashIcon, S20.TrashIcon, S16.TrashIcon);
 export const Trailer = icon(S24.FilmIcon, S20.FilmIcon, S16.FilmIcon);
 export const Tv = icon(S24.TvIcon, S20.TvIcon, S16.TvIcon);
+// AirPlay: sending what plays to a TV (not Apple's own glyph).
+export const Cast = icon(S24.TvIcon, S20.TvIcon, S16.TvIcon);
 export const Filters = icon(S24.AdjustmentsHorizontalIcon, S20.AdjustmentsHorizontalIcon, S16.AdjustmentsHorizontalIcon);
 export const Fire =icon(S24.FireIcon, S20.FireIcon, S16.FireIcon);
 export const Watched = icon(S24.CheckCircleIcon, S20.CheckCircleIcon, S16.CheckCircleIcon);

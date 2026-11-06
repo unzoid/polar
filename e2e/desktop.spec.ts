@@ -218,6 +218,52 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await expect(player).toHaveCount(0);
 });
 
+test("with an AirPlay receiver around, the player sends the video to it and back (#19)", async ({ app }) => {
+  // WebKit's AirPlay surface, as WKWebView on macOS has it: a receiver is there, and the picker toggles to it and back.
+  await app.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.WebKitPlaybackTargetAvailabilityEvent = class extends Event {};
+    const wireless = new WeakSet<HTMLMediaElement>();
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (this: HTMLMediaElement, type: string, ...rest: unknown[]) {
+      (add as (...a: unknown[]) => void).call(this, type, ...rest);
+      if (type === "webkitplaybacktargetavailabilitychanged")
+        setTimeout(() => this.dispatchEvent(Object.assign(new Event(type), { availability: "available" })), 50);
+    } as typeof add;
+    Object.defineProperty(HTMLMediaElement.prototype, "webkitCurrentPlaybackTargetIsWireless", {
+      get(this: HTMLMediaElement) {
+        return wireless.has(this);
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "webkitShowPlaybackTargetPicker", {
+      value(this: HTMLMediaElement) {
+        if (wireless.has(this)) wireless.delete(this);
+        else wireless.add(this);
+        this.dispatchEvent(new Event("webkitcurrentplaybacktargetiswirelesschanged"));
+      },
+    });
+  });
+  await app.reload();
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+
+  const airplay = app.locator(".player-top").getByRole("button", { name: "AirPlay" });
+  await expect(airplay).toBeVisible();
+  await airplay.click();
+  await expect(app.getByText("Playing on AirPlay")).toBeVisible();
+  await expect(airplay).toHaveAttribute("aria-pressed", "true");
+  // The controls still drive it.
+  await app.keyboard.press(" ");
+  await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+
+  // Picking this computer again plays here.
+  await app.locator(".player-casting").getByRole("button", { name: "AirPlay" }).click();
+  await expect(app.getByText("Playing on AirPlay")).toHaveCount(0);
+  await expect(airplay).toHaveAttribute("aria-pressed", "false");
+});
+
 test("settings change and stay changed", async ({ app }) => {
   const open = async () => {
     await app.getByRole("button", { name: /^Profile/ }).click();

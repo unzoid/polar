@@ -520,6 +520,23 @@ on the fake backend. AniList can't be reached here, so with the setting on, chec
 - TV mode: the same cards; a card opens the show's page with only that season's episodes.
 - Switching the setting off and on loses no progress or library items.
 
+## AirPlay on macOS (#19)
+
+Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,
+`tests/dom/airplay.test.ts`), and the button, the "Playing on AirPlay" screen and coming back in an
+end-to-end test with WebKit's AirPlay calls stood in for. Needs a Mac and an AirPlay receiver on the
+same network:
+- Play an MP4 or HLS source with mpv: an AirPlay button appears at the top right once the file has
+  started. Pick the receiver: it plays from the same moment; the app shows "Playing on AirPlay".
+- Play/pause, seeking, the 10-second skips and volume act on the receiver; the time and seek bar follow it.
+- Open the AirPlay list again and pick this Mac: mpv carries on from the receiver's position.
+- Continue Watching shows the receiver's position after leaving the player while casting.
+- An MKV source, a source that needs add-on request headers, or a download: no AirPlay button.
+- In a watch party there's no AirPlay button; while casting there's no Watch Party button.
+- Without mpv (built-in player) the same, with the element on screen sent as it is.
+- Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
+  untested. Subtitles inside the file aren't sent.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The
