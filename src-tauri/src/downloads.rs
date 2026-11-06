@@ -557,9 +557,29 @@ pub fn download_remove(downloads: Shared<'_>, id: String) {
 /// where earlier versions kept the list and files (the roaming folder on Windows).
 pub fn manage(app: &AppHandle, app_data: &Path) -> tauri::Result<()> {
     let state = app.path().app_local_data_dir()?.join("downloads");
+    #[cfg(not(target_os = "ios"))]
     let dir = app.path().video_dir().map(|v| v.join("Polarity")).unwrap_or_else(|_| state.clone());
+    #[cfg(target_os = "ios")]
+    let dir = ios_dir(&state);
     app.manage(Arc::new(Downloads::load(&state, dir, Some(&app_data.join("downloads")))));
     Ok(())
+}
+
+/// iOS has no Movies folder for apps: downloads stay in the app's own folder, out of iCloud
+/// and computer backups (they can be downloaded again; backing them up would fill the
+/// user's iCloud storage).
+#[cfg(target_os = "ios")]
+fn ios_dir(state: &Path) -> PathBuf {
+    extern "C" {
+        // src/ios/files.m
+        fn polar_exclude_from_backup(path: *const std::ffi::c_char) -> std::ffi::c_int;
+    }
+    let _ = std::fs::create_dir_all(state);
+    match std::ffi::CString::new(state.to_string_lossy().as_bytes()) {
+        Ok(path) if unsafe { polar_exclude_from_backup(path.as_ptr()) } == 1 => {}
+        _ => tracing::warn!("downloads may be backed up: couldn't exclude their folder"),
+    }
+    state.to_path_buf()
 }
 
 #[cfg(test)]

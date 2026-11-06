@@ -68,7 +68,7 @@ struct Shot {
 
 /// Take a screenshot of the frame shown now and read it with our detector:
 /// an uncompressed PNG mpv writes to this app's folder, read and deleted.
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(mpv_apple))]
 async fn take_shot(app: AppHandle, load: u64, g: CropGeometry) -> Shot {
     use std::sync::atomic::AtomicU64;
 
@@ -97,14 +97,14 @@ async fn take_shot(app: AppHandle, load: u64, g: CropGeometry) -> Shot {
 }
 
 /// Read the frame shown now with our detector, in memory: libmpv runs in
-/// the app here ([`super::mac::Frames`]).
-#[cfg(target_os = "macos")]
+/// the app here ([`super::apple::Frames`]).
+#[cfg(mpv_apple)]
 async fn take_shot(app: AppHandle, load: u64, g: CropGeometry) -> Shot {
     use std::sync::{Arc, Mutex as StdMutex};
 
     use polar_player::bars::detect;
 
-    use super::{mac::Frames, Conn, Engine};
+    use super::{apple::Frames, Conn, Engine};
 
     /// The reader of the running player's frames, by the player it reads.
     static FRAMES: StdMutex<Option<(usize, Arc<Frames>)>> = StdMutex::new(None);
