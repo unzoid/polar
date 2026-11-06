@@ -570,3 +570,62 @@ test("with seasons as separate shows, Continue Watching names the anime entry th
   await expect(row.locator(".card").first()).not.toContainText("Paper Moon Part 2");
   await expect(row.locator(".card").first()).toContainText("S2");
 });
+
+test("the player's episode rail reaches every episode by wheel and paddles, and its row/list switch is the title page's (#226)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  await expect(app.locator(".episode-card")).toHaveCount(10);
+  await app.locator(".episode-card-main:not([disabled])").first().click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Episodes", exact: true }).click();
+  const rail = app.locator(".episode-rail");
+  const last = rail.locator(".episode-rail-card").last();
+  // Whether the season's last episode is wholly in the rail's view.
+  const lastShown = () =>
+    rail.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const c = el.lastElementChild!.getBoundingClientRect();
+      return c.left >= r.left - 1 && c.right <= r.right + 1;
+    });
+  await expect(last).toBeAttached();
+  expect(await lastShown()).toBe(false);
+
+  // A mouse wheel turns up/down only: it moves the rail along, and the player's re-renders don't put it back.
+  const box = (await rail.boundingBox())!;
+  await app.mouse.move(box.x + box.width / 2, box.y + 60);
+  for (let i = 0; i < 40 && !(await lastShown()); i++) await app.mouse.wheel(0, 120);
+  expect(await lastShown()).toBe(true);
+  await app.waitForTimeout(1500);
+  expect(await lastShown()).toBe(true);
+  await expect(app.locator(".episode-rail-paddle[data-dir=next]")).toHaveCSS("opacity", "0");
+
+  // The paddle at the start pages back to the first episode.
+  const prev = app.locator(".episode-rail-paddle[data-dir=prev]");
+  for (let i = 0; i < 10 && (await rail.evaluate((el) => el.scrollLeft)) > 4; i++) {
+    await prev.click();
+    await app.waitForTimeout(600);
+  }
+  expect(await rail.evaluate((el) => el.scrollLeft)).toBeLessThanOrEqual(4);
+  await expect(prev).toHaveCSS("opacity", "0");
+
+  // The arrow keys step card by card from the one playing, each brought into view.
+  await expect(rail.locator('[aria-current="true"] > .episode-rail-main')).toBeFocused();
+  for (let i = 0; i < 9; i++) await app.keyboard.press("ArrowRight");
+  await expect(last.locator(".episode-rail-main")).toBeFocused();
+  await expect.poll(lastShown).toBe(true);
+
+  // List in the player: seasons and episodes as columns, remembered on the title page.
+  await app.getByRole("radio", { name: "List" }).click();
+  await expect(rail).toHaveCount(0);
+  await expect(app.getByRole("radiogroup", { name: "Episodes" }).getByRole("radio")).toHaveCount(10);
+  await app.keyboard.press("Escape");
+  await app.keyboard.press("Escape");
+  await expect(app.locator(".player")).toHaveCount(0);
+  await expect(app.locator(".episode-list")).toBeVisible();
+  // And back to a row from the title page, which the player follows.
+  await app.getByRole("radio", { name: "Row" }).click();
+  await expect(app.locator(".episode-list")).toHaveCount(0);
+  await app.locator(".episode-card-main:not([disabled])").first().click();
+  await app.getByRole("button", { name: "Episodes", exact: true }).click();
+  await expect(rail).toBeVisible();
+});

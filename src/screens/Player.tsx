@@ -6,6 +6,8 @@ import {
   Close,
   Episodes,
   ExitFullscreen,
+  LayoutList,
+  LayoutRow,
   Fullscreen,
   Pause,
   Play,
@@ -60,7 +62,8 @@ import {
 } from "../components/player/SubtitleSettings";
 import { MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
-import { getPrefs, openSettings, setPrefs, usePrefs, withShortcut } from "../lib/settings";
+import { getPrefs, openSettings, setPrefs, useEpisodeLayout, usePrefs, withShortcut } from "../lib/settings";
+import { Segmented } from "../components/Segmented";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
 import { airLabel, episodeCode, formatRemaining, formatTime, seasonLabel } from "../lib/format";
@@ -601,6 +604,19 @@ export function Player({
   const seasons = useMemo(() => (meta ? seasonsOf(meta) : []), [meta]);
   const [pickSeason, setPickSeason] = useState<number>();
   const shownSeason = pickSeason ?? current?.season ?? seasons[0];
+  // Side by side or a list: the same choice as the title page's switch (#226).
+  const [episodeLayout, setEpisodeLayout] = useEpisodeLayout();
+  const layoutSwitch = (
+    <Segmented
+      label="Episode layout"
+      value={episodeLayout}
+      onChange={setEpisodeLayout}
+      options={[
+        { id: "row", label: "Row", icon: <LayoutRow size={18} /> },
+        { id: "list", label: "List", icon: <LayoutList size={18} /> },
+      ]}
+    />
+  );
   // Only fetched once the Sources picker is opened (and usually cached already).
   const streams = useStreams(type, options === "sources" ? videoId : undefined);
 
@@ -1222,7 +1238,7 @@ export function Player({
         onClose={() => setOptions(null)}
         media={media}
         columns={
-          tv || !meta
+          episodeLayout === "list" || !meta
             ? [
                 {
                   title: "Seasons",
@@ -1233,25 +1249,29 @@ export function Player({
                 {
                   title: "Episodes",
                   size: "wide",
+                  header: meta && layoutSwitch,
                   value: videoId,
                   options: episodeItems,
                   onSelect: (id) => id !== videoId && playVideo(id),
                 },
               ]
-            : // A pointer or a finger: the season to browse in a dropdown, its episodes side by side under it.
+            : // The season to browse in a dropdown, its episodes side by side under it.
               [
                 {
                   title: "Episodes",
                   size: "full",
                   titleHidden: true,
                   header: (
-                    <Dropdown
-                      label="Season"
-                      size="large"
-                      value={String(shownSeason)}
-                      onChange={(id) => setPickSeason(Number(id))} // browse; playback continues
-                      options={seasons.map((n) => ({ value: String(n), label: seasonLabel(n) }))}
-                    />
+                    <div className="episode-rail-head">
+                      <Dropdown
+                        label="Season"
+                        size="large"
+                        value={String(shownSeason)}
+                        onChange={(id) => setPickSeason(Number(id))} // browse; playback continues
+                        options={seasons.map((n) => ({ value: String(n), label: seasonLabel(n) }))}
+                      />
+                      {layoutSwitch}
+                    </div>
                   ),
                   options: [],
                   onSelect: () => {},

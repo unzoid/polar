@@ -1,6 +1,7 @@
 import { LayoutList, LayoutRow, Volume, VolumeMuted } from "../components/icons";
 import { NameList } from "../components/title/NameList";
 import { useArtGate, useFoldSnap, useFormFactor } from "../lib/ui";
+import { useEpisodeLayout } from "../lib/settings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
 import { cardMenu } from "../components/CardMenu";
@@ -17,8 +18,8 @@ import { Segmented } from "../components/Segmented";
 import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
 import { episodeCode, formatRuntime, isReleased, joinFacts, seasonLabel } from "../lib/format";
 import { type PlayRequest, trailerFor, useFileTrailer, usePlayTarget } from "../lib/playback";
-import { prefetchStreams, useMeta, useProgress, useSettings, useStreams } from "../lib/net";
-import type { ContentType, EpisodeLayout, Meta, MetaPreview, Video } from "../lib/types";
+import { prefetchStreams, useMeta, useProgress, useStreams } from "../lib/net";
+import type { ContentType, Meta, MetaPreview, Video } from "../lib/types";
 import { IconButton } from "../components/ui/Button";
 import { TitleActions } from "../components/title/TitleActions";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -200,8 +201,6 @@ function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => vo
   const seasons = useMemo(() => seasonsOf(meta), [meta]);
   const next = useMemo(() => upNext(meta, progress ?? []), [meta, progress]);
   const [season, setSeason] = useState<number | undefined>();
-  // This page's choice; until you pick one, the default from Settings.
-  const [layoutChoice, setLayout] = useState<EpisodeLayout | undefined>();
   const picker = useSourcePicker(onSheet);
 
   // Open on the season you're actually in, not always season 1 — so wait
@@ -214,8 +213,7 @@ function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => vo
   const episodes = meta.videos.filter((v) => v.season === current);
   const map = useMemo(() => progressMap(progress), [progress]);
 
-  const { data: settings } = useSettings();
-  const layout = layoutChoice ?? settings?.episodeLayout ?? "row";
+  const [layout, setLayout] = useEpisodeLayout();
   // A started episode keeps its file.
   const request = (v: Video): PlayRequest => ({
     type: "series",
