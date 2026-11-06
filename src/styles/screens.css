@@ -1154,14 +1154,14 @@
   background: var(--fill-2);
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
-/* Two-step delete (ConfirmDeleteButton): first click turns it red and pops
-   the bin's lid open, second click deletes. Arming is a small spring with a
-   touch of overshoot; standing down is quicker and flat. */
-/* The Library's round buttons (.quiet-btn) share the delete button's look: a
+/* Two-step delete (useConfirmDelete, on any button look): first click turns it
+   red and pops the bin's lid open, second click deletes. Arming is a small
+   spring with a touch of overshoot; standing down is quicker and flat. */
+/* The Library's round buttons (.quiet-btn, the playlist's delete among them): a
    faint filled circle, grey glyph that brightens on hover, a press that gives
    (0.97 from .btn). When what a button means changes (download → ring →
    check), its glyph pops in (.btn-glyph). */
-.btn.btn-icon:is(.confirm-delete, .quiet-btn) {
+.btn.btn-icon.quiet-btn {
   width: 44px;
   height: 44px;
   background: rgb(255 255 255 / 0.08);
@@ -1173,11 +1173,11 @@
     background-color var(--dur-fast) var(--ease-std),
     color var(--dur-fast) var(--ease-std);
 }
-.btn.btn-icon:is(.confirm-delete, .quiet-btn) svg {
+.btn.btn-icon.quiet-btn svg {
   filter: none;
 }
 @media (hover: hover) and (pointer: fine) {
-  .btn.btn-icon:is(.confirm-delete, .quiet-btn):hover {
+  .btn.btn-icon.quiet-btn:hover {
     background: var(--fill-4);
     color: var(--text);
   }
