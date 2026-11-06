@@ -25,6 +25,9 @@ describe("errors (critique L1)", () => {
   test("server errors map by their code, not their wording", () => {
     expect(dbError(pg("P0001", "profile_limit")).code).toBe("profile_limit");
     expect(dbError(pg("P0001", "playlist_limit")).code).toBe("playlist_limit");
+    for (const code of ["library_limit", "progress_limit", "anime_links_limit"]) {
+      expect(dbError(pg("P0001", code))).toMatchObject({ code, message: expect.stringContaining("full") });
+    }
     expect(dbError(pg("PGRST205", "Could not find the table"))).toMatchObject({ code: "not_set_up" });
     expect(dbError(pg("", "TypeError: Failed to fetch")).code).toBe("network");
     // A message that merely mentions a limit is not that limit.

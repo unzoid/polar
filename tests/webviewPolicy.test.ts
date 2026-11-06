@@ -52,3 +52,7 @@ test("the web view can't open URLs or reveal files by itself", () => {
     expect(cap.permissions.filter((p: string) => p.startsWith("opener:") || p.startsWith("fs:") || p.startsWith("shell:"))).toEqual([]);
   }
 });
+
+test("scripts come only from the app and the sign-in CAPTCHA's host, loaded when the server asks for it (#110)", () => {
+  expect(conf.app.security.csp["script-src"].split(/\s+/)).toEqual(["'self'", "https://challenges.cloudflare.com"]);
+});

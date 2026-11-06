@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { AccountError, type PushResult } from "../src/lib/account/backend";
 import { pushEach, pushSpace, unpushedCount, type PushDeps } from "../src/lib/account/spacePush";
 import type { AnimeLink } from "../src/lib/library/identity";
 import type { LocalChanges, Progress, Pushed, SyncLibraryItem } from "../src/lib/types";
@@ -8,7 +9,7 @@ const entry = (videoId: string, updatedAt = 1) => ({ videoId, updatedAt }) as un
 const link = (anilist: number, updatedAt = 1) => ({ anilist, updatedAt }) as unknown as AnimeLink;
 
 /** A device with spaces of unpushed rows, and a server that takes them unless told otherwise. */
-function fake(spaces: Record<string, Partial<LocalChanges>>, server: { down?: Set<string>; noLinks?: boolean; unsent?: string[] } = {}) {
+function fake(spaces: Record<string, Partial<LocalChanges>>, server: { down?: Set<string>; noLinks?: boolean; unsent?: string[]; full?: PushResult["full"] } = {}) {
   const pushed: Record<string, LocalChanges[keyof LocalChanges][]> = {};
   const marked: Record<string, Pushed> = {};
   const deps: PushDeps = {
@@ -19,7 +20,7 @@ function fake(spaces: Record<string, Partial<LocalChanges>>, server: { down?: Se
     async push(space, changes) {
       if (server.down?.has(space)) throw new Error("offline");
       pushed[space] = [changes.library, changes.progress, changes.links];
-      return { links: !server.noLinks, unsent: server.unsent ?? [] };
+      return { links: !server.noLinks, unsent: server.unsent ?? [], ...(server.full && { full: server.full }) };
     },
     async markPushed(space, receipt) {
       marked[space] = receipt;
@@ -65,6 +66,17 @@ describe("pushSpace", () => {
     await pushSpace("a", deps);
     expect(marked.a.links).toEqual([]);
     expect(await unpushedCount(["a"], deps.changes)).toBe(1);
+  });
+
+  test("a kind the account has no room for stays unpushed, the rest is marked, and the error comes back (#110)", async () => {
+    const error = new AccountError("library_limit", "The account's library is full.");
+    const { deps, marked } = fake(
+      { a: { library: [item("tt1")], progress: [entry("tt2:1:1")], links: [link(1)] } },
+      { full: { kinds: ["library", "links"], error } },
+    );
+    expect((await pushSpace("a", deps)).full).toBe(error);
+    expect(marked.a).toEqual({ library: [], progress: [["tt2:1:1", 1]], links: [] });
+    expect(await unpushedCount(["a"], deps.changes)).toBe(2);
   });
 
   test("a failed push is not marked", async () => {

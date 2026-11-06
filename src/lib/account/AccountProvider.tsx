@@ -32,7 +32,7 @@ export interface Account {
   canCancelSignIn: boolean;
 
   /** Email a sign-in code (new emails get an account automatically). */
-  sendCode(email: string): Promise<void>;
+  sendCode(email: string, captchaToken?: string): Promise<void>;
   verifyCode(email: string, code: string): Promise<void>;
   /** Signed in but loading profiles failed: try that part again. */
   resume(): Promise<void>;
@@ -212,8 +212,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       lastProfileId: localStorage.getItem(LAST_PROFILE_KEY),
       canCancelSignIn,
 
-      async sendCode(email) {
-        await need().auth.sendCode(email.trim().toLowerCase());
+      async sendCode(email, captchaToken) {
+        await need().auth.sendCode(email.trim().toLowerCase(), captchaToken);
       },
       async verifyCode(email, code) {
         const u = await need().auth.verifyCode(email.trim().toLowerCase(), code.replace(/\s/g, ""));
