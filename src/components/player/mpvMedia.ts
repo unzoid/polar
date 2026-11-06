@@ -48,8 +48,10 @@ export interface StepDetail {
   key?: string;
 }
 
-/** How long time reports are ignored after a seek is sent, at most, if mpv never says it started. */
+/** How long time reports away from a seek's target are ignored, at most, if mpv never reaches it. */
 const SEEK_STALE_MS = 1000;
+/** A time report this close to the target (seconds) is the seek having landed. */
+const SEEK_LANDED_S = 1;
 
 /**
  * An mpv-backed stand-in for an HTMLVideoElement.
@@ -83,16 +85,12 @@ export class MpvMedia extends EventTarget implements MediaLike {
   /** mpv is running (the first load went through); options set before that wait in `early`. */
   private running = false;
   private early = new Map<string, unknown>();
-  /** A seek mpv hasn't started yet: time reports from before it are stale. */
-  private seekPending = false;
-  private seekStarted = false;
-
   /**
-   * Seek to the exact frame instead of the keyframe before it. Off, seeks are
-   * instant but can land seconds early; a watch party turns it on, or every
-   * catch-up seek lands short, looks like drift, and seeks again.
+   * The latest seek's target while mpv hasn't reported reaching it: time reports
+   * from before it (the old position, or an earlier seek's landing) are stale.
    */
-  exactSeeks = false;
+  private seekTarget: number | null = null;
+  private seekAt = 0;
 
   tracks: MpvTrack[] = [];
   /** Container chapters, when the file has any. */
@@ -137,7 +135,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
   load(url: string, start?: number, headers: Record<string, string> | null = null) {
     this.loaded = false;
     this.isEnded = false;
-    this.seekPending = this.seekStarted = false;
+    this.seekTarget = null;
     this.error = null;
     this.time = start ?? 0;
     this.stamp = performance.now();
@@ -202,10 +200,11 @@ export class MpvMedia extends EventTarget implements MediaLike {
   set currentTime(t: number) {
     this.time = t;
     this.stamp = performance.now();
-    this.seekPending = true;
-    this.seekStarted = false;
-    void this.command("seek", t, this.exactSeeks ? "absolute+exact" : "absolute+keyframes").catch(() => {
-      this.seekPending = false;
+    this.seekTarget = t;
+    this.seekAt = this.stamp;
+    // Exact: a keyframe seek lands seconds off the asked place, so a skip of 10s isn't one.
+    void this.command("seek", t, "absolute+exact").catch(() => {
+      if (this.seekTarget === t) this.seekTarget = null;
     });
     this.emit("seeking"); // as a <video> does when its currentTime is set
   }
@@ -285,9 +284,13 @@ export class MpvMedia extends EventTarget implements MediaLike {
   private onProperty(name: string, data: unknown) {
     switch (name) {
       case "time-pos":
-        // Still the old position, reported before mpv picked the seek up: keep the target.
-        if (this.seekPending && !this.seekStarted && performance.now() - this.stamp < SEEK_STALE_MS) break;
         if (typeof data === "number") {
+          // Still the old position, or where an earlier seek landed (skip forward, then straight
+          // back): keep the target until mpv reports it, or gives up on it (a seek past the end).
+          if (this.seekTarget != null) {
+            if (Math.abs(data - this.seekTarget) > SEEK_LANDED_S && performance.now() - this.seekAt < SEEK_STALE_MS) break;
+            this.seekTarget = null;
+          }
           this.time = data;
           this.stamp = performance.now();
           this.emit("timeupdate");
@@ -316,13 +319,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
         this.emit(this.buffering ? "waiting" : "playing");
         break;
       case "seeking":
-        if (data === true) {
-          if (this.seekPending) this.seekStarted = true;
-          this.emit("waiting");
-        } else {
-          if (this.seekStarted) this.seekPending = this.seekStarted = false;
-          if (!this.buffering) this.emit("playing");
-        }
+        if (data === true) this.emit("waiting");
+        else if (!this.buffering) this.emit("playing");
         break;
       case "eof-reached":
         if (data === true && this.loaded) {
