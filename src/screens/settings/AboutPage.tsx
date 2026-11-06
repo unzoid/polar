@@ -86,7 +86,7 @@ export function AboutPage() {
 
 /**
  * Where the data comes from. TMDB's notice and logo are required to be shown,
- * so they aren't folded away; its rules keep the logo smaller than Polar's own
+ * so they aren't folded away; its rules keep the logo smaller than Polarity's own
  * (the 38px navbar mark) and without any hint of endorsement.
  */
 function CreditsCard() {

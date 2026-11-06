@@ -1,5 +1,5 @@
 //! The log (critique M14): warnings and errors from every part of the app, and
-//! Polar's own notes from info up, to `polar.log` in the app's log folder
+//! Polarity's own notes from info up, to `polar.log` in the app's log folder
 //! (`polar_library::logfile`, 1 MB and one older copy). Debug builds also
 //! print to the terminal. A panic is written there before the app goes down.
 //!

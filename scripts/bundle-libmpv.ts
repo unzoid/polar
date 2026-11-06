@@ -1,7 +1,7 @@
 // Copies libmpv and every non-system library it links into
 // src-tauri/vendor/libmpv, rewired to find each other next to themselves
 // (@loader_path), so the macOS app plays without Homebrew. The build ships
-// them in Polar.app/Contents/Frameworks, where player.rs looks first.
+// them in Polarity.app/Contents/Frameworks, where player.rs looks first.
 //
 //   bun scripts/bundle-libmpv.ts [path/to/libmpv.2.dylib]   (default: Homebrew's)
 //
@@ -102,7 +102,7 @@ const list = [...libs.keys()].map((p) => {
 });
 writeFileSync(
   join(out, "licenses", "BUNDLED.txt"),
-  `Polar plays video with mpv (https://mpv.io, GPLv2+), built by Homebrew with the libraries below.\n` +
+  `Polarity plays video with mpv (https://mpv.io, GPLv2+), built by Homebrew with the libraries below.\n` +
     `Source code for each is linked from its Homebrew formula page.\n\n${list.join("\n")}\n`,
 );
 

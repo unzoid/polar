@@ -2,7 +2,8 @@ name: App end to end
 
 # The built app driven through tauri-driver (e2e/app/smoke.ts): slow, so
 # nightly and on master only (docs/plan-tests.md, I-010), not on every push.
-# macOS has no WKWebView driver, so Linux and Windows only.
+# macOS has no WKWebView driver, so Linux and Windows only; job android starts the
+# debug APK in an emulator (e2e/android/smoke.sh).
 on:
   schedule:
     - cron: '17 3 * * *'
@@ -71,3 +72,72 @@ jobs:
       - name: Smoke test
         if: runner.os == 'Windows'
         run: bun e2e/app/smoke.ts
+
+  android:
+    name: Android emulator smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch
+        with:
+          toolchain: stable
+          targets: x86_64-linux-android
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: android-emulator
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      # As in ci.yml's android job, the emulator's architecture only.
+      - name: Install the Android platform
+        run: |
+          sdk="$(sed -n 's/.*compileSdk = \([0-9]*\).*/\1/p' src-tauri/gen/android/app/build.gradle.kts)"
+          # From API 37 on, platform packages carry a minor version (platforms;android-37.0).
+          pkg="platforms;android-$sdk"; [ "$sdk" -ge 37 ] && pkg="$pkg.0"
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$pkg"
+      # The runner image's newest NDK is a shell variable there, not part of the workflow's `env`
+      # context (so `${{ env.ANDROID_NDK_LATEST_HOME }}` is empty); hand it to the later steps.
+      - name: Use the runner's NDK
+        run: echo "NDK_HOME=${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:?the runner image has no Android NDK}}" >> "$GITHUB_ENV"
+      # libmpv as ci.yml's android job last built it (not built here: without it the app plays
+      # through the web view and the smoke test runs all the same).
+      - name: Restore libmpv
+        id: libmpv
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/libmpv/out
+          key: android-libmpv-${{ hashFiles('scripts/android-mpv.sh') }}
+      - name: Put libmpv in the app
+        if: steps.libmpv.outputs.cache-hit == 'true'
+        run: cp -R "$RUNNER_TEMP/libmpv/out/jniLibs" "$RUNNER_TEMP/libmpv/out/assets" src-tauri/gen/android/app/src/main/
+      - name: Build
+        run: bun run tauri android build --ci --debug --apk --target x86_64
+      # The emulator needs KVM, which GitHub's Linux runners have but don't open to the runner user.
+      - name: Open KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Start, run and press Back in the emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: e2e/android/smoke.sh "$(find src-tauri/gen/android/app/build/outputs/apk -name '*x86_64*debug*.apk' -o -name '*universal*debug*.apk' | head -n 1)"
+      - name: Keep the logcat and screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-emulator-smoke
+          path: e2e/android/out/
+          retention-days: 14

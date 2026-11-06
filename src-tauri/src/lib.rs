@@ -5,6 +5,7 @@ mod controllers;
 mod downloads;
 mod imdb;
 mod introdb;
+mod keychain;
 mod locks;
 mod logging;
 mod player;
@@ -113,7 +114,7 @@ pub fn index_config(settings: &store::Settings) -> IndexConfig {
 }
 
 /// The app used to be called Rustio (identifier `app.rustio.desktop`); bring
-/// its data file over the first time Polar starts.
+/// its data file over the first time Polarity starts.
 fn migrate_legacy_store(dir: &std::path::Path, path: &std::path::Path) {
     if path.exists() {
         return;
@@ -176,6 +177,11 @@ pub fn run() {
             downloads::manage(app.handle(), &dir)?;
             let store = Arc::new(Mutex::new(store::Store::load(path)));
             let cache = app.path().app_cache_dir()?;
+            #[cfg(target_os = "android")]
+            {
+                player::set_scratch_dir(cache.join("mpv"));
+                player::preload();
+            }
             let indexer = Indexer::new(index_config(&store.locked().data.settings));
             app.manage(AppState {
                 indexer: RwLock::new(Arc::new(indexer)),
@@ -234,6 +240,9 @@ pub fn run() {
             commands::anime_cache,
             commands::anime_cache_clear,
             commands::trailer,
+            keychain::keychain_get,
+            keychain::keychain_set,
+            keychain::keychain_delete,
             downloads::downloads_list,
             downloads::download_start,
             downloads::download_pause,

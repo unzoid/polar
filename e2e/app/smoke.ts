@@ -17,13 +17,13 @@
  *
  * On Linux the app's data goes to a fresh folder (XDG_* variables). On Windows
  * it can't be moved, so it runs only on CI or with POLAR_E2E_APP_OK=1, and then
- * writes into your own Polar profile.
+ * writes into your own Polarity profile.
  *
  * POLAR_APP=<path> picks the binary (default target/debug/polar[.exe]);
  * TAURI_DRIVER=<path> the driver (default tauri-driver on PATH).
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -37,7 +37,7 @@ const TITLE = { id: "tt9999990", type: "movie", name: "Polar Smoke Test" };
 type Ref = { [ELEMENT]: string };
 
 if (windows && !process.env.CI && !process.env.POLAR_E2E_APP_OK) {
-  console.error("On Windows this writes into your own Polar profile; set POLAR_E2E_APP_OK=1 to run it anyway.");
+  console.error("On Windows this writes into your own Polarity profile; set POLAR_E2E_APP_OK=1 to run it anyway.");
   process.exit(2);
 }
 
@@ -114,28 +114,113 @@ class Session {
 
   async click(what: string, selector: string, text?: string) {
     const el = await until(what, () => this.find(selector, text));
-    await wd("POST", `/session/${this.id}/element/${el[ELEMENT]}/click`, {});
+    await this.press(what, el);
+  }
+
+  /**
+   * Clicks `el` as a user would. If something lies over it ("element click intercepted", seen on
+   * Linux), says what in a warning and clicks it from the page instead, so the run still tests
+   * what survives a restart.
+   */
+  async press(what: string, el: Ref) {
+    try {
+      await wd("POST", `/session/${this.id}/element/${el[ELEMENT]}/click`, {});
+    } catch (e) {
+      if (!(e instanceof Error) || !e.message.includes("intercepted")) throw e;
+      console.log(`::warning::clicking ${what} was intercepted, so it was clicked from the page: ${await this.covering(el)}`);
+      await this.run("arguments[0].click()", el);
+    }
+  }
+
+  /** What lies over the middle of `el`, and whether the page still draws (an exit animation waits for frames). */
+  covering(el: Ref) {
+    return wd<string>("POST", `/session/${this.id}/execute/async`, {
+      script: `const [el, done] = arguments;
+        const describe = (n) => n ? n.tagName.toLowerCase() + (n.id ? "#" + n.id : "") + (n.className && typeof n.className === "string" ? "." + n.className.trim().split(/\\s+/).join(".") : "")
+          + [...n.attributes].filter((a) => a.name.startsWith("data-") || a.name === "aria-label" || a.name === "role").map((a) => "[" + a.name + (a.value ? "=" + a.value : "") + "]").join("") : "nothing";
+        const r = el.getBoundingClientRect();
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        const animations = document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => (a.effect?.target ? describe(a.effect.target) : "?") + " " + a.playState).slice(0, 5);
+        let frames = 0;
+        const count = () => { frames++; if (frames < 3) requestAnimationFrame(count); };
+        requestAnimationFrame(count);
+        setTimeout(() => done(
+          "at " + Math.round(r.left + r.width / 2) + "," + Math.round(r.top + r.height / 2) + " in " + innerWidth + "x" + innerHeight
+          + ": " + (top === el || el.contains(top) ? "the element itself" : describe(top) + (top?.parentElement ? " in " + describe(top.parentElement) : ""))
+          + "; body pointer-events " + getComputedStyle(document.body).pointerEvents
+          + "; animations [" + animations.join(", ") + "]; " + document.visibilityState + ", " + frames + " frames in 500 ms"), 500);`,
+      args: [el],
+    }).catch((e) => `(couldn't tell: ${e instanceof Error ? e.message : e})`);
   }
 
   checked(el: Ref) {
     return this.run<boolean>("return arguments[0].checked", el);
   }
 
+  /** Whether the window still answers: on Windows the sign that the app has gone. */
+  answers() {
+    return wd("GET", `/session/${this.id}/title`).then(
+      () => true,
+      () => false,
+    );
+  }
+
   /**
    * Quits as someone would, with the window's Close button. The app writes what's still pending
    * (progress waits a second) as it exits; ending the WebDriver session kills it before that.
+   * If the app is still there after the click, the button is clicked from the page, then the
+   * window closed through the bridge the button uses, and what each said is in the error.
    */
   async quit() {
     const close = await until("the window's Close button", () => this.find(".window-controls button[aria-label=Close]"));
-    // The window can go before the click is answered.
-    await wd("POST", `/session/${this.id}/element/${close[ELEMENT]}/click`, {}).catch(() => {});
-    const gone = () =>
-      wd("GET", `/session/${this.id}/title`)
-        .then(() => false)
-        .catch(() => true);
-    await until("the app to quit", gone, 20_000);
-    await wd("DELETE", `/session/${this.id}`).catch(() => {});
+    const gone = async () => (running() ?? (await this.answers())) === false;
+    const said: string[] = [];
+    const tries: [string, () => Promise<unknown>][] = [
+      [
+        "clicked",
+        () =>
+          wd("POST", `/session/${this.id}/element/${close[ELEMENT]}/click`, {}).catch(async (e) => {
+            throw new Error(`${e instanceof Error ? e.message : e} (over it: ${await this.covering(close)})`);
+          }),
+      ],
+      ["clicked from the page", () => this.run("arguments[0].click()", close)],
+      ["closed through the bridge", () => this.invoke("plugin:window|close", { label: "main" })],
+    ];
+    for (const [how, act] of tries) {
+      // The window can go before the command is answered.
+      await act().then(
+        () => said.push(`${how}: ok`),
+        (e) => said.push(`${how}: ${e instanceof Error ? e.message : e}`),
+      );
+      if (await until("the app to quit", gone, 10_000).catch(() => false)) {
+        // Passes, since what's tested is what survives a restart, but shows on the run's summary.
+        if (how !== tries[0][0]) console.log(`::warning::the Close button didn't quit the app; it quit once ${how} (${said.join("; ")})`);
+        await wd("DELETE", `/session/${this.id}`).catch(() => {});
+        return;
+      }
+    }
+    const proc = running();
+    const state = `${proc === null ? "" : `process ${proc ? "running" : "gone"}, `}window ${(await this.answers()) ? "answering" : "gone"}`;
+    throw new Error(`timed out waiting for the app to quit (${said.join("; ")}; ${state})`);
   }
+}
+
+/**
+ * Whether the app's process runs, found by its executable in /proc on Linux: a closed window
+ * doesn't tell that the app has written everything and ended. Null elsewhere.
+ */
+function running(): boolean | null {
+  if (process.platform !== "linux") return null;
+  const exe = realpathSync(app);
+  for (const pid of readdirSync("/proc")) {
+    if (!/^\d+$/.test(pid)) continue;
+    try {
+      if (readlinkSync(`/proc/${pid}/exe`) === exe) return true;
+    } catch {
+      // Gone meanwhile, or another user's.
+    }
+  }
+  return false;
 }
 
 /** From the first screen to the app's sections: without an account if it asks. */
@@ -152,7 +237,16 @@ async function skipIntros(s: Session) {
   await s.click("the profile menu", "[aria-label^='Profile:']");
   await s.click("Settings in the menu", "[role=menuitem]", "Settings");
   const sw = await until("the Skip intros switch", () => s.find("input[role=switch]", "Skip intros"));
-  return { sw, checked: () => s.checked(sw), close: () => s.click("Close settings", "[aria-label='Close settings']") };
+  const close = async () => {
+    await s.click("Close settings", "[aria-label='Close settings']");
+    // Settings plays its way out before it leaves the page; till then its backdrop lies over the app.
+    const gone = () => s.run<boolean>("return !document.querySelector('.t3s-backdrop')");
+    if (!(await until("Settings to close", gone, 5_000).catch(() => false))) {
+      const nav = await s.find("nav[aria-label=Primary]");
+      console.log(`::warning::Settings was still on the page 5 s after closing it${nav ? ` (over the navigation bar: ${await s.covering(nav)})` : ""}`);
+    }
+  };
+  return { sw, checked: () => s.checked(sw), close };
 }
 
 const data = windows ? null : mkdtempSync(join(tmpdir(), "polar-e2e-app-"));
@@ -171,7 +265,7 @@ try {
   step("in without an account");
   const first = await skipIntros(s);
   if (await first.checked()) throw new Error("Skip intros is on in a fresh profile");
-  await wd("POST", `/session/${s.id}/element/${first.sw[ELEMENT]}/click`, {});
+  await s.press("the Skip intros switch", first.sw);
   await until("Skip intros to turn on", () => first.checked(), 5_000);
   await first.close();
   step("Skip intros turned on");

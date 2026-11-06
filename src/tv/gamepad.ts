@@ -252,10 +252,8 @@ function press(button: Button) {
       case "back":
         return void key("Escape");
       case "skipOrNext":
-        // Skip the intro / recap while its button is up; otherwise the next episode.
-        return act(
-          !document.querySelector(".next-up") && document.querySelector('.skip-button[data-visible="true"]') ? "skip" : "nextEpisode",
-        );
+        // Skip the intro / recap while it plays (its button up or hidden with the controls); otherwise the next episode.
+        return act(!document.querySelector(".next-up") && document.querySelector('.skip-button[data-segment="true"]') ? "skip" : "nextEpisode");
       case "none":
         return;
       default:

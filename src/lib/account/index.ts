@@ -2,7 +2,7 @@
  * Picks the account backend. To switch providers, implement `AccountBackend`
  * in a new file and return it here; nothing else in the app changes.
  *
- * With no provider configured, `backend` is null and Polar runs fully
+ * With no provider configured, `backend` is null and Polarity runs fully
  * local (no sign-in screen).
  *
  * This file is the folder's public surface: code outside src/lib imports

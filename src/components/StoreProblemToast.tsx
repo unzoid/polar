@@ -6,12 +6,11 @@ import { keys } from "../lib/net";
 import { usePresence } from "../lib/ui";
 import { Close } from "./icons";
 import { IconButton } from "./ui/Button";
-import { Toast } from "./ui/Toast";
+import { TOAST_OUT_MS, Toast } from "./ui/Toast";
 
 /** How long a save failure stays up; another failure, even with the same text, starts it again. */
 export const SAVE_FAILURE_MS = 12_000;
-/** How long a toast takes to fade out (styles/ui/toast.css, toast-out). */
-export const TOAST_OUT_MS = 220;
+export { TOAST_OUT_MS };
 
 type Shown = { kind: "failure"; message: string } | { kind: "problem"; message: string };
 
