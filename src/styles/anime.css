@@ -359,12 +359,26 @@
 }
 /* Choosing the series an anime plays from by hand (components/anime/AnimeSeriesPick.tsx, #189). */
 .anime-pick-trigger {
+  /* A link in the caption line, lined up with the text around it. */
+  margin-inline: -0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--r-xs);
+  font: inherit;
   color: var(--text-2);
   text-decoration: underline;
   text-underline-offset: 3px;
+  outline: none;
+}
+.anime-pick-trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .anime-pick-trigger:hover {
+    color: var(--text);
+  }
 }
 .anime-pick {
-  width: 320px;
+  width: min(320px, calc(100vw - 24px));
 }
 .anime-pick .search-field {
   margin: 0 0.25rem 0.375rem;

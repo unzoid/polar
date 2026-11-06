@@ -3,7 +3,6 @@ import { useState } from "react";
 import { pickAnimeImdb, type AnimeCard } from "../../lib/anime";
 import { useSearch } from "../../lib/net";
 import { Img } from "../Img";
-import { buttonClass } from "../ui/Button";
 import { PopoverPopup, PopoverRoot, PopoverTrigger } from "../ui/Popover";
 import { SearchField } from "../ui/SearchField";
 
@@ -28,7 +27,7 @@ export function AnimeSeriesPick({ anime, isMovie, current, mal, kitsu }: { anime
 
   return (
     <PopoverRoot open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className={buttonClass("plain", false, "anime-pick-trigger", "sm")}>{current ? `Wrong ${kind}?` : `Choose the ${kind}`}</PopoverTrigger>
+      <PopoverTrigger className="anime-pick-trigger">{current ? `Wrong ${kind}?` : `Choose the ${kind}`}</PopoverTrigger>
       <PopoverPopup sideOffset={8} align="start" collisionPadding={12} className="playlist-menu anime-pick" aria-label={`Choose the ${kind}`}>
         <p className="playlist-menu-title">Which {kind} is this?</p>
         <SearchField value={query} onChange={setQuery} label={`Search for the ${kind}`} look="mini" autoFocus />
