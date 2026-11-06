@@ -318,6 +318,21 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   await expect(addon).toHaveCount(0);
 });
 
+test("Download Season downloads every released episode of the season, then says so (#24)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const season = app.locator(".seasons-bar").getByRole("button", { name: /^Download Season/ });
+  await expect(season).toBeEnabled();
+  await expect(app.getByRole("button", { name: "Download Show", exact: true })).toBeVisible();
+  await season.click();
+  // The fake shell finishes each download at once.
+  await expect(app.locator(".seasons-bar").getByRole("button", { name: "Season Downloaded" })).toBeDisabled({ timeout: 15_000 });
+  const released = app.locator(".episode-card:has(.episode-card-main:not([disabled]))");
+  const count = await released.count();
+  expect(count).toBeGreaterThan(1);
+  await expect(released.getByRole("button", { name: "Delete Downloaded Episode" })).toHaveCount(count);
+});
+
 test("the title page's Download button names what it downloads (#26)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();
