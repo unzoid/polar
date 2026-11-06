@@ -33,7 +33,7 @@ import {
   useResetAutoplayOnInput,
   useSourceFilters,
 } from "../lib/playback";
-import { episodeState, isLocalFile, nextVideo, progressMap, seasonsOf, watchedFraction } from "../lib/library";
+import { downloadedStream, episodeState, isLocalFile, nextVideo, progressMap, seasonsOf, useDownloads, watchedFraction } from "../lib/library";
 import { WindowControls } from "../components/WindowControls";
 import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
@@ -559,6 +559,9 @@ export function Player({
 
   const rankedStreams = useMemo(() => streams.data?.streams ?? [], [streams.data]);
   const currentKey = source.state.status === "ready" ? streamKey(source.state) : undefined;
+  // A finished download of this video is listed first (#23): back to it after trying another source.
+  const { data: downloads } = useDownloads();
+  const downloaded = useMemo(() => downloadedStream(downloads, videoId), [downloads, videoId]);
   // Filter (add-on, resolution, language, size, tags) and sort, as on the
   // title page. Ids stay the index into the ranked list, so selection works
   // regardless of the view. Kept for this show while the player stays open,
@@ -579,7 +582,18 @@ export function Player({
       };
       });
   }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.sort]);
+  const sourceOptions = useMemo<OptionItem[]>(
+    () =>
+      downloaded
+        ? [
+            { id: DOWNLOADED, label: "Downloaded copy", detail: [downloaded.title, "On this device"].filter(Boolean).join(" · "), badge: { text: "Downloaded", tone: "good" } },
+            ...sourceItems,
+          ]
+        : sourceItems,
+    [downloaded, sourceItems],
+  );
   const currentSourceIndex = useMemo(() => rankedStreams.findIndex((r) => streamKey(r) === currentKey), [rankedStreams, currentKey]);
+  const currentSource = downloaded && currentKey === downloaded.url ? DOWNLOADED : currentSourceIndex >= 0 ? String(currentSourceIndex) : undefined;
 
   // --- Keyboard: instant, never animated -------------------------------------
   // A panel opened from a key (or a pad button) is there at once; a click keeps the frosted materialize.
@@ -1032,8 +1046,8 @@ export function Player({
                 />
               </div>
             ),
-            value: currentSourceIndex >= 0 ? String(currentSourceIndex) : undefined,
-            options: sourceItems,
+            value: currentSource,
+            options: sourceOptions,
             empty: streams.isLoading
               ? "Finding sources…"
               : streams.isError
@@ -1044,8 +1058,10 @@ export function Player({
                     ? `All ${hiddenSources} sources are hidden by your filters in Settings → Sources.`
                     : "No sources found.",
             onSelect: (id) => {
+              if (id === currentSource) return;
+              if (id === DOWNLOADED) return downloaded && playVideo(videoId, downloaded);
               const pick = rankedStreams[Number(id)];
-              if (pick && Number(id) !== currentSourceIndex) playVideo(videoId, pick.stream);
+              if (pick) playVideo(videoId, pick.stream);
             },
           },
         ]}
@@ -1053,6 +1069,9 @@ export function Player({
     </div>
   );
 }
+
+/** The Sources row of this video's finished download (#23); the others are indexes into the ranked list. */
+const DOWNLOADED = "downloaded";
 
 function ActionButton({
   icon,
