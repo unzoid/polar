@@ -1,0 +1,169 @@
+name: Release
+
+# Builds the installers for Windows, macOS (Apple Silicon) and Linux and
+# drafts one GitHub release with all of them and the updater's latest.json
+# (scripts/release-publish.ts). Not on every commit: ci.yml already builds and
+# tests all three platforms there.
+#
+#   Release:    set the version (Cargo.toml, package.json, tauri.conf.json),
+#               commit, then  git tag -a v0.18.0 -m "- What's new"  and push the tag.
+#               The tag message becomes the release notes. Review the draft, then Publish.
+#   Test build: Actions → Release → Run workflow. Installers come back as
+#               workflow artifacts; nothing is published.
+#
+# Needs the updater key as repository secrets TAURI_SIGNING_PRIVATE_KEY and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD (the contents of ~/.tauri/polar.key).
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest # Apple Silicon
+          # The oldest supported Ubuntu, so the AppImage runs on older glibc too.
+          - name: Linux
+            os: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: release
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+
+      - name: Check the tag matches the app version
+        id: version
+        run: |
+          version=$(bun -e 'console.log(require("./src-tauri/tauri.conf.json").version)')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match tauri.conf.json version $version. Set the version, commit, and tag that commit."
+            exit 1
+          fi
+      - name: Check the updater key is set
+        run: |
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+            echo "::error::Add the TAURI_SIGNING_PRIVATE_KEY repository secret (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      # Windows: tauri.conf.json's beforeBuildCommand fetches the pinned mpv build.
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: bunx tauri build -- --locked
+
+      # macOS: Homebrew's libmpv, bundled into the app by scripts/bundle-libmpv.ts.
+      # Ad-hoc signed; not notarized until there's an Apple Developer ID.
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        env:
+          CI: 'true' # no Finder scripting for the DMG window
+        run: |
+          brew install mpv
+          bun scripts/bundle-libmpv.ts
+          bunx tauri build --bundles app,dmg \
+            -c src-tauri/vendor/libmpv/tauri.conf.json \
+            -c '{"bundle":{"macOS":{"signingIdentity":"-"}}}' \
+            -- --locked
+
+      # Linux: playback uses the system's mpv (a dependency of the .deb and .rpm).
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev libssl-dev libudev-dev file rpm
+          bunx tauri build --bundles deb,rpm,appimage -- --locked
+
+      - name: Collect the installers
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir out
+          b=target/release/bundle
+          case "$RUNNER_OS" in
+            Windows)
+              cp "$b"/nsis/*_x64-setup.exe "$b"/nsis/*_x64-setup.exe.sig out/
+              cp "$b"/msi/*_x64_en-US.msi "$b"/msi/*_x64_en-US.msi.sig out/ ;;
+            macOS)
+              cp "$b"/dmg/*_aarch64.dmg out/
+              # Name the update archive per version and CPU, like the other files.
+              cp "$b/macos/Polar.app.tar.gz" "out/Polar_${VERSION}_aarch64.app.tar.gz"
+              cp "$b/macos/Polar.app.tar.gz.sig" "out/Polar_${VERSION}_aarch64.app.tar.gz.sig" ;;
+            Linux)
+              cp "$b"/appimage/*.AppImage "$b"/appimage/*.AppImage.sig "$b"/deb/*.deb "$b"/rpm/*.rpm out/ ;;
+          esac
+          ls -la out
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: polarity-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Draft the release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: polarity-*
+          path: release
+          merge-multiple: true
+      - name: Release notes from the tag message
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.sha')
+          type=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.type')
+          if [[ "$type" == "tag" ]]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq '.message' > notes.md
+          else
+            : > notes.md # lightweight tag: add the notes on GitHub before publishing
+          fi
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/release-publish.ts "${GITHUB_REF_NAME#v}" release notes.md
