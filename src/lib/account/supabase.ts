@@ -20,13 +20,10 @@ const PULL_OVERLAP_MS = 10_000;
 const LIBRARY_COLUMNS = "meta_id, kind, added_at, updated_at, synced_at";
 const PROGRESS_COLUMNS = "meta_id, kind, entries, updated_at, synced_at";
 const LINK_COLUMNS = "anilist, canonical, mal, kitsu, updated_at, synced_at";
+/** How long the server's answer to "do you keep every episode?" holds before a push asks again. */
+const EVERY_EPISODE_TTL_MS = 10 * 60_000;
 
-export interface SupabaseOptions {
-  /** Push every changed episode, not only each title's newest (the server must run supabase/optional/per_episode_progress.sql). */
-  everyEpisode?: () => boolean;
-}
-
-export function createSupabaseBackend(url: string, key: string, options: SupabaseOptions = {}): AccountBackend {
+export function createSupabaseBackend(url: string, key: string): AccountBackend {
   const db = createClient(url, key, {
     auth: {
       persistSession: true,
@@ -39,6 +36,7 @@ export function createSupabaseBackend(url: string, key: string, options: Supabas
   });
 
   const toUser = (u: User): AccountUser => ({ id: u.id, email: u.email ?? "" });
+  const everyEpisode = serverKeepsEveryEpisode(async () => await db.rpc("polar_every_episode"));
 
   return {
     name: "supabase",
@@ -169,7 +167,8 @@ export function createSupabaseBackend(url: string, key: string, options: Supabas
           const { error } = await db.from("library").upsert(rows, { onConflict: "profile_id,meta_id" });
           if (error) throw dbError(error);
         }
-        for (const rows of chunks(toProgressRows(profileId, progress, options.everyEpisode?.() ?? false), 500)) {
+        const all = progress.length > 0 && (await everyEpisode());
+        for (const rows of chunks(toProgressRows(profileId, progress, all), 500)) {
           const { error } = await db.from("progress").upsert(rows, { onConflict: "profile_id,meta_id" });
           if (error) throw dbError(error);
         }
@@ -392,6 +391,31 @@ function* chunks<T>(items: T[], size: number) {
 
 /** A table this version expects hasn't been migrated onto the server yet. */
 const isMissingTable = (e: PostgrestError) => e.code === "PGRST205" || e.code === "42P01";
+const isMissingFunction = (e: { code: string }) => e.code === "PGRST202" || e.code === "42883";
+
+/**
+ * Whether the server keeps every episode: `polar_every_episode()` exists only while
+ * supabase/optional/per_episode_progress.sql is in (docs/supabase-storage.md §3.4), so upgrading or
+ * downgrading the database changes what every app sends within `ttl`, with no setting. An error
+ * other than a missing function keeps the last answer and asks again on the next push.
+ */
+export function serverKeepsEveryEpisode(
+  ask: () => Promise<{ data: unknown; error: { code: string } | null }>,
+  now = Date.now,
+  ttl = EVERY_EPISODE_TTL_MS,
+): () => Promise<boolean> {
+  let keeps = false;
+  let askedAt = -Infinity;
+  return async () => {
+    if (now() - askedAt < ttl) return keeps;
+    const { data, error } = await ask();
+    if (!error || isMissingFunction(error)) {
+      keeps = !error && data === true;
+      askedAt = now();
+    }
+    return keeps;
+  };
+}
 
 function authError(e: AuthError): AccountError {
   switch (e.code) {

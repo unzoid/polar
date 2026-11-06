@@ -1,6 +1,7 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
 import * as fx from "./fixtures";
+import type { Download } from "../../library/downloads";
 import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
 
 /**
@@ -14,6 +15,8 @@ import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
 
 const library: LibraryItem[] = [...fx.library];
 const progress: Progress[] = [...fx.progress];
+// A download finishes the moment it starts; the file is only a name.
+let downloads: Download[] = [];
 // `fake.html?theme=black` and the like start with that setting changed.
 const params = new URLSearchParams(location.search);
 params.delete("worst"); // fixtures.ts's worst-case switch, not a setting
@@ -62,7 +65,15 @@ const commands: Record<string, (a: Args) => unknown> = {
   anime_ids: () => null,
   anime_episode_flags: () => ({ filler: [], recap: [] }),
   anime_cache: () => ({ path: "~/.cache/polar/anime", bytes: 1_843_200 }),
-  downloads_list: () => [],
+  downloads_list: () => downloads,
+  download_start: (a) => {
+    const { req } = a as { req: Omit<Download, "id" | "file" | "received" | "state" | "addedAt"> & { videoId: string } };
+    const { videoId, ...rest } = req;
+    const nulls = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== null));
+    downloads = [{ ...nulls, id: videoId, file: `/downloads/${videoId}.mkv`, received: 1, total: 1, state: "done", addedAt: Date.now() } as Download, ...downloads];
+  },
+  download_remove: (a) => void (downloads = downloads.filter((d) => d.id !== a.id)),
+  download_reveal: () => undefined,
   controllers_list: () => [],
   mpv_available: () => false,
   resolve_stream: (a) => ({ kind: "url", url: (a.stream as { url: string }).url }),

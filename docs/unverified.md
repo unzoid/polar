@@ -131,6 +131,18 @@ The same job builds an unsigned release APK and app bundle (`android-release-uns
 `proguard-rules.pro` keeps `MpvSurface`'s native methods and `polarDevice`; check that a release build, signed with
 any key for testing, starts and plays like the debug one.
 
+## macOS release: sources of the bundled libraries
+
+`scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself
+never ran here. To check, on the Mac that makes releases, with `brew install mpv` up to date:
+1. `bun scripts/bundle-libmpv.ts`, then `bun -e 'import { packMacSources } from "./scripts/macSources"; packMacSources("src-tauri/vendor/libmpv/formulae.json", "mpv-sources.tar", "mpv-sources-work")'`.
+2. `tar -tf mpv-sources.tar` lists `SOURCES.txt`, one `recipes/<formula>.rb` per keg in `formulae.json`, and under
+   `sources/` a source archive for each (plus resources and patches some formulae use, e.g. a `.patch` or `.diff`).
+3. `SOURCES.txt`'s versions match `BUNDLED.txt`'s. If Homebrew has a newer version of any of them, step 1 stops
+   and says which: `brew upgrade`, then build again.
+4. A formula built with Rust or Go fetches its crates or modules while building, which `brew fetch` doesn't
+   download: if `formulae.json` lists one, say so (those need adding by hand).
+
 ## Saving in the background (R4, H8/M4)
 
 `polar.json` is now written by a background thread about a second after a change,
@@ -270,9 +282,9 @@ devices.
    names are in.
 3. A device that had the titles before keeps its own names, pictures and every episode's position
    after pulling (only the newest episode per title is on the server).
-4. Optional: run `supabase/optional/per_episode_progress.sql`, turn on Settings → Account → Sync
-   every episode on both devices, play different episodes of one show on each: both keep both.
-   `per_episode_progress_off.sql` goes back.
+4. Optional: run `supabase/optional/per_episode_progress.sql`, wait ten minutes (or restart both
+   apps), play different episodes of one show on each: both keep both, with no setting on either.
+   `per_episode_progress_off.sql` goes back the same way.
 5. A version older than this one, signed in after the migration: library and progress no longer
    sync for it (expected, cut over at once); updating it pushes what it has.
 

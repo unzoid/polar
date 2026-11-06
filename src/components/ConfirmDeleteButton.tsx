@@ -1,13 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ButtonHTMLAttributes } from "react";
 import { IconButton } from "./ui/Button";
 
 /** How long the armed state waits for the second click before standing down. */
 const DISARM_AFTER = 3000;
 
 /**
+ * The two-step behaviour on any button: `onClick` arms it, a second click runs `onConfirm`. It stands
+ * down on its own after a few seconds, on Escape, or when focus moves away. Spread `props` on the button
+ * and give it the `confirm-delete` class (red while armed, the bin's lid open).
+ */
+export function useConfirmDelete(onConfirm: () => void) {
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    if (!armed) return;
+    const t = window.setTimeout(() => setArmed(false), DISARM_AFTER);
+    return () => window.clearTimeout(t);
+  }, [armed]);
+
+  const props: ButtonHTMLAttributes<HTMLButtonElement> & { "data-armed"?: true } = {
+    "data-armed": armed || undefined,
+    onClick: () => (armed ? onConfirm() : setArmed(true)),
+    onBlur: () => setArmed(false),
+    onKeyDown: (e) => {
+      if (e.key === "Escape" && armed) {
+        e.stopPropagation();
+        setArmed(false);
+      }
+    },
+  };
+  return { armed, props };
+}
+
+/**
  * A two-step delete with no extra text: the first click arms it (the button
- * turns red and the bin's lid pops open), the second deletes. It stands down
- * on its own after a few seconds, on Escape, or when focus moves away.
+ * turns red and the bin's lid pops open), the second deletes.
  */
 export function ConfirmDeleteButton({
   label,
@@ -19,28 +46,13 @@ export function ConfirmDeleteButton({
   onConfirm: () => void;
   className?: string;
 }) {
-  const [armed, setArmed] = useState(false);
-
-  useEffect(() => {
-    if (!armed) return;
-    const t = window.setTimeout(() => setArmed(false), DISARM_AFTER);
-    return () => window.clearTimeout(t);
-  }, [armed]);
-
+  const { armed, props } = useConfirmDelete(onConfirm);
   return (
     <IconButton
-      className={className ? `confirm-delete ${className}` : "confirm-delete"}
-      data-armed={armed || undefined}
+      className={className ? `confirm-delete quiet-btn ${className}` : "confirm-delete quiet-btn"}
       label={armed ? `Click again to delete ${label}` : `Delete ${label}`}
       title={armed ? "Click again to delete" : `Delete ${label}`}
-      onClick={() => (armed ? onConfirm() : setArmed(true))}
-      onBlur={() => setArmed(false)}
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && armed) {
-          e.stopPropagation();
-          setArmed(false);
-        }
-      }}
+      {...props}
     >
       <TrashLid />
     </IconButton>
@@ -48,9 +60,9 @@ export function ConfirmDeleteButton({
 }
 
 /** A bin drawn in two parts so the lid can hinge open. */
-function TrashLid() {
+export function TrashLid({ size = 18 }: { size?: number }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden className="confirm-delete-icon">
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor" aria-hidden className="confirm-delete-icon">
       <g className="confirm-delete-lid">
         <path
           d="M7.5 4.75v-1c0-.69.56-1.25 1.25-1.25h2.5c.69 0 1.25.56 1.25 1.25v1"

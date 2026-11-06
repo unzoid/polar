@@ -118,6 +118,42 @@ test("an episode's Sources and Download buttons show alike, on a dark fill, with
   expect(sources.alpha).toBeGreaterThanOrEqual(0.5);
 });
 
+test("a downloaded episode offers Show in Folder and Delete as buttons, and Play takes the download (#25)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
+  await ep.getByRole("button", { name: "Download Episode" }).click();
+  await app.locator(".sheet .stream-row").first().click();
+  await expect(app.locator(".sheet")).toHaveCount(0);
+
+  const reveal = ep.getByRole("button", { name: "Show Downloaded Episode in Folder" });
+  const del = ep.getByRole("button", { name: "Delete Downloaded Episode" });
+  await expect(reveal).toBeVisible();
+  await expect(del).toBeVisible();
+  await expect(ep.locator("[aria-haspopup]")).toHaveCount(0);
+  // Side by side on the still, left of Sources, not on top of each other.
+  const [r, d, s] = await Promise.all([reveal, del, ep.locator(".episode-sources")].map((b) => b.boundingBox()));
+  expect(r!.x + r!.width).toBeLessThanOrEqual(d!.x);
+  expect(d!.x + d!.width).toBeLessThanOrEqual(s!.x);
+
+  // Headless WebKit paints this page's glass buttons (backdrop-filter) in software, at about a frame a
+  // second or none, so Playwright's wait for two still frames can run out; nothing here moves, and each
+  // button is checked visible first.
+  const still = { force: true };
+  await ep.locator(".episode-card-main").click(still);
+  await expect(app.locator(".player video")).toHaveAttribute("src", /\/downloads\/.+\.mkv$/);
+  await app.keyboard.press("Escape");
+  await expect(app.locator(".player")).toHaveCount(0);
+
+  // Delete asks for a second click.
+  await expect(del).toBeVisible();
+  await del.click(still);
+  const armed = ep.getByRole("button", { name: "Click again to delete the downloaded episode" });
+  await expect(armed).toBeVisible();
+  await armed.click(still);
+  await expect(ep.getByRole("button", { name: "Download Episode" })).toBeVisible();
+});
+
 test("a movie plays in the built-in player, pauses and closes", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
