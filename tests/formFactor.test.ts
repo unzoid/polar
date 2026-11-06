@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { formFactorOf, isTouchOf, PHONE_MAX } from "../src/lib/platform/formFactor";
+import { formFactorOf, isCompactOf, isTouchOf, PHONE_MAX } from "../src/lib/platform/formFactor";
 
 const mouse = { coarse: false, fine: true };
 const finger = { coarse: true, fine: false };
@@ -30,4 +30,20 @@ test("touch: phones and tablets always, desktops only without a fine pointer", (
   expect(isTouchOf("linux", { width: 1280, height: 800, ...mouse })).toBe(false);
   expect(isTouchOf("windows", { width: 1280, height: 800, ...both })).toBe(false);
   expect(isTouchOf("windows", { width: 1280, height: 800, ...finger })).toBe(true);
+});
+
+test("an iPad is a tablet in every window, Split View and Slide Over's narrow ones too (#172)", () => {
+  expect(formFactorOf("ios", { width: 320, height: 1024, ...finger }, true)).toBe("tablet");
+  expect(formFactorOf("ios", { width: 507, height: 694, ...both }, true)).toBe("tablet");
+  expect(formFactorOf("ios", { width: 1366, height: 1024, ...both }, true)).toBe("tablet");
+  // An iPhone stays a phone.
+  expect(formFactorOf("ios", { width: 390, height: 844, ...finger }, false)).toBe("phone");
+});
+
+test("compact: a phone upright or a tablet's narrow window, never a desktop or a phone sideways", () => {
+  expect(isCompactOf("phone", { width: 402, height: 874, ...finger })).toBe(true);
+  expect(isCompactOf("phone", { width: 874, height: 402, ...finger })).toBe(false);
+  expect(isCompactOf("tablet", { width: 320, height: 1024, ...finger })).toBe(true);
+  expect(isCompactOf("tablet", { width: 820, height: 1180, ...finger })).toBe(false);
+  expect(isCompactOf("desktop", { width: 400, height: 700, ...mouse })).toBe(false);
 });

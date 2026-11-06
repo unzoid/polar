@@ -61,7 +61,9 @@
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  padding: 1rem 0 4rem 1.25rem;
+  /* The safe-area insets are 0 on a desktop; on a phone or tablet the bars keep clear of the notch,
+     the camera cutout and the home indicator (tokens.css). */
+  padding: calc(1rem + var(--safe-top)) var(--safe-right) 4rem max(1.25rem, var(--safe-left));
   background: linear-gradient(to bottom, rgb(0 0 0 / 0.6), transparent);
   z-index: 2;
 }
@@ -79,7 +81,7 @@
 .player-heading {
   position: absolute;
   left: 50%;
-  top: 1.125rem;
+  top: calc(1.125rem + var(--safe-top));
   translate: -50% 0;
   /* Clear of the volume, fullscreen and window buttons on the right. */
   max-width: min(56%, calc(100% - 44rem));
@@ -244,7 +246,7 @@
 .player-bottom {
   position: absolute;
   inset: auto 0 0 0;
-  padding: 5rem 2.5rem 1.25rem;
+  padding: 5rem max(2.5rem, var(--safe-right)) calc(1.25rem + var(--safe-bottom)) max(2.5rem, var(--safe-left));
   background: linear-gradient(to top, rgb(0 0 0 / 0.78) 0%, rgb(0 0 0 / 0.38) 55%, transparent);
   z-index: 2;
 }
@@ -307,17 +309,14 @@
   }
 }
 
-/* Phone: the title sits beside Back instead of over the middle, the volume is the
-   phone's own buttons (mute stays), and each action puts its label under its icon. */
-:root[data-form="phone"] .player-top {
+/* Phone, and a tablet's compact window (data-compact: an iPad's Slide Over or narrow Split View):
+   the title sits beside Back instead of over the middle; on a phone the volume is the phone's own
+   buttons (mute stays), and each action puts its label under its icon. */
+:root:is([data-form="phone"], [data-compact="true"]) .player-top {
   gap: 0.5rem;
   padding: calc(0.5rem + var(--safe-top)) var(--safe-right) 3rem calc(0.5rem + var(--safe-left));
 }
-:root[data-form="phone"] .player-bottom {
-  padding-left: max(2.5rem, var(--safe-left));
-  padding-right: max(2.5rem, var(--safe-right));
-}
-:root[data-form="phone"] .player-heading {
+:root:is([data-form="phone"], [data-compact="true"]) .player-heading {
   position: static;
   translate: none;
   flex: 1;
@@ -327,33 +326,33 @@
   padding-top: 0.5rem;
   text-align: left;
 }
-:root[data-form="phone"] .player-heading-title {
+:root:is([data-form="phone"], [data-compact="true"]) .player-heading-title {
   font-size: var(--fs-lg);
 }
-:root[data-form="phone"] .player-top-actions {
+:root:is([data-form="phone"], [data-compact="true"]) .player-top-actions {
   margin-left: 0;
 }
-/* Held upright there's no room beside the title for the volume slider (the phone's own buttons
-   still set it); sideways there is. */
-@media (orientation: portrait) {
-  :root[data-form="phone"] .player-volume input[type="range"] {
-    display: none;
-  }
-  /* Upright, the actions are their glyphs alone, spread across the width: their words ran off
-     the edge (each button keeps its label as its name). */
-  :root[data-form="phone"] .player-action > span {
-    display: none;
-  }
-  :root[data-form="phone"] .player-actions {
-    justify-content: space-between;
-  }
-  :root[data-form="phone"] .player-bottom {
-    padding-left: max(1.25rem, var(--safe-left));
-    padding-right: max(1.25rem, var(--safe-right));
-  }
+/* A tablet has no window buttons on the right, only the volume and Fit/Fill: the centred title
+   gets the room they left. */
+:root[data-form="tablet"]:not([data-compact="true"]) .player-heading {
+  max-width: min(56%, calc(100% - 26rem));
 }
-:root[data-form="phone"] .player-actions {
-  padding-bottom: var(--safe-bottom);
+/* A compact window (a phone held upright) has no room beside the title for the volume slider
+   (a phone's own buttons still set it); sideways there is. */
+:root[data-compact="true"] .player-volume input[type="range"] {
+  display: none;
+}
+/* Compact, the actions are their glyphs alone, spread across the width: their words ran off
+   the edge (each button keeps its label as its name). */
+:root[data-compact="true"] .player-action > span {
+  display: none;
+}
+:root[data-compact="true"] .player-actions {
+  justify-content: space-between;
+}
+:root[data-compact="true"] .player-bottom {
+  padding-left: max(1.25rem, var(--safe-left));
+  padding-right: max(1.25rem, var(--safe-right));
 }
 :root[data-form="phone"] .player-action {
   flex-direction: column;
@@ -820,7 +819,7 @@
 }
 .player-notice {
   position: absolute;
-  top: 4.5rem;
+  top: calc(4.5rem + var(--safe-top));
   left: 50%;
   translate: -50% 0;
   z-index: 3;
@@ -885,8 +884,8 @@
 /* --- Up next card: enters from the right, leaves the same way. */
 .next-up {
   position: absolute;
-  right: 3rem;
-  bottom: 10rem;
+  right: max(3rem, var(--safe-right));
+  bottom: calc(10rem + var(--safe-bottom));
   z-index: 3;
   display: flex;
   align-items: stretch;
@@ -1355,8 +1354,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
        Shown when the segment starts, then only with the chrome (#17). */
 .skip-button {
   position: absolute;
-  right: 2.5rem;
-  bottom: 3rem;
+  right: max(2.5rem, var(--safe-right));
+  bottom: calc(3rem + var(--safe-bottom));
   z-index: 4;
   display: inline-flex;
   align-items: center;
@@ -1456,8 +1455,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 /* Same spot as the player's Back button, so closing is where leaving always is. */
 .options-close {
   position: absolute;
-  top: 1rem;
-  left: 1.25rem;
+  top: calc(1rem + var(--safe-top));
+  left: max(1.25rem, var(--safe-left));
   z-index: 1;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -1663,37 +1662,35 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   -webkit-box-decoration-break: clone;
 }
 
-/* --- A phone held upright: the options' columns (Audio | Subtitles, the sources) side by side
-   ran off both edges. They stack instead, each the screen's width under the close button, and
-   the long one (subtitles, sources) takes what's left and scrolls. */
-@media (orientation: portrait) {
-  :root[data-form="phone"] .options-overlay {
-    place-items: stretch;
-  }
-  :root[data-form="phone"] .options-columns {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 1.75rem;
-    max-width: none;
-    min-height: 0;
-    padding: calc(4.5rem + var(--safe-top)) max(1.25rem, var(--safe-right)) calc(1rem + var(--safe-bottom))
-      max(1.25rem, var(--safe-left));
-  }
-  :root[data-form="phone"] .options-columns > .options-column {
-    flex: 0 1 auto;
-    width: auto;
-    height: auto;
-    max-height: none;
-  }
-  /* The source list fills the screen even when filtered down, so the bar above it stays put. */
-  :root[data-form="phone"] .options-columns > .options-column:has(.srcf:not(.srcf-tv)) {
-    flex: 1 1 0;
-  }
-  :root[data-form="phone"] .options-close {
-    top: calc(0.75rem + var(--safe-top));
-    left: 0.75rem;
-  }
+/* --- A compact window (a phone held upright): the options' columns (Audio | Subtitles, the
+   sources) side by side ran off both edges. They stack instead, each the screen's width under the
+   close button, and the long one (subtitles, sources) takes what's left and scrolls. */
+:root[data-compact="true"] .options-overlay {
+  place-items: stretch;
+}
+:root[data-compact="true"] .options-columns {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 1.75rem;
+  max-width: none;
+  min-height: 0;
+  padding: calc(4.5rem + var(--safe-top)) max(1.25rem, var(--safe-right)) calc(1rem + var(--safe-bottom))
+    max(1.25rem, var(--safe-left));
+}
+:root[data-compact="true"] .options-columns > .options-column {
+  flex: 0 1 auto;
+  width: auto;
+  height: auto;
+  max-height: none;
+}
+/* The source list fills the screen even when filtered down, so the bar above it stays put. */
+:root[data-compact="true"] .options-columns > .options-column:has(.srcf:not(.srcf-tv)) {
+  flex: 1 1 0;
+}
+:root[data-compact="true"] .options-close {
+  top: calc(0.75rem + var(--safe-top));
+  left: 0.75rem;
 }
 
 /* --- Episodes (EpisodeRail.tsx): the season dropdown, then the season's episodes side by side,
@@ -1872,9 +1869,7 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
     transition: none;
   }
 }
-/* A phone held upright: a card most of the screen wide, the next one peeking in. */
-@media (orientation: portrait) {
-  :root[data-form="phone"] .episode-rail {
-    grid-auto-columns: min(78vw, 340px);
-  }
+/* A compact window (a phone held upright): a card most of the screen wide, the next one peeking in. */
+:root[data-compact="true"] .episode-rail {
+  grid-auto-columns: min(78vw, 340px);
 }

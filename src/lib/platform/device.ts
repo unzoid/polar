@@ -19,6 +19,14 @@ export function detectOs({ platform = "", userAgent, maxTouchPoints = 0 }: Agent
 
 export const os: Os = typeof navigator === "undefined" ? "linux" : detectOs(navigator);
 
+/** An iPad, which asks for the desktop site and so says "Mac" with a touch screen (or, in some views, "iPad"). */
+export function detectIpad({ platform = "", userAgent, maxTouchPoints = 0 }: Agent): boolean {
+  if (/iPad/i.test(userAgent)) return true;
+  return !/iPhone|iPod/i.test(userAgent) && /Mac/i.test(platform || userAgent) && maxTouchPoints > 1;
+}
+
+export const isIpad = typeof navigator !== "undefined" && detectIpad(navigator);
+
 /** The name people know it by, for bug reports. */
 export const osName = { windows: "Windows", macos: "macOS", linux: "Linux", android: "Android", ios: "iOS" }[os];
 
