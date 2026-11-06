@@ -1,4 +1,4 @@
-import type { ContentType } from "../types";
+import type { ContentType, VideoFile } from "../types";
 
 /**
  * Every React Query key in the app, in one place. Two queries that cache different shapes must
@@ -16,7 +16,8 @@ export const keys = {
   metaAll: ["meta"] as const,
   streams: (type: ContentType, videoId: string) => ["streams", type, videoId] as const,
   streamsAll: ["streams"] as const,
-  subtitles: (type: ContentType, videoId: string | undefined) => ["subtitles", type, videoId] as const,
+  subtitles: (type: ContentType, videoId: string | undefined, file?: VideoFile) =>
+    ["subtitles", type, videoId, file?.size ?? null, file?.name ?? null] as const,
   progress: (metaId: string) => ["progress", metaId] as const,
   progressAll: ["progress"] as const,
   continue: ["continue"] as const,

@@ -87,8 +87,21 @@ impl AddonClient {
         Ok(raw.streams)
     }
 
-    pub async fn subtitles(&self, base: &str, ty: &str, id: &str) -> Result<Vec<Subtitle>, AddonError> {
-        let url = resource_url(base, "subtitles", ty, id, &[]);
+    /// `file` is what's known of the video playing (`videoSize`, `filename` from the stream's
+    /// hints): subtitle add-ons match files by them.
+    pub async fn subtitles(
+        &self,
+        base: &str,
+        ty: &str,
+        id: &str,
+        file: &VideoFile,
+    ) -> Result<Vec<Subtitle>, AddonError> {
+        let size = file.size.map(|n| n.to_string());
+        let extra: Vec<_> = [("videoSize", size.as_deref()), ("filename", file.name.as_deref())]
+            .into_iter()
+            .filter_map(|(k, v)| Some((k, v?)))
+            .collect();
+        let url = resource_url(base, "subtitles", ty, id, &extra);
         let raw: SubtitlesResponse = self.get_json(&url).await?;
         Ok(raw.subtitles)
     }

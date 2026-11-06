@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../lib/api";
-import type { ContentType, SubtitleOption } from "../../lib/types";
+import type { ContentType, SubtitleOption, VideoFile } from "../../lib/types";
 import { ISO3, langMatches, languageName } from "../../lib/playback";
 import { isMpv, type MediaLike, type MpvTrack } from "./mpvMedia";
 import { keys } from "../../lib/net";
@@ -55,6 +55,8 @@ export function useTracks(
   videoId: string,
   prefs: TrackPrefs,
   onPrefChange: (patch: { audioLanguage?: string; subtitleLanguage?: string }) => void,
+  /** The playing file's size and name, when its add-on said: subtitle add-ons match on them. */
+  file: VideoFile = {},
 ) {
   const video = media instanceof HTMLVideoElement ? media : null;
   const mpv = isMpv(media) ? media : null;
@@ -73,9 +75,11 @@ export function useTracks(
   onPrefRef.current = onPrefChange;
 
   const external = useQuery({
-    queryKey: keys.subtitles(type, videoId),
-    queryFn: () => api.subtitles(type, videoId),
+    queryKey: keys.subtitles(type, videoId, file),
+    queryFn: () => api.subtitles(type, videoId, file),
     staleTime: 30 * 60_000,
+    // Another source of the same episode asks again; its list replaces this one when it comes.
+    placeholderData: (previous, query) => (query?.queryKey[2] === videoId ? previous : undefined),
   });
 
   /** One entry per language, in a stable, readable order. */
