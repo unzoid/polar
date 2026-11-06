@@ -218,6 +218,69 @@ jobs:
           compression-level: 0
           retention-days: 14
 
+  # The iOS app (docs/plan-mobile.md §3) as an unsigned IPA for iPhones and iPads; signing waits
+  # for the owner's Apple developer account. Its Xcode project isn't kept in git: `tauri ios init`
+  # generates it from tauri.conf.json and tauri.ios.conf.json, then the app icon is put in.
+  # libmpv and FFmpeg (LGPL builds, scripts/ios-mpv.sh, docs/plan-mobile.md §7) are built once
+  # and kept until the script, and so a pinned version, changes; the sources they're built from
+  # are kept with the IPA.
+  ios:
+    name: iOS build (unsigned)
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ios
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: Install build tools
+        run: brew install meson ninja pkgconf xcodegen
+      - name: Restore libmpv
+        id: libmpv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ios-libmpv/out
+          key: ios-libmpv-${{ hashFiles('scripts/ios-mpv.sh') }}
+      - name: Build libmpv
+        if: steps.libmpv.outputs.cache-hit != 'true'
+        run: scripts/ios-mpv.sh "$RUNNER_TEMP/ios-libmpv" device
+      - name: Put libmpv in the app
+        run: |
+          mkdir -p src-tauri/vendor/ios
+          cp -R "$RUNNER_TEMP/ios-libmpv/out/Libmpv.xcframework" "$RUNNER_TEMP/ios-libmpv/out/licenses" src-tauri/vendor/ios/
+      - name: Generate the Xcode project
+        run: |
+          bun run tauri ios init --ci
+          bun run tauri icon src-tauri/icons/icon.png --output "$RUNNER_TEMP/icons"
+          cp "$RUNNER_TEMP"/icons/ios/*.png src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/
+      - name: Build
+        run: bun run tauri ios build --ci --no-sign
+      - name: Keep the IPA
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-unsigned-ipa
+          path: src-tauri/gen/apple/build/**/*.ipa
+          retention-days: 14
+      - name: Keep libmpv's sources
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-mpv-sources
+          path: ${{ runner.temp }}/ios-libmpv/out/polarity-ios-mpv-sources.tar.xz
+          compression-level: 0
+          retention-days: 14
+
+
   fmt:
     name: Rust formatting
     runs-on: ubuntu-latest

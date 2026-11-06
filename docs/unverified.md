@@ -131,6 +131,29 @@ The same job builds an unsigned release APK and app bundle (`android-release-uns
 `proguard-rules.pro` keeps `MpvSurface`'s native methods and `polarDevice`; check that a release build, signed with
 any key for testing, starts and plays like the debug one.
 
+## iOS build and player (#29)
+
+Never built or run here (no Mac, no Xcode). The Rust side is type-checked with clippy for `aarch64-apple-ios`
+(`src/ios/*.m` swapped for an empty file there, so the Objective-C is only read, not compiled); the macOS
+view shares its libmpv loading and frame reading with it (`src/apple/libmpv.h`), so the macOS build checks
+that part. CI job `ios` builds libmpv and FFmpeg with `scripts/ios-mpv.sh` (LGPL, pinned versions, cached
+after the first run), generates the Xcode project, builds an unsigned IPA (`ios-unsigned-ipa`) and keeps
+`ios-mpv-sources` next to it.
+What to look for on an iPhone and an iPad, with the IPA signed for testing (any developer account, or a
+sideloading tool): the app starts with its own icon; the phone layout on an iPhone, the tablet layout on an
+iPad, in both orientations, clear of the notch and the home indicator; the loading screen says "Player: mpv";
+an MKV with HEVC video and AC3 or DTS audio plays with picture and sound (also with the silent switch on);
+ASS and PGS subtitles show; the page's controls draw over the picture and it fills the screen behind them;
+rotating while playing keeps the picture right; Home and back: the picture comes back and playback goes on
+(drawing stops in the background; audio may stop with it: background audio isn't built); an HTTPS stream
+plays (Secure Transport, the system's certificates); hardware decoding (Settings → Advanced) on and off both
+play; autocrop zooms past the bars (our detector on every frame; no cropdetect in this build) and Settings →
+Advanced has no "Check every frame for black bars"; a downloaded file plays offline and its folder is not in
+an iCloud backup (Settings → Apple Account → iCloud → Manage Storage → Backups lists the app's size without
+it); the IPA (a zip) holds `licenses/mpv/` with each library's licence and `BUNDLED.txt` in the app.
+Not built: Picture in picture, background audio, lock screen controls, AirPlay on iOS (#19 is macOS), signing
+and TestFlight (the owner's Apple developer account).
+
 ## macOS release: sources of the bundled libraries
 
 `scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself

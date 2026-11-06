@@ -38,13 +38,20 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 
 ## 3. iOS and iPadOS
 
-1. **Project**: `tauri ios init` on a Mac with Xcode; the GitHub `macos` runner builds it
-   unsigned in CI.
-2. **Player**: libmpv (§5) in a Metal view behind the web view (as `macos/mpv_view.m` does on
-   the Mac), built as a dynamic framework (§7). Until then
+1. **Project** (built, #29): the Xcode project isn't kept in git. CI's `ios` job on the macOS
+   runner generates it (`tauri ios init --ci`, from `tauri.conf.json` and `tauri.ios.conf.json`:
+   iOS 17 and later, the frameworks below), puts the app icon in and builds an unsigned IPA
+   (`tauri ios build --no-sign`). On a Mac: `scripts/ios-mpv.sh <work dir> device simulator`, then
+   `bun run tauri ios init` and `bun run tauri ios dev` or `build`.
+2. **Player** (built, #29): libmpv inside the app, drawing through its render API with OpenGL ES
+   into a view behind the web view (`src-tauri/src/ios/mpv_view.m`, the iOS twin of
+   `macos/mpv_view.m`; `player/apple.rs` drives both), built as one dynamic framework (§7). Its
+   control connection is a socket pair (`--input-ipc-client`), since the app's folder paths can be
+   too long for a socket file. Audio plays through an audio session for video playback (sound with
+   the silent switch on). Drawing stops while the app is in the background. Without the framework,
    WKWebView's `<video>` (AVFoundation) plays MP4/HLS with H.264/HEVC, not MKV or DTS.
-3. **Shell**: same gaps as Android (`gilrs` off, downloads into the app sandbox, exclude them
-   from iCloud backup).
+3. **Shell** (built): `gilrs` off; downloads stay in the app's own folder, excluded from iCloud
+   and computer backups (`src-tauri/src/ios/files.m`).
 4. **Release**: an Apple Developer account (USD 99 a year) and TestFlight; both the owner's.
 
 ## 4. TV platforms
@@ -82,8 +89,8 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 4. T-044 Android libmpv engine (built: `player/android.rs` loads libmpv from the APK and draws into a
    `SurfaceView` behind the web view (`MainActivity.kt`), driven over the same IPC socket as on desktop;
    `scripts/android-mpv.sh` builds it in CI with the sources archive; never run on a device yet).
-5. T-045 iOS project; unsigned build on the macOS runner.
-6. T-046 iOS libmpv engine and sandbox details.
+5. T-045 iOS project; unsigned build on the macOS runner (built, #29: generated in CI, §3).
+6. T-046 iOS libmpv engine and sandbox details (built, #29: §3, §7; never run on a device yet).
 7. T-047 Android TV: manifest, banner, TV mode at start (built: a `polarDevice` JavaScript interface from
    `MainActivity.kt` instead of a plugin command, so the answer is there before the first script runs); TV emulator run left.
 8. T-048 Apple TV: later (I-011); §4 is the plan.
@@ -94,7 +101,7 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 | Platform | mpv | FFmpeg | TLS | Linking |
 |---|---|---|---|---|
 | Android | as `mpv-android` builds it (GPL) | `--enable-gpl --enable-version3` | mbedTLS | shared libraries in the APK |
-| iOS, iPadOS | `-Dgpl=false` (LGPLv2.1+) | without `--enable-gpl` or `--enable-version3` (LGPLv2.1+) | Secure Transport | dynamic xcframeworks, embedded and signed by Xcode |
+| iOS, iPadOS | `-Dgpl=false` (LGPLv2.1+) | without `--enable-gpl` or `--enable-version3` (LGPLv2.1+) | Secure Transport | every library static inside one dynamic library, `Libmpv.framework` (an xcframework), embedded and signed by Xcode, loaded at run time (`scripts/ios-mpv.sh`) |
 
 Each release, on both platforms, carries:
 
@@ -106,8 +113,9 @@ Each release, on both platforms, carries:
   engineering to debug such changes.
 
 FFmpeg's `cropdetect` filter is a GPL part, so the iOS build has none. Autocrop there uses
-Polarity's own black-bar detector (MIT, `crates/player`, fed small frames through mpv's
-`screenshot-raw`), written from the idea, not from FFmpeg's `vf_cropdetect.c`. It smooths over
+Polarity's own black-bar detector (MIT, `crates/player`, fed every frame in memory through mpv's
+`screenshot-raw`, as on macOS: `Tune::cropdetect` is off on both), written from the idea, not
+from FFmpeg's `vf_cropdetect.c`. It smooths over
 time and locks on fast, and is measured against `cropdetect` on the same clips (time to first
 crop, crop changes per minute, wrong crops) to decide whether it replaces `cropdetect` on
 desktop too. The audio presets (`tune.rs`: `pan`, `dynaudnorm`) are LGPL parts and work on
