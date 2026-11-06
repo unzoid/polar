@@ -234,17 +234,25 @@ Alerts and the share sheet (`ios/dialogs.m`, `lib/platform/nativeDialogs.ts`), t
 11. In a watch party, Share Invite: the share sheet with the invite text (Copy among its actions); on an
     iPad it points at the button.
 
-A title's options (`components/CardMenu.tsx`, `lib/platform/longPress.ts`): a finger held still on a card for
-half a second sends the contextmenu a right-click would (WebKit on iOS sends none), and the menu opens as
-iOS's action sheet. The touch handling ran only in unit tests:
-12. Hold a card on Home, in Library and in Continue Watching: after about half a second the sheet opens with
-    the title (and the episode, for Continue Watching) and the same choices as the desktop's right-click
-    menu; lifting the finger doesn't also open the title. On an iPad it points at where the finger was.
-13. Scrolling a row or the page from a card, and tapping a card, open no sheet; a held finger on anything
-    that isn't a title (a button, the top bar) does what it did before.
-14. Add to Playlist (or Playlists): a second sheet with Add to / Remove from each playlist and New Playlist;
-    the choice shows in Library. Remove from Library and Remove from Continue Watching are red.
-15. No text selection, magnifier or link preview appears under the finger.
+A title's options and the dropdowns as iOS's own menu (`components/CardMenu.tsx`, `components/Dropdown.tsx`,
+`lib/platform/longPress.ts`, the `menu` kind in `ios/dialogs.m`): a finger held still on a card for half a
+second sends the contextmenu a right-click would (WebKit on iOS sends none). On iOS 17.4 and later the menu is
+a UIMenu opened by `performPrimaryAction` from an invisible button laid over the card or the dropdown; if it
+doesn't show within 0.6 s, or before iOS 17.4, an action sheet comes instead. Only the touch handling ran
+(unit tests):
+12. Hold a card on Home, in Library and in Continue Watching: after about half a second a menu opens at the
+    finger with the title and the same choices as the desktop's right-click menu, in sections; Remove from
+    Library and Remove from Continue Watching are red; Playlists opens a submenu with the playlists ticked
+    and New Playlist. Lifting the finger doesn't also open the title. Picking does what it says (check
+    Library); tapping outside closes it and the next long press still works.
+13. Scrolling a row or the page from a card, and tapping a card, open nothing; a held finger on anything
+    that isn't a title (a button, the top bar) does what it did before. No text selection, magnifier or
+    link preview appears under the finger.
+14. Dropdowns (Library's Show and Sort by, Anime's filters, a settings row, the season picker): a menu under
+    the dropdown with the current choice ticked; picking one changes the page.
+15. On iOS 17.0 to 17.3 (or if the menu never shows, after 0.6 s): an action sheet instead, the current
+    choice with a tick after it, Playlists as a second sheet, and Cancel.
+16. VoiceOver reads the menus; the invisible button itself isn't announced.
 
 ## macOS release: sources of the bundled libraries
 
