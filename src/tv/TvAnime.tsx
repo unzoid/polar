@@ -164,12 +164,9 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
   const timer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  // A widescreen card shows the linked IMDb title's backdrop first, opened or not (#34).
+  // The linked IMDb title's backdrop or poster first, opened or not (#34), the same for every season of a show (#27).
   const imdb = useLinkedImdb(card.id);
-  const { item, fallbacks } = useMemo(() => {
-    const preview = animePreview(card, zip, prefs.animeTitles);
-    return shape === "landscape" ? withLinkedArt(preview, imdb) : { item: preview, fallbacks: undefined };
-  }, [card, zip, prefs.animeTitles, shape, imdb]);
+  const { item, fallbacks } = useMemo(() => withLinkedArt(animePreview(card, zip, prefs.animeTitles), imdb, shape), [card, zip, prefs.animeTitles, shape, imdb]);
   const next = prefs.animeCardCountdown ? card.nextAiringEpisode : undefined;
   const nextText = next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`;
   // What's on the card stays artwork; when it airs goes on the stage above.

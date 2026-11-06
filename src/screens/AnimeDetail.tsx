@@ -9,7 +9,18 @@ import { AnimeRelated } from "../components/anime/AnimeRelated";
 import { Img } from "../components/Img";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
-import { type Anime, animeArt, type AnimeCard as Card, useAnime, useAnimeSeasons, useAnimeTitle, useAniZip } from "../lib/anime";
+import {
+  type Anime,
+  animeArt,
+  type AnimeCard as Card,
+  franchiseArt,
+  useAnime,
+  useAnimeSeasons,
+  useAnimeTitle,
+  useAniZip,
+  useLinkedImdb,
+} from "../lib/anime";
+import { useMeta } from "../lib/net";
 import { useFoldSnap } from "../lib/ui";
 import type { EpisodeLayout } from "../lib/types";
 
@@ -39,7 +50,6 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   const { data: loaded, isError } = useAnime(activeId, { keepPrevious: true });
   const anime = loaded?.id === activeId ? loaded : undefined;
   const shown: Card | undefined = anime ?? seasons?.find((s) => s.card.id === activeId)?.card ?? (activeId === id ? preview : loaded);
-  const { data: zip } = useAniZip(activeId);
 
   const scroller = useRef<HTMLDivElement>(null);
   useFoldSnap(scroller, !!shown);
@@ -48,17 +58,34 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   // covers the whole franchise and its trailer is the first season's, so only on the first entry.
   const root = useRef<HTMLDivElement>(null);
   const onTop = usePageOnTop(root);
-  const [imdb, setImdb] = useState<string>();
+  const [imdb, setImdb] = useState<string | null>();
   const [scrolledAway, setScrolledAway] = useState(false);
   const bigTrailer = !!useTrailerOpen();
   const firstEntry = !seasonsLoading && (!found || found[0].card.id === activeId);
   const trailer = useBackdropTrailer(firstEntry && imdb?.startsWith("tt") ? imdb : undefined, { active: onTop, paused: scrolledAway || bigTrailer });
-  const onImdb = useCallback((id: string | undefined) => setImdb(id), []);
+  const onImdb = useCallback((id: string | null | undefined) => setImdb(id), []);
+
+  // One background and logo for every season tab (#27): the first entry's linked title's, else its ani.zip art.
+  const first = found?.[0].card ?? shown;
+  const { data: firstZip } = useAniZip(first?.id ?? 0, !!first);
+  const firstLinked = useLinkedImdb(first?.id ?? 0);
+  const anyMovie = first?.format === "MOVIE" || shown?.format === "MOVIE";
+  // A later entry whose first one has no known link: the title this one plays from, unless a movie is involved (its own title).
+  const resolved = seasonsLoading ? undefined : firstEntry ? imdb : (firstLinked ?? (anyMovie ? null : imdb));
+  // Kept once found, so switching tabs (each finds its own id again) never blanks the art.
+  const kept = useRef<{ first: number; imdb: string | null }>(undefined);
+  if (first && resolved !== undefined && kept.current?.first !== first.id) kept.current = { first: first.id, imdb: resolved };
+  const franchiseImdb = first && kept.current?.first === first.id ? kept.current.imdb : resolved;
+  const { data: meta, isLoading: metaLoading } = useMeta(
+    first?.format === "MOVIE" ? "movie" : "series",
+    franchiseImdb ?? "",
+    !!franchiseImdb?.startsWith("tt"),
+  );
 
   if (isError && !shown) return <EmptyState>Couldn't load this anime from AniList. Try again in a minute.</EmptyState>;
   if (!shown) return <Skeleton className="detail-loading" />;
 
-  const { background: art, logo } = animeArt(shown, zip);
+  const art = franchiseArt({ imdb: franchiseImdb, meta, metaLoading, first: animeArt(first ?? shown, firstZip) });
   const franchise = seasons && { seasons, active: activeId, select: setActiveId, loading: seasonsLoading };
 
   return (
@@ -69,9 +96,9 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
       style={{ "--cover": shown.coverImage.color ?? undefined } as React.CSSProperties}
     >
       <div className="detail-bg" aria-hidden>
-        <Img src={art} alt="" loading="eager" className="detail-bg-sharp" />
+        <Img src={art.background} alt="" loading="eager" className="detail-bg-sharp" />
         {trailer.node}
-        <Img src={art} alt="" loading="eager" className="detail-bg-blur" />
+        <Img src={art.background} alt="" loading="eager" className="detail-bg-blur" />
         <div className="detail-bg-scrim" />
       </div>
       <div
@@ -79,7 +106,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
         ref={scroller}
         onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
       >
-        <AnimeHero item={shown} anime={anime} logo={logo} name={title(shown.title)} onImdb={onImdb} trailer={trailer} />
+        <AnimeHero item={shown} anime={anime} logo={art.logo} name={title(shown.title)} onImdb={onImdb} trailer={trailer} />
         {loaded && <Body anime={loaded} franchise={franchise} switching={!anime} />}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { landscapeArt, linkedImdb, withLinkedArt } from "../src/lib/anime/landscapeArt";
+import { landscapeArt, linkedImdb, posterArt, withLinkedArt } from "../src/lib/anime/landscapeArt";
 
 const cover = "https://art.example/cover.jpg";
 const banner = "https://art.example/banner.jpg";
@@ -34,4 +34,14 @@ test("a TV landscape anime card shows the linked backdrop first, with its own ar
   });
   expect(withLinkedArt(preview, null)).toEqual({ item: preview, fallbacks: [cover] });
   expect(withLinkedArt(preview, undefined)).toEqual({ item: { ...preview, background: undefined }, fallbacks: [] });
+});
+
+test("a poster card shows the linked title's poster, the same for every season of a show, then the entry's cover (#27)", () => {
+  const poster = "https://images.metahub.space/poster/medium/tt0000001/img";
+  expect(posterArt({ imdb: "tt0000001", cover })).toEqual([poster, cover]);
+  expect(posterArt({ imdb: "kitsu:9", cover })).toEqual([cover]);
+  expect(posterArt({ imdb: null, cover: null })).toEqual([]);
+  const preview = { id: "anilist:7", type: "series", name: "Kiko", poster: cover, background: banner };
+  expect(withLinkedArt(preview, "tt0000001", "poster")).toEqual({ item: { ...preview, poster }, fallbacks: [cover] });
+  expect(withLinkedArt(preview, undefined, "poster")).toEqual({ item: { ...preview, poster: undefined }, fallbacks: [] });
 });
