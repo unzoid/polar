@@ -55,7 +55,7 @@ import {
 } from "../components/player/SubtitleSettings";
 import { MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
-import { usePrefs, withShortcut } from "../lib/settings";
+import { openSettings, usePrefs, withShortcut } from "../lib/settings";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
 import { episodeCode, formatDate, formatRemaining, formatTime, seasonLabel } from "../lib/format";
@@ -75,6 +75,7 @@ import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage, storeLocal } from "../lib/errors";
 import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
 import { PlayerStatus } from "../components/player/PlayerStatus";
+import { TorrentNotice } from "../components/player/TorrentNotice";
 import { PlayerClock, TIME_DISPLAYS } from "../components/player/PlayerClock";
 import { useMediaTime } from "../components/player/useMediaTime";
 import { usePlayerChrome } from "../components/player/usePlayerChrome";
@@ -643,9 +644,10 @@ export function Player({
     setOptionsByKey(true);
     setOptions((open) => (open === o ? null : o));
   };
-  // The page underneath has the keyboard already while the player fades out.
+  // The page underneath has the keyboard already while the player fades out; the torrent notice has it while it's up.
+  const torrentNotice = source.state.status === "notice";
   usePlayerKeyboard(
-    !leaving,
+    !leaving && !torrentNotice,
     (action) => {
       switch (action) {
         case "playPause":
@@ -818,6 +820,25 @@ export function Player({
           />
         )}
       </AnimatePresence>
+
+      {torrentNotice && !leaving && (
+        <TorrentNotice
+          onPlay={() => source.answerNotice(true)}
+          onCancel={() => {
+            source.answerNotice(false);
+            void exit();
+          }}
+          onSettings={
+            tv
+              ? undefined
+              : () => {
+                  source.answerNotice(false);
+                  void exit();
+                  openSettings("sources");
+                }
+          }
+        />
+      )}
 
       {airplay.casting && (
         <div className="player-casting">

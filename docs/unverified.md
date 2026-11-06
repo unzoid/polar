@@ -500,8 +500,14 @@ against a real project.
     peer line that updates in place, then mpv's buffering lines; it starts within a few seconds of the first
     peers. Seeking far ahead resumes after a short wait (those pieces are fetched first). Copy details shows no
     file name, hash or link beyond "this computer".
-  - Settings → Sources → Torrent Sources: a speed limit of 5 Mbit/s holds the download near 600 KB/s (Task
-    Manager / Activity Monitor); a cache limit smaller than the file refuses it with a message naming both sizes.
+  - The first torrent source on the computer shows the "Torrent playback" notice before anything is opened
+    (checked here in the browser with the fake backend: Cancel leaves the player and opens nothing, Play goes on,
+    and the next torrent plays without it). On the app: Cancel starts no peer traffic; the notice's upload limit
+    is the one in Settings; "Explain torrent playback first" in Settings brings it back.
+  - Settings → Sources → Torrent Sources: a download limit of 5 Mbit/s holds the download near 600 KB/s (Task
+    Manager / Activity Monitor); with default settings the upload stays near 500 KB/s (4 Mbit/s) and the
+    download isn't held back; the upload limit also holds while "Keep sharing after playback" keeps a torrent.
+    A cache limit smaller than the file refuses it with a message naming both sizes.
   - Close the player: `torrent-cache` in the app's cache folder (Windows `%LOCALAPPDATA%\app.getpolar.desktop`,
     macOS `~/Library/Caches/app.getpolar.desktop`, Linux `~/.cache/app.getpolar.desktop`) is empty again within
     a second or two, and upload stops. With "Keep sharing after playback" on, it stays and keeps uploading until
