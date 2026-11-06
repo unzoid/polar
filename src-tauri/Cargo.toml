@@ -38,3 +38,10 @@ gilrs = "0.11"
 keyring = "4.2"
 tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# libmpv loaded from the APK and given the SurfaceView (player/android.rs); the same versions
+# tao already uses.
+jni = "0.21"
+libc = "0.2"
+ndk-context = "0.1"
