@@ -93,7 +93,7 @@ for d in src/*/; do
 	echo "$name $head $url" >>"$out/windows-mpv.lock"
 	want=$(awk -v n="$name" '$1 == n { print $2 }' <<<"$pins")
 	if [ "$want" != "$head" ]; then
-		echo "windows-mpv.sh: $name is at $head, the lock has ${want:-nothing}" >&2
+		echo "windows-mpv.sh: $name is at $head, the lock has ${want:-nothing}; its line: $name $head $url" >&2
 		bad=1
 	fi
 done
