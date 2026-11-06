@@ -3,9 +3,10 @@
 -- run it once (dashboard SQL editor or `psql`) when the database has room for
 -- it (docs/supabase-storage.md §2: the heavy test profile's progress grows from
 -- 376 KiB to 496 KiB, whole profile 0.66 to 0.78 MiB), after
--- supabase/migrations/20261105000000_compact_storage.sql. Then turn on
--- the `syncEpisodeHistory` setting on each device (docs/supabase-storage.md
--- §3.4), so the app pushes every episode and not only the newest.
+-- supabase/migrations/20261105000000_compact_storage.sql. Every app then
+-- finds polar_every_episode() below within ten minutes and pushes every
+-- changed episode, not only each title's newest (docs/supabase-storage.md
+-- §3.4); nothing to change on the devices.
 -- To go back: supabase/optional/per_episode_progress_off.sql.
 
 -- Last write wins per video: each video keeps its newer entry (a tie keeps
@@ -56,3 +57,10 @@ revoke all on function public.progress_merge() from public, anon, authenticated;
 drop trigger progress_sync on public.progress;
 create trigger progress_sync before insert or update on public.progress
   for each row execute function public.progress_merge();
+
+-- The app's question: while this exists, it sends every changed episode.
+create or replace function public.polar_every_episode() returns boolean
+language sql stable security invoker set search_path = '' as $$ select true $$;
+revoke all on function public.polar_every_episode() from public, anon;
+grant execute on function public.polar_every_episode() to authenticated;
+notify pgrst, 'reload schema';
