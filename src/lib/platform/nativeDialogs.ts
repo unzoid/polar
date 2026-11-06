@@ -2,20 +2,34 @@ import { call, inShell } from "./bridge";
 import { os } from "./device";
 
 /**
- * iOS's own alerts, action sheets and share sheet (src-tauri/src/ios/dialogs.m, UIAlertController and
- * UIActivityViewController): they take the system's look, Liquid Glass on iOS 26, and VoiceOver and Larger Text
+ * iOS's own alerts, action sheets, menus and share sheet (src-tauri/src/ios/dialogs.m, UIAlertController, UIMenu
+ * and UIActivityViewController): they take the system's look, Liquid Glass on iOS 26, and VoiceOver and Larger Text
  * with it. Elsewhere the web app draws its own dialogs and these aren't called.
  */
 export const nativeDialogsAvailable = os === "ios" && inShell;
 
-export type DialogAction = { id: string; label: string; style: "default" | "cancel" | "destructive" };
+export type DialogAction = {
+  id: string;
+  label: string;
+  style: "default" | "cancel" | "destructive";
+  /** A menu's current choice: a checkmark. */
+  checked?: boolean;
+  /** A menu's section: consecutive actions with the same group sit together. */
+  group?: number;
+  /** A submenu (a second sheet where the menu is a sheet); the answer is a child's id. */
+  children?: DialogAction[];
+};
 
 /** Where on the page (CSS pixels) a sheet points from on an iPad. */
 export type Anchor = { x: number; y: number; width: number; height: number };
 
 export type NativeDialog = {
-  /** An alert asks in the middle of the screen; a sheet offers actions from the bottom (an iPad: from `anchor`). */
-  kind: "alert" | "sheet";
+  /**
+   * An alert asks in the middle of the screen; a sheet offers actions from the bottom (an iPad: from `anchor`); a
+   * menu is iOS's own menu at `anchor` (iOS 17.4 and later, a sheet before), with sections, checkmarks and submenus,
+   * and closes when tapped outside, so it needs no Cancel.
+   */
+  kind: "alert" | "sheet" | "menu";
   title?: string;
   message?: string;
   actions: DialogAction[];

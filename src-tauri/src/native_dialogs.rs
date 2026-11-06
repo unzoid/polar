@@ -1,6 +1,6 @@
-//! iOS's own alerts, action sheets and share sheet (ios/dialogs.m; src/lib/platform/nativeDialogs.ts
-//! on the web side). `native_dialog` shows a UIAlertController and answers with the id of the
-//! action picked (none when it was dismissed); `native_share` opens the share sheet. Elsewhere
+//! iOS's own alerts, action sheets, menus and share sheet (ios/dialogs.m; src/lib/platform/nativeDialogs.ts
+//! on the web side). `native_dialog` shows a UIAlertController or a UIMenu and answers with the id of
+//! the action picked (none when it was dismissed); `native_share` opens the share sheet. Elsewhere
 //! the web app draws its own and these answer nothing.
 
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,15 @@ pub struct Action {
     pub id: String,
     pub label: String,
     pub style: Style,
+    /// A menu's current choice: a checkmark.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub checked: bool,
+    /// A menu's section: consecutive actions with the same group sit together.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<u32>,
+    /// A submenu (a second sheet where the menu is a sheet); the answer is a child's id.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<Action>,
 }
 
 /// Where in the web view (CSS pixels) an action sheet or the share sheet points from on an iPad.
@@ -36,6 +45,9 @@ pub enum Kind {
     Alert,
     /// From the bottom on an iPhone, from `anchor` on an iPad: a choice of actions.
     Sheet,
+    /// A UIMenu from `anchor` (iOS 17.4 and later), or else a sheet: a choice with sections,
+    /// checkmarks and submenus.
+    Menu,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -122,4 +134,32 @@ pub fn native_share(share: Share) {
     ios::share(&share);
     #[cfg(not(target_os = "ios"))]
     let _ = share;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_menu_reads_its_sections_checkmarks_and_submenus_and_a_sheet_needs_none() {
+        let menu: Dialog = serde_json::from_str(
+            r#"{"kind":"menu","title":"Sort by","actions":[
+                {"id":"a","label":"Added","style":"default","checked":true,"group":0},
+                {"id":"p","label":"Playlists","style":"default","group":1,"children":[{"id":"x","label":"Later","style":"default","checked":false}]}
+            ]}"#,
+        )
+        .unwrap();
+        assert!(matches!(menu.kind, Kind::Menu));
+        assert!(menu.actions[0].checked);
+        assert_eq!(menu.actions[1].group, Some(1));
+        assert_eq!(menu.actions[1].children[0].id, "x");
+        // What dialogs.m gets leaves out what a plain action doesn't have.
+        let sheet: Dialog =
+            serde_json::from_str(r#"{"kind":"sheet","actions":[{"id":"d","label":"Delete","style":"destructive"}]}"#)
+                .unwrap();
+        assert_eq!(
+            serde_json::to_string(&sheet.actions).unwrap(),
+            r#"[{"id":"d","label":"Delete","style":"destructive"}]"#
+        );
+    }
 }

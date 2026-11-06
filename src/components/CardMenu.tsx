@@ -5,7 +5,7 @@ import { useTitleActions } from "../lib/library";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Check, Close, Info, Minus, Play, PlaylistIcon, Plus, Reset, Trailer, Watched } from "./icons";
 import { PlaylistChecklist, usePlaylistChecklist } from "./title/PlaylistChecklist";
-import { nativeDialogsAvailable, showNativeDialog } from "../lib/platform";
+import { nativeDialogsAvailable, showNativeDialog, type DialogAction } from "../lib/platform";
 import { warnFailed } from "../lib/errors";
 import { imdbUrl } from "./RatingRing";
 import { trailerFor } from "../lib/playback";
@@ -15,7 +15,7 @@ import { MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuSub } fro
 /**
  * A title's options on right-click (or the Menu key) in desktop mode, and on a
  * long press on iOS: the same choices as TV mode's options menu, as a small menu
- * at the pointer, or on iOS as the system's action sheet. One menu for the whole
+ * at the pointer, or on iOS as the system's own menu. One menu for the whole
  * app, so a grid of hundreds of cards costs nothing.
  */
 
@@ -86,8 +86,8 @@ export function CardMenuHost() {
 const pointAnchor = (x: number, y: number) => ({ getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) });
 
 /**
- * One of a title's choices. The web menu draws them with their icons; iOS lists them in its action sheet.
- * `playlists` is the Add to Playlist submenu, a second sheet on iOS.
+ * One of a title's choices. The web menu draws them with their icons; iOS lists them in its own menu.
+ * `playlists` is the Add to Playlist submenu.
  */
 type Choice = { id: string; label: string; icon: ReactNode; run?: () => void; disabled?: boolean; destructive?: boolean; playlists?: boolean };
 /** The choices in groups, a separator between groups. */
@@ -206,14 +206,16 @@ function WebMenu({ target, choices }: { target: Target; choices: Choices }) {
   );
 }
 
-/** How long iOS's sheet waits for a title's progress and library to load before it opens with what it has. */
+/** How long iOS's menu waits for a title's progress and library to load before it opens with what it has. */
 const SETTLE_MS = 800;
-/** The menu shown last: StrictMode mounts each menu twice, and iOS should show one sheet. */
+/** The menu shown last: StrictMode mounts each menu twice, and iOS should show one. */
 let nativeShown = 0;
+const NEW_PLAYLIST = "playlist:new";
+const playlistId = (id: string) => `playlist:${id}`;
 
 /**
- * iOS: the choices as the system's action sheet (from where the finger was, on an iPad), Add to Playlist as a
- * second one. A sheet is drawn once, so it waits for the title's state, or SETTLE_MS, first.
+ * iOS: the choices as the system's menu where the finger was (an action sheet before iOS 17.4), the playlists as
+ * its submenu. It's drawn once, so it waits for the title's state, or SETTLE_MS, first.
  */
 function NativeMenu({ target, choices }: { target: Target; choices: Choices }) {
   const playlists = usePlaylistChecklist(target.item);
@@ -229,35 +231,31 @@ function NativeMenu({ target, choices }: { target: Target; choices: Choices }) {
   useEffect(() => {
     if (!ready || nativeShown === target.key) return;
     nativeShown = target.key;
-    const anchor = { x: target.x, y: target.y, width: 0, height: 0 };
-    const cancel = { id: "cancel", label: "Cancel", style: "cancel" } as const;
-    void (async () => {
-      const { choices } = latest.current;
-      const offered = choices.groups.flat().filter((c) => !c.disabled);
-      const picked = await showNativeDialog({
-        kind: "sheet",
-        title: target.item.name,
-        message: choices.detail,
-        anchor,
-        actions: [...offered.map((c) => ({ id: c.id, label: c.label, style: c.destructive ? "destructive" : "default" }) as const), cancel],
-      });
-      const choice = offered.find((c) => c.id === picked);
-      if (!choice?.playlists) return choice?.run?.();
-      const list = latest.current.playlists;
-      const row = await showNativeDialog({
-        kind: "sheet",
-        title: choice.label,
-        anchor,
-        actions: [
-          ...list.rows.map((r) => ({ id: r.id, label: r.has ? `Remove from “${r.name}”` : `Add to “${r.name}”`, style: "default" }) as const),
-          ...(list.full ? [] : [{ id: "\0new", label: "New Playlist", style: "default" } as const]),
-          cancel,
-        ],
-      });
-      if (row === "\0new") list.create();
-      const r = list.rows.find((r) => r.id === row);
-      if (r) list.toggle(r);
-    })()
+    const { choices, playlists } = latest.current;
+    const offered = choices.groups.flat().filter((c) => !c.disabled);
+    const children: DialogAction[] = [
+      ...playlists.rows.map((r) => ({ id: playlistId(r.id), label: r.name, style: "default", checked: r.has }) as const),
+      ...(playlists.full ? [] : [{ id: NEW_PLAYLIST, label: "New Playlist", style: "default" } as const]),
+    ];
+    const actions = choices.groups.flatMap((group, i) =>
+      group
+        .filter((c) => !c.disabled)
+        .map((c): DialogAction => ({
+          id: c.id,
+          label: c.label,
+          style: c.destructive ? "destructive" : "default",
+          group: i,
+          ...(c.playlists ? { children } : {}),
+        })),
+    );
+    showNativeDialog({ kind: "menu", title: target.item.name, message: choices.detail, anchor: { x: target.x, y: target.y, width: 0, height: 0 }, actions })
+      .then((picked) => {
+        const { playlists } = latest.current;
+        if (picked === NEW_PLAYLIST) return void playlists.create();
+        const row = playlists.rows.find((r) => playlistId(r.id) === picked);
+        if (row) return playlists.toggle(row);
+        offered.find((c) => c.id === picked && !c.playlists)?.run?.();
+      })
       .catch(warnFailed("card menu"))
       .finally(() => set(null));
   }, [ready, target]);
