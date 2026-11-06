@@ -459,7 +459,8 @@ test("Download Season downloads every released episode of the season, then says 
   await card(app, "Fieldwork").click();
   const season = app.locator(".seasons-bar").getByRole("button", { name: /^Download Season/ });
   await expect(season).toBeEnabled();
-  await expect(app.getByRole("button", { name: "Download Show", exact: true })).toBeVisible();
+  // A show's downloads live with its episodes: the season bar, and each episode.
+  await expect(app.locator(".detail-actions").getByRole("button", { name: /^Download/ })).toHaveCount(0);
   await season.click();
   // The fake shell finishes each download at once.
   await expect(app.locator(".seasons-bar").getByRole("button", { name: "Season Downloaded" })).toBeDisabled({ timeout: 15_000 });
@@ -469,11 +470,12 @@ test("Download Season downloads every released episode of the season, then says 
   await expect(released.getByRole("button", { name: "Delete Downloaded Episode" })).toHaveCount(count);
 });
 
-test("the title page's Download button names what it downloads (#26)", async ({ app }) => {
+test("a movie's page has a Download button that names what it downloads; a show's action row has none (#26)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();
   const actions = app.locator(".detail-actions");
-  await expect(actions.getByRole("button", { name: "Download S1 E1", exact: true })).toHaveText("Download S1 E1");
+  await expect(actions.locator(".detail-play")).toBeVisible();
+  await expect(actions.getByRole("button", { name: /^Download/ })).toHaveCount(0);
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
   await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
