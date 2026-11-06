@@ -2,6 +2,7 @@ import { call, on } from "../../lib/platform";
 import { mpvVolume, type StartStage, type StepTone } from "../../lib/playback";
 import { listenProbe, nextProbeId, probeStep } from "./useStartLog";
 import { errorCode, errorMessage, warnFailed } from "../../lib/errors";
+import { playingTrack } from "./trackChoice";
 
 /** The slice of HTMLVideoElement the player, scrubber and track UI rely on. */
 export interface MediaLike extends EventTarget {
@@ -33,6 +34,8 @@ export interface MpvTrack {
   external?: boolean;
   "external-filename"?: string;
   selected?: boolean;
+  /** For a selected subtitle: 0 = the main one, 1 = the secondary one. */
+  "main-selection"?: number;
   "demux-channel-count"?: number;
 }
 
@@ -94,8 +97,9 @@ export class MpvMedia extends EventTarget implements MediaLike {
   tracks: MpvTrack[] = [];
   /** Container chapters, when the file has any. */
   chapters: MpvChapter[] = [];
-  aid: number | "no" | null = null;
-  sid: number | "no" | null = null;
+  /** mpv's `aid`/`sid`: "auto" while mpv picks the track itself, so use `playing()` for what plays. */
+  aid: number | "no" | "auto" | null = null;
+  sid: number | "no" | "auto" | null = null;
   /** `playerExited`: mpv itself went away (crashed, or its window was closed), not the source failing. */
   error: { code: number; message: string; playerExited?: boolean } | null = null;
 
@@ -184,6 +188,11 @@ export class MpvMedia extends EventTarget implements MediaLike {
   }
 
   // --- HTMLVideoElement surface -------------------------------------------
+
+  /** The audio or main subtitle track mpv is playing now, if any. */
+  playing(type: "audio" | "sub") {
+    return playingTrack(this.tracks, type, type === "audio" ? this.aid : this.sid);
+  }
 
   get currentTime() {
     if (this.isPaused || this.buffering || this.isEnded) return this.time;
@@ -344,7 +353,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
         break;
       case "aid":
       case "sid":
-        this[name] = typeof data === "number" ? data : data === false || data === "no" ? "no" : null;
+        this[name] = typeof data === "number" ? data : data === false || data === "no" ? "no" : data === "auto" ? "auto" : null;
         this.emit("tracks");
         break;
     }

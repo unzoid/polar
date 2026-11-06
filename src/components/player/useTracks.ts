@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import type { ContentType, SubtitleOption, VideoFile } from "../../lib/types";
 import { ISO3, langMatches, languageName } from "../../lib/playback";
 import { isMpv, type MediaLike, type MpvTrack } from "./mpvMedia";
+import { OFF, mpvSelection } from "./trackChoice";
 import { keys } from "../../lib/net";
 import { warnFailed } from "../../lib/errors";
 
@@ -11,8 +12,6 @@ export interface TrackOption {
   id: string;
   label: string;
 }
-
-const OFF = "off";
 
 export { languageName };
 
@@ -94,34 +93,33 @@ export function useTracks(
   const externalByLangRef = useRef(externalByLang);
   externalByLangRef.current = externalByLang;
 
-  // mpv: mirror its track-list and current aid/sid.
+  // mpv: mirror its track-list and the tracks it is actually playing (its own
+  // pick at start included); again when add-on subtitles arrive, to name an
+  // add-on subtitle that is already on.
   useEffect(() => {
     if (!mpv) return;
     const read = () => {
       const audioTracks = mpv.tracks.filter((t) => t.type === "audio");
       setAudio(audioTracks.map((t) => ({ id: String(t.id), label: mpvLabel(t) })));
-      setAudioId(typeof mpv.aid === "number" ? String(mpv.aid) : undefined);
       setEmbedded(
         mpv.tracks
           .filter((t) => t.type === "sub" && !t.external)
           .map((t) => ({ id: `emb:${t.id}`, label: mpvLabel(t) })),
       );
-      const sel = mpv.tracks.find((t) => t.type === "sub" && t.id === mpv.sid);
-      if (!sel) setSubId(OFF);
-      else if (!sel.external) setSubId(`emb:${sel.id}`);
-      else {
-        const ext = externalByLangRef.current.find((x) => x.url === sel["external-filename"]);
-        if (ext) setSubId(`ext:${ext.lang}`);
-      }
+      const now = mpvSelection(mpv.tracks, mpv.aid, mpv.sid, externalByLangRef.current);
+      setAudioId(now.audioId);
+      if (now.subId) setSubId(now.subId);
     };
-    const onLoaded = () => setMpvLoaded(true);
     read();
     mpv.addEventListener("tracks", read);
+    return () => mpv.removeEventListener("tracks", read);
+  }, [mpv, externalByLang]);
+
+  useEffect(() => {
+    if (!mpv) return;
+    const onLoaded = () => setMpvLoaded(true);
     mpv.addEventListener("loadedmetadata", onLoaded);
-    return () => {
-      mpv.removeEventListener("tracks", read);
-      mpv.removeEventListener("loadedmetadata", onLoaded);
-    };
+    return () => mpv.removeEventListener("loadedmetadata", onLoaded);
   }, [mpv]);
 
   // Track lists appear after metadata loads and can change; listen for both.
@@ -267,7 +265,7 @@ export function useTracks(
       // The language that will be playing: the preferred audio if the file
       // has it (applied above), else whatever track is on now.
       const audioTracks: { lang?: string; on: boolean }[] = mpv
-        ? mpv.tracks.filter((t) => t.type === "audio").map((t) => ({ lang: t.lang, on: t.id === mpv.aid }))
+        ? mpv.tracks.filter((t) => t.type === "audio").map((t) => ({ lang: t.lang, on: t === mpv.playing("audio") }))
         : Array.from(((video as unknown as { audioTracks?: AudioTrackListLike })?.audioTracks ?? []) as ArrayLike<AudioTrackLike>).map(
             (t) => ({ lang: t.language, on: t.enabled }),
           );
