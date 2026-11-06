@@ -96,3 +96,36 @@ test("on touch, an episode's Sources and Download buttons are always there, in t
     expect(await ep.locator(sel).evaluate((b) => getComputedStyle(b).opacity)).toBe("1");
   }
 });
+
+test("a phone has no TV mode (#141)", async ({ app }) => {
+  await expect(app.getByRole("button", { name: "TV mode" })).toHaveCount(0);
+});
+
+test("the season picker keeps its own row on a phone (#151)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).tap();
+  await card(app, "Kingsbridge").tap();
+  const picker = app.locator(".seasons-picker");
+  await expect(picker).toBeVisible();
+  const box = await picker.boundingBox();
+  // The whole bar's width, not squeezed beside Download Season and the layout switch.
+  expect(box!.width).toBeGreaterThan(app.viewportSize()!.width * 0.8);
+  expect(await fitsWidth(app)).toBe(true);
+});
+
+test("settings on a phone: the sections, then one section with a way back", async ({ app }) => {
+  await app.getByRole("button", { name: /^Profile/ }).tap();
+  await app.getByRole("menuitem", { name: "Settings" }).tap();
+  // Not by name: on a phone the header shows only the open section, and that names the dialog ("Browsing").
+  const settings = app.getByRole("dialog");
+  await expect(settings).toHaveAccessibleName(/^Settings/);
+  const browsing = settings.getByRole("button", { name: "Browsing", exact: true });
+  await expect(browsing).toBeVisible();
+  await browsing.tap();
+  await expect(settings.getByRole("switch", { name: /^Show the Calendar/ })).toBeVisible();
+  await expect(settings).toHaveAccessibleName("Browsing");
+  await expect(browsing).toBeHidden();
+  await settings.getByRole("button", { name: "All settings" }).tap();
+  await expect(browsing).toBeVisible();
+  await settings.getByRole("button", { name: "Close settings" }).tap();
+  await expect(settings).toHaveCount(0);
+});

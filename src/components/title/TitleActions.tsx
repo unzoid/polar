@@ -5,6 +5,7 @@ import { DownloadButton } from "../DownloadButton";
 import { Play, Reset, Sources, Trailer } from "../icons";
 import { PlaylistButton } from "../Playlists";
 import { Button, IconButton } from "../ui/Button";
+import { useFormFactor } from "../../lib/ui";
 import { LibraryButton } from "./LibraryButton";
 import type { SourcePickerState } from "./SourcePicker";
 
@@ -55,6 +56,9 @@ export function TitleActions({
   downloadVideo,
   children,
 }: TitleActionsProps) {
+  // A phone: Play across the width, then one row of round buttons under it, each glyph alone
+  // (Trailer and Download had words, and wrapped onto rows of their own).
+  const phone = useFormFactor().form === "phone";
   return (
     <div className="detail-actions">
       <Button
@@ -69,18 +73,23 @@ export function TitleActions({
         {resume ? <Reset size={18} strokeWidth={2.5} /> : <Play size={18} fill="currentColor" />}
         {label}
       </Button>
-      {onTrailer && (
-        <Button variant="glass" className="detail-trailer-btn" onClick={onTrailer}>
-          <Trailer size={18} />
-          Trailer
-        </Button>
-      )}
+      {onTrailer &&
+        (phone ? (
+          <IconButton variant="glass" onClick={onTrailer} label="Trailer" title="Trailer">
+            <Trailer size={20} />
+          </IconButton>
+        ) : (
+          <Button variant="glass" className="detail-trailer-btn" onClick={onTrailer}>
+            <Trailer size={18} />
+            Trailer
+          </Button>
+        ))}
       {item && <LibraryButton item={item} />}
       {item && playlist && <PlaylistButton item={item} />}
       <IconButton variant="glass" disabled={!request} onClick={() => request && picker.choose(request)} label="Choose source" title="Choose source">
         <Sources size={19} />
       </IconButton>
-      {item && (download || downloadVideo) && <DownloadButton key={downloadVideo?.id} item={item} video={downloadVideo} labelled />}
+      {item && (download || downloadVideo) && <DownloadButton key={downloadVideo?.id} item={item} video={downloadVideo} labelled={!phone} />}
       {children}
     </div>
   );

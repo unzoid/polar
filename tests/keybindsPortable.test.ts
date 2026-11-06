@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import "./storageStub";
 import { fromPortable, toPortable } from "../src/lib/settings/keybinds";
 
 describe("portable shortcuts (L5)", () => {

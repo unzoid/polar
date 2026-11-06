@@ -2,9 +2,10 @@ import { useFormFactor } from "../../lib/ui";
 import { Dropdown } from "../Dropdown";
 import { Segmented } from "../Segmented";
 
-/** Up to this many seasons show as tabs; more become a dropdown. A phone has room for two. */
+/** Up to this many seasons show as tabs; more become a dropdown. A phone always has the dropdown:
+ *  even two long season names ran past its edge as tabs. */
 const MAX_TABS = 6;
-const MAX_TABS_PHONE = 2;
+const MAX_TABS_PHONE = 0;
 
 /**
  * A title's seasons (docs/ui-components.md U7): large tabs, or a large dropdown for long-running shows, whose

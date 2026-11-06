@@ -1,6 +1,7 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Unlisten } from "./bridge";
+import { isDesktop } from "./device";
 
 /**
  * The app's window: buttons for a frameless desktop window, fullscreen for the
@@ -30,8 +31,10 @@ export const appWindow: AppWindow = {
   toggleMaximize: () => win().toggleMaximize(),
   close: () => win().close(),
   isMinimized: () => win().isMinimized(),
-  isFullscreen: () => win().isFullscreen(),
-  setFullscreen: (on) => win().setFullscreen(on),
+  // A phone or TV app already has the whole screen, and the window commands are refused there
+  // (capabilities/mobile.json): asking would reject, and the player's Back waited on the answer (#147).
+  isFullscreen: () => (isDesktop ? win().isFullscreen() : Promise.resolve(false)),
+  setFullscreen: (on) => (isDesktop ? win().setFullscreen(on) : Promise.resolve()),
   onFocusChanged: (handler) => win().onFocusChanged(({ payload }) => handler(payload)),
   onResized: (handler) => win().onResized(() => handler()),
   setZoom: (scale) => getCurrentWebview().setZoom(scale),
