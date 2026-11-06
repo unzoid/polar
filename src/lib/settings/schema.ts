@@ -112,7 +112,7 @@ export const SETTINGS: SettingDef[] = [
   { id: "email", page: "account", title: "Email", keywords: "sign in address sync cloud" },
   { id: "profiles", page: "account", title: "Profiles", keywords: "switch who's watching" },
   { id: "manageProfiles", page: "account", title: "Manage profiles", keywords: "edit add remove avatar" },
-  { id: "syncSecrets", page: "account", title: "Sync API keys and addons", keywords: "encrypt encrypted passphrase keys addons secret" },
+  { id: "secrets", page: "account", title: "API keys and addons", keywords: "sync encrypt encrypted passphrase keys addons secret" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback

@@ -66,11 +66,6 @@ export interface Prefs {
   autoDownloadUpdates: boolean;
   /** The TV mode button in the navbar (Settings → Controls & TV). */
   showTvButton: boolean;
-  /**
-   * Sync API keys and add-on links sealed with a passphrase typed on each device (account/secrets.ts).
-   * Off: they stay on this device and a new device asks for them again.
-   */
-  syncSecrets: boolean;
 
   /** Ecchi anime (AniList's adult titles never show): as is, blurred, or left out. Synced. */
   matureContent: "show" | "blur" | "hide";
@@ -131,7 +126,6 @@ const DEFAULTS: Prefs = {
   searchSuggestions: true,
   autoDownloadUpdates: true,
   showTvButton: true,
-  syncSecrets: false,
   matureContent: "show",
   animeEnabled: true,
   animeHiddenShelves: "",

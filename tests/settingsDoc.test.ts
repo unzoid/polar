@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { changedFrom, firstDoc, fromWire, mergeDocs, sameDoc, synced, toWire, withDefaults, withUnknown, type Doc } from "../src/lib/account/settingsDoc";
+import { changedFrom, firstDoc, fromWire, mergeDocs, sameDoc, sealing, synced, toWire, withDefaults, withUnknown, type Doc } from "../src/lib/account/settingsDoc";
 
 const defaults = { autoplayNext: true, seekStep: 10, subtitleStyle: { size: 1, color: "#FFFFFF" }, tmdbKey: null, metadataSource: "cinemeta" };
 const read = (v: Record<string, unknown>) => ({
@@ -49,9 +49,22 @@ describe("settings document (I-009)", () => {
     expect((await fromWire(wire, "other", read)).unopened).toBe(wire.sealed as string);
   });
 
-  test("no passphrase: nothing sealed goes out", async () => {
+  test("no passphrase: keys and add-on links travel as they are, for the account only (#89)", async () => {
+    const doc: Doc = { settings: {}, keybinds: {}, prefs: {}, secrets: { keys: { tmdbKey: "k" }, addons: ["https://a/manifest.json"] } };
+    const wire = await toWire(doc, null);
+    expect(wire).toEqual({ settings: {}, keybinds: {}, prefs: {}, secrets: { keys: { tmdbKey: "k" }, addons: ["https://a/manifest.json"] } });
+    expect(await fromWire(wire, null, read)).toEqual(doc);
+    // Read as far as it fits: values that aren't text are left out, links sorted.
+    const odd = await fromWire({ secrets: { keys: { tmdbKey: 1, omdbKey: "o" }, addons: ["b", 2, "a"] } }, null, read);
+    expect(odd.secrets).toEqual({ keys: { omdbKey: "o" }, addons: ["a", "b"] });
+    expect((await fromWire({ secrets: "x" }, null, read)).secrets).toBeUndefined();
+  });
+
+  test("a device changing the passphrase opens the account's keys with the one it had before", async () => {
     const doc: Doc = { settings: {}, keybinds: {}, prefs: {}, secrets: { keys: { tmdbKey: "k" }, addons: [] } };
-    expect(await toWire(doc, null)).toEqual({ settings: {}, keybinds: {}, prefs: {} });
+    const wire = await toWire(doc, "old");
+    expect((await fromWire(wire, ["new", "old"], read)).secrets).toEqual(doc.secrets);
+    expect((await fromWire(wire, ["new"], read)).unopened).toBe(wire.sealed as string);
   });
 
   test("comparing documents leaves the unopened field out and ignores key order", () => {
@@ -93,6 +106,12 @@ describe("merging two devices' edits (critique H3)", () => {
     expect(firstDoc(here, there)).toEqual(doc({ seekStep: 30 }, { secrets: secrets(["mine", "theirs"]) }));
   });
 
+  test("first round on a device: the account's keys win, a key the account lacks stays (#89)", () => {
+    const here = doc({}, { secrets: secrets([], { tmdbKey: "mine", omdbKey: "mine" }) });
+    const there = doc({}, { secrets: secrets([], { tmdbKey: "theirs" }) });
+    expect(firstDoc(here, there).secrets).toEqual(secrets([], { tmdbKey: "theirs", omdbKey: "mine" }));
+  });
+
   test("keys sealed under another passphrase stay sealed as they came, and go back that way", async () => {
     const here = doc({ seekStep: 5 }, { secrets: secrets(["mine"]) });
     const there = doc({}, { unopened: "s1.other" });
@@ -108,5 +127,36 @@ describe("merging two devices' edits (critique H3)", () => {
     expect(here).toEqual(doc({ futureThing: 1, seekStep: 10 }, { prefs: { futurePref: true }, keybinds: { futureAction: ["X"] } }));
     // So a merge with the newer version's next edit keeps its keys.
     expect(mergeDocs(saved, here, doc({ seekStep: 5, futureThing: 2 })).settings).toEqual({ seekStep: 10, futureThing: 2 });
+  });
+});
+
+describe("passphrase or not (#89)", () => {
+  const plain = { settings: {}, secrets: { keys: {}, addons: [] } };
+  const sealed = { settings: {}, sealed: "s1.x.y.z" };
+  const neither = { settings: {} };
+
+  test("no passphrase on this device: keys go as they are", () => {
+    expect(sealing({}, plain)).toEqual({ seal: null, forget: false });
+    expect(sealing({}, null)).toEqual({ seal: null, forget: false });
+  });
+
+  test("a passphrase stays in force while the account's keys are sealed", () => {
+    expect(sealing({ passphrase: "p" }, sealed)).toEqual({ seal: "p", forget: false });
+  });
+
+  test("nothing sealed on the account and nothing pending here: the passphrase is forgotten", () => {
+    // From before #89, typed while the option was off, when it sealed nothing.
+    expect(sealing({ passphrase: "p" }, neither)).toEqual({ seal: null, forget: true });
+    expect(sealing({ passphrase: "p" }, null)).toEqual({ seal: null, forget: true });
+  });
+
+  test("a passphrase just set here seals the plain keys", () => {
+    expect(sealing({ passphrase: "p", pending: "set" }, plain)).toEqual({ seal: "p", forget: false });
+    expect(sealing({ passphrase: "p", pending: "set" }, null)).toEqual({ seal: "p", forget: false });
+  });
+
+  test("removed here: the keys go back as they are; removed on another device: this one forgets it", () => {
+    expect(sealing({ passphrase: "p", pending: "remove" }, sealed)).toEqual({ seal: null, forget: false });
+    expect(sealing({ passphrase: "p" }, plain)).toEqual({ seal: null, forget: true });
   });
 });

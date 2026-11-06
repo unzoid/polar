@@ -8,11 +8,13 @@ import { keys, useSettings } from "../../lib/net";
 import type { Settings as SettingsT } from "../../lib/types";
 import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../components/settings/rows";
+import { useSecretsNote } from "../../components/settings/secretsNote";
 
 export function ServicesPage() {
   const expand = useExpanded();
+  const note = useSecretsNote();
   return (
-    <Card>
+    <Card footer={note}>
       <ArtworkRow {...expand("artwork")} />
       <RatingsRow {...expand("ratings")} />
       <PreviewsRow {...expand("previews")} />

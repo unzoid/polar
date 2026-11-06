@@ -3,8 +3,8 @@ import { TextField } from "../../components/ui/TextField";
 import { Edit, Lock, Trash } from "../../components/icons";
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
-import { hasSecretsPassphrase, secretsLocked, setSecretsPassphrase, settingsTooLarge, sync, useAccount } from "../../lib/account";
-import { setPrefs, usePrefs } from "../../lib/settings";
+import { removeSecretsPassphrase, secretsState, setSecretsPassphrase, settingsTooLarge, sync, unlockSecrets, useAccount } from "../../lib/account";
+import { useSecretsNote } from "../../components/settings/secretsNote";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
@@ -46,7 +46,7 @@ export function AccountPage() {
       <Card title="Sync">
         {account.profile && <SecretsRow profileId={account.profile.id} {...expand("secrets")} />}
         {settingsTooLarge() && (
-          <p className="settings-error">This profile's settings are too large to sync. Sealed add-on links take the most room: remove some to sync again.</p>
+          <p className="settings-error">This profile's settings are too large to sync. Add-on links take the most room: remove some to sync again.</p>
         )}
       </Card>
 
@@ -58,49 +58,92 @@ export function AccountPage() {
 }
 
 /**
- * API keys and add-on links sealed with a passphrase (account/secrets.ts), off unless turned on
- * here. The passphrase stays on this device; each device types it once.
+ * API keys and add-on links sync for every account (#89): as they are, readable by the server under
+ * row-level security, or sealed with an optional passphrase (account/secrets.ts) that stays on each
+ * device, typed once on each.
  */
 function SecretsRow({ profileId, ...props }: Expandable & { profileId: string }) {
-  const { syncSecrets } = usePrefs();
+  const note = useSecretsNote();
   const [phrase, setPhrase] = useState("");
-  const [, rerender] = useState(0);
-  const set = hasSecretsPassphrase(profileId);
-  const change = (fn: () => void) => {
+  const [confirming, setConfirming] = useState(false);
+  const [tried, setTried] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const state = secretsState(profileId);
+  const change = async (fn: () => void) => {
     fn();
-    rerender((n) => n + 1);
-    sync.schedule();
+    setPhrase("");
+    setConfirming(false);
+    setBusy(true);
+    await sync.flush().catch(() => {});
+    setBusy(false);
   };
   return (
     <ExpandRow
       icon={Lock}
-      title="Sync API keys and addons"
-      caption="Encrypted with a passphrase only your devices know"
-      value={syncSecrets ? "On" : "Off"}
+      title="API keys and addons"
+      caption={state === "locked" ? "Encrypted with a passphrase this device doesn't have" : "Synced to your account"}
+      value={state === "plain" ? "Not encrypted" : state === "sealed" ? "Encrypted" : "Locked"}
       {...props}
     >
-      <p className="settings-expand-text">
-        Off: keys and addons stay on this device, and a new device asks for them again. On: they travel encrypted; type the same passphrase on
-        each device. Without it nobody, the server included, can read them, and nobody can get them back if it's forgotten.
-      </p>
-      <div className="settings-expand-form">
-        <Button variant={syncSecrets ? "danger" : "primary"} onClick={() => change(() => setPrefs({ syncSecrets: !syncSecrets }))}>
-          {syncSecrets ? "Turn Off" : "Turn On"}
-        </Button>
-      </div>
-      {syncSecrets && (
+      <p className="settings-expand-text">{note}</p>
+      {state === "locked" && (
         <FormRow
           look="expand"
           type="password"
-          placeholder={set ? "Passphrase set: type a new one to change it" : "Passphrase"}
-          autoComplete="new-password"
+          placeholder="Passphrase"
+          autoComplete="current-password"
           value={phrase}
-          onChange={setPhrase}
+          onChange={(v) => (setPhrase(v), setTried(false))}
           tidy={(v) => v}
-          onSubmit={(v) => change(() => (setSecretsPassphrase(profileId, v), setPhrase("")))}
+          submit="Unlock"
+          pending={busy}
+          pendingLabel="Unlocking…"
+          error={tried && !busy && "That passphrase doesn't open them."}
+          onSubmit={(v) => void change(() => (unlockSecrets(profileId, v), setTried(true)))}
         />
       )}
-      {syncSecrets && secretsLocked && <p className="settings-error">The account's keys were sealed with another passphrase.</p>}
+      {state !== "locked" && (
+        <>
+          <p className="settings-expand-text">
+            {state === "plain"
+              ? "With a passphrase, the server holds them encrypted. Each of your devices asks for it once; nobody can get it back if it's forgotten, and then you'd enter your keys and addons again."
+              : "Type a new passphrase to change it; your other devices then ask for the new one."}
+          </p>
+          <FormRow
+            look="expand"
+            type="password"
+            placeholder={state === "plain" ? "Passphrase" : "New passphrase"}
+            autoComplete="new-password"
+            value={phrase}
+            onChange={setPhrase}
+            tidy={(v) => v}
+            submit={state === "plain" ? "Set" : "Change"}
+            pending={busy}
+            pendingLabel="Encrypting…"
+            onSubmit={(v) => void change(() => setSecretsPassphrase(profileId, v))}
+          />
+        </>
+      )}
+      {state === "sealed" && !confirming && (
+        <div className="settings-expand-form">
+          <Button variant="danger" onClick={() => setConfirming(true)} disabled={busy}>
+            Remove Passphrase
+          </Button>
+        </div>
+      )}
+      {state === "sealed" && confirming && (
+        <>
+          <p className="settings-expand-text">
+            Your API keys and addons will be stored readable on the server again, for every device on this account.
+          </p>
+          <div className="settings-expand-form">
+            <Button variant="danger" onClick={() => void change(() => removeSecretsPassphrase(profileId))}>
+              Remove
+            </Button>
+            <Button onClick={() => setConfirming(false)}>Cancel</Button>
+          </div>
+        </>
+      )}
     </ExpandRow>
   );
 }

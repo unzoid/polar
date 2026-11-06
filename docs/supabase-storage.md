@@ -145,8 +145,8 @@ still learn of them.
   (§3.5). Contents unchanged: links are already ~30 B of data, playlists already packed.
 - `profile_settings.data` stays jsonb, but holds only what a profile changed from the defaults, and
   never API keys or add-on links (I-009: they stay on each device; a new device asks for them again).
-  The migration takes keys and `addons` out of the documents already stored. Encrypted sync of keys
-  and add-on links with a passphrase is built behind a setting, off (§3.7).
+  The migration takes keys and `addons` out of the documents already stored. Since #89 keys and
+  add-on links travel again, in their own `secrets` field or sealed with a passphrase (§3.7).
 
 ### 3.4 Merging on the server
 
@@ -214,14 +214,29 @@ The cost of keeping names off the server: a new device looks up every saved and 
 
 ### 3.7 Keys and add-on links
 
-API keys (TMDB, OMDb, MDBList, Seekr) and add-on manifest URLs stay on each device (I-009 A). Built
-and off: the `syncSecrets` setting seals them with a passphrase typed on each device (PBKDF2-SHA-256
-→ AES-GCM, §2.1 option C) into the settings document as one `sealed` field; the server never sees
-the passphrase or the plain values. Built: `src/lib/account/secrets.ts` (format `s1.salt.nonce.ciphertext`,
-600,000 rounds) and `settingsDoc.ts` (tested); Settings → Account → "Sync API keys and addons". The
-passphrase is kept on the device (localStorage, per profile), beside the keys it protects, which are
-there in plain text anyway. A `sealed` field a device can't open is sent back unchanged, so a device
-without the passphrase doesn't wipe the others' keys.
+API keys (TMDB, OMDb, MDBList, Seekr) and add-on manifest URLs sync for every account, with no
+setting (#89, §2.1 option D by default, C with a passphrase):
+
+- **By default** they travel as they are, in the settings document's `secrets` field
+  (`{ keys: { tmdbKey: … }, addons: [sorted URLs] }`): readable by the server, protected by the
+  `own settings` row-level security policy like the rest of the document. The app says so where
+  keys and add-ons are entered and in Settings → Account → API keys and addons.
+- **With a passphrase** set there, they are sealed (PBKDF2-SHA-256 → AES-GCM, `src/lib/account/secrets.ts`,
+  format `s1.salt.nonce.ciphertext`, 600,000 rounds) into one `sealed` field instead; the server never
+  sees the passphrase or the plain values. The passphrase is kept on each device (localStorage, per
+  profile), beside the keys it protects, which are there in plain text anyway.
+- **Who decides** (`sealing` in `settingsDoc.ts`): the document on the server. A device keeps
+  sealing while the server's copy is sealed; one that just set a passphrase seals; one that removed
+  it (after a confirmation) sends the plain form; a device holding a passphrase that finds the plain
+  form with nothing pending forgets its passphrase (removed elsewhere). Changing the passphrase opens
+  the server's copy with the previous one until the next write.
+- **A device without the passphrase** sends the `sealed` field back unchanged, so it doesn't wipe
+  the others' keys; it keeps its own keys and add-ons and Settings → Account asks for the passphrase.
+- A profile's first round on a device takes the account's keys but keeps a key the account lacks,
+  and no add-on is taken away (`firstDoc`).
+- Versions from before #89 drop the `secrets` field when they write the document (the next newer
+  device puts it back from its own copy) and pass `sealed` on as it came. A passphrase typed in such
+  a version while the option was off is forgotten on update (nothing was sealed with it).
 
 ## 4. Codecs
 
