@@ -28,6 +28,7 @@
 - Subtitle, sound and picture settings that apply straight away, even mid-video
 - Source filters, and a check of a stream before it plays
 - Resume where you left off
+- AirPlay to an Apple TV or AirPlay TV on macOS, for files the receiver can play
 
 **Library**
 - Watchlist, history and your own playlists

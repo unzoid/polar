@@ -701,6 +701,19 @@
   justify-content: center;
   gap: 0.625rem;
 }
+/* Playing on an AirPlay receiver: the show's art over mpv's paused picture; the controls stay above. */
+.player-casting {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+  overflow: hidden;
+  background: #000;
+}
+.player-casting-hint {
+  color: var(--text-2);
+}
 .player-notice {
   position: absolute;
   top: 4.5rem;
