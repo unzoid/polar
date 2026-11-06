@@ -9,7 +9,7 @@ you use it. It's written from what the app does today; where something isn't set
 
 The Polarity project, run by the maintainers of the
 [github.com/unzoid/polarity](https://github.com/unzoid/polarity) repository. For anything about your data (a question,
-a copy of it, a correction, deletion) write to **[contact email, to be added]**, or open an issue on that repository
+a copy of it, a correction, deletion) write to support@getpolar.app, or open an issue on that repository
 for anything that isn't private.
 
 ## In short
@@ -22,7 +22,7 @@ for anything that isn't private.
 
 ## What the account server stores
 
-The account server runs on [Supabase](https://supabase.com). Hosted in: **[region, to fill in]**. When you sign
+The account server runs on [Supabase](https://supabase.com). Hosted in: eu-west-3. When you sign
 in, it keeps:
 
 - **Your email address**, which you sign in with (a login code is emailed to you; there's no password), and the
