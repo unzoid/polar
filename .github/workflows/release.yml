@@ -128,8 +128,8 @@ jobs:
             macOS)
               cp "$b"/dmg/*_aarch64.dmg out/
               # Name the update archive per version and CPU, like the other files.
-              cp "$b/macos/Polar.app.tar.gz" "out/Polar_${VERSION}_aarch64.app.tar.gz"
-              cp "$b/macos/Polar.app.tar.gz.sig" "out/Polar_${VERSION}_aarch64.app.tar.gz.sig"
+              cp "$b/macos/Polarity.app.tar.gz" "out/Polarity_${VERSION}_aarch64.app.tar.gz"
+              cp "$b/macos/Polarity.app.tar.gz.sig" "out/Polarity_${VERSION}_aarch64.app.tar.gz.sig"
               cp "$b/Polarity_${VERSION}_aarch64_mpv-sources.tar" out/ ;;
             Linux)
               cp "$b"/appimage/*.AppImage "$b"/appimage/*.AppImage.sig "$b"/deb/*.deb "$b"/rpm/*.rpm out/ ;;
