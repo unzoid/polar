@@ -36,10 +36,12 @@ test("Settings → About and the sign-in screen show both links", () => {
   expect(about).toContain("Terms of Use");
 });
 
-test("no email address in either file until the real one is filled in", () => {
+test("both files give the project's contact address, and no other", () => {
   for (const text of [privacy, terms]) {
-    expect(text).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
-    expect(text).toContain("[contact email, to be added]");
+    const emails = text.match(/[\w.+-]+@[\w-]+\.[\w.]*\w/g) ?? [];
+    expect(emails.length).toBeGreaterThan(0);
+    expect(new Set(emails)).toEqual(new Set(["support@getpolar.app"]));
+    expect(text).not.toContain("[contact email, to be added]");
   }
 });
 
