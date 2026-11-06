@@ -1,6 +1,9 @@
 -- Back to one entry per title (undoes per_episode_progress.sql): new pushes keep
 -- only the newest video, and every stored row is cut down to its newest entry.
--- Turn the setting off on each device too.
+-- Without polar_every_episode() the apps send each title's newest again.
+
+drop function if exists public.polar_every_episode();
+notify pgrst, 'reload schema';
 
 drop trigger progress_sync on public.progress;
 create trigger progress_sync before insert or update on public.progress

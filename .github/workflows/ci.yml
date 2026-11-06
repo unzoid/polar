@@ -36,17 +36,36 @@ jobs:
   e2e-web:
     name: End to end (web build)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    # Playwright's own image for the version in bun.lock (1.64.1), pinned by digest: the browsers'
+    # system packages are already installed, so no run depends on Ubuntu's package mirror. Running
+    # as the runner's user (1001) follows Playwright's guide for GitHub Actions. When @playwright/test
+    # is updated, this image and its digest are updated with it.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
+      options: --user 1001
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: 1.4.4
+      # setup-bun needs unzip, which Playwright's image doesn't have; the image has Node and npm, so
+      # the same Bun version comes from npm instead, into the job's temporary folder.
+      - name: Install Bun
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/bun" bun@1.4.4
+          echo "$RUNNER_TEMP/bun/node_modules/.bin" >> "$GITHUB_PATH"
       - run: bun install --frozen-lockfile
       - run: bunx tsc --noEmit -p e2e
-      - run: bunx playwright install --with-deps chromium webkit
+      # The image already carries the browsers and their system packages; this only checks that the
+      # browsers match the installed Playwright and fetches them if not. Each attempt gets 5 minutes,
+      # and a stalled one is tried again.
+      - name: Install the browsers
+        run: |
+          for attempt in 1 2 3; do
+            timeout 300 bunx playwright install chromium webkit && exit 0
+            echo "::warning::Installing the browsers failed or stalled (attempt $attempt of 3)"
+          done
+          exit 1
       - run: bun run e2e
       - name: Keep the report, traces and screenshots
         if: failure()
@@ -74,7 +93,11 @@ jobs:
         with:
           toolchain: stable
           components: clippy
+      # Caches are saved from master only and restored everywhere: one copy per cache keeps the
+      # repository under GitHub's 10 GB, so they aren't evicted and pull requests start warm.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
       # Linux: the web view (WebKitGTK) and what tauri and gilrs link against.
       # mpv runs as its own process there, so nothing of it is linked.
       - name: Install Linux build dependencies
@@ -130,9 +153,12 @@ jobs:
         with:
           toolchain: stable
           targets: aarch64-linux-android,x86_64-linux-android
+      # Caches are saved from master only and restored everywhere: one copy per cache keeps the
+      # repository under GitHub's 10 GB, so they aren't evicted and pull requests start warm.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: android
+          save-if: ${{ github.ref == 'refs/heads/master' }}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.4
@@ -163,17 +189,22 @@ jobs:
           scripts/android-mpv.sh "$RUNNER_TEMP/libmpv" arm64 x86_64
       - name: Put libmpv in the app
         run: cp -R "$RUNNER_TEMP/libmpv/out/jniLibs" "$RUNNER_TEMP/libmpv/out/assets" src-tauri/gen/android/app/src/main/
+      # Pull requests build the debug APK for arm64 only (what phones run); master builds both. The
+      # emulator test in e2e-app.yml builds its own x86_64 APK.
       - name: Build
-        run: bun run tauri android build --ci --debug --apk --target x86_64 --target aarch64
+        run: bun run tauri android build --ci --debug --apk ${{ github.ref == 'refs/heads/master' && '--target x86_64 --target aarch64' || '--target aarch64' }}
       - name: Keep the APK
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-debug-apk
           path: src-tauri/gen/android/app/build/outputs/apk/**/debug/*.apk
           retention-days: 14
+      # The unsigned release APK and app bundle are built on master only.
       - name: Build the release (unsigned)
+        if: github.ref == 'refs/heads/master'
         run: bun run tauri android build --ci --apk --aab --target x86_64 --target aarch64
       - name: Keep the release
+        if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-release-unsigned
