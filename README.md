@@ -111,7 +111,7 @@ explains how to play one in Polarity and how to credit it.
 MIT, see [LICENSE](LICENSE). Bundled fonts, avatars and mpv keep their own licences: [docs/licensing.md](docs/licensing.md).
 
 ## Donate
-Help speed-up development: https://ko-fi.com/polarityapp
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/polarityapp)
 
 ## Built with
 
