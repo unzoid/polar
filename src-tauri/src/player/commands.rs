@@ -16,7 +16,7 @@ use super::autocrop::autocrop;
 use super::mpv_binary;
 #[cfg(mpv_apple)]
 use super::mpv_library;
-use super::preroll::{opening, Opening};
+use super::preroll::{opening, Lookahead, Opening};
 use crate::commands::CmdError;
 use crate::locks::Locked;
 use crate::AppState;
@@ -35,6 +35,16 @@ pub fn mpv_available() -> bool {
     return super::android::available();
     #[cfg(not(any(windows, mpv_in_app)))]
     false
+}
+
+/// Whether autocrop's lookahead reads ahead in the video playing now, or
+/// why it can't (Settings → Advanced shows it under the setting); `None`
+/// with no video, autocrop or lookahead, or before it starts.
+#[tauri::command]
+pub fn mpv_lookahead(state: State<'_, AppState>) -> Option<Lookahead> {
+    let load = state.mpv.loads.load(Ordering::SeqCst);
+    let tune = *state.mpv.tuned.locked();
+    (*state.mpv.lookahead.locked()).filter(|(l, _)| *l == load && tune.autocrop && tune.lookahead).map(|(_, s)| s)
 }
 
 /// Hide the system's bars while the player is open, and show them again when it closes. On

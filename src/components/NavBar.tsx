@@ -12,7 +12,7 @@ import { useSettings } from "../lib/net";
 import { WindowControls } from "./WindowControls";
 import { ProfileMenu } from "./ProfileMenu";
 import { UpdatePill } from "./Updates";
-import { useParty } from "../lib/party";
+import { setPartyMenuOpen, useParty, usePartyMenuOpen } from "../lib/party";
 import { PartyFaces, partyBadgeLabel } from "./party/PartyUI";
 import { PartyMenu } from "./party/PartyMenu";
 import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
@@ -103,15 +103,20 @@ export function NavBar() {
 /** In a watch party while browsing: who's in it; opens the party menu (#156). */
 function NavParty() {
   const party = useParty();
-  const [open, setOpen] = useState(false);
-  if (!party || !party.playback || party.knocking) return null;
+  // A party surface (lib/party/surface.ts): opening it closes any other.
+  const open = usePartyMenuOpen();
+  const shown = !!party?.playback && !party.knocking;
+  useEffect(() => {
+    if (!shown) setPartyMenuOpen(false);
+  }, [shown]);
+  if (!party || !shown) return null;
   return (
-    <PopoverRoot open={open} onOpenChange={setOpen}>
+    <PopoverRoot open={open} onOpenChange={setPartyMenuOpen}>
       <PopoverTrigger className="party-badge pressable" aria-label={partyBadgeLabel(party)} title="Watch party" data-status={party.status}>
         <PartyFaces party={party} />
       </PopoverTrigger>
       <PopoverPopup sideOffset={8} align="end" collisionPadding={12} className="party-popover" aria-label="Watch party">
-        <PartyMenu party={party} onClose={() => setOpen(false)} />
+        <PartyMenu party={party} onClose={() => setPartyMenuOpen(false)} />
       </PopoverPopup>
     </PopoverRoot>
   );

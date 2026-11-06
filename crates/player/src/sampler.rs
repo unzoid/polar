@@ -7,8 +7,9 @@
 //!   cropdetect's reading feeds each frame, and when it changes a
 //!   screenshot is taken for our detector, then more while the bars keep
 //!   moving or the tracker follows them, until our readings hold still.
-//!   Meanwhile only our readings feed the tracker, so its crisp edges and
-//!   follow mode work as on every frame.
+//!   After the changed frame (cropdetect's, so a cut it shows lands on it)
+//!   only our readings feed the tracker, so its crisp edges and follow
+//!   mode work as on every frame.
 //! * [`Sampling::EveryFrame`] (macOS, where libmpv hands frames over in
 //!   memory, and the opt-in setting elsewhere): a screenshot of each frame,
 //!   one at a time, and no cropdetect.
@@ -115,9 +116,11 @@ impl Sampler {
                 Feed::Cropdetect(reading)
             }
             Sampling::AroundChanges if changed => {
-                // The changed frame waits for our reading of it.
+                // cropdetect's reading is of this very frame, so a cut it
+                // shows (picture back in a bar) lands here; ours of the
+                // next frames, which come late, decide the rest.
                 self.active = true;
-                Feed::Wait
+                Feed::Cropdetect(reading)
             }
             Sampling::AroundChanges => Feed::Cropdetect(reading),
         }
@@ -157,7 +160,7 @@ mod tests {
     /// read by our detector too) and back on cropdetect.
     fn settled() -> Sampler {
         let mut s = Sampler::new(Sampling::AroundChanges);
-        assert_eq!(s.frame(Some(rect(0)), false), Feed::Wait);
+        assert_eq!(s.frame(Some(rect(0)), false), Feed::Cropdetect(Some(rect(0))));
         for _ in 0..STILL_SHOTS {
             s.measured(Some(ours(0)));
             assert_eq!(s.frame(Some(rect(0)), false), Feed::Measured(Some(ours(0))));
@@ -174,8 +177,9 @@ mod tests {
         // Within the slack: no change.
         assert_eq!(s.frame(Some(rect(2)), false), Feed::Cropdetect(Some(rect(2))));
         assert!(!s.wants_shot());
-        assert_eq!(s.frame(Some(rect(140)), false), Feed::Wait);
+        assert_eq!(s.frame(Some(rect(140)), false), Feed::Cropdetect(Some(rect(140))), "the changed frame itself");
         assert!(s.wants_shot());
+        assert_eq!(s.frame(Some(rect(140)), false), Feed::Wait, "then ours");
     }
 
     #[test]
@@ -246,7 +250,7 @@ mod tests {
         assert!(!s.wants_shot());
         assert_eq!(
             s.frame(Some(rect(140)), false),
-            Feed::Wait,
+            Feed::Cropdetect(Some(rect(140))),
             "the first reading after a reset is a change from none"
         );
         assert_eq!(s.sampling(), Sampling::AroundChanges);
