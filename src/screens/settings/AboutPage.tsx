@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Reset, Download, Info, Trash } from "../../components/icons";
+import { Reset, Download, Info, Lock, Trash } from "../../components/icons";
 import { api } from "../../lib/api";
 import tmdbLogo from "../../assets/tmdb-short.svg";
-import { CREDITS, TMDB_NOTICE } from "../../lib/settings";
+import { CREDITS, PRIVACY_URL, TERMS_URL, TMDB_NOTICE } from "../../lib/settings";
 import { ReleaseNotes } from "../../components/Updates";
 import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl, useUpdate } from "../../lib/updater";
 import { Button } from "../../components/ui/Button";
@@ -86,7 +86,7 @@ export function AboutPage() {
 }
 
 /**
- * Where the data comes from. TMDB's notice and logo are required to be shown,
+ * Where the data comes from, and the privacy policy and terms (#157). TMDB's notice and logo are required to be shown,
  * so they aren't folded away; its rules keep the logo smaller than Polarity's own
  * (the 38px navbar mark) and without any hint of endorsement.
  */
@@ -119,6 +119,8 @@ function CreditsCard() {
           ))}
         </ul>
       </ExpandRow>
+      <LinkRow icon={Lock} title="Privacy Policy" caption="What Polarity stores, where, and how to delete it" onClick={() => void api.openExternal(PRIVACY_URL)} />
+      <LinkRow icon={Info} title="Terms of Use" onClick={() => void api.openExternal(TERMS_URL)} />
     </Card>
   );
 }

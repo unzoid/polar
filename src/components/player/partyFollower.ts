@@ -9,6 +9,10 @@ const NUDGE = 0.3;
 export const JUMP = 2;
 /** Our own play/pause/seek echoes back from the engine within this. */
 const ECHO_MS = 1500;
+/** Paused, the room is exactly where it stopped: a move this far is the viewer's. */
+const PAUSED_MOVE = 0.25;
+/** A seek here waits this long for the next before it's the room's: one update for a drag, held arrow keys or a wheel. */
+export const SEEK_SETTLE_MS = 300;
 export const FOLLOW_MS = 250;
 
 export interface FollowerDeps {
@@ -42,11 +46,13 @@ export function createPartyFollower(d: FollowerDeps) {
   const { media: m } = d;
   /** The engine has matched the room's play/pause since playback started. */
   let synced = false;
-  let commanded = { paused: null as boolean | null, at: 0, seekAt: 0 };
+  let commanded = { paused: null as boolean | null, at: 0, seekAt: 0, seekTo: NaN };
   /** How long a seek here takes to play again (s): catch-up seeks aim that far ahead. */
   let seekLag = 0.5;
   /** When the last catch-up seek was made, until it has landed. */
   let seekSent: number | null = null;
+  /** When the viewer last sought here, until the room has been told where it settled. */
+  let viewerSeek: number | null = null;
   let stopped = false;
 
   const onRoom = () => {
@@ -59,6 +65,7 @@ export function createPartyFollower(d: FollowerDeps) {
   const seek = (t: number) => {
     if (seekSent != null) return; // let the last one land
     commanded.seekAt = seekSent = d.now();
+    commanded.seekTo = t;
     m.currentTime = t;
   };
   const command = (paused: boolean) => {
@@ -76,8 +83,16 @@ export function createPartyFollower(d: FollowerDeps) {
     // Play/pause always follows the room at once, even mid-seek.
     command(hold);
     if (m.paused === hold) synced = true;
-    // A seek still loading: measure it once it plays, and judge drift only after.
     const now = d.now();
+    // The viewer's seek, once it has settled: the room's, paused or not.
+    if (viewerSeek != null) {
+      if (now - viewerSeek < SEEK_SETTLE_MS) return;
+      viewerSeek = null;
+      seekSent = now;
+      d.act({ position: m.currentTime });
+      return;
+    }
+    // A seek still loading: measure it once it plays, and judge drift only after.
     if (seekSent != null) {
       if (d.buffering() || now - seekSent < 300) return;
       const took = (now - seekSent) / 1000;
@@ -115,11 +130,13 @@ export function createPartyFollower(d: FollowerDeps) {
 
   function onSeeking() {
     const p = viewer();
-    if (!p || d.now() - commanded.seekAt < ECHO_MS) return;
-    if (Math.abs(m.currentTime - d.expected(p)) < JUMP) return;
-    // Our own seek, still loading: let it land before judging drift, as for a catch-up seek.
-    seekSent = d.now();
-    d.act({ position: m.currentTime });
+    if (!p) return;
+    // Our own catch-up seek, echoed by the engine.
+    if (d.now() - commanded.seekAt < ECHO_MS && Math.abs(m.currentTime - commanded.seekTo) < PAUSED_MOVE) return;
+    // Mid-burst, every step counts, back where it started included; otherwise, more than drift.
+    const hold = p.paused || p.held;
+    if (viewerSeek == null && Math.abs(m.currentTime - d.expected(p)) < (hold ? PAUSED_MOVE : JUMP)) return;
+    viewerSeek = d.now();
   }
 
   return {
@@ -129,12 +146,13 @@ export function createPartyFollower(d: FollowerDeps) {
     /** Playback (re)starting: the engine has to match the room again before it speaks for the viewer. */
     restart() {
       synced = false;
+      viewerSeek = null;
     },
     /** Sync now: straight to where the room is, however close this player already thinks it is. */
     jump() {
       const p = onRoom();
       if (stopped || !p || !d.started()) return;
-      seekSent = null;
+      seekSent = viewerSeek = null;
       setRate(1);
       const hold = p.paused || p.held;
       seek(hold ? p.position : d.expected(p) + seekLag);

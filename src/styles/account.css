@@ -183,6 +183,24 @@
   line-height: 1.45;
   color: #8a8f98;
 }
+/* Privacy Policy · Terms of Use (#157): quiet links under the sign-in steps. */
+.auth-legal {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1.5rem 0 0;
+  font-size: var(--fs-sm);
+  color: #62666d;
+}
+.auth-legal button {
+  color: inherit;
+  transition: color 150ms var(--ease-std);
+}
+@media (hover: hover) and (pointer: fine) {
+  .auth-legal button:hover {
+    color: #d0d6e0;
+  }
+}
 .auth-error {
   display: flex;
   flex-direction: column;
