@@ -101,7 +101,8 @@
   --fs-lg: 1rem;
   --fs-xl: 1.0625rem;
 
-  /* Stacking order of app layers (local stacking inside a component stays 1-5). */
+  /* Stacking order of app layers (local stacking inside a component stays 1-5). Watch party dialogs and
+     panels never stack on each other, whatever their layer: one is up at a time (lib/party/surface.ts). */
   --z-nav: 20;
   --z-player: 30;
   --z-toast: 30; /* same layer as the player today; ui-components §5.2 plans 35 */
