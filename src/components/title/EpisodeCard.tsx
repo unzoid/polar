@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useCardIntent } from "../../lib/ui";
 import { episodeState, watchedFraction } from "../../lib/library";
-import { formatDate, formatRemaining, shortRuntime } from "../../lib/format";
+import { airLabel, formatRemaining, shortRuntime } from "../../lib/format";
 import { prefetchStreams } from "../../lib/net";
 import type { EpisodeLayout, MetaPreview, Progress, Video } from "../../lib/types";
 import { DownloadButton } from "../DownloadButton";
@@ -36,9 +36,9 @@ export function EpisodeCard({
   onSources: (v: Video) => void;
   menu?: { onContextMenu: (e: React.MouseEvent<HTMLElement>) => void };
 }) {
-  const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
+  const { released, openable, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
   // Resting on an episode is intent to watch it — warm its sources.
-  const intent = useCardIntent(() => released && prefetchStreams("series", v.id), 150);
+  const intent = useCardIntent(() => openable && prefetchStreams("series", v.id), 150);
 
   const label = inProgress && p ? formatRemaining(p.position, p.duration) : shortRuntime(runtime);
   // The check pops in when an episode becomes watched while you're looking (marked, or finished), never on mount.
@@ -60,7 +60,7 @@ export function EpisodeCard({
       data-unwatched={!watched}
       {...menu}
     >
-      <button className="card card-landscape episode-card-main" disabled={!released} onClick={() => onPlay(v)} {...intent}>
+      <button className="card card-landscape episode-card-main" disabled={!openable} onClick={() => onPlay(v)} {...intent}>
         <div className="card-frame">
           <CardArt src={v.thumbnail} fallback={<StillPlaceholder />} />
           <div className="card-art-scrim" />
@@ -91,12 +91,12 @@ export function EpisodeCard({
           <span className="t-headline episode-card-title">{v.title}</span>
           {v.overview && <p className="t-callout episode-card-overview">{v.overview}</p>}
           <span className="t-caption faint tabular">
-            {released ? formatDate(v.released) : `Coming ${formatDate(v.released)}`}
+            {airLabel(v)}
             {Number(v.rating) > 0 && <span className="episode-rating">★ {v.rating}</span>}
           </span>
         </div>
       </button>
-      {released && (
+      {openable && (
         <IconButton
           variant="glass"
           className="episode-sources pressable"
@@ -107,7 +107,7 @@ export function EpisodeCard({
           <Sources size={15} />
         </IconButton>
       )}
-      {released && item && <DownloadButton item={item} video={v} className={buttonClass("glass", true, "episode-download pressable")} size={16} />}
+      {openable && item && <DownloadButton item={item} video={v} className={buttonClass("glass", true, "episode-download pressable")} size={16} />}
     </div>
   );
 }
