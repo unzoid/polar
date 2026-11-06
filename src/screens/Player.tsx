@@ -26,6 +26,8 @@ import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
 import { streamKey } from "../components/StreamList";
 import { SourceFilterBar } from "../components/SourceFilters";
+import { TvSourceMenu, useSourceInfo } from "../components/SourceInfo";
+import { playingReport } from "../components/player/playingReport";
 import {
   autoplayStreak,
   countAutoplay,
@@ -34,6 +36,7 @@ import {
   READY_CHECKS,
   readinessNote,
   resetAutoplay,
+  screenResolution,
   sliderAmplitude,
   sourceRow,
   useReadiness,
@@ -69,7 +72,7 @@ import { useAccount } from "../lib/account";
 import { airLabel, episodeCode, formatRemaining, formatTime, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/net";
 import { useRouter } from "../lib/router";
-import type { ContentType, Progress, Stream, Video } from "../lib/types";
+import type { ContentType, Progress, RankedStream, Stream, Video } from "../lib/types";
 import { playContext, stillFor } from "../lib/anime";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
@@ -656,6 +659,21 @@ export function Player({
     sourceFilters.view.slice(0, Math.min(sourceFilters.matched, READY_CHECKS)).map(({ r }) => r),
     options === "sources",
   );
+  // A source's "i" panel (#229); on TV, the row's menu that leads to it. The playing source adds what the player reports.
+  const sourceInfo = useSourceInfo(tv);
+  const [sourceMenu, setSourceMenu] = useState<{ r: RankedStream; anchor: HTMLElement } | null>(null);
+  const showSourceInfoRef = useRef<(r: RankedStream, anchor: HTMLElement) => void>(() => {});
+  showSourceInfoRef.current = (r, anchor) => {
+    const playing = currentKey !== undefined && streamKey(r) === currentKey;
+    void (playing ? playingReport(media) : Promise.resolve(undefined)).then((report) =>
+      sourceInfo.show(
+        r,
+        sourceRow(r).title,
+        { filter: sourceFilters.filter, sort: sourceFilters.sort, screen: screenResolution(), preferScreen: settings?.preferScreenResolution ?? true, playing: report },
+        anchor,
+      ),
+    );
+  };
   const sourceItems = useMemo<OptionItem[]>(() => {
     const rank = new Map(rankedStreams.map((r, i) => [r, i]));
     return sourceFilters.view.map(({ r, match }, n) => {
@@ -672,9 +690,11 @@ export function Player({
         badge: r.quality.lowQualitySource ? { text: "CAM", tone: "bad" as const } : undefined,
         ready: ready?.state === "ready" ? "yes" : ready?.state === "notReady" ? "no" : undefined,
         note: note?.long,
+        onInfo: (anchor: HTMLElement) => showSourceInfoRef.current(r, anchor),
+        onMenu: tv ? (anchor: HTMLElement) => setSourceMenu({ r, anchor }) : undefined,
       };
       });
-  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.otherEpisodes, sourceFilters.sort, readiness]);
+  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.otherEpisodes, sourceFilters.sort, readiness, tv]);
   const sourceOptions = useMemo<OptionItem[]>(
     () =>
       downloaded
@@ -1330,6 +1350,24 @@ export function Player({
           },
         ]}
       />
+      {sourceMenu && (
+        <TvSourceMenu
+          anchor={sourceMenu.anchor}
+          onClose={() => {
+            setSourceMenu(null);
+            sourceMenu.anchor.focus({ preventScroll: true });
+          }}
+          onInfo={() => {
+            setSourceMenu(null);
+            showSourceInfoRef.current(sourceMenu.r, sourceMenu.anchor);
+          }}
+          onPlay={() => {
+            setSourceMenu(null);
+            if (streamKey(sourceMenu.r) !== currentKey) playVideo(videoId, sourceMenu.r.stream);
+          }}
+        />
+      )}
+      {sourceInfo.panel}
     </div>
   );
 }
