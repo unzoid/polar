@@ -4,8 +4,12 @@
 // (src-tauri/vendor/libmpv/formulae.json); this fetches each one's source
 // with Homebrew (tarball, resources, patches) into a fresh cache and packs
 // them with each keg's own formula file, the recipe it was built with.
+//
+//   bun scripts/macSources.ts <formulae.json> <archive.tar>
+//
+// (the Release workflow's macOS job; scripts/release-mac.ts calls packMacSources itself).
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 /** A Homebrew keg bundle-libmpv.ts copied a library from. */
@@ -95,4 +99,14 @@ export function packMacSources(formulaeJson: string, archive: string, work: stri
   const r = spawnSync("tar", ["-cf", archive, "-C", work, basename(out)], { stdio: "inherit" });
   if (r.status !== 0) throw new Error("packing the sources failed");
   rmSync(work, { recursive: true, force: true });
+}
+
+if (import.meta.main) {
+  const [formulaeJson, archive] = process.argv.slice(2);
+  if (!formulaeJson || !archive) {
+    console.error("Usage: bun scripts/macSources.ts <formulae.json> <archive.tar>");
+    process.exit(1);
+  }
+  mkdirSync(dirname(archive), { recursive: true });
+  packMacSources(formulaeJson, archive, join(dirname(archive), "mpv-sources"));
 }

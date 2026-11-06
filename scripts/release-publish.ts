@@ -54,7 +54,7 @@ const line = (re: RegExp, text: (f: string) => string) => {
 };
 const install = [
   line(/_x64-setup\.exe$/, (f) => `**Windows:** \`${f}\` (recommended) or the \`.msi\`.`),
-  line(/_aarch64\.dmg$/, (f) => `**macOS (Apple Silicon):** \`${f}\`. Not notarized yet: the first time, right-click Polar in Applications and choose **Open**. If macOS says it's damaged, run \`xattr -cr /Applications/Polar.app\`.`),
+  line(/_aarch64\.dmg$/, (f) => `**macOS (Apple Silicon):** \`${f}\`. Not notarized yet: the first time, right-click Polarity in Applications and choose **Open**. If macOS says it's damaged, run \`xattr -cr /Applications/Polarity.app\`.`),
   line(/_amd64\.AppImage$/, (f) => `**Linux:** \`${f}\`, the \`.deb\` or the \`.rpm\`. Playback uses your system's mpv: the \`.deb\` and \`.rpm\` install it, for the AppImage install \`mpv\` with your package manager.`),
 ].filter(Boolean);
 
