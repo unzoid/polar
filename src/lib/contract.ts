@@ -98,6 +98,7 @@ export const contract = {
   RankedStream: { addon: true, label: true, quality: true, score: true, stream: true } satisfies Keys<RankedStream>,
   "Readiness.ready": { state: true, ms: true } satisfies Keys<Extract<Readiness, { state: "ready" }>>,
   "Readiness.notReady": { state: true, reason: true } satisfies Keys<Extract<Readiness, { state: "notReady" }>>,
+  "Readiness.slow": { state: true, ms: true } satisfies Keys<Extract<Readiness, { state: "slow" }>>,
   "Readiness.unchecked": { state: true } satisfies Keys<Extract<Readiness, { state: "unchecked" }>>,
   Stream: {
     behaviorHints: true,

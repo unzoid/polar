@@ -81,6 +81,9 @@ pub enum Readiness {
     Ready { ms: u64 },
     /// It didn't: why, in a few plain words ("Not ready at the source", "Didn't answer").
     NotReady { reason: String },
+    /// No answer before [`READY_DEADLINE`]. Not a failure: a server that opens the file on demand
+    /// can take seconds for the first byte, and the player waits far longer than this check.
+    Slow { ms: u64 },
     /// Not checked (not a web link).
     Unchecked,
 }
@@ -126,6 +129,9 @@ fn judge(result: Result<String, String>, events: &[ProbeEvent], ms: u64) -> Read
             None => not_ready("Didn't answer"),
         },
         (Ok(_), Some(ProbeEvent::Skipped { .. })) | (Ok(_), None) => Readiness::Unchecked,
+        (Ok(_), Some(ProbeEvent::Unreachable { error, .. })) if error == LATE || error.starts_with("timed out") => {
+            Readiness::Slow { ms }
+        }
         (Ok(_), Some(ProbeEvent::Unreachable { .. })) => not_ready("Didn't answer"),
         (Ok(_), _) => match response {
             Some((_, Some(t))) if t.starts_with("text/") || t.contains("json") || t.contains("xml") => {
@@ -136,6 +142,9 @@ fn judge(result: Result<String, String>, events: &[ProbeEvent], ms: u64) -> Read
         },
     }
 }
+
+/// What [`ProbeEvent::Unreachable`] says when the check's deadline passed before an answer.
+const LATE: &str = "no answer in time";
 
 /// Smaller than any real episode; the addons' status clips are ~100 KB.
 const PLACEHOLDER_MAX_BYTES: u64 = 10 * 1024 * 1024;
@@ -174,7 +183,7 @@ impl Probe {
         let late = |url: &Url, on: &mut dyn FnMut(ProbeEvent)| {
             on(ProbeEvent::Unreachable {
                 host: host_label(url),
-                error: "no answer in time".into(),
+                error: LATE.into(),
                 ms: self.deadline.as_millis() as u64,
             });
             Ok(url.to_string())
@@ -635,7 +644,117 @@ mod tests {
             let short = Duration::from_millis(200);
             let probe =
                 Probe { retry_after: vec![], connect_timeout: short, timeout: short, deadline: short, headers: vec![] };
-            assert_eq!(probe.readiness(&url).await, Readiness::NotReady { reason: "Didn't answer".into() });
+            // Slow, not dead: a server that opens the file on demand can take this long for its first byte.
+            assert!(matches!(probe.readiness(&url).await, Readiness::Slow { .. }));
+        })
+    }
+
+    #[test]
+    fn readiness_of_a_link_nothing_answers_at() {
+        block(async {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}/x", listener.local_addr().unwrap());
+            drop(listener);
+            assert_eq!(Probe::default().readiness(&url).await, Readiness::NotReady { reason: "Didn't answer".into() });
+        })
+    }
+
+    /// A file server that wants Basic auth (`user:secret`), as WebDAV servers do: 401 with a
+    /// challenge without it, the file's first bytes with it. `/start` is the add-on's link,
+    /// redirecting to `to(base)`.
+    async fn dav(to: impl Fn(&str) -> String + Send + Sync + 'static) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let location = to(&base);
+        tokio::spawn(async move {
+            loop {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut buf = vec![0u8; 4096];
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                let head = String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase();
+                // base64("user:secret")
+                let reply = if head.starts_with("get /start") {
+                    answer("302 Found", &[("Location", location.as_str())])
+                } else if !head.contains("\r\nauthorization: basic dxnlcjpzzwnyzxq=\r\n") {
+                    answer("401 Unauthorized", &[("WWW-Authenticate", "Basic realm=\"files\"")])
+                } else {
+                    answer(
+                        "206 Partial Content",
+                        &[("Content-Type", "video/x-matroska"), ("Content-Range", "bytes 0-1023/2000000000")],
+                    )
+                };
+                let _ = sock.write_all(reply.as_bytes()).await;
+                let _ = sock.shutdown().await;
+            }
+        });
+        base
+    }
+
+    #[test]
+    fn credentials_in_the_redirect_reach_the_file_server() {
+        block(async {
+            let base = dav(|base| base.replace("http://", "http://user:secret@") + "/dav/film.mkv").await;
+            let (r, events) = run(&format!("{base}/start")).await;
+            // The player gets the link with its credentials: mpv answers the server's challenge with them.
+            assert_eq!(r.unwrap(), base.replace("http://", "http://user:secret@") + "/dav/film.mkv");
+            assert!(matches!(events.last(), Some(ProbeEvent::Response { status: 206, .. })), "{events:?}");
+            let text = format!("{events:?}");
+            assert!(!text.contains("secret") && !text.contains("user"), "{text}");
+        })
+    }
+
+    #[test]
+    fn credentials_in_the_link_itself_stay_on_a_relative_redirect() {
+        block(async {
+            let base = dav(|_| "/dav/film.mkv".into()).await;
+            let start = base.replace("http://", "http://user:secret@");
+            let (r, _) = run(&format!("{start}/start")).await;
+            assert_eq!(r.unwrap(), format!("{start}/dav/film.mkv"));
+        })
+    }
+
+    #[test]
+    fn a_file_server_without_the_credentials_is_refused_at_once() {
+        block(async {
+            let base = dav(|base| format!("{base}/dav/film.mkv")).await;
+            let (r, events) = run(&format!("{base}/start")).await;
+            assert_eq!(r.unwrap_err(), "The source answered 401 Unauthorized. Choose another source.");
+            assert!(!events.iter().any(|e| matches!(e, ProbeEvent::Retry { .. })));
+        })
+    }
+
+    #[test]
+    fn a_slow_first_byte_still_plays() {
+        // A server that opens the file on demand can take ~10 s to answer: well inside the check's limits.
+        let p = Probe::default();
+        assert!(p.timeout >= Duration::from_secs(15) && p.deadline > p.timeout, "{p:?}");
+        block(async {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            tokio::spawn(async move {
+                loop {
+                    let (mut sock, _) = listener.accept().await.unwrap();
+                    tokio::spawn(async move {
+                        let mut buf = vec![0u8; 4096];
+                        let _ = sock.read(&mut buf).await;
+                        tokio::time::sleep(Duration::from_millis(600)).await;
+                        let reply = answer(
+                            "206 Partial Content",
+                            &[("Content-Type", "video/mp4"), ("Content-Range", "bytes 0-1023/3000000000")],
+                        );
+                        let _ = sock.write_all(reply.as_bytes()).await;
+                        let _ = sock.shutdown().await;
+                    });
+                }
+            });
+            // The same proportions as the defaults, scaled down: first byte at 600 ms of a 2 s timeout.
+            let probe = Probe { timeout: Duration::from_secs(2), deadline: Duration::from_secs(3), ..quick() };
+            let url = format!("{base}/film.mp4");
+            let mut events = vec![];
+            let r = probe.check(Url::parse(&url).unwrap(), &mut |e| events.push(e)).await;
+            assert_eq!(r.unwrap(), url);
+            assert_eq!(events.iter().filter(|e| matches!(e, ProbeEvent::Request { .. })).count(), 1, "{events:?}");
+            assert!(matches!(events.last(), Some(ProbeEvent::Response { status: 206, ms, .. }) if *ms >= 600));
         })
     }
 

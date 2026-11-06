@@ -389,6 +389,26 @@ against a real project.
 - A source that needs a Cookie or Authorization header still fails to play (only downloads send those); on Linux
   the built-in player can't send any header.
 
+## Links served over HTTP or WebDAV (#139, docs/stream-links.md)
+
+- Tested here: the link check against local servers (`crates/addon/src/probe.rs`): a login in
+  the link or in the redirect's new link is sent as Basic auth, a file server without it is
+  refused at once with 401, a first byte at 600 ms of a 2 s limit still plays (the defaults are
+  20 s and 25 s), a link that doesn't answer within the source list's 3 s reads "Slow to
+  answer"; `videoSize`/`filename` in the source list (`rank.rs`) and in the subtitles request
+  (`crates/addon/tests/addon_server.rs`). Not run: mpv, the built-in player, the app.
+- To check on Windows, macOS and Android with mpv: start `scripts/open-films-addon.ts` with
+  `--file`, `--auth user:secret --slow 10 --host 0.0.0.0` (docs/stream-links.md) and add it by
+  the computer's network address. Play Big Buck Bunny: the loading screen shows the 302 and a
+  206 after about 10 s, without the login; the video plays, seeks without starting over (the
+  script's server answers Range), and resumes from where it stopped after leaving the player.
+  The source row shows the file's exact size. Then without `--auth`/`--slow`, to see nothing
+  changed for a plain link.
+- The built-in player with a login in the link: Chromium-based web views (WebView2 on Windows
+  without mpv, Android System WebView in an APK without libmpv) are expected to refuse video
+  links with a login in them; WebKitGTK (Linux) and WKWebView (iOS) not known. Same check as
+  above in each; if it fails, the loading screen ends with the player's error.
+
 ## Log file (R4 M14)
 
 - The rotation (`crates/library/src/logfile.rs`) is tested here; the app's wiring (`src-tauri/src/logging.rs`) is

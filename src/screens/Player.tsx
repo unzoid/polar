@@ -28,6 +28,7 @@ import {
   autoplayStreak,
   countAutoplay,
   requestHeaders,
+  videoFile,
   READY_CHECKS,
   readinessNote,
   resetAutoplay,
@@ -194,6 +195,8 @@ export function Player({
   const [subDelay, setSubDelay] = useState(0);
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
 
+  // Subtitle add-ons match on the file's size and name (React Query compares keys by value).
+  const playingFile = videoFile(source.state.status === "ready" ? source.state.stream : undefined);
   const tracks = useTracks(
     media,
     type,
@@ -204,6 +207,7 @@ export function Player({
       subtitleMode: settings?.subtitleMode ?? "always",
     },
     (patch) => updateSettings.mutate(patch),
+    playingFile,
   );
   useEffect(() => {
     if (engine !== "mpv") return;
