@@ -21,7 +21,7 @@ import {
 } from "../lib/net";
 import { prefersReducedMotion, useNearViewport } from "../lib/ui";
 import { useRouter } from "../lib/router";
-import { progressItem, shelfKey, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/catalog";
+import { progressItem, shelfKey, shelfRoute, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/catalog";
 import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Button, IconButton } from "../components/ui/Button";
@@ -298,6 +298,8 @@ function CatalogRow({ shelf, enabled, exclude }: { shelf: HomeShelf; enabled: bo
   const catalog = useCatalog(shelf.type, isCatalog ? shelf.id : "", isCatalog ? shelf.genre : undefined, enabled && isCatalog);
   const recommended = useRecommend(shelf.type, isCatalog ? "" : shelf.seed, enabled && !isCatalog);
   const { data, isLoading, isError } = isCatalog ? catalog : recommended;
+  const { navigate } = useRouter();
+  const to = shelfRoute(shelf);
   const items = useMemo(() => {
     const fresh = (data ?? []).filter((m) => !exclude.has(m.id));
     return fresh.length >= MIN_FRESH || shelf.kind === "because" ? fresh : (data ?? []);
@@ -307,7 +309,15 @@ function CatalogRow({ shelf, enabled, exclude }: { shelf: HomeShelf; enabled: bo
   // Nothing good to recommend: leave the row out rather than show a stub.
   if (shelf.kind === "because" && data && items.length < 4) return null;
   const TitleCard = shape === "landscape" ? LandscapeCard : PosterCard;
-  return <Shelf title={title} shape={shape} items={isLoading || !enabled ? undefined : items} card={(item) => <TitleCard key={item.id} item={item} />} />;
+  return (
+    <Shelf
+      title={title}
+      onOpen={to && (() => navigate(to))}
+      shape={shape}
+      items={isLoading || !enabled ? undefined : items}
+      card={(item) => <TitleCard key={item.id} item={item} />}
+    />
+  );
 }
 
 /** Holds a shelf back (as a skeleton) until it's near the viewport. */

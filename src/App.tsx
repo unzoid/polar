@@ -47,7 +47,7 @@ function Screen({ route }: { route: Route }) {
     case "home":
       return <Home />;
     case "discover":
-      return <Discover type={route.type} />;
+      return <Discover type={route.type} catalog={route.catalog} genre={route.genre} />;
     case "library":
       return <Library />;
     case "library-collection":
