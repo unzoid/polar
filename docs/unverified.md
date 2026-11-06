@@ -767,7 +767,7 @@ connections loudly and silently, splits and loses presence updates, and forgets 
 
 Supabase Realtime closes a client's channel after 5 presence updates in 30 s (per connection), and a closed
 channel still sends but hears nothing. `lib/party/room.ts` now sends each settled status once (a 1 s wait,
-at most 5 per 32 s, joins included), reopens a channel the server closes, reconnects when its entry is still
+at most 5 per 32 s, the entry after each join included), reopens a channel the server closes, reconnects when its entry is still
 out of date after a second try, drops a change the host refused, and shows a member that talks but is missing
 from presence as Reconnecting. The fake server models the limit, the CLOSED status and the REST fallback
 (`tests/partyChaos.ts`), with the cases in `tests/partyChaosCases.test.ts`. Not checked against Supabase:

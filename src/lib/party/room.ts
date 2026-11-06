@@ -32,8 +32,8 @@
  *   client that sends more than 5 in 30 s, and a closed channel still sends
  *   (broadcasts fall back to REST) but hears nothing. A change of status waits
  *   a moment for the next, so a burst goes as one update, and no more than
- *   PRESENCE_MAX go out per PRESENCE_WINDOW_MS, joins included. A channel the
- *   server closes anyway is opened again at once.
+ *   PRESENCE_MAX go out per PRESENCE_WINDOW_MS, the entry after each join
+ *   included. A channel the server closes anyway is opened again at once.
  * - The host has the last word on the timeline: a member's change the host
  *   refuses (it doesn't count the member as in the room) is answered with the
  *   host's, marked as refusing it, and the member goes back to the host's.
@@ -147,9 +147,9 @@ const ANSWER_MS = 1000;
 /** The room's copy of my entry may lag this long before I send it again. */
 export const HEAL_MS = 3000;
 /**
- * Presence updates (joins included) sent at most this many per window: the
- * server's limit is 5 per 30 s per connection (#227), and the longer window
- * leaves room for delays on the way.
+ * Presence updates sent at most this many per window, resends and the entry
+ * after each join included: the server's limit is 5 per 30 s per connection
+ * (#227), and the longer window leaves room for delays on the way.
  */
 export const PRESENCE_MAX = 5;
 export const PRESENCE_WINDOW_MS = 32_000;
@@ -228,7 +228,7 @@ export function createPartyRoom(deps: PartyDeps) {
   let rulesBy = "";
   /** When "only the host controls playback" was last said here, so it's said once per try, not per event. */
   let lastControlNote = -Infinity;
-  /** When my presence entry was sent (joins included), for the PRESENCE_MAX budget; kept across reconnects (it's per connection). */
+  /** When my presence entry was sent, for the PRESENCE_MAX budget; kept across reconnects (it's per connection). */
   let entrySent: number[] = [];
   /** My entry, waiting for the end of SETTLE_MS or for the budget. */
   let cancelEntry: (() => void) | null = null;
