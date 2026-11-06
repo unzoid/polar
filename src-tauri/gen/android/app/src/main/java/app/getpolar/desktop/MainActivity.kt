@@ -14,7 +14,9 @@ import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,6 +74,17 @@ class PolarDevice(private val activity: Activity, private val tv: Boolean) {
   @JavascriptInterface
   fun leave() {
     activity.runOnUiThread { activity.moveTaskToBack(true) }
+  }
+
+  // The player open (src/lib/platform/back.ts, #178): the status and navigation bars hide, and a swipe from
+  // the edge shows them for a moment. Closed, they come back.
+  @JavascriptInterface
+  fun immersive(on: Boolean) {
+    activity.runOnUiThread {
+      val bars = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+      bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+      if (on) bars.hide(WindowInsetsCompat.Type.systemBars()) else bars.show(WindowInsetsCompat.Type.systemBars())
+    }
   }
 }
 

@@ -36,3 +36,18 @@ export function leaveApp(scope: LeaveBridge = globalThis as LeaveBridge, quit: (
   }
   return quit();
 }
+
+type ImmersiveBridge = { polarDevice?: { immersive?: (on: boolean) => void } };
+
+/**
+ * Hide Android's status and navigation bars while the player is open, and bring them back after (#178).
+ * A swipe from the edge shows them for a moment, as in other video apps (`polarDevice.immersive` from
+ * gen/android MainActivity.kt). Elsewhere there's no bridge and it does nothing.
+ */
+export function setImmersive(on: boolean, scope: ImmersiveBridge = globalThis as ImmersiveBridge): void {
+  try {
+    scope.polarDevice?.immersive?.(on);
+  } catch {
+    // An older shell without the call: the bars stay, as before.
+  }
+}
