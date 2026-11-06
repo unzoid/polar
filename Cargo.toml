@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/addon", "crates/anime", "crates/index", "crates/library", "crates/player", "src-tauri"]
+members = ["crates/addon", "crates/anime", "crates/index", "crates/library", "crates/player", "crates/torrent", "src-tauri"]
 
 [workspace.package]
 version = "0.17.0"

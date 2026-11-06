@@ -1,0 +1,17 @@
+[package]
+name = "polar-torrent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Apache-2.0. rustls rather than the platform's TLS; no web UI or HTTP API.
+librqbit = { version = "9.1", default-features = false, features = ["rust-tls"] }
+bytes = "1"
+getrandom = "0.3"
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
