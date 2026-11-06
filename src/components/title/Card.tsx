@@ -111,14 +111,20 @@ export function CardArt({ src, fallbacks, fallback }: { src?: string; fallbacks?
   );
 }
 
-/** The scrim and the title on landscape art: the logo when there is one, else the name. */
+/** The scrim and the title on landscape art: the logo when there is one and it loads, else the name. */
 export function ArtTitle({ name, logo }: { name: string; logo?: string }) {
   return (
     <>
       <div className="card-art-scrim" />
-      {logo ? <TitleLogo src={logo} alt={name} className="card-logo" /> : <span className="card-art-title t-title2">{name}</span>}
+      <LogoOrName logo={logo} alt={name} logoClass="card-logo" name={<span className="card-art-title t-title2">{name}</span>} />
     </>
   );
+}
+
+/** A card's logo, or `name` while there's none or it doesn't load; a new `logo` gets a fresh try. */
+export function LogoOrName({ logo, alt, logoClass, name }: { logo?: string; alt: string; logoClass: string; name: ReactNode }) {
+  const { shown, onError } = useCardArt(logo);
+  return shown ? <TitleLogo src={shown} alt={alt} className={logoClass} onFail={onError} /> : name;
 }
 
 /** A stripe along the bottom of the art for how far in you are (0–1). */
