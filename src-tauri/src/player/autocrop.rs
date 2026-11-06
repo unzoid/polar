@@ -111,7 +111,8 @@ async fn take_shot(app: AppHandle, load: u64, g: CropGeometry) -> Shot {
 
     let mut shot = Shot { load, size: g.size, measured: None, written: 0, ours: Duration::ZERO };
     let frames = {
-        let guard = app.state::<AppState>().mpv.conn.lock().await;
+        let state = app.state::<AppState>();
+        let guard = state.mpv.conn.lock().await;
         let Some(Conn { engine: Engine::InApp(player), .. }) = guard.as_ref() else { return shot };
         let key = player as *const _ as usize;
         let mut cached = FRAMES.locked();
