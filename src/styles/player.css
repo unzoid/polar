@@ -835,6 +835,53 @@
   animation: fade-in var(--dur-base) var(--ease-out);
 }
 
+/* Before the first torrent source on a device plays (#137): over the loading screen, which keeps going behind. */
+.torrent-notice {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--scrim-2);
+  outline: none;
+  animation: fade-in var(--dur-base) var(--ease-out);
+}
+.torrent-notice-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  width: min(30rem, 100%);
+  padding: 1.5rem;
+  border-radius: var(--r-panel);
+  background: var(--surface-popover);
+  backdrop-filter: var(--blur-popover);
+  -webkit-backdrop-filter: var(--blur-popover);
+  text-align: left;
+}
+.torrent-notice-card h2,
+.torrent-notice-card p {
+  margin: 0;
+}
+.torrent-notice-card p {
+  color: var(--text-2);
+}
+.torrent-notice-limit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.torrent-notice-limit > span {
+  flex: none;
+}
+.torrent-notice-card .settings-link {
+  align-self: flex-start;
+}
+.torrent-notice-card .player-status-actions {
+  justify-content: flex-end;
+}
+
 /* --- Up next card: enters from the right, leaves the same way. */
 .next-up {
   position: absolute;

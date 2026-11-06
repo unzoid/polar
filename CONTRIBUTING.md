@@ -3,6 +3,12 @@
 How to build, test and check a change: the README's Contributing section and `docs/testing.md`.
 Coding agents read `AGENTS.md` first; its rules apply to every contribution.
 
+## Taking an issue
+
+Comment `/assign` on an open issue to take it; you don't need access to the repository. An issue that is
+already assigned to someone stays theirs: ask them in the issue whether you can help. One person can
+hold up to three open issues this way. Comment `/unassign` if you stop working on it.
+
 ## Agent skills
 
 The design and motion skills the project's UI work follows (`animate`, `emil-design-eng`, `apple-design`,

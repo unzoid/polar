@@ -25,7 +25,7 @@ export function Shelf<T>({
   card: (item: T) => ReactNode;
 }) {
   return (
-    <Row title={title} onOpen={onOpen} shape={shape} action={action}>
+    <Row title={title} onOpen={onOpen} shape={shape} action={action} loading={!items}>
       {items ? items.map(card) : Array.from({ length: skeletons }, (_, i) => <CardSkeleton key={i} shape={shape} />)}
     </Row>
   );

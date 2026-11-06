@@ -61,7 +61,7 @@ export interface Prefs {
   autocrop: boolean;
   /** mpv, with autocrop: read ahead so a change of bars lands on the cut. */
   autocropLookahead: boolean;
-  /** mpv, with autocrop, Windows and Linux: our detector reads every frame (macOS always does). */
+  /** mpv, with autocrop, Windows, Linux and Android: our detector reads every frame (macOS and iOS always do). */
   autocropEveryFrame: boolean;
   /** Phones and tablets: the picture fills the screen, its edges cropped, instead of fitting inside it (#149). */
   videoFill: boolean;
@@ -69,8 +69,12 @@ export interface Prefs {
   buffer: "small" | "normal" | "large";
   /** Torrent sources: most GB their cache on this device may hold; 0 = no limit. */
   torrentCacheGb: number;
-  /** Torrent sources: download and upload cap in Mbit/s; 0 = none. */
+  /** Torrent sources: download cap in Mbit/s; 0 = none. (Before #137 it capped upload too.) */
   torrentSpeedMbps: number;
+  /** Torrent sources: upload cap in Mbit/s; 0 = none. */
+  torrentUploadMbps: number;
+  /** Torrent sources: explain torrent playback before the next one plays (Play in that notice turns it off). */
+  torrentNotice: boolean;
   /** Torrent sources: keep sharing what was played until the app quits. Off: stop and delete it when playback ends. */
   torrentKeepSharing: boolean;
   /** Keep the last few searches. */
@@ -116,6 +120,13 @@ export interface Prefs {
   animePreferredGroups: string;
 }
 
+/**
+ * Torrent sources' upload cap until the user changes it: 4 Mbit/s (500 KB/s). That's about what a
+ * 1080p stream needs, so peers get back roughly what playback takes, and it stays under half of a
+ * slow cable or DSL line's upload (10 Mbit/s and less), leaving room for the download's own traffic.
+ */
+export const TORRENT_UPLOAD_MBPS = 4;
+
 const DEFAULTS: Prefs = {
   uiSounds: true,
   uiSoundVolume: 0.5,
@@ -144,6 +155,8 @@ const DEFAULTS: Prefs = {
   buffer: "normal",
   torrentCacheGb: 20,
   torrentSpeedMbps: 0,
+  torrentUploadMbps: TORRENT_UPLOAD_MBPS,
+  torrentNotice: true,
   torrentKeepSharing: false,
   saveRecentSearches: true,
   searchSuggestions: true,
@@ -171,10 +184,17 @@ const STORAGE = "polar.prefs";
 const stored = storedJson(localStorage, STORAGE);
 /** Installs from before #80 (prefs or an account's settings stored already) keep sharing add-ons and keys. */
 const earlier = (stored !== undefined || localStorage.getItem("polar.settingsOwner") !== null) && !(isRecord(stored) && "shareAddonsAndKeys" in stored);
-let prefs: Prefs = { ...DEFAULTS, ...(earlier ? { shareAddonsAndKeys: true } : {}), ...readPrefs(stored) };
+let prefs: Prefs = { ...DEFAULTS, ...(earlier ? { shareAddonsAndKeys: true } : {}), ...earlierUpload(stored), ...readPrefs(stored) };
 const listeners = new Set<() => void>();
 
 export const getPrefs = () => prefs;
+
+/** Before #137 the speed limit capped upload too: one set then keeps upload at most that low. */
+function earlierUpload(stored: unknown): Partial<Prefs> {
+  if (!isRecord(stored) || "torrentUploadMbps" in stored) return {};
+  const speed = stored.torrentSpeedMbps;
+  return typeof speed === "number" && speed > 0 ? { torrentUploadMbps: Math.min(speed, TORRENT_UPLOAD_MBPS) } : {};
+}
 
 /** Stored or synced prefs: the known ones, each of the kind its default is (critique M9). */
 export function readPrefs(v: unknown): Partial<Prefs> {

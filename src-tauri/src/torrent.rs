@@ -19,8 +19,10 @@ use crate::commands::CmdError;
 pub struct TorrentLimits {
     /// 0 = no limit.
     pub cache_gb: f64,
-    /// Megabits per second, both ways; 0 = no limit.
-    pub speed_mbps: f64,
+    /// Download cap in megabits per second; 0 = no limit.
+    pub download_mbps: f64,
+    /// Upload cap in megabits per second; 0 = no limit.
+    pub upload_mbps: f64,
     pub keep_sharing: bool,
 }
 
@@ -76,8 +78,13 @@ mod engine {
 
     pub fn limits(l: TorrentLimits) -> Limits {
         let cache_bytes = if l.cache_gb > 0.0 { (l.cache_gb * 1e9) as u64 } else { 0 };
-        let rate = (l.speed_mbps * 125_000.0).min(f64::from(u32::MAX));
-        Limits { cache_bytes, rate_bps: NonZeroU32::new(rate as u32), keep_sharing: l.keep_sharing }
+        let bps = |mbps: f64| NonZeroU32::new((mbps * 125_000.0).min(f64::from(u32::MAX)) as u32);
+        Limits {
+            cache_bytes,
+            download_bps: bps(l.download_mbps),
+            upload_bps: bps(l.upload_mbps),
+            keep_sharing: l.keep_sharing,
+        }
     }
 }
 
@@ -161,11 +168,13 @@ mod tests {
 
     #[test]
     fn limits_from_settings() {
-        let l = engine::limits(TorrentLimits { cache_gb: 2.5, speed_mbps: 8.0, keep_sharing: true });
+        let l =
+            engine::limits(TorrentLimits { cache_gb: 2.5, download_mbps: 8.0, upload_mbps: 4.0, keep_sharing: true });
         assert_eq!(l.cache_bytes, 2_500_000_000);
-        assert_eq!(l.rate_bps.map(|r| r.get()), Some(1_000_000));
+        assert_eq!(l.download_bps.map(|r| r.get()), Some(1_000_000));
+        assert_eq!(l.upload_bps.map(|r| r.get()), Some(500_000));
         assert!(l.keep_sharing);
         let none = engine::limits(TorrentLimits::default());
-        assert_eq!((none.cache_bytes, none.rate_bps, none.keep_sharing), (0, None, false));
+        assert_eq!((none.cache_bytes, none.download_bps, none.upload_bps, none.keep_sharing), (0, None, None, false));
     }
 }

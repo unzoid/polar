@@ -131,6 +131,35 @@ The same job builds an unsigned release APK and app bundle (`android-release-uns
 `proguard-rules.pro` keeps `MpvSurface`'s native methods and `polarDevice`; check that a release build, signed with
 any key for testing, starts and plays like the debug one.
 
+## iOS build and player (#29)
+
+Never built or run here (no Mac, no Xcode). The Rust side is type-checked with clippy for `aarch64-apple-ios`
+(`src/ios/*.m` swapped for an empty file there, so the Objective-C is only read, not compiled); the macOS
+view shares its libmpv loading and frame reading with it (`src/apple/libmpv.h`), so the macOS build checks
+that part. CI job `ios` builds libmpv and FFmpeg with `scripts/ios-mpv.sh` (LGPL, pinned versions, cached
+after the first run), generates the Xcode project, builds an unsigned IPA (`ios-unsigned-ipa`) and keeps
+`ios-mpv-sources` next to it.
+Checked in CI (job "iOS build (unsigned)", about 16 minutes from an empty cache): the Objective-C and the
+script compile, and the IPA (37 MB unpacked) holds the nine frameworks in `Payload/Polarity.app/Frameworks`
+(Libmpv, Libavcodec, Libavfilter, Libavformat, Libavutil, Libswresample, Libswscale, Libplacebo,
+Libfribidi) and the licence texts under `assets/licenses/mpv` (FFmpeg's LGPL-2.1, libass, FreeType,
+HarfBuzz, libplacebo, …); `ios-mpv-sources` is 45 MB. The app has never been started, on a device or in the
+simulator.
+What to look for on an iPhone and an iPad, with the IPA signed for testing (any developer account, or a
+sideloading tool): the app starts with its own icon; the phone layout on an iPhone, the tablet layout on an
+iPad, in both orientations, clear of the notch and the home indicator; the loading screen says "Player: mpv";
+an MKV with HEVC video and AC3 or DTS audio plays with picture and sound (also with the silent switch on);
+ASS and PGS subtitles show; the page's controls draw over the picture and it fills the screen behind them;
+rotating while playing keeps the picture right; Home and back: the picture comes back and playback goes on
+(drawing stops in the background; audio may stop with it: background audio isn't built); an HTTPS stream
+plays (Secure Transport, the system's certificates); hardware decoding (Settings → Advanced) on and off both
+play; autocrop zooms past the bars (our detector on every frame; no cropdetect in this build) and Settings →
+Advanced has no "Check every frame for black bars"; a downloaded file plays offline and its folder is not in
+an iCloud backup (Settings → Apple Account → iCloud → Manage Storage → Backups lists the app's size without
+it); the IPA (a zip) holds `licenses/mpv/` with each library's licence and `BUNDLED.txt` in the app.
+Not built: Picture in picture, background audio, lock screen controls, AirPlay on iOS (#19 is macOS), signing
+and TestFlight (the owner's Apple developer account).
+
 ## macOS release: sources of the bundled libraries
 
 `scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself
@@ -500,8 +529,14 @@ against a real project.
     peer line that updates in place, then mpv's buffering lines; it starts within a few seconds of the first
     peers. Seeking far ahead resumes after a short wait (those pieces are fetched first). Copy details shows no
     file name, hash or link beyond "this computer".
-  - Settings → Sources → Torrent Sources: a speed limit of 5 Mbit/s holds the download near 600 KB/s (Task
-    Manager / Activity Monitor); a cache limit smaller than the file refuses it with a message naming both sizes.
+  - The first torrent source on the computer shows the "Torrent playback" notice before anything is opened
+    (checked here in the browser with the fake backend: Cancel leaves the player and opens nothing, Play goes on,
+    and the next torrent plays without it). On the app: Cancel starts no peer traffic; the notice's upload limit
+    is the one in Settings; "Explain torrent playback first" in Settings brings it back.
+  - Settings → Sources → Torrent Sources: a download limit of 5 Mbit/s holds the download near 600 KB/s (Task
+    Manager / Activity Monitor); with default settings the upload stays near 500 KB/s (4 Mbit/s) and the
+    download isn't held back; the upload limit also holds while "Keep sharing after playback" keeps a torrent.
+    A cache limit smaller than the file refuses it with a message naming both sizes.
   - Close the player: `torrent-cache` in the app's cache folder (Windows `%LOCALAPPDATA%\app.getpolar.desktop`,
     macOS `~/Library/Caches/app.getpolar.desktop`, Linux `~/.cache/app.getpolar.desktop`) is empty again within
     a second or two, and upload stops. With "Keep sharing after playback" on, it stays and keeps uploading until
@@ -536,6 +571,27 @@ same network:
 - Without mpv (built-in player) the same, with the element on screen sent as it is.
 - Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
   untested. Subtitles inside the file aren't sent.
+
+## Scrolling long pages (#134)
+
+Measured here in headless Chromium without a GPU (the fake backend, a production build and the dev server):
+on Home, sitting still used the main thread about two thirds of the time (loading shelves' shimmer out of
+view and the carousel dot's clip-path redrawn every frame) and now about none; scrolling the loaded page
+took a median 25-30 ms of main-thread work per frame and now about 10 ms; Home had 250-400 compositor
+layers (every shelf's edge blurs, shown or not) and now a few dozen. `e2e/performance.spec.ts` keeps those
+three in check. Not measurable here: the GPU side (the compositor runs in software headless) and WebKitGTK.
+To check on Windows (WebView2), and on Linux and macOS:
+- Home, Series, Movies, Anime and the Settings window scroll smoothly with a mouse wheel and a trackpad,
+  quickly and slowly, with the pointer over the cards; Task Manager shows Polarity's CPU near idle while
+  Home sits still.
+- A shelf's edges still blur and show the chevron while the pointer is over the shelf; the carousel's dot
+  still fills with a round end; the colours behind the carousel still cross-fade.
+- Windows: shelves far down Home appear without a blank flash when scrolled to quickly, and Back from a
+  shelf's browse page lands where it was.
+- If it still stutters on Windows: start Polarity with the environment variable
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, open `edge://inspect` in Edge,
+  inspect the app and record a Performance trace while scrolling; it names what's left. Still known: a shelf's first appearance costs a
+  long frame (its cards styled and drawn for the first time).
 
 ## Screens in headless Chromium (T-051)
 

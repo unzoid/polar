@@ -30,7 +30,7 @@ pub struct Tune {
     /// With autocrop, where mpv is its own process (Windows, Linux): our
     /// detector reads a screenshot of every frame instead of cropdetect
     /// (docs/autocrop.md §2). Off: screenshots only around cropdetect's
-    /// changes. macOS always reads every frame, in memory.
+    /// changes. macOS and iOS always read every frame, in memory.
     #[serde(default)]
     pub every_frame: bool,
 }
@@ -38,6 +38,9 @@ pub struct Tune {
 fn on() -> bool {
     true
 }
+
+/// Where libmpv in the app hands our detector each frame in memory (src-tauri's player/apple.rs).
+const FRAMES_IN_MEMORY: bool = cfg!(any(target_os = "macos", target_os = "ios"));
 
 #[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -76,19 +79,20 @@ impl Tune {
         chain.join(",")
     }
 
-    /// Whether autocrop runs cropdetect inside mpv. Not on macOS, where
-    /// libmpv hands our detector every frame, nor with [`Tune::every_frame`].
+    /// Whether autocrop runs cropdetect inside mpv. Not on macOS and iOS, where
+    /// libmpv hands our detector every frame (and the iOS build, being LGPL, has
+    /// no cropdetect), nor with [`Tune::every_frame`].
     pub fn cropdetect(&self) -> bool {
-        self.cropdetect_on(cfg!(target_os = "macos"))
+        self.cropdetect_on(FRAMES_IN_MEMORY)
     }
 
-    fn cropdetect_on(&self, macos: bool) -> bool {
-        self.autocrop && !self.every_frame && !macos
+    fn cropdetect_on(&self, frames_in_memory: bool) -> bool {
+        self.autocrop && !self.every_frame && !frames_in_memory
     }
 
     /// Which frames our detector reads, with autocrop on ([`crate::sampler`]).
     pub fn sampling(&self) -> Sampling {
-        if self.every_frame || cfg!(target_os = "macos") {
+        if self.every_frame || FRAMES_IN_MEMORY {
             Sampling::EveryFrame
         } else {
             Sampling::AroundChanges
@@ -170,7 +174,7 @@ mod tests {
         assert_eq!(every.sampling(), Sampling::EveryFrame);
         assert_eq!(every.hwdec_mode(), "auto-safe");
         assert!(!Tune { autocrop: false, ..on }.cropdetect());
-        if cfg!(target_os = "macos") {
+        if FRAMES_IN_MEMORY {
             assert!(!on.cropdetect());
             assert_eq!(on.sampling(), Sampling::EveryFrame);
         } else {
@@ -178,6 +182,14 @@ mod tests {
             assert_eq!(on.sampling(), Sampling::AroundChanges);
             assert_eq!(on.hwdec_mode(), "auto-copy-safe");
         }
+    }
+
+    #[test]
+    fn frames_in_memory_never_run_cropdetect() {
+        let on = Tune { autocrop: true, ..Tune::default() };
+        assert!(!on.cropdetect_on(true));
+        assert_eq!(on.hwdec_with(on.cropdetect_on(true)), "auto-safe");
+        assert!(on.cropdetect_on(false));
     }
 
     #[test]

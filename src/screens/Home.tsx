@@ -193,7 +193,9 @@ export function HeroCarousel({
                 onClick={() => setIndex(i)}
               >
                 {i === index && !paused && (
-                  <span key={index} className="hero-dot-fill" style={{ animationDuration: `${ADVANCE_MS}ms` }} />
+                  <span key={index} className="hero-dot-clip">
+                    <span className="hero-dot-fill" style={{ animationDuration: `${ADVANCE_MS}ms` }} />
+                  </span>
                 )}
               </button>
             ))}

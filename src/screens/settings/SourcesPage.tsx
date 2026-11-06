@@ -83,7 +83,9 @@ export function SourcesPage() {
         >
           <SettingRow id="torrentCacheGb" />
           <SettingRow id="torrentSpeedMbps" />
+          <SettingRow id="torrentUploadMbps" />
           <SettingRow id="torrentKeepSharing" />
+          <SettingRow id="torrentNotice" />
         </Card>
       )}
     </>

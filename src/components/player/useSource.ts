@@ -3,7 +3,7 @@ import { api } from "../../lib/api";
 import { useProgress, useSettings, useStreams } from "../../lib/net";
 import { autoPickOrder, describeStream, describeTorrent, torrentLimits, type TorrentStep } from "../../lib/playback";
 import { on } from "../../lib/platform";
-import { getPrefs } from "../../lib/settings";
+import { getPrefs, setPrefs } from "../../lib/settings";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
 import { sameFile, type StreamHint } from "../../lib/party";
 import { errorMessage } from "../../lib/errors";
@@ -12,6 +12,8 @@ import type { LogStep } from "./useStartLog";
 export type SourceState =
   | { status: "searching" }
   | { status: "resolving"; stream: Stream; label?: string }
+  /** A torrent source waits for the user to read the one-time notice (`answerNotice`). */
+  | { status: "notice"; stream: Stream; label?: string }
   | { status: "ready"; stream: Stream; url: string; label?: string }
   | { status: "failed"; reason: string };
 
@@ -34,7 +36,8 @@ let torrentSteps = 0;
  * Each decision and attempt is written to `log` (the loading screen's steps).
  * A torrent source is opened by the backend's engine, whose steps are logged
  * too (peer counts until `started()` says the picture is up), and closed when
- * the player goes or falls through to the next source.
+ * the player goes or falls through to the next source. The first torrent on a
+ * device waits for the user's Play or Cancel in a notice first (Prefs.torrentNotice).
  */
 export function useSource(
   type: ContentType,
@@ -105,6 +108,8 @@ export function useSource(
   const [state, setState] = useState<SourceState>({ status: "searching" });
   const startedNow = useRef(started);
   startedNow.current = started;
+  /** Settles the notice's wait: true = play, false = play nothing. */
+  const noticeAnswer = useRef<((play: boolean) => void) | undefined>(undefined);
 
   useEffect(() => {
     if (!candidates) return;
@@ -144,6 +149,13 @@ export function useSource(
           log(`Link: ${describeStream(candidate.stream, p.url)}`, "info", "link");
           setState({ status: "ready", url: p.url, ...candidate });
         } else if (p.kind === "torrent") {
+          if (getPrefs().torrentNotice) {
+            setState({ status: "notice", ...candidate });
+            const play = await new Promise<boolean>((resolve) => (noticeAnswer.current = resolve));
+            noticeAnswer.current = undefined;
+            if (cancelled || !play) return;
+            setState({ status: "resolving", ...candidate });
+          }
           log(`Link: ${describeStream(candidate.stream)}`, "info", "link");
           const url = await openTorrent();
           if (!cancelled) setState({ status: "ready", url, ...candidate });
@@ -153,6 +165,7 @@ export function useSource(
       .catch((e) => !cancelled && fail(errorMessage(e)));
     return () => {
       cancelled = true;
+      noticeAnswer.current?.(false);
       void unlisten?.then((f) => f());
       // The player closed or moved on to another source: this torrent stops (and its files go) unless the
       // user keeps sharing. One still opening gives up when it sees the close.
@@ -162,6 +175,14 @@ export function useSource(
 
   return {
     state,
+    /**
+     * The torrent notice's answer. Play turns the notice off on this device and goes on; Cancel opens
+     * nothing (the player leaves).
+     */
+    answerNotice: (play: boolean) => {
+      if (play) setPrefs({ torrentNotice: false });
+      noticeAnswer.current?.(play);
+    },
     /** Resume point captured when playback started. */
     resume: saved ?? undefined,
     /** Try the next candidate after a playback error. False if none left. */
