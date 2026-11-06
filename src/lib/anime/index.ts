@@ -14,6 +14,7 @@ export * from "./franchise";
 export * from "./groups";
 export * from "./kitsu";
 export * from "./landscapeArt";
+export * from "./likedThis";
 export * from "./links";
 export * from "./merge";
 export * from "./playContext";

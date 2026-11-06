@@ -107,6 +107,24 @@ export function readLinked(v: unknown): ChainLink | undefined {
   return { ...card, relations: { edges: relations } };
 }
 
+/** A card with its prequel/sequel ids as `chain`, from a card asked with its links (lib/anime/franchise.ts groups by them). */
+export function readChained(v: unknown): AnimeCard | undefined {
+  const linked = readLinked(v);
+  if (!linked) return undefined;
+  const { relations, ...card } = linked;
+  return { ...card, chain: relations.edges.filter((e) => e.relationType === "PREQUEL" || e.relationType === "SEQUEL").map((e) => e.node.id) };
+}
+
+/** A page of an entry's recommendations: each with its rating (AniList users' votes) and prequel/sequel ids. */
+export function readRecommendations(v: unknown): Anime["recommendations"] {
+  const r = rec(v);
+  const pageInfo = rec(r.pageInfo);
+  return {
+    nodes: nodes(r, (n) => (isRecord(n) ? { rating: num(n.rating) ?? 0, mediaRecommendation: readChained(n.mediaRecommendation) ?? null } : undefined)),
+    ...(typeof pageInfo.hasNextPage === "boolean" && { hasNextPage: pageInfo.hasNextPage }),
+  };
+}
+
 /** An airing slot: its own id, the episode, when, and the show (a card plus what the schedule filters by). */
 export function readSlot(v: unknown) {
   const slot = rec(v);
@@ -212,7 +230,7 @@ export function readAnime(v: unknown): Anime | undefined {
         return node && { role: str(rec(e).role) ?? "", node };
       }),
     },
-    recommendations: { nodes: nodes(m.recommendations, (n) => (isRecord(n) ? { mediaRecommendation: readCard(n.mediaRecommendation) ?? null } : undefined)) },
+    recommendations: readRecommendations(m.recommendations),
     externalLinks: listOf(m.externalLinks, (l) => {
       const r = rec(l);
       const site = str(r.site);
