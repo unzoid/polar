@@ -396,6 +396,19 @@ against a real project.
 - Shortcuts synced between a Mac and a PC: Ctrl+K set on Windows arrives as ⌘K on the Mac. Tested as functions
   only; check by changing a ⌘ shortcut on one machine and looking at Settings → Controls on the other.
 
+## Windows mpv.exe built from pinned sources (`scripts/windows-mpv.sh`, CI job `windows-mpv`)
+
+- Until this change the Windows app shipped shinchiro's prebuilt `mpv.exe`; now CI builds it with the same
+  scripts at a fixed commit, every library at the commit `scripts/windows-mpv.lock` gives it, and the release
+  attaches the exact sources. The build only runs in CI (it needs mpv-winbuild-cmake's Arch Linux image); nothing
+  here has run it. The `mpv.exe` that ships is a different build, so it needs a check on a Windows PC.
+- Get it: once CI's `windows-mpv` job has passed on the commit, `bun scripts/fetch-mpv.ts` on the PC (GitHub CLI
+  signed in) puts it into `src-tauri/vendor/mpv`; then `bun run tauri dev`, or a release build.
+- Check: a film and an episode play with picture and sound, hardware decoding on (Settings → Playback), seeking,
+  subtitles (an embedded track and an add-on one), audio track switching, HDR on an HDR screen, autocrop on a
+  letterboxed film, and a stream over HTTPS. `licenses/mpv/BUNDLED.txt` in the installed app lists the libraries,
+  and the release lists `Polarity_<version>_x64_mpv-sources.tar` among its files.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The

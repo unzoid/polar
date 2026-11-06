@@ -3,14 +3,17 @@
 # same scripts as the mpv builds Windows used before), every library at the git commit
 # scripts/windows-mpv.lock pins, and packs the exact sources that went into it.
 #
-#   scripts/windows-mpv.sh <work dir>
+#   scripts/windows-mpv.sh <work dir> [toolchain]
 #
+# With `toolchain` it stops once the toolchain is built, so CI can keep the work dir before the
+# long part; run again on the same work dir to go on.
 # Runs in mpv-winbuild-cmake's own build image (Arch Linux with cmake, ninja, meson, nasm, ...;
 # CI pins it). The first build also builds the MinGW GCC toolchain: a few hours.
 #
 # Writes into <work dir>/out:
-#   mpv/                                  mpv.exe, d3dcompiler_43.dll, licence texts and BUNDLED.txt:
-#                                         what goes into src-tauri/vendor/mpv
+#   mpv/                                  mpv.exe, d3dcompiler_43.dll, licence texts, BUNDLED.txt and
+#                                         VERSION (this script's and the lock's hash, as CI and
+#                                         scripts/fetch-mpv.ts compute it): src-tauri/vendor/mpv
 #   polarity-windows-mpv-sources.tar      every source, the build scripts, SOURCES.txt
 #   windows-mpv.lock                      the commits this build cloned, in the lock's format
 # A library the lock doesn't pin, or pins at another repository, stops the build after the
@@ -19,7 +22,7 @@
 set -euo pipefail
 export LC_ALL=C
 
-work=$(realpath -m "${1:?usage: windows-mpv.sh <work dir>}")
+work=$(realpath -m "${1:?usage: windows-mpv.sh <work dir> [toolchain]}")
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 lock="$root/scripts/windows-mpv.lock"
 out="$work/out"
@@ -99,6 +102,11 @@ done
 	exit 1
 }
 
+if [ "${2:-}" = toolchain ]; then
+	ninja -C build gcc
+	exit 0
+fi
+
 # The sources as downloaded: pinned commits (sparse where the scripts check out part of a
 # repository) and tarballs as unpacked, before any patch; the patches are in winbuild/packages.
 mkdir -p stage
@@ -165,4 +173,5 @@ cp src/ffmpeg/LICENSE.md "$mpv/FFmpeg-LICENSE.md"
 	echo
 	sed -n '/^sources.tar.xz/,/^$/p' "$work/SOURCES.txt"
 } >"$mpv/BUNDLED.txt"
+cat "$root/scripts/windows-mpv.sh" "$lock" | tr -d '\r' | sha256sum | cut -c1-16 >"$mpv/VERSION"
 echo "mpv.exe is in $mpv; sources: $out/polarity-windows-mpv-sources.tar"
