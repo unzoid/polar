@@ -7,7 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { errorMessage } from "../../lib/errors";
 import { Card, ExpandRow, useExpanded, type Expandable } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
-import { isMac } from "../../lib/platform";
+import { os } from "../../lib/platform";
 import { useAccount } from "../../lib/account";
 import { StremioImport } from "../../components/settings/StremioImport";
 
@@ -26,8 +26,8 @@ export function AdvancedPage() {
         <SettingRow id="deband" disabled={hasMpv === false} />
         <SettingRow id="autocrop" disabled={hasMpv === false} />
         <SettingRow id="autocropLookahead" disabled={hasMpv === false || !autocrop} />
-        {/* macOS reads every frame anyway, in memory. */}
-        {!isMac && <SettingRow id="autocropEveryFrame" disabled={hasMpv === false || !autocrop} />}
+        {/* macOS and iOS read every frame anyway, in memory. */}
+        {os !== "macos" && os !== "ios" && <SettingRow id="autocropEveryFrame" disabled={hasMpv === false || !autocrop} />}
         <SettingRow id="buffer" />
       </Card>
       {/* Signed in, it's under Account. */}

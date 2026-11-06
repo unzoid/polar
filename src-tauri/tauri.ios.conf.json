@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "iOS": {
+      "minimumSystemVersion": "17.0",
+      "frameworks": ["OpenGLES", "AVFoundation", "vendor/ios/Libmpv.xcframework"]
+    },
+    "resources": {
+      "vendor/ios/licenses/": "licenses/mpv/"
+    }
+  }
+}
