@@ -145,8 +145,11 @@ export interface AccountBackend {
 
   sync: {
     pull(profileId: string, cursor: string | null): Promise<PulledChanges>;
-    /** Resolves to whether the links were stored (`false`: the server has no place for them yet). */
-    push(profileId: string, changes: SyncChanges): Promise<{ links: boolean }>;
+    /**
+     * Resolves to whether the links were stored (`false`: the server has no place for them yet) and
+     * the titles whose progress couldn't be sent (left unpushed, to go again).
+     */
+    push(profileId: string, changes: SyncChanges): Promise<{ links: boolean; unsent: string[] }>;
   };
 
   /** The profile's preferences as one small document (settingsSync.ts merges it per key). */
