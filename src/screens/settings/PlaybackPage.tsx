@@ -1,10 +1,14 @@
-import { useSettings, useUpdateSettings } from "../../lib/net";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../lib/api";
+import { keys, useSettings, useUpdateSettings } from "../../lib/net";
 import { Card, ToggleRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 
 export function PlaybackPage() {
   const { data } = useSettings();
   const update = useUpdateSettings();
+  // Desktop builds made with a Discord application only.
+  const { data: discord } = useQuery({ queryKey: keys.discord, queryFn: api.discordAvailable, staleTime: Infinity });
   if (!data) return null;
   const recapsOn = data.autoSkipRecaps ?? data.autoSkip;
 
@@ -44,6 +48,7 @@ export function PlaybackPage() {
       <Card title="Player">
         <SettingRow id="startFullscreen" />
         <SettingRow id="pauseOnMinimize" />
+        {discord && <SettingRow id="discordPresence" />}
         {/* Turning it on or off starts the next video at normal speed. */}
         <ToggleRow
           setting="rememberSpeed"

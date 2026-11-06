@@ -42,6 +42,8 @@ export interface Prefs {
   uiScale: number;
   /** Pause when the window is minimized. */
   pauseOnMinimize: boolean;
+  /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title. */
+  discordPresence: "off" | "app" | "title";
   /**
    * A profile new to this device starts with the add-ons and API keys already here (#80). Off: it starts
    * with none (its own from the account, once they sync) and Settings offers to copy a set from this device.
@@ -119,6 +121,7 @@ const DEFAULTS: Prefs = {
   preferFileChapters: true,
   uiScale: 1,
   pauseOnMinimize: false,
+  discordPresence: "off",
   shareAddonsAndKeys: false,
   dialogueBoost: false,
   volumeLeveling: false,

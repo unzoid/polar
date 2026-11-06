@@ -67,6 +67,7 @@ import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
 import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
+import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
@@ -383,7 +384,8 @@ export function Player({
   }, [settings, tv]);
 
   // Settings → Playback → "Pause when minimized".
-  const { pauseOnMinimize } = usePrefs();
+  const { pauseOnMinimize, discordPresence } = usePrefs();
+  useDiscordPresence(media, meta, videoId, discordPresence);
   useEffect(() => {
     if (!pauseOnMinimize) return;
     const unlisten = win.onResized(() => {
