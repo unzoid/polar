@@ -4,6 +4,7 @@ import { Minus, Plus, Reset } from "../icons";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { SubtitleStyle } from "../../lib/types";
 import { isMpv, type MediaLike, type MpvMedia } from "./mpvMedia";
+import { CUE_LINE_HEIGHT, cueFontSize, fontSizeForLine, MPV_SUB_DEFAULTS, mpvSubtitleBox, type MpvSubOptions, type OsdDimensions } from "./subtitleSize";
 import { Dropdown } from "../Dropdown";
 import { Chip } from "../ui/Chip";
 
@@ -93,6 +94,9 @@ const alphaHex = (percent: number) =>
 /** mpv colours put alpha first: `#AARRGGBB`. */
 const mpvColor = (hex: string, opacity = 100) => `#${alphaHex(opacity)}${hex.replace("#", "")}`;
 
+/** mpv `sub-shadow-offset`: a bare line (no outline, no box) gets none. */
+const shadowOffset = (style: Required<SubtitleStyle>) => (style.outline === "none" && !style.background ? 0 : 1);
+
 /** The `sub-ass-override` last given to each player. */
 const assOverride = new WeakMap<MpvMedia, string>();
 /** A (re)started mpv has its own idea of the override again. */
@@ -125,7 +129,7 @@ export function applySubtitleStyleToMpv(mpv: MpvMedia, saved: SubtitleStyle, del
   void mpv.set("sub-color", mpvColor(style.color, style.opacity));
   void mpv.set("sub-border-size", OUTLINE_PX[style.outline]);
   void mpv.set("sub-border-color", mpvColor(style.outlineColor, style.opacity));
-  void mpv.set("sub-shadow-offset", style.outline === "none" && !style.background ? 0 : 1);
+  void mpv.set("sub-shadow-offset", shadowOffset(style));
   void mpv.set("sub-back-color", mpvColor("#000000", style.background));
   // Newer mpv draws the box from sub-back-color; older builds only know "opaque-box".
   const box = style.background > 0;
@@ -348,42 +352,164 @@ function Chips<T extends string | number>({ value, options, onChange }: { value:
 
 const SAMPLE = "This is how your subtitles will look.";
 
+/** The mpv options the preview reads once per player; the rest it sets itself from the style. */
+const MPV_READ: [keyof MpvSubOptions, string][] = [
+  ["fontSize", "sub-font-size"],
+  ["marginX", "sub-margin-x"],
+  ["marginY", "sub-margin-y"],
+  ["scaleByWindow", "sub-scale-by-window"],
+  ["scaleWithWindow", "sub-scale-with-window"],
+  ["useMargins", "sub-use-margins"],
+];
+
+const isOsd = (v: unknown): v is OsdDimensions =>
+  !!v && typeof v === "object" && ["w", "h", "mt", "mb", "ml", "mr"].every((k) => typeof (v as Record<string, unknown>)[k] === "number") && (v as OsdDimensions).h > 0;
+
+/** A font's ascent plus descent in em, as the browser reads its metrics: the span libass sizes a font by. */
+const extents = new Map<string, number>();
+function measureExtent(spec: string): number {
+  const known = extents.get(spec);
+  if (known) return known;
+  const ctx = document.createElement("canvas").getContext?.("2d");
+  if (!ctx) return 1;
+  ctx.font = spec;
+  const m = ctx.measureText("Hg");
+  const extent = (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent) / 100;
+  if (!(extent > 0)) return 1;
+  if (document.fonts?.check?.(spec) !== false) extents.set(spec, extent);
+  return extent;
+}
+
+function useFontExtent(font: string, weight: number) {
+  const spec = `${weight} 100px "${font}", "Segoe UI", system-ui, sans-serif`;
+  const [extent, setExtent] = useState(() => measureExtent(spec));
+  useEffect(() => {
+    let alive = true;
+    setExtent(measureExtent(spec));
+    // A bundled face (OpenDyslexic) may still be loading: measure again once it's in.
+    void document.fonts
+      ?.load?.(spec)
+      .then(() => alive && setExtent(measureExtent(spec)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [spec]);
+  return extent;
+}
+
+/** The overlay's size in CSS pixels: the player's window. */
+function useViewport() {
+  const read = () => ({ w: window.innerWidth, h: window.innerHeight });
+  const [size, setSize] = useState(read);
+  useEffect(() => {
+    const onResize = () => setSize(read());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return size;
+}
+
 /**
- * A live sample drawn above the frosted overlay, set like mpv draws subtitles
- * (same font, size, outline, position), so changes can be judged while the
- * real subtitles are hidden behind the blur. Shows the line on screen when
- * there is one.
+ * A live sample drawn above the frosted overlay, so changes can be judged
+ * while the real subtitles are hidden behind the blur. Shows the line on
+ * screen when there is one.
+ *
+ * Sized and placed as the player draws a line (subtitleSize.ts): with mpv,
+ * from mpv's own options and `osd-dimensions`, read again every half second
+ * so a resized window, a crop, Fill or the next video are followed; with the
+ * built-in player, from `::cue`'s rule.
  */
 export function SubtitlePreview({ style: saved, media }: { style: SubtitleStyle; media: MediaLike | null }) {
   const style = complete(saved);
+  const mpv = isMpv(media) ? media : null;
   const [line, setLine] = useState("");
+  const [osd, setOsd] = useState<OsdDimensions | null>(null);
+  const [read, setRead] = useState<Partial<MpvSubOptions>>({});
+  const viewport = useViewport();
+  const weight = style.font === DEFAULT_FONT ? 600 : 400;
+  const extent = useFontExtent(style.font, weight);
+
   useEffect(() => {
-    if (!isMpv(media)) return;
+    setRead({});
+    if (!mpv) return;
     let alive = true;
-    const read = () =>
-      media
+    for (const [key, name] of MPV_READ) {
+      mpv
+        .command("get_property", name)
+        .then((v) => alive && typeof v === typeof MPV_SUB_DEFAULTS[key] && setRead((r) => ({ ...r, [key]: v })))
+        .catch(() => {});
+    }
+    return () => {
+      alive = false;
+    };
+  }, [mpv]);
+
+  useEffect(() => {
+    setOsd(null);
+    if (!mpv) return;
+    let alive = true;
+    const poll = () => {
+      mpv
         .command("get_property", "sub-text")
         .then((t) => alive && setLine(typeof t === "string" ? t.trim() : ""))
         .catch(() => alive && setLine(""));
-    void read();
-    const id = window.setInterval(read, 500);
+      mpv
+        .command("get_property", "osd-dimensions")
+        .then((d) => alive && isOsd(d) && setOsd((old) => (old && JSON.stringify(old) === JSON.stringify(d) ? old : d)))
+        .catch(() => {});
+    };
+    poll();
+    const id = window.setInterval(poll, 500);
+    window.addEventListener("resize", poll);
     return () => {
       alive = false;
       window.clearInterval(id);
+      window.removeEventListener("resize", poll);
     };
-  }, [media]);
+  }, [mpv]);
+
+  let box: { size: number; line: number; stroke: number; shadow: string; bottom: number; side: number; pad: number };
+  if (mpv) {
+    // Until mpv answers, take its window to be ours with the picture filling it.
+    const win = osd ?? { w: viewport.w, h: viewport.h, mt: 0, mb: 0, ml: 0, mr: 0 };
+    const b = mpvSubtitleBox(
+      win,
+      { ...MPV_SUB_DEFAULTS, ...read, scale: style.size / 100, borderSize: OUTLINE_PX[style.outline], shadowOffset: shadowOffset(style), pos: 100 - style.raise },
+      viewport.h / win.h,
+    );
+    box = {
+      size: fontSizeForLine(b.line, extent),
+      line: b.line,
+      // A stroke is centred on the glyph's edge and the fill covers its inner half.
+      stroke: b.border * 2,
+      shadow: b.shadow ? `${b.shadow}px ${b.shadow}px 0 var(--scrim-2)` : "none",
+      bottom: b.bottom,
+      side: b.side,
+      pad: b.border,
+    };
+  } else {
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const size = cueFontSize(viewport.w, rem, style.size / 100);
+    box = { size, line: size * CUE_LINE_HEIGHT, stroke: 0, shadow: "var(--sub-shadow)", bottom: 0, side: 0, pad: 0 };
+  }
 
   const vars = {
-    "--sub-scale": style.size / 100,
-    "--sub-raise": style.raise,
+    ...(mpv ? {} : subtitleCueVars(saved)),
     "--sub-color": hexToRgb(style.color, style.opacity),
     "--sub-edge": hexToRgb(style.outlineColor, style.opacity),
-    "--sub-edge-w": OUTLINE_PX[style.outline],
     "--sub-bg": `rgb(0 0 0 / ${style.background / 100})`,
+    "--sub-size": `${box.size}px`,
+    "--sub-line": `${box.line}px`,
+    "--sub-stroke": `${box.stroke}px`,
+    "--sub-text-shadow": box.shadow,
+    "--sub-bottom": `${box.bottom}px`,
+    "--sub-side": `${box.side}px`,
+    "--sub-pad": `${box.pad}px`,
     ...fontVars(style.font),
   } as CSSProperties;
   return (
-    <div className="sub-preview" style={vars} aria-hidden>
+    <div className="sub-preview" style={vars} data-engine={mpv ? "mpv" : "built-in"} aria-hidden>
       <p className="sub-preview-line">
         <span className="sub-preview-text">{line || SAMPLE}</span>
       </p>
