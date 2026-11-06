@@ -58,7 +58,7 @@ import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/
 import { openSettings, usePrefs, withShortcut } from "../lib/settings";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
-import { episodeCode, formatDate, formatRemaining, formatTime, seasonLabel } from "../lib/format";
+import { airLabel, episodeCode, formatRemaining, formatTime, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/net";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, Stream, Video } from "../lib/types";
@@ -569,19 +569,15 @@ export function Player({
         .filter((v) => v.season === shownSeason)
         .map((v) => {
           const p = progressById.get(v.id);
-          const { released, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
+          const { released, openable, fraction, watched, inProgress } = episodeState(v, p, watchedFraction());
           return {
             id: v.id,
             label: `${v.episode}. ${v.title}`,
-            detail: !released
-              ? `Coming ${formatDate(v.released)}`
-              : inProgress && p
-                ? formatRemaining(p.position, p.duration)
-                : formatDate(v.released),
+            detail: released && inProgress && p ? formatRemaining(p.position, p.duration) : airLabel(v),
             thumbnail: stillFor(v.id) ?? v.thumbnail ?? "",
             progress: watched ? undefined : fraction,
             badge: watched ? { text: "Watched" } : undefined,
-            disabled: !released,
+            disabled: !openable,
           };
         }),
     [meta, shownSeason, progressById],

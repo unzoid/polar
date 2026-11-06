@@ -1,8 +1,10 @@
-import { isReleased } from "../format";
+import { isOpenable, isReleased } from "../format";
 import type { Progress, Video } from "../types";
 
 export type EpisodeState = {
   released: boolean;
+  /** Its sources can be checked: released, or listed for the coming week (#143). */
+  openable: boolean;
   /** How far it's been played, 0..1 (0 when never). */
   fraction: number;
   watched: boolean;
@@ -17,5 +19,5 @@ export type EpisodeState = {
 export function episodeState(video: Video, progress: Progress | undefined, threshold: number): EpisodeState {
   const fraction = progress?.duration ? progress.position / progress.duration : 0;
   const watched = fraction >= threshold;
-  return { released: isReleased(video), fraction, watched, inProgress: fraction > 0 && !watched };
+  return { released: isReleased(video), openable: isOpenable(video), fraction, watched, inProgress: fraction > 0 && !watched };
 }
