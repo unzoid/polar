@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -40,7 +40,8 @@ test("downloads keep their own names in the archive", () => {
   expect(downloadName("mpv-0.41.0.tar.gz")).toBe("mpv-0.41.0.tar.gz");
 });
 
-test("the archive holds every fetched source, patch and recipe, and a list of them", () => {
+/** A keg with its formula file, formulae.json listing it, and a stand-in brew in `<dir>/bin`. */
+function fakeHomebrew(): string {
   const dir = mkdtempSync(join(tmpdir(), "polar-macsrc-"));
   dirs.push(dir);
   // A keg as Homebrew installs it, with its formula file.
@@ -66,6 +67,18 @@ esac
 `,
   );
   chmodSync(join(bin, "brew"), 0o755);
+  return dir;
+}
+
+const listing = (tar: string) =>
+  spawnSync("tar", ["-tf", tar], { encoding: "utf8" })
+    .stdout.split("\n")
+    .filter((f) => f && !f.endsWith("/"))
+    .sort();
+
+test("the archive holds every fetched source, patch and recipe, and a list of them", () => {
+  const dir = fakeHomebrew();
+  const bin = join(dir, "bin");
   const path = process.env.PATH;
   process.env.PATH = `${bin}:${path}`;
   try {
@@ -73,11 +86,7 @@ esac
   } finally {
     process.env.PATH = path;
   }
-  const listing = spawnSync("tar", ["-tf", join(dir, "sources.tar")], { encoding: "utf8" })
-    .stdout.split("\n")
-    .filter(Boolean)
-    .sort();
-  expect(listing.filter((f) => !f.endsWith("/"))).toEqual([
+  expect(listing(join(dir, "sources.tar"))).toEqual([
     "polarity-mac-sources/SOURCES.txt",
     "polarity-mac-sources/recipes/mpv.rb",
     "polarity-mac-sources/sources/fix.patch",
@@ -86,4 +95,22 @@ esac
   const list = spawnSync("tar", ["-xOf", join(dir, "sources.tar"), "polarity-mac-sources/SOURCES.txt"], { encoding: "utf8" }).stdout;
   expect(list).toContain("  mpv 0.41.0\n");
   expect(list).toContain("  sources/fix.patch\n");
+});
+
+test("the Release workflow's macOS job packs the archive from the command line and attaches it", () => {
+  const dir = fakeHomebrew();
+  const tar = join(dir, "bundle", "Polarity_1.2.3_aarch64_mpv-sources.tar");
+  const r = spawnSync("bun", [join(import.meta.dir, "..", "scripts", "macSources.ts"), join(dir, "formulae.json"), tar], {
+    encoding: "utf8",
+    env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}` },
+  });
+  expect(r.status).toBe(0);
+  expect(listing(tar)).toContain("polarity-mac-sources/sources/mpv-0.41.0.tar.gz");
+
+  const workflow = readFileSync(join(import.meta.dir, "..", ".github", "workflows", "release.yml"), "utf8");
+  const steps: { if?: string; run?: string }[] = Bun.YAML.parse(workflow).jobs.build.steps;
+  const mac = steps.filter((s) => s.if === "runner.os == 'macOS'" && s.run).map((s) => s.run!);
+  expect(mac.some((run) => run.includes("bun scripts/macSources.ts src-tauri/vendor/libmpv/formulae.json"))).toBe(true);
+  const collect = steps.find((s) => s.run?.includes("mkdir out"))!.run!;
+  expect(collect).toMatch(/macOS\)[^;]*_aarch64_mpv-sources\.tar" out\//);
 });

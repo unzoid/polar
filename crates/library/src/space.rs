@@ -281,6 +281,44 @@ impl Space {
         self.dirty_mut().progress.extend(moved);
         changed
     }
+
+    /// Adds what another app exported, keeping its times: a library item only if it isn't here
+    /// and wasn't removed here after it was added there, a progress entry only over an older one
+    /// (or none). Importing the same records again changes nothing. Entries without a time get
+    /// `at`. Returns how many library items and progress entries were added.
+    pub fn import_exported(&mut self, library: Vec<LibraryItem>, progress: Vec<Progress>, at: u64) -> (usize, usize) {
+        let aliases = self.aliases();
+        let mut added = (0, 0);
+        for mut item in library {
+            item.id = aliases.canonical(&item.id).to_owned();
+            if item.added_at == 0 {
+                item.added_at = at;
+            }
+            item.updated_at = 0;
+            if self.library.contains_key(&item.id)
+                || self.removed.get(&item.id).is_some_and(|&gone| gone >= item.added_at)
+            {
+                continue;
+            }
+            self.dirty_mut().library.insert(item.id.clone());
+            self.removed.remove(&item.id);
+            self.library.insert(item.id.clone(), item);
+            added.0 += 1;
+        }
+        for mut p in progress {
+            p.meta_id = aliases.canonical(&p.meta_id).to_owned();
+            if p.updated_at == 0 {
+                p.updated_at = at;
+            }
+            if self.progress.get(&p.video_id).is_some_and(|kept| kept.updated_at >= p.updated_at) {
+                continue;
+            }
+            self.dirty_mut().progress.insert(p.video_id.clone());
+            self.progress.insert(p.video_id.clone(), p);
+            added.1 += 1;
+        }
+        added
+    }
 }
 
 #[cfg(test)]
@@ -311,6 +349,31 @@ pub(crate) mod tests {
 
     pub fn link(anilist: u32, canonical: &str, kitsu: Option<u32>, at: u64) -> AnimeLink {
         AnimeLink { canonical: canonical.into(), anilist, mal: None, kitsu, updated_at: at }
+    }
+
+    #[test]
+    fn import_keeps_times_never_overwrites_newer_and_is_idempotent() {
+        let mut s = Space::default();
+        s.library_toggle(item("tt1", 0), 50);
+        s.library_toggle(item("tt2", 0), 60);
+        s.library_toggle(item("tt2", 0), 70);
+        s.progress_save(vec![progress("tt3", "tt3:1:1", 0, 10.0)], 500);
+        let library = vec![item("tt1", 5), item("tt2", 40), item("tt2b", 80), item("tt4", 0)];
+        let rows = vec![progress("tt3", "tt3:1:1", 400, 900.0), progress("tt3", "tt3:1:2", 450, 1000.0)];
+
+        assert_eq!(s.import_exported(library.clone(), rows.clone(), 1000), (2, 1));
+        assert_eq!(s.library["tt1"].added_at, 50, "already in the library: left alone");
+        assert!(!s.library.contains_key("tt2"), "removed here after it was added there");
+        assert_eq!(s.library["tt2b"].added_at, 80);
+        assert_eq!(s.library["tt4"].added_at, 1000, "no time: the import's");
+        assert_eq!(s.progress["tt3:1:1"].position, 10.0, "newer here: kept");
+        assert_eq!(s.progress["tt3:1:2"].updated_at, 450);
+        assert!(s.dirty.as_ref().unwrap().progress.contains("tt3:1:2"));
+        assert!(s.dirty.as_ref().unwrap().library.contains("tt2b"));
+
+        let before = (s.library.clone(), s.progress.len());
+        assert_eq!(s.import_exported(library, rows, 2000), (0, 0));
+        assert_eq!((s.library.clone(), s.progress.len()), before);
     }
 
     #[test]

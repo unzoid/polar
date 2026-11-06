@@ -8,11 +8,14 @@ import { errorMessage } from "../../lib/errors";
 import { Card, ExpandRow, useExpanded, type Expandable } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
 import { isMac } from "../../lib/platform";
+import { useAccount } from "../../lib/account";
+import { StremioImport } from "../../components/settings/StremioImport";
 
 export function AdvancedPage() {
   const expand = useExpanded();
   const { autocrop } = usePrefs();
   const { data: hasMpv } = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
+  const account = useAccount();
   return (
     <>
       <Card
@@ -27,6 +30,8 @@ export function AdvancedPage() {
         {!isMac && <SettingRow id="autocropEveryFrame" disabled={hasMpv === false || !autocrop} />}
         <SettingRow id="buffer" />
       </Card>
+      {/* Signed in, it's under Account. */}
+      {!account.profile && <StremioImport />}
       <Card title="Reset">
         <ResetRow {...expand("reset")} />
       </Card>

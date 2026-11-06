@@ -4,6 +4,7 @@ import { playContext } from "./anime/playContext";
 import { isKitsuId, kitsuMeta } from "./anime/kitsu";
 import type {
   CacheInfo,
+  Imported,
   ContentType,
   ExternalRatings,
   InstalledAddon,
@@ -84,6 +85,8 @@ export const api = {
   saveProgress: (progress: Progress) => call<void>("progress_save", { progress }),
   /** In one save; the last entry counts as the most recently touched. */
   saveProgressMany: (progress: Progress[]) => call<void>("progress_save_many", { progress }),
+  /** Library items and progress from another app, keeping their times; newer entries here win. */
+  importLibrary: (library: LibraryItem[], progress: Progress[]) => call<Imported>("library_import", { library, progress }),
   continueWatching: () => call<Progress[]>("continue_watching"),
   /** The latest video per title you've watched (finished or under way), newest first. */
   watchHistory: () => call<Progress[]>("watch_history"),

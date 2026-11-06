@@ -20,6 +20,7 @@ export * from "./search";
 export * from "./seasonLabels";
 export * from "./seasons";
 export * from "./shelves";
+export * from "./splitParts";
 export * from "./stills";
 export * from "./titlePage";
 export * from "./titlePageQuery";

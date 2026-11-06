@@ -97,6 +97,14 @@ jobs:
             -c '{"bundle":{"macOS":{"signingIdentity":"-"}}}' \
             -- --locked
 
+      # macOS: the exact source of mpv and every library bundled with it, with
+      # Homebrew's build recipes (docs/licensing.md), attached to the release.
+      - name: Pack the mpv sources (macOS)
+        if: runner.os == 'macOS'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bun scripts/macSources.ts src-tauri/vendor/libmpv/formulae.json "target/release/bundle/Polarity_${VERSION}_aarch64_mpv-sources.tar"
+
       # Linux: playback uses the system's mpv (a dependency of the .deb and .rpm).
       - name: Build (Linux)
         if: runner.os == 'Linux'
@@ -120,8 +128,9 @@ jobs:
             macOS)
               cp "$b"/dmg/*_aarch64.dmg out/
               # Name the update archive per version and CPU, like the other files.
-              cp "$b/macos/Polar.app.tar.gz" "out/Polar_${VERSION}_aarch64.app.tar.gz"
-              cp "$b/macos/Polar.app.tar.gz.sig" "out/Polar_${VERSION}_aarch64.app.tar.gz.sig" ;;
+              cp "$b/macos/Polarity.app.tar.gz" "out/Polarity_${VERSION}_aarch64.app.tar.gz"
+              cp "$b/macos/Polarity.app.tar.gz.sig" "out/Polarity_${VERSION}_aarch64.app.tar.gz.sig"
+              cp "$b/Polarity_${VERSION}_aarch64_mpv-sources.tar" out/ ;;
             Linux)
               cp "$b"/appimage/*.AppImage "$b"/appimage/*.AppImage.sig "$b"/deb/*.deb "$b"/rpm/*.rpm out/ ;;
           esac

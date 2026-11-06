@@ -113,6 +113,7 @@ export const SETTINGS: SettingDef[] = [
   { id: "profiles", page: "account", title: "Profiles", keywords: "switch who's watching" },
   { id: "manageProfiles", page: "account", title: "Manage profiles", keywords: "edit add remove avatar" },
   { id: "secrets", page: "account", title: "API keys and addons", keywords: "sync encrypt encrypted passphrase keys addons secret" },
+  { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback
