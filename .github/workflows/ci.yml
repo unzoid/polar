@@ -121,7 +121,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     container:
-      image: ghcr.io/shinchiro/archlinux:latest
+      # ghcr.io/shinchiro/archlinux:latest as pulled on 2026-11-06
+      image: ghcr.io/shinchiro/archlinux@sha256:56a74bc68139d108ee082f1d0a488295eaf5af2f1b79f0cbbb7caca1c4402bbd
     defaults:
       run:
         shell: bash

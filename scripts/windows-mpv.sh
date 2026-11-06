@@ -21,6 +21,9 @@
 # The sources archive goes with every release that carries this mpv.exe.
 set -euo pipefail
 export LC_ALL=C
+# The scripts apply their patches with `git am`, which needs an identity; the build image has none.
+export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-windows-mpv build}" GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-build@example.invalid}"
+export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-windows-mpv build}" GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-build@example.invalid}"
 
 work=$(realpath -m "${1:?usage: windows-mpv.sh <work dir> [toolchain]}")
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
