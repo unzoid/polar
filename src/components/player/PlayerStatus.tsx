@@ -42,7 +42,8 @@ export function PlayerStatus({
   background?: string;
   steps: StartStep[];
   backend: string;
-  onSources: () => void;
+  /** Left out where there's nothing else to choose (a pasted link). */
+  onSources?: () => void;
 }) {
   const failed = state.status === "failed" || !!error;
   const stageAt = failed ? failedStage(steps) : undefined;
@@ -91,9 +92,11 @@ export function PlayerStatus({
         {failed && (
           <div className="player-status-actions">
             {/* Focused, so Enter (or a controller's A) picks it straight away. */}
-            <Button variant="primary" onClick={onSources} autoFocus>
-              <Sources size={17} /> Choose Another Source
-            </Button>
+            {onSources && (
+              <Button variant="primary" onClick={onSources} autoFocus>
+                <Sources size={17} /> Choose Another Source
+              </Button>
+            )}
             <CopyDetails steps={steps} backend={backend} outcome={message} stage={stageAt} />
           </div>
         )}
