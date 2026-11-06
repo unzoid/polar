@@ -152,15 +152,17 @@ export class MpvMedia extends EventTarget implements MediaLike {
         unlisten();
       }
       this.running = true;
+      // Paused before mpv was up (a watch party that's paused): mpv_load un-pauses, the pause below re-pauses.
+      const pausedEarly = this.early.get("pause") === true;
       // What the player set before mpv was up (subtitle style, volume, speed), now that it can take it.
       for (const [name, value] of this.early) void this.set(name, value);
       this.early.clear();
       this.step("Handed to mpv, opening the file", "info", "player");
       // mpv_load un-pauses explicitly; mpv only reports *changes*, so if it was
       // already unpaused no event comes — state it here instead of waiting.
-      this.isPaused = false;
+      this.isPaused = pausedEarly;
       this.stamp = performance.now();
-      this.emit("play");
+      this.emit(pausedEarly ? "pause" : "play");
     }).catch((e) => {
       // The link check's verdict, or mpv not starting.
       const message = errorMessage(e);
