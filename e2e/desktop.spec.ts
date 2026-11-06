@@ -116,7 +116,7 @@ test("a wheel turn down a show's page lands its season tabs below the navbar's b
   expect((await tabs.boundingBox())!.y).toBe(last);
 });
 
-test("an episode's Sources and Download buttons show alike, on a dark fill, without hovering (#18)", async ({ app }) => {
+test("an episode's Sources and Download buttons show alike, quietly, only while the card is pointed at or focused (#18, #79)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();
   const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
@@ -128,12 +128,33 @@ test("an episode's Sources and Download buttons show alike, on a dark fill, with
       const alpha = Number(/rgba?\(([^)]+)\)/.exec(s.backgroundColor)?.[1].split(",")[3] ?? 1);
       return { opacity: s.opacity, alpha, color: s.color, size: b.getBoundingClientRect().width };
     });
+  // Out of the way while nothing points at the card.
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("0");
+  expect((await look(".episode-download")).opacity).toBe("0");
+
+  // Pointing at the card shows both, alike: a white glyph on a lighter fill than before, the same size.
+  await ep.hover();
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("1");
   const sources = await look(".episode-sources");
   const download = await look(".episode-download");
   expect(sources).toEqual(download);
-  expect(sources.opacity).toBe("1");
   expect(sources.color).toBe("rgb(255, 255, 255)");
-  expect(sources.alpha).toBeGreaterThanOrEqual(0.5);
+  expect(sources.alpha).toBeGreaterThanOrEqual(0.4);
+  expect(sources.alpha).toBeLessThan(0.55);
+  expect(sources.size).toBe(32);
+
+  // Keyboard focus on the card shows them too; the tap area stays 44 px.
+  await app.mouse.move(0, 0);
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("0");
+  await ep.locator(".episode-card-main").focus();
+  await app.keyboard.press("Shift+Tab");
+  await app.keyboard.press("Tab");
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("1");
+  const tap = await ep.locator(".episode-sources").evaluate((b) => {
+    const a = getComputedStyle(b, "::after");
+    return b.getBoundingClientRect().width - 2 * parseFloat(a.top);
+  });
+  expect(tap).toBe(44);
 });
 
 test("a downloaded episode offers Show in Folder and Delete as buttons, and Play takes the download (#25)", async ({ app }) => {
@@ -318,6 +339,21 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   await expect(addon).toHaveCount(0);
 });
 
+test("Download Season downloads every released episode of the season, then says so (#24)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const season = app.locator(".seasons-bar").getByRole("button", { name: /^Download Season/ });
+  await expect(season).toBeEnabled();
+  await expect(app.getByRole("button", { name: "Download Show", exact: true })).toBeVisible();
+  await season.click();
+  // The fake shell finishes each download at once.
+  await expect(app.locator(".seasons-bar").getByRole("button", { name: "Season Downloaded" })).toBeDisabled({ timeout: 15_000 });
+  const released = app.locator(".episode-card:has(.episode-card-main:not([disabled]))");
+  const count = await released.count();
+  expect(count).toBeGreaterThan(1);
+  await expect(released.getByRole("button", { name: "Delete Downloaded Episode" })).toHaveCount(count);
+});
+
 test("the title page's Download button names what it downloads (#26)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();
@@ -351,4 +387,34 @@ test("with Show on Discord set to the title, the player sends what plays, its pa
   await expect.poll(async () => (await sent()).at(-1)).toBeNull();
   // Nothing was sent before it played.
   expect((await sent())[0]).not.toBeNull();
+});
+
+test("a Home shelf's heading opens its browse page with the filter on, and Back returns to the same place (#48)", async ({ app }) => {
+  const home = app.locator('.page[data-active="true"] .scroll');
+  const heading = app.getByRole("button", { name: "New Movies", exact: true });
+  await heading.scrollIntoViewIfNeeded();
+  const before = await home.evaluate((el) => el.scrollTop);
+  expect(before).toBeGreaterThan(0);
+  // Reachable with the keyboard, like any button.
+  await heading.focus();
+  await app.keyboard.press("Enter");
+
+  await expect(app.getByRole("heading", { level: 1, name: "Movies" })).toBeVisible();
+  await expect(app.getByRole("radiogroup", { name: "Catalog" }).getByRole("radio", { name: "New" })).toBeChecked();
+  await expect(app.getByRole("combobox", { name: "Genre" })).toHaveText(/All Genres/);
+
+  await app.keyboard.press("Escape");
+  await expect(heading).toBeVisible();
+  expect(await home.evaluate((el) => el.scrollTop)).toBe(before);
+
+  // A genre shelf (today's pick) opens its type at Popular with that genre picked.
+  const genreTitles = await app.locator(".row-title-link").allTextContents();
+  // lib/catalog/shelves.ts's GENRES.
+  const known = ["Action & Adventure", "Sci-Fi Movies", "Animated Movies", "Comedy Movies", "Horror Movies", "Thrillers", "Romance Movies", "Crime Movies"]
+    .concat(["Fantasy Movies", "Documentaries", "Comedy Series", "Crime Series", "Drama Series", "Sci-Fi & Fantasy Series", "Animated Series", "Mystery Series", "Docuseries"]);
+  const pick = genreTitles.map((t) => t.trim()).find((t) => known.includes(t));
+  expect(pick).toBeDefined();
+  await app.getByRole("button", { name: pick, exact: true }).click();
+  await expect(app.getByRole("radiogroup", { name: "Catalog" }).getByRole("radio", { name: "Popular" })).toBeChecked();
+  await expect(app.getByRole("combobox", { name: "Genre" })).not.toHaveText(/All Genres/);
 });

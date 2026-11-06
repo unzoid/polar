@@ -3,6 +3,7 @@ import { useEffect, useMemo, useReducer } from "react";
 import { api } from "../api";
 import { keys, useCatalog, useContinueWatching, useLibrary } from "../net/queries";
 import type { ContentType, MetaPreview, Progress } from "../types";
+import type { Route } from "../router";
 import { watchedFraction } from "../library/watched";
 
 /**
@@ -19,6 +20,11 @@ export type Shelf =
 
 export const shelfKey = (s: Shelf) =>
   s.kind === "catalog" ? keys.catalog(s.type, s.id, s.genre) : keys.recommend(s.type, s.seed);
+
+/** Where a shelf's heading leads (#48): Movies or Series at its catalog and genre; none for "Because you watched". */
+export function shelfRoute(s: Shelf): Route | undefined {
+  return s.kind === "catalog" ? { name: "discover", type: s.type, catalog: s.id, genre: s.genre } : undefined;
+}
 
 /** Genre shelves; a handful are picked each day. */
 export const GENRES: { type: ContentType; genre: string; title: string }[] = [

@@ -47,6 +47,7 @@ const commands: Record<string, (a: Args) => unknown> = {
     fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
   trailer: () => null,
   addons_list: () => fx.addons,
+  addons_bundled: () => [],
   library_list: () => library,
   library_toggle: (a) => {
     const item = a.item as MetaPreview;

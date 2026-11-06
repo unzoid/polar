@@ -77,6 +77,8 @@ export const api = {
   ratings: (type: ContentType, id: string) => call<ExternalRatings>("ratings", { ty: type, id }),
 
   addons: () => call<InstalledAddon[]>("addons_list"),
+  /** The add-ons the app installs itself, by manifest URL. */
+  bundledAddons: () => call<string[]>("addons_bundled"),
   installAddon: (url: string) => call<InstalledAddon>("addon_install", { url }).then(changed),
   removeAddon: (id: string) => call<void>("addon_remove", { id }).then(changed),
 

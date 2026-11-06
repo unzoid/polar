@@ -1,6 +1,6 @@
 import { storeLocal } from "../errors";
 import { useSyncExternalStore } from "react";
-import { likeTemplate, storedJson } from "../parse";
+import { isRecord, likeTemplate, storedJson } from "../parse";
 import { settingsChanged } from "./changes";
 
 /** TV mode's interface sound packs (tv/sounds.ts renders them). */
@@ -44,6 +44,11 @@ export interface Prefs {
   pauseOnMinimize: boolean;
   /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title. */
   discordPresence: "off" | "app" | "title";
+  /**
+   * A profile new to this device starts with the add-ons and API keys already here (#80). Off: it starts
+   * with none (its own from the account, once they sync) and Settings offers to copy a set from this device.
+   */
+  shareAddonsAndKeys: boolean;
   /** mpv: louder dialogue when surround is folded down to stereo. */
   dialogueBoost: boolean;
   /** mpv: even out loud and quiet scenes. */
@@ -117,6 +122,7 @@ const DEFAULTS: Prefs = {
   uiScale: 1,
   pauseOnMinimize: false,
   discordPresence: "off",
+  shareAddonsAndKeys: false,
   dialogueBoost: false,
   volumeLeveling: false,
   hwdec: true,
@@ -147,7 +153,10 @@ const DEFAULTS: Prefs = {
 
 const STORAGE = "polar.prefs";
 
-let prefs: Prefs = { ...DEFAULTS, ...readPrefs(storedJson(localStorage, STORAGE)) };
+const stored = storedJson(localStorage, STORAGE);
+/** Installs from before #80 (prefs or an account's settings stored already) keep sharing add-ons and keys. */
+const earlier = (stored !== undefined || localStorage.getItem("polar.settingsOwner") !== null) && !(isRecord(stored) && "shareAddonsAndKeys" in stored);
+let prefs: Prefs = { ...DEFAULTS, ...(earlier ? { shareAddonsAndKeys: true } : {}), ...readPrefs(stored) };
 const listeners = new Set<() => void>();
 
 export const getPrefs = () => prefs;

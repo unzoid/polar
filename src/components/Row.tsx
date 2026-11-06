@@ -4,16 +4,20 @@ import { EdgeBlur } from "./EdgeBlur";
 
 /**
  * A horizontal shelf. Native scrolling (wheel, trackpad momentum, scroll-snap)
- * does the physics; paddles page by one viewport width.
+ * does the physics; paddles page by one viewport width. With `onOpen`, the
+ * heading is a link to the shelf's full list, a chevron after it (#48).
  */
 export function Row({
   title,
+  onOpen,
   action,
   shape = "poster",
   order,
   children,
 }: {
   title?: string;
+  /** Opens the full list behind the shelf. */
+  onOpen?: () => void;
   action?: ReactNode;
   shape?: "poster" | "landscape" | "episode";
   /** The items' ids in order. When it changes, the shelf goes back to its start, or keeps a focused card in view. */
@@ -82,7 +86,18 @@ export function Row({
     <section className="row" data-shape={shape}>
       {(title || action) && (
         <header className="row-header">
-          {title && <h2 className="t-title2 row-title" title={typeof title === "string" ? title : undefined}>{title}</h2>}
+          {title && (
+            <h2 className="t-title2 row-title" title={onOpen ? undefined : title}>
+              {onOpen ? (
+                <button className="row-title-link" onClick={onOpen} title={`See all: ${title}`}>
+                  <span className="row-title-text">{title}</span>
+                  <ChevronRight className="row-title-chevron" size={20} strokeWidth={2.5} aria-hidden />
+                </button>
+              ) : (
+                title
+              )}
+            </h2>
+          )}
           {action}
         </header>
       )}

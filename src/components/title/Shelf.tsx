@@ -8,6 +8,7 @@ import { CardSkeleton, type CardShape } from "./Card";
  */
 export function Shelf<T>({
   title,
+  onOpen,
   shape = "poster",
   action,
   items,
@@ -15,6 +16,8 @@ export function Shelf<T>({
   card,
 }: {
   title: string;
+  /** Opens the full list behind the shelf: the heading becomes a link (#48). */
+  onOpen?: () => void;
   shape?: CardShape;
   action?: ReactNode;
   items?: readonly T[];
@@ -22,7 +25,7 @@ export function Shelf<T>({
   card: (item: T) => ReactNode;
 }) {
   return (
-    <Row title={title} shape={shape} action={action}>
+    <Row title={title} onOpen={onOpen} shape={shape} action={action}>
       {items ? items.map(card) : Array.from({ length: skeletons }, (_, i) => <CardSkeleton key={i} shape={shape} />)}
     </Row>
   );
