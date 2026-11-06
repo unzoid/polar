@@ -601,10 +601,18 @@ test("the player's episode rail reaches every episode by wheel and paddles, and 
 
   // The paddle at the start pages back to the first episode.
   const prev = app.locator(".episode-rail-paddle[data-dir=prev]");
-  for (let i = 0; i < 10 && (await rail.evaluate((el) => el.scrollLeft)) > 4; i++) {
-    await prev.click();
-    await app.waitForTimeout(600);
-  }
+  // Where the rail rests once a paddle's smooth scroll has ended: mid-glide it can still read
+  // more than 4 px and then reach the start, hiding the paddle the next click waits for.
+  const restingLeft = async () => {
+    let last = await rail.evaluate((el) => el.scrollLeft);
+    for (;;) {
+      await app.waitForTimeout(150);
+      const now = await rail.evaluate((el) => el.scrollLeft);
+      if (Math.abs(now - last) < 0.5) return now;
+      last = now;
+    }
+  };
+  for (let i = 0; i < 10 && (await restingLeft()) > 4; i++) await prev.click();
   expect(await rail.evaluate((el) => el.scrollLeft)).toBeLessThanOrEqual(4);
   await expect(prev).toHaveCSS("opacity", "0");
 
