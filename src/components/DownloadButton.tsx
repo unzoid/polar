@@ -35,17 +35,20 @@ export function DownloadButton({
   video,
   className = buttonClass("glass", true),
   size = 20,
+  labelled = false,
 }: {
   item: MetaPreview;
   /** The episode, for a show; a movie downloads itself. */
   video?: Video;
   className?: string;
   size?: number;
+  /** The title page's button (#26): names what it downloads, "Download S2 E5" or "Download Movie". */
+  labelled?: boolean;
 }) {
   const videoId = video?.id ?? item.id;
   const { download: d, pending } = useDownload(videoId);
   const [choosing, setChoosing] = useState(false);
-  const what = video ? "Episode" : "Movie";
+  const what = video ? (labelled ? shortCode(video) : "Episode") : "Movie";
 
   // The glyph pops in when the state changes, not on first paint.
   const settled = useRef(false);
@@ -89,19 +92,22 @@ export function DownloadButton({
     const failed = pending?.kind === "error" ? pending.message : undefined;
     control = (
       <button
-        className={className}
+        className={labelled ? buttonClass("glass", false, "download-labelled") : className}
         data-download={failed ? "failed" : "none"}
         onClick={() => setChoosing(true)}
         aria-label={failed ? `Download failed: ${failed}. Choose another source` : `Download ${what}`}
-        title={failed ? `${failed} Click to choose another source.` : `Download ${what}`}
+        title={failed ? `${failed} Click to choose another source.` : labelled && video ? `Download ${what} · ${video.title}` : `Download ${what}`}
       >
-        {glyph(failed ? <AlertCircle size={size} /> : <Download size={size} />)}
+        {glyph(failed ? <AlertCircle size={labelled ? 18 : size} /> : <Download size={labelled ? 18 : size} />)}
+        {labelled && `Download ${what}`}
       </button>
     );
   } else if (d.state === "done") {
-    control = <DownloadedActions d={d} className={className} size={size} />;
+    control = <DownloadedActions d={d} className={className} size={size} what={what} />;
   } else {
-    control = <DownloadMenu d={d} className={className} onRetry={() => setChoosing(true)} glyph={glyph(<DownloadGlyph d={d} size={size} />)} />;
+    control = (
+      <DownloadMenu d={d} className={className} what={labelled ? what : undefined} onRetry={() => setChoosing(true)} glyph={glyph(<DownloadGlyph d={d} size={size} />)} />
+    );
   }
 
   return (
@@ -113,9 +119,8 @@ export function DownloadButton({
 }
 
 /** A finished download: Show in Folder where there is a file manager, and Delete (click twice). */
-function DownloadedActions({ d, className, size }: { d: DownloadRecord; className: string; size: number }) {
+function DownloadedActions({ d, className, size, what }: { d: DownloadRecord; className: string; size: number; what: string }) {
   const { armed, props } = useConfirmDelete(() => void removeDownload(d.id));
-  const what = d.episode != null ? "Episode" : "Movie";
   return (
     <>
       {canRevealDownloads && (
@@ -132,7 +137,7 @@ function DownloadedActions({ d, className, size }: { d: DownloadRecord; classNam
       <button
         className={`${className} confirm-delete`}
         data-download="done"
-        aria-label={armed ? `Click again to delete the downloaded ${what.toLowerCase()}` : `Delete Downloaded ${what}`}
+        aria-label={armed ? `Click again to delete the downloaded ${/^S\d/.test(what) ? what : what.toLowerCase()}` : `Delete Downloaded ${what}`}
         title={armed ? "Click again to delete" : `Delete Download${d.quality ? ` (${d.quality})` : ""}`}
         {...props}
       >
@@ -142,14 +147,15 @@ function DownloadedActions({ d, className, size }: { d: DownloadRecord; classNam
   );
 }
 
-function DownloadMenu({ d, className, glyph, onRetry }: { d: DownloadRecord; className: string; glyph: ReactNode; onRetry: () => void }) {
+function DownloadMenu({ d, className, glyph, onRetry, what }: { d: DownloadRecord; className: string; glyph: ReactNode; onRetry: () => void; what?: string }) {
   const fraction = downloadFraction(d);
+  const of = what ? ` ${what}` : "";
   const label =
     d.state === "failed"
-      ? `Download failed${d.error ? `: ${d.error}` : ""}`
+      ? `Download${of} failed${d.error ? `: ${d.error}` : ""}`
       : d.state === "paused"
-        ? `Download paused${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`
-        : `Downloading${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`;
+        ? `Download${of} paused${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`
+        : `Downloading${of}${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`;
 
   return (
     <MenuRoot modal={false}>
@@ -229,3 +235,6 @@ function DoneGlyph({ size }: { size: number }) {
     </svg>
   );
 }
+
+/** "S2 E5": what the title page's button names. */
+const shortCode = (v: Video) => `S${v.season} E${v.episode}`;
