@@ -333,12 +333,12 @@
   margin-top: 3rem;
   gap: 3.5rem;
 }
-.home /* A long page's shelves out of view aren't drawn at all (#134): every frame that draws anything (a hover, a
+/* A long page's shelves out of view aren't drawn at all (#134): every frame that draws anything (a hover, a
    fade) otherwise lays out the paint of the whole page for the compositor again, and Home holds a few
    thousand elements. Their last height is kept, so nothing moves. The padding keeps the scroller's 4px
    below the shelf (margin-block: -4px) inside what the shelf draws. Chromium only (main.tsx): WebKit
    doesn't scroll to an element inside a shelf it skips. */
-:root[data-engine="chromium"] .row {
+:root[data-engine="chromium"] .home .row {
   content-visibility: auto;
   contain-intrinsic-size: auto 22rem;
   padding-bottom: 4px;
