@@ -219,6 +219,18 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await app.mouse.click((audio!.x + audio!.width + subs!.x) / 2, audio!.y + 40);
   await app.mouse.click(audio!.x - 12, audio!.y + 40);
   await expect(overlay).toBeVisible();
+  // The subtitle preview is set like the built-in player's cues (#228): ::cue's
+  // clamp(1.25rem, 2.4vw, 2.25rem) at the bottom, following a resized window.
+  await app.getByRole("button", { name: "Subtitle settings" }).click();
+  const sample = app.locator(".sub-preview-text");
+  const cueSize = () => sample.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  await expect.poll(cueSize).toBeCloseTo(1440 * 0.024, 1);
+  await app.setViewportSize({ width: 1000, height: 700 });
+  await expect.poll(cueSize).toBeCloseTo(24, 1);
+  const line = await app.locator(".sub-preview").boundingBox();
+  expect(Math.abs(line!.y + line!.height - 700)).toBeLessThan(1);
+  await app.setViewportSize({ width: 1440, height: 900 });
+  await app.getByRole("button", { name: "Subtitle settings" }).click();
   await app.mouse.click(8, 8 + 450);
   await expect(app.locator(".options-overlay")).toHaveCount(0);
 
