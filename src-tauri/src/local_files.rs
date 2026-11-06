@@ -18,9 +18,8 @@ use crate::commands::CmdError;
 use crate::locks::Locked;
 
 /// What a video file can end in. Anything else dropped on the window is left out.
-pub const VIDEO_EXTENSIONS: &[&str] = &[
-    "mp4", "m4v", "mkv", "webm", "mov", "avi", "wmv", "flv", "ts", "m2ts", "mts", "mpg", "mpeg", "ogv", "3gp", "vob",
-];
+pub const VIDEO_EXTENSIONS: &[&str] =
+    &["mp4", "m4v", "mkv", "webm", "mov", "avi", "wmv", "flv", "ts", "m2ts", "mts", "mpg", "mpeg", "ogv", "3gp", "vob"];
 
 /// How many recent files are kept.
 const RECENT_MAX: usize = 30;
@@ -183,9 +182,11 @@ pub async fn local_pick(app: AppHandle, files: State<'_, Arc<LocalFiles>>) -> Re
     {
         use tauri_plugin_dialog::DialogExt;
         let (tx, rx) = tokio::sync::oneshot::channel();
-        app.dialog().file().set_title("Open video files").add_filter("Videos", VIDEO_EXTENSIONS).pick_files(move |picked| {
-            let _ = tx.send(picked);
-        });
+        app.dialog().file().set_title("Open video files").add_filter("Videos", VIDEO_EXTENSIONS).pick_files(
+            move |picked| {
+                let _ = tx.send(picked);
+            },
+        );
         let picked = rx.await.ok().flatten().unwrap_or_default();
         Ok(files.grant(picked.into_iter().filter_map(|p| p.into_path().ok())))
     }
