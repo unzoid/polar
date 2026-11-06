@@ -57,6 +57,7 @@ static void *gl_proc_address(void *ctx, const char *name) {
 
 @implementation PolarMpvView {
     EAGLContext *_ctx;
+    CAEAGLLayer *_layer;       // read on _queue: kept here rather than asking the view there
     mpv_render_context *_rctx; // used on _queue only
     dispatch_queue_t _queue;
     CADisplayLink *_link;
@@ -84,6 +85,7 @@ static void *gl_proc_address(void *ctx, const char *name) {
         self.backgroundColor = UIColor.blackColor;
         self.contentScaleFactor = UIScreen.mainScreen.nativeScale;
         CAEAGLLayer *layer = (CAEAGLLayer *)self.layer;
+        _layer = layer;
         layer.opaque = YES;
         layer.drawableProperties = @{
             kEAGLDrawablePropertyRetainedBacking: @NO,
@@ -109,7 +111,7 @@ static void *gl_proc_address(void *ctx, const char *name) {
     atomic_store(&_redraw, true);
 }
 
-/// Going to the background: no GL call may follow, so wait for a draw in flight.
+/// In the background now: no GL call may follow, so wait for a draw in flight.
 - (void)willBackground {
     atomic_store(&_active, false);
     dispatch_sync(_queue, ^{
@@ -149,7 +151,7 @@ static void *gl_proc_address(void *ctx, const char *name) {
     }
     glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
     glBindRenderbuffer(GL_RENDERBUFFER, _color);
-    [_ctx renderbufferStorage:GL_RENDERBUFFER fromDrawable:(CAEAGLLayer *)self.layer];
+    [_ctx renderbufferStorage:GL_RENDERBUFFER fromDrawable:_layer];
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _color);
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &_w);
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &_h);

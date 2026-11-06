@@ -69,13 +69,13 @@ FRIBIDI_OPTS="-Ddocs=false -Dbin=false -Dtests=false"
 HARFBUZZ_OPTS="-Dfreetype=enabled -Dglib=disabled -Dgobject=disabled -Dcairo=disabled -Dicu=disabled -Dcoretext=disabled -Dtests=disabled -Ddocs=disabled -Dutilities=disabled -Dintrospection=disabled"
 LIBASS_OPTS="-Dfontconfig=disabled -Dcoretext=enabled -Ddirectwrite=disabled -Dlibunibreak=disabled -Dtest=disabled -Dcompare=disabled -Dprofile=disabled -Dfuzz=disabled -Dcheckasm=disabled"
 LIBPLACEBO_OPTS="-Dvulkan=disabled -Dopengl=enabled -Dd3d11=disabled -Dglslang=disabled -Dshaderc=disabled -Dlcms=disabled -Ddovi=disabled -Dlibdovi=disabled -Ddemos=false -Dtests=false -Dbench=false -Dfuzz=false -Dunwind=disabled -Dxxhash=disabled"
-FFMPEG_OPTS="--disable-programs --disable-doc --disable-debug --disable-avdevice --disable-indevs --disable-outdevs --disable-sdl2 --disable-xlib --disable-libxcb --enable-network --enable-securetransport --enable-videotoolbox --enable-audiotoolbox --enable-libdav1d"
+FFMPEG_OPTS="--disable-programs --disable-doc --disable-debug --disable-avdevice --disable-indevs --disable-outdevs --disable-sdl2 --disable-xlib --disable-libxcb --enable-network --enable-securetransport --enable-videotoolbox --enable-audiotoolbox --enable-libdav1d --disable-metal"
 MPV_OPTS="-Dlibmpv=true -Dcplayer=false -Dgpl=false -Dtests=false -Dmanpage-build=disabled -Dhtml-build=disabled -Dpdf-build=disabled \
 -Dlua=disabled -Djavascript=disabled -Dlibarchive=disabled -Duchardet=disabled -Drubberband=disabled -Dzimg=disabled -Dlcms2=disabled \
 -Dvapoursynth=disabled -Dlibbluray=disabled -Ddvdnav=disabled -Dcdda=disabled -Dsdl2-audio=disabled -Dsdl2-video=disabled -Dsdl2-gamepad=disabled \
 -Dcocoa=disabled -Dcoreaudio=disabled -Davfoundation=disabled -Daudiounit=enabled -Dswift-build=disabled -Dmacos-cocoa-cb=disabled \
 -Dmacos-media-player=disabled -Dmacos-touchbar=disabled -Dgl-cocoa=disabled -Dvulkan=disabled -Dgl=enabled -Dplain-gl=enabled \
--Dios-gl=enabled -Dvideotoolbox-gl=enabled -Dvideotoolbox-pl=disabled -Dlibcurl=disabled"
+-Dios-gl=enabled -Dvideotoolbox-gl=disabled -Dvideotoolbox-pl=disabled -Dlibcurl=disabled"
 
 # What each library is, before anything is built (the archive holds sources only).
 {
@@ -195,11 +195,13 @@ for platform in "${platforms[@]}"; do
 	make -C "$build/ffmpeg" -j"$(sysctl -n hw.ncpu)" install
 
 	# mpv itself, as the one shared library. Its Darwin checks look for a macOS SDK; they get
-	# this platform's instead. Static harfbuzz and libplacebo carry C++, so libc++ is linked.
+	# this platform's instead. Static HarfBuzz carries C++, so libc++ is linked; mpv's meson doesn't
+	# link the frameworks its iOS GL interop (EAGLContext) and audio output (AVAudioSession) use.
 	# shellcheck disable=SC2086
 	library=shared MACOS_SDK="$sysroot" MACOS_SDK_VERSION="$(xcrun --sdk "$sdk" --show-sdk-version)" \
 		meson_build mpv $MPV_OPTS -Dprefer_static=true \
-		-Dc_link_args="-lc++" -Dobjc_link_args="-lc++"
+		-Dc_link_args="-lc++ -framework OpenGLES -framework AVFoundation -framework CoreVideo" \
+		-Dobjc_link_args="-lc++ -framework OpenGLES -framework AVFoundation -framework CoreVideo"
 
 	# Each dynamic library as a framework: lib<name>.<version>.dylib becomes Lib<name>.framework/Lib<name>,
 	# found through @rpath (the app's Frameworks folder), and the libraries refer to each other that way.

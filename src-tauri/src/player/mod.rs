@@ -553,27 +553,28 @@ async fn start_engine(window: &WebviewWindow, base: Vec<String>, pipe: &str) -> 
 /// bytes), on the simulator always.
 #[cfg(target_os = "ios")]
 async fn start_engine(window: &WebviewWindow, base: Vec<String>, _pipe: &str) -> Result<(Engine, IpcStream), String> {
-    use std::os::fd::IntoRawFd;
+    use std::os::fd::AsRawFd;
 
     let lib = mpv_library().ok_or("this build has no libmpv")?;
     let webview = web_view(window).await?;
     let (ours, theirs) = std::os::unix::net::UnixStream::pair().map_err(|e| e.to_string())?;
     ours.set_nonblocking(true).map_err(|e| e.to_string())?;
     let client = IpcStream::from_std(ours).map_err(|e| e.to_string())?;
-    // mpv owns its end from here and closes it when it quits.
-    let theirs = format!("--input-ipc-client=fd://{}", theirs.into_raw_fd());
+    let fd = format!("--input-ipc-client=fd://{}", theirs.as_raw_fd());
     let options: Vec<(String, String)> = base
         .iter()
         .map(String::as_str)
         .filter(|a| !a.starts_with("--input-ipc-server="))
         .chain(MODERN_ARGS.iter().copied())
-        .chain(["--vo=libmpv", theirs.as_str()])
+        .chain(["--vo=libmpv", fd.as_str()])
         .filter_map(|a| a.strip_prefix("--")?.split_once('='))
         .map(|(k, v)| (k.to_owned(), v.to_owned()))
         .collect();
     let player = tokio::task::spawn_blocking(move || apple::Player::start(&lib, webview, &options))
         .await
         .map_err(|e| e.to_string())??;
+    // mpv owns its end now and closes it when it quits; until it started, dropping it here closed it.
+    std::mem::forget(theirs);
     Ok((Engine::InApp(player), client))
 }
 
