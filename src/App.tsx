@@ -22,7 +22,7 @@ import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
-import { appWindow, leaveApp, systemBack } from "./lib/platform";
+import { appWindow, leaveApp, longPressMenus, onLongPress, openContextMenu, systemBack } from "./lib/platform";
 import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
@@ -232,6 +232,9 @@ function MainApp() {
     document.addEventListener("contextmenu", onMenu);
     return () => document.removeEventListener("contextmenu", onMenu);
   }, []);
+
+  // iOS sends no contextmenu for a finger held down: a long press on a title opens its options all the same.
+  useEffect(() => (longPressMenus ? onLongPress((held) => openContextMenu(held)) : undefined), []);
 
   // Switching modes works from anywhere, the player included (Settings → Controls to rebind).
   useEffect(() => {

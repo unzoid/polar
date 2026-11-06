@@ -141,7 +141,8 @@ function useLinkedChoices(target: Target): Choices {
       destructive: !episode,
       run: a.resetEntry,
     });
-  if (a.hasProgress && !a.allWatched) watched.push({ id: "reset-all", label: a.isSeries ? "Reset Show Progress" : "Reset Progress", icon: <Reset />, run: a.resetAll });
+  if (a.hasProgress && !a.allWatched)
+    watched.push({ id: "reset-all", label: a.isSeries ? "Reset Show Progress" : "Reset Progress", icon: <Reset />, run: a.resetAll });
 
   const keep: Choice[] = [
     {
@@ -157,7 +158,8 @@ function useLinkedChoices(target: Target): Choices {
   const out: Choice[] = [];
   if (imdb) {
     out.push({ id: "imdb", label: "Open on IMDb", icon: <ExternalGlyph />, run: () => void api.openExternal(imdb) });
-    if (item.type === "movie") out.push({ id: "letterboxd", label: "Open on Letterboxd", icon: <ExternalGlyph />, run: () => void api.openExternal(letterboxdUrl(item.id)) });
+    if (item.type === "movie")
+      out.push({ id: "letterboxd", label: "Open on Letterboxd", icon: <ExternalGlyph />, run: () => void api.openExternal(letterboxdUrl(item.id)) });
   }
 
   return {
