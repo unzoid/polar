@@ -162,3 +162,9 @@ export const isLocalFile = (url?: string) => !!url && !url.includes("://") && /^
 
 /** The stream to hand the player: the file on disk. */
 export const localStream = (d: Download): Stream => ({ url: d.file, title: d.quality });
+
+/** The file to play for `videoId` when it's downloaded and complete; a title's Play picks it before any add-on. */
+export function downloadedStream(downloads: Download[] | undefined, videoId: string): Stream | undefined {
+  const d = downloads?.find((x) => x.id === videoId && x.state === "done");
+  return d && localStream(d);
+}
