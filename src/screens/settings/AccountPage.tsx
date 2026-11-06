@@ -1,10 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 import { TextField } from "../../components/ui/TextField";
 import { Edit, Lock, Trash } from "../../components/icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAddons, useSettings } from "../../lib/net";
 import { Avatar } from "../../components/Avatar";
-import { removeSecretsPassphrase, secretsState, setSecretsPassphrase, sync, unlockSecrets, useAccount, useSettingsSyncProblem } from "../../lib/account";
-import { useSecretsNote } from "../../components/settings/secretsNote";
+import { dismissNotice, exposedNames, noticeDue, removeSecretsPassphrase, SECRET_KEYS, secretsState, setSecretsPassphrase, sync, unlockSecrets, useAccount, useSettingsSyncProblem } from "../../lib/account";
+import { takeWhereStored, useSecretsNote } from "../../components/settings/secretsNote";
+import { useSecretsPlain } from "../../components/settings/KeyWarning";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
@@ -14,7 +16,7 @@ import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AccountPage() {
   const account = useAccount();
-  const expand = useExpanded();
+  const expand = useExpanded(() => (takeWhereStored() ? "secrets" : null));
   const settingsProblem = useSettingsSyncProblem();
 
   if (account.status === "guest") {
@@ -33,6 +35,8 @@ export function AccountPage() {
 
   return (
     <>
+      {account.profile && <ExposedNotice profileId={account.profile.id} onPassphrase={() => openSecrets(expand("secrets"))} />}
+
       <Card footer="Your library, where you are in each title, playlists, settings, shortcuts, API keys and add-ons sync automatically. Volume and TV mode stay on this device.">
         <ActionRow title="Email" caption={account.user?.email} label="Sign Out" onClick={() => void account.signOut()} />
       </Card>
@@ -71,6 +75,54 @@ export function AccountPage() {
   );
 }
 
+/** Opens the "API keys and addons" row, where the passphrase is set. */
+function openSecrets(row: Expandable) {
+  if (!row.open) row.onToggle();
+  else document.querySelector('[data-setting="secrets"]')?.scrollIntoView({ block: "nearest" });
+}
+
+/**
+ * While a profile's keys or keyed add-on links sync without a passphrase (#195): said plainly at the
+ * top of the page, with the way to encrypt them. Dismissed, it stays away until another one is added.
+ */
+function ExposedNotice({ profileId, onPassphrase }: { profileId: string; onPassphrase: () => void }) {
+  const plain = useSecretsPlain();
+  const { data: settings } = useSettings();
+  const { data: addons } = useAddons();
+  const [, setDismissed] = useState(0);
+  if (!plain || !settings || !addons) return null;
+  const exposed = exposedNames(
+    Object.fromEntries(SECRET_KEYS.map((k) => [k, (settings as unknown as Record<string, unknown>)[k]])),
+    addons.map((a) => ({ id: a.manifest.id, url: a.manifestUrl })),
+  );
+  if (!noticeDue(profileId, exposed)) return null;
+  const keys = exposed.filter((n) => n.startsWith("key:")).length;
+  const links = exposed.length - keys;
+  const what = [keys && `${keys === 1 ? "an API key" : `${keys} API keys`}`, links && `${links === 1 ? "an add-on link" : `${links} add-on links`} with a key in it`]
+    .filter(Boolean)
+    .join(" and ");
+  const one = exposed.length === 1;
+  return (
+    <section className="settings-group">
+      <h2 className="settings-group-title">Keys Stored Unencrypted</h2>
+      <div className="settings-key-warning" role="status" data-kind="notice">
+        <p className="settings-expand-text">
+          This profile has {what}. {one ? "It syncs" : "They sync"} to your account unencrypted: anyone with access to the account server could read{" "}
+          {one ? "it" : "them"}, and use what {one ? "it opens" : "they open"}. Set a passphrase to encrypt {one ? "it" : "them"}.
+        </p>
+        <div className="settings-expand-form">
+          <Button variant="primary" onClick={onPassphrase}>
+            Set a Passphrase
+          </Button>
+          <Button variant="plain" onClick={() => (dismissNotice(profileId, exposed), setDismissed((n) => n + 1))}>
+            Dismiss
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /**
  * API keys and add-on links sync for every account (#89): as they are, readable by the server under
  * row-level security, or sealed with an optional passphrase (account/secrets.ts) that stays on each
@@ -83,6 +135,10 @@ function SecretsRow({ profileId, ...props }: Expandable & { profileId: string })
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const state = secretsState(profileId);
+  // Opened from a warning or the notice: brought into view.
+  useEffect(() => {
+    if (props.open) document.querySelector('[data-setting="secrets"]')?.scrollIntoView({ block: "nearest" });
+  }, [props.open]);
   const change = async (fn: () => void) => {
     fn();
     setPhrase("");
@@ -93,6 +149,7 @@ function SecretsRow({ profileId, ...props }: Expandable & { profileId: string })
   };
   return (
     <ExpandRow
+      setting="secrets"
       icon={Lock}
       title="API keys and addons"
       caption={state === "locked" ? "Encrypted with a passphrase this device doesn't have" : "Synced to your account"}
@@ -100,6 +157,7 @@ function SecretsRow({ profileId, ...props }: Expandable & { profileId: string })
       {...props}
     >
       <p className="settings-expand-text">{note}</p>
+      <WhereStored state={state} />
       {state === "locked" && (
         <FormRow
           look="expand"
@@ -161,6 +219,25 @@ function SecretsRow({ profileId, ...props }: Expandable & { profileId: string })
     </ExpandRow>
   );
 }
+
+/** What's stored where (#195), for the warnings' link: on the account server, and on this device. */
+function WhereStored({ state }: { state: "plain" | "sealed" | "locked" }) {
+  return (
+    <dl className="settings-where">
+      <dt>On the account server</dt>
+      <dd>
+        {state === "plain"
+          ? "Your API keys and add-on links as you typed them: protected by your sign-in, but readable by anyone with access to the server."
+          : "Your API keys and add-on links, encrypted with your passphrase. The server can't read them."}
+      </dd>
+      <dt>On this device</dt>
+      <dd>{DEVICE_STORE}</dd>
+    </dl>
+  );
+}
+
+const DEVICE_STORE =
+  "Your API keys and add-on links are in Polarity's data file (polarity.json, in the app's data folder), readable by programs running under your user account.";
 
 function DeleteAccountRow(props: Expandable) {
   const account = useAccount();

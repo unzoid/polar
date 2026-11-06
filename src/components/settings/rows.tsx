@@ -207,8 +207,11 @@ export function ExpandRow({
   value,
   open,
   onToggle,
+  setting,
   children,
 }: Expandable & {
+  /** The schema id (lib/settings/schema.ts) or another name the page finds the row by. */
+  setting?: string;
   icon?: IconT;
   title: string;
   caption?: ReactNode;
@@ -217,7 +220,7 @@ export function ExpandRow({
   children: ReactNode;
 }) {
   return (
-    <div className="settings-expand" data-open={open}>
+    <div className="settings-expand" data-open={open} data-setting={setting}>
       <button className="settings-row settings-row-button" aria-expanded={open} onClick={onToggle}>
         {Icon && <Icon className="settings-row-icon" size={20} strokeWidth={1.9} />}
         <RowText title={title} caption={caption} />
@@ -240,8 +243,8 @@ export function LinkRow({ icon: Icon, title, caption, onClick }: { icon: IconT; 
   );
 }
 
-/** One open row per card; clicking it again closes it. */
-export function useExpanded() {
-  const [open, setOpen] = useState<string | null>(null);
+/** One open row per card; clicking it again closes it. `initial` picks the row open at first. */
+export function useExpanded(initial: () => string | null = () => null) {
+  const [open, setOpen] = useState<string | null>(initial);
   return (id: string): Expandable => ({ open: open === id, onToggle: () => setOpen((o) => (o === id ? null : id)) });
 }

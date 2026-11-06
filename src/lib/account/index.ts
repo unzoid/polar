@@ -27,3 +27,5 @@ export * from "./sync";
 export * from "./settingsSync";
 export { SECRET_KEYS } from "./settingsDoc";
 export * from "./spacePush";
+export { linkHasKey } from "./keyedLink";
+export { dismissNotice, exposedNames, noticeDue, onFirstPlainSync } from "./secretsNotice";

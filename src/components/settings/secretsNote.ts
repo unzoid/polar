@@ -1,4 +1,5 @@
 import { secretsState, useAccount } from "../../lib/account";
+import { openSettings } from "../../lib/settings";
 
 /**
  * Where API keys and add-on links are entered and in Settings → Account: how they travel for a
@@ -15,4 +16,20 @@ export function useSecretsNote(): string | undefined {
     case "locked":
       return "Your account's API keys and add-ons are encrypted with a passphrase this device doesn't have yet. Type it in Settings → Account to use them here; until then, what you enter stays on this device.";
   }
+}
+
+/** Set by `showWhereStored`: Settings → Account opens with "API keys and addons" expanded. */
+let whereAsked = false;
+
+/** The warnings' "What's stored where": Settings → Account, at the row that says it. */
+export function showWhereStored() {
+  whereAsked = true;
+  openSettings("account");
+}
+
+/** Whether Settings → Account was opened to say where things are stored; asked once per opening. */
+export function takeWhereStored(): boolean {
+  const asked = whereAsked;
+  whereAsked = false;
+  return asked;
 }

@@ -41,6 +41,7 @@ import {
   type Lock,
 } from "./settingsDoc";
 import type { Secrets } from "./secrets";
+import { forgetNotices, noteFirstPlainSync, secretsExposed } from "./secretsNotice";
 
 interface Saved {
   /** The document as last agreed with the server (secrets in plain text: this device's own). */
@@ -169,6 +170,7 @@ const save = (space: string, s: Saved) => storeLocal(storageKey(space), JSON.str
 export const forgetSettings = (space: string) => {
   localStorage.removeItem(storageKey(space));
   localStorage.removeItem(passphraseKey(space));
+  forgetNotices(space);
 };
 
 /** True while a synced doc is being written locally, so it isn't pushed straight back. */
@@ -404,6 +406,8 @@ export async function syncSettings(space: string, backend: AccountBackend, isAct
     else if (!sameDoc(local, saved.doc) || lock.pending) next = local;
     else return;
 
+    // This device's keys are about to reach the account readable (#195): said once.
+    if (!saved && !seal && !next.unopened && secretsExposed(local.secrets)) noteFirstPlainSync(space);
     let missing = saved?.missing ?? [];
     if (theirs && !sameDoc(next, local)) missing = await apply(next);
     setLocked(space, !!next.unopened);

@@ -307,6 +307,41 @@
   font-size: var(--fs-sm);
   color: var(--danger);
 }
+/* Keys about to be stored readable on the account (#195): the warning under a key's form, and
+   Settings → Account's notice. */
+.settings-key-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+.settings-key-warning strong,
+.settings-keyed strong {
+  color: var(--text);
+}
+.settings-key-warning .settings-expand-form {
+  flex-wrap: wrap;
+}
+/* What's stored where: on the account server, on this device. */
+.settings-where {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.375rem 1rem;
+  max-width: 60ch;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.settings-where dt {
+  color: var(--text);
+}
+.settings-where dd {
+  margin: 0;
+  color: var(--text-2);
+}
 .settings-link {
   color: var(--text-2);
   text-decoration: underline;
@@ -1335,4 +1370,10 @@ span.settings-credit-name {
   width: auto;
   margin-top: 12px;
   user-select: none;
+}
+:root[data-form="phone"] .settings-where {
+  grid-template-columns: 1fr;
+}
+:root[data-form="phone"] .settings-where dd + dt {
+  margin-top: 0.375rem;
 }

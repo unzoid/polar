@@ -60,8 +60,15 @@ describe("keys and add-on links on every device (#89)", () => {
   const b = device({ omdbKey: "key-b" });
 
   test("with no passphrase they travel as they are, and a new device keeps its own key too", async () => {
+    const { onFirstPlainSync } = await import("../src/lib/account/secretsNotice");
+    const told: string[] = [];
+    const stop = onFirstPlainSync((space) => told.push(space));
     on(a);
     await round();
+    // #195: each device says once that its keys went up readable.
+    expect(told).toEqual([P]);
+    await round();
+    expect(told).toEqual([P]);
     expect(stored!.data.secrets).toEqual({ keys: { tmdbKey: "key-a" }, addons: ["https://addon.example.com/manifest.json"] });
     on(b);
     await round();
@@ -69,6 +76,8 @@ describe("keys and add-on links on every device (#89)", () => {
     expect(b.settings.omdbKey).toBe("key-b");
     expect(b.addons).toEqual(["https://addon.example.com/manifest.json"]);
     expect(s.secretsState(P)).toBe("plain");
+    expect(told).toEqual([P, P]);
+    stop();
   });
 
   test("a passphrase set on one device seals them; the other leaves the seal alone and asks", async () => {

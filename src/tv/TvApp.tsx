@@ -34,6 +34,7 @@ import { TvPartyMenu } from "./TvPartyMenu";
 import { ErrorBoundary } from "../components/ui/ErrorBoundary";
 import { StoreProblemToast } from "../components/StoreProblemToast";
 import { AccountFullToast } from "../components/AccountFullToast";
+import { SecretsSyncToast } from "../components/SecretsSyncToast";
 
 function TvScreen({ route }: { route: Route }) {
   switch (route.name) {
@@ -265,6 +266,7 @@ export function TvApp() {
         <ControllerToast tv />
         <StoreProblemToast tv />
         <AccountFullToast tv />
+        <SecretsSyncToast tv />
       </main>
       <PlayerLayer player={player} leaving={leaving} />
     </div>
