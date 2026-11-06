@@ -130,6 +130,18 @@ now) and sets `video-zoom` when the next frame's pts reaches P; readings already
 ahead of the screen, so the change lands on the cut. To check on the desktop build: frame-exact
 landing with `--video-sync=display-resample` and without.
 
+**In code** (`crates/player/src/lookahead.rs`): `Schedule` takes the lookahead's keyframe
+readings in pts order (`keyframe`). A keyframe's bars on an axis count when they are even, at
+least 1% a side and leave 40% of the frame; black frames and uneven readings don't count. New
+bars are scheduled on the keyframe they first show on, at once when crisp on both sides, or when
+a later keyframe reads them again. Per displayed frame the engine calls `take(pts)` and hands a
+due change to `CropTracker::cut` before that frame's reading, so `on_cut` is true and the zoom
+jumps. A change believed only after its frame was shown is dropped, never applied late; an axis
+whose bars the frame before already had is left alone (they changed between keyframes); picture
+in the new bars still un-crops on the next reading. `restart` after a seek; `wants_more` keeps
+the reading within `AHEAD_SECS` (60 s, inside mpv's 90 s cache). The engine side (reading
+keyframes from the dump or by range requests) and the measurements are still to do.
+
 ## 5. Animated bars: follow the picture
 
 Some films move their own bars: the bars open or close over a few seconds within a shot. Hysteresis there would make the crop lag the image. The tracker enters

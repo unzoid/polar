@@ -254,6 +254,8 @@ pub struct CropTracker {
     /// Whether the newest frame changed the bars on the frame the picture's
     /// own bars changed (or by following animated bars).
     on_cut: bool,
+    /// A change from the lookahead was applied on the frame about to be fed.
+    cut: bool,
 }
 
 impl CropTracker {
@@ -293,7 +295,8 @@ impl CropTracker {
         if load != self.load || full != self.full {
             *self = CropTracker { load, full, ..Default::default() };
         }
-        self.on_cut = false;
+        let cut = std::mem::take(&mut self.cut);
+        self.on_cut = cut;
         let (fw, fh) = full;
         // An all-black frame comes back as an empty or inside-out area.
         let Some(r) =
@@ -333,14 +336,51 @@ impl CropTracker {
         }
         let previous = (self.recent.len() >= 2).then(|| self.recent[self.recent.len() - 2]);
         let newest = self.recent.back().map_or([0; 4], |r| *r);
-        self.on_cut = (0..2).any(|axis| next[axis] != shown[axis])
-            && (0..2).filter(|&axis| next[axis] != shown[axis]).all(|axis| {
-                self.follow[axis]
-                    || previous.is_none_or(|p| {
-                        (0..2).any(|side| (p[2 * axis + side] - newest[2 * axis + side]).abs() > EDGE_SLACK)
-                    })
-            });
+        self.on_cut = cut
+            || (0..2).any(|axis| next[axis] != shown[axis])
+                && (0..2).filter(|&axis| next[axis] != shown[axis]).all(|axis| {
+                    self.follow[axis]
+                        || previous.is_none_or(|p| {
+                            (0..2).any(|side| (p[2 * axis + side] - newest[2 * axis + side]).abs() > EDGE_SLACK)
+                        })
+                });
         self.shown = (next[0], next[1]);
+    }
+
+    /// Apply a change the lookahead scheduled on the frame about to be fed
+    /// (docs/autocrop.md §4, [`Schedule`](crate::lookahead::Schedule)), before
+    /// that frame's reading: the zoom jumps to it, landing on the cut. An
+    /// axis whose bars the frame before already had is left alone, since
+    /// they changed between keyframes and not here; so is a change that
+    /// would leave less than 40% of the frame. Picture showing in the new
+    /// bars un-crops on the next reading, as always.
+    pub fn cut(&mut self, load: u64, full: (i64, i64), bars: [Option<i64>; 2]) {
+        if load != self.load || full != self.full {
+            return;
+        }
+        let shown = [self.shown.0, self.shown.1];
+        let before = self.recent.back();
+        let mut next = shown;
+        for axis in 0..2 {
+            let Some(b) = bars[axis].filter(|b| (b - shown[axis]).abs() > EDGE_SLACK) else { continue };
+            if before.is_some_and(|p| (p[2 * axis].min(p[2 * axis + 1]) - b).abs() <= EDGE_SLACK) {
+                continue;
+            }
+            next[axis] = b;
+        }
+        let (fw, fh) = full;
+        if next == shown || (fw - 2 * next[1]) * (fh - 2 * next[0]) * 10 < fw * fh * 4 {
+            return;
+        }
+        for (known, b) in self.known.iter_mut().zip(next) {
+            if b > 0 && !known.iter().any(|k| (k - b).abs() <= EDGE_SLACK) {
+                known.push(b);
+            }
+        }
+        // The frames before the cut say nothing about the shot after it.
+        (self.recent, self.crisp, self.crisp_run, self.follow) = (VecDeque::new(), [false; 2], [0; 2], [false; 2]);
+        self.shown = (next[0], next[1]);
+        self.cut = true;
     }
 
     /// Whether the newest frame changed the bars on the very frame the

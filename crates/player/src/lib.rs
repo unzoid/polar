@@ -6,6 +6,7 @@
 //!   * [`tune`]: device-level picture and sound options as mpv settings.
 //!   * [`crop`]: which black bars to remove and the zoom that removes them.
 //!   * [`bars`]: our own per-frame bar detector, for builds without `cropdetect`.
+//!   * [`lookahead`]: bar changes read ahead of the playhead, due on their cut.
 //!   * [`png`]: the uncompressed PNG screenshots autocrop's pre-roll probe reads.
 //!   * [`motion`]: eased crop moves (ease-out, spring, ease-in-out).
 //!   * [`headers`]: which of an add-on's request headers playback sends.
@@ -15,6 +16,7 @@ pub mod allow;
 pub mod bars;
 pub mod crop;
 pub mod headers;
+pub mod lookahead;
 pub mod motion;
 pub mod passthrough;
 pub mod png;
