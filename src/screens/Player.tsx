@@ -51,6 +51,7 @@ import { EpisodeRail } from "../components/player/EpisodeRail";
 import { Dropdown } from "../components/Dropdown";
 import { SkipTransport } from "../components/player/SkipTransport";
 import { useTracks } from "../components/player/useTracks";
+import { usePinch } from "../components/player/usePinch";
 import { pickedSpeed, pickedTrack, speedLabel, speedMenu, tracksMenu } from "../components/player/nativeMenus";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -598,6 +599,9 @@ export function Player({
     if (engine === "mpv" && !isDesktop) void mpv.set("panscan", fill ? 1 : 0);
   }, [engine, mpv, fill]);
   const toggleFill = useCallback(() => setPrefs({ videoFill: !getPrefs().videoFill }), []);
+  const pinch = usePinch((direction) => {
+    if (!isDesktop) setPrefs({ videoFill: direction === "out" });
+  });
 
   const toggleFullscreen = useCallback(async () => {
     if (tv) return;
@@ -891,7 +895,12 @@ export function Player({
         // Respond immediately; double-click adds fullscreen on top. Settings
         // can make a click only show/hide the controls instead; a tap always
         // does, as on every phone player (Play/Pause is in the controls).
-        onPointerDown={() => (chromeAtPress.current = chrome.visible)}
+        // A pinch out fills the screen and a pinch in fits the picture, as phone players do (#176).
+        {...pinch}
+        onPointerDown={(e) => {
+          chromeAtPress.current = chrome.visible;
+          pinch.onPointerDown(e);
+        }}
         onClick={() => {
           if (!touch && settings?.clickAction !== "controls") return togglePlay();
           if (chromeAtPress.current) hideChrome();

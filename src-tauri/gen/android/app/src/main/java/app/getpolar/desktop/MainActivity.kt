@@ -51,6 +51,11 @@ class MainActivity : TauriActivity() {
 
   // Runs before the first page loads, so the interface can read it while it starts (src/lib/platform/device.ts).
   override fun onWebViewCreate(webView: WebView) {
+    // The interface never zooms (#176): a pinch in the player is Fit / Fill, elsewhere nothing. Text size
+    // (the web view's textZoom) is separate and still follows the system setting.
+    webView.settings.setSupportZoom(false)
+    webView.settings.builtInZoomControls = false
+    webView.settings.displayZoomControls = false
     webView.addJavascriptInterface(PolarDevice(this, isTelevision()), "polarDevice")
   }
 
