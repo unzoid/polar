@@ -11,16 +11,22 @@ test("home shows the hero, Continue Watching and rows", async ({ app }) => {
 test("the featured carousel's active dot fills with a round end (#33)", async ({ app }) => {
   const fill = app.locator(".hero-dot-fill");
   await expect(fill).toHaveCount(1);
-  // Halfway through: a scaled fill would squash its rounded end flat, a rounded clip keeps it.
+  // Halfway through: a scaled fill would squash its rounded end flat; a whole pill slid halfway in under a
+  // rounded clip keeps it. Sliding is a transform, which the compositor runs (no repaint per frame, #134).
   const style = await fill.evaluate((el) => {
     const [a] = el.getAnimations();
     a.pause();
     a.currentTime = Number(a.effect!.getComputedTiming().duration) / 2;
     const s = getComputedStyle(el);
-    return { transform: s.transform, clipPath: s.clipPath };
+    const clip = getComputedStyle(el.parentElement!);
+    return { transform: s.transform, width: el.getBoundingClientRect().width, clipPath: s.clipPath, overflow: clip.overflow, radius: clip.borderRadius };
   });
-  expect(style.transform).toBe("none");
-  expect(style.clipPath).toMatch(/^inset\(0px 50% 0px 0px round/);
+  const m = style.transform.match(/^matrix\(1, 0, 0, 1, (-?[\d.]+), 0\)$/);
+  expect(m, style.transform).not.toBeNull();
+  expect(Number(m![1])).toBeCloseTo(-style.width / 2, 0);
+  expect(style.clipPath).toBe("none");
+  expect(style.overflow).toBe("hidden");
+  expect(style.radius).not.toBe("0px");
 });
 
 test("each section opens", async ({ app }) => {

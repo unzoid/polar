@@ -537,6 +537,27 @@ same network:
 - Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
   untested. Subtitles inside the file aren't sent.
 
+## Scrolling long pages (#134)
+
+Measured here in headless Chromium without a GPU (the fake backend, a production build and the dev server):
+on Home, sitting still used the main thread about two thirds of the time (loading shelves' shimmer out of
+view and the carousel dot's clip-path redrawn every frame) and now about none; scrolling the loaded page
+took a median 25-30 ms of main-thread work per frame and now about 10 ms; Home had 250-400 compositor
+layers (every shelf's edge blurs, shown or not) and now a few dozen. `e2e/performance.spec.ts` keeps those
+three in check. Not measurable here: the GPU side (the compositor runs in software headless) and WebKitGTK.
+To check on Windows (WebView2), and on Linux and macOS:
+- Home, Series, Movies, Anime and the Settings window scroll smoothly with a mouse wheel and a trackpad,
+  quickly and slowly, with the pointer over the cards; Task Manager shows Polarity's CPU near idle while
+  Home sits still.
+- A shelf's edges still blur and show the chevron while the pointer is over the shelf; the carousel's dot
+  still fills with a round end; the colours behind the carousel still cross-fade.
+- Windows: shelves far down Home appear without a blank flash when scrolled to quickly, and Back from a
+  shelf's browse page lands where it was.
+- If it still stutters on Windows: start Polarity with the environment variable
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, open `edge://inspect` in Edge,
+  inspect the app and record a Performance trace while scrolling; it names what's left. Still known: a shelf's first appearance costs a
+  long frame (its cards styled and drawn for the first time).
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The

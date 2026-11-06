@@ -44,6 +44,9 @@ import { installGamepad } from "./tv/gamepad";
 // Font rendering differs by OS; base.css tunes text weight for Windows.
 // "mac" also makes room for the traffic lights (shell.css).
 document.documentElement.dataset.os = os === "windows" ? "windows" : os === "macos" ? "mac" : "other";
+// Chromium's web views (WebView2, Android's) skip drawing shelves out of view (cards.css, #134); WebKit's
+// scrollIntoView doesn't reach into them, so it keeps drawing them. Only Chromium has userAgentData.
+if ("userAgentData" in navigator) document.documentElement.dataset.engine = "chromium";
 // Phone, tablet or desktop, and touch: the shell and target sizes follow (lib/platform/formFactor.ts).
 mirrorFormFactor(document.documentElement);
 // Phones and tablets: the on-screen keyboard never covers the field it types into.

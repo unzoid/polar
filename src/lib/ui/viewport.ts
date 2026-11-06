@@ -11,6 +11,24 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 const scrollRoot = (el: Element) => el.closest(".scroll");
 
 /**
+ * While `active`, marks the element `data-offscreen` whenever none of it is in view, without a re-render, so CSS
+ * can pause what nobody sees: a loading shelf's shimmer repaints on every frame wherever it is, and a long page
+ * holds dozens of them (#134).
+ */
+export function useOffscreenMark(ref: RefObject<Element | null>, active: boolean) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!active || !el) return;
+    const io = new IntersectionObserver(([e]) => el.toggleAttribute("data-offscreen", !e.isIntersecting), { root: scrollRoot(el) });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      el.removeAttribute("data-offscreen");
+    };
+  }, [ref, active]);
+}
+
+/**
  * Turns true once the element comes within `margin` px below the visible part of its page, and stays true.
  * `eager` starts it true (the first shelves on a page).
  */

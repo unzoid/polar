@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "./icons";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { EdgeBlur } from "./EdgeBlur";
+import { useOffscreenMark } from "../lib/ui";
 
 /**
  * A horizontal shelf. Native scrolling (wheel, trackpad momentum, scroll-snap)
@@ -13,6 +14,7 @@ export function Row({
   action,
   shape = "poster",
   order,
+  loading = false,
   children,
 }: {
   title?: string;
@@ -22,9 +24,13 @@ export function Row({
   shape?: "poster" | "landscape" | "episode";
   /** The items' ids in order. When it changes, the shelf goes back to its start, or keeps a focused card in view. */
   order?: string;
+  /** Skeletons stand in for the cards: their shimmer pauses while the shelf is out of view. */
+  loading?: boolean;
   children: ReactNode;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
+  const section = useRef<HTMLElement>(null);
+  useOffscreenMark(section, loading);
   const [edges, setEdges] = useState({ start: true, end: false });
   // Until someone scrolls it, a shelf shows its first title. Titles shown
   // higher up are taken out of it as they load; without this, scroll-snap
@@ -83,7 +89,7 @@ export function Row({
   };
 
   return (
-    <section className="row" data-shape={shape}>
+    <section className="row" data-shape={shape} ref={section}>
       {(title || action) && (
         <header className="row-header">
           {title && (
