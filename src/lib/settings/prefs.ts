@@ -63,11 +63,6 @@ export interface Prefs {
   /** The TV mode button in the navbar (Settings → Controls & TV). */
   showTvButton: boolean;
   /**
-   * Sync every episode's position, not only each title's newest. Off: the account keeps one entry per
-   * title. Only worth turning on once the server runs supabase/optional/per_episode_progress.sql.
-   */
-  syncEpisodeHistory: boolean;
-  /**
    * Sync API keys and add-on links sealed with a passphrase typed on each device (account/secrets.ts).
    * Off: they stay on this device and a new device asks for them again.
    */
@@ -130,7 +125,6 @@ const DEFAULTS: Prefs = {
   searchSuggestions: true,
   autoDownloadUpdates: true,
   showTvButton: true,
-  syncEpisodeHistory: false,
   syncSecrets: false,
   matureContent: "show",
   animeEnabled: true,
