@@ -234,6 +234,18 @@ Alerts and the share sheet (`ios/dialogs.m`, `lib/platform/nativeDialogs.ts`), t
 11. In a watch party, Share Invite: the share sheet with the invite text (Copy among its actions); on an
     iPad it points at the button.
 
+A title's options (`components/CardMenu.tsx`, `lib/platform/longPress.ts`): a finger held still on a card for
+half a second sends the contextmenu a right-click would (WebKit on iOS sends none), and the menu opens as
+iOS's action sheet. The touch handling ran only in unit tests:
+12. Hold a card on Home, in Library and in Continue Watching: after about half a second the sheet opens with
+    the title (and the episode, for Continue Watching) and the same choices as the desktop's right-click
+    menu; lifting the finger doesn't also open the title. On an iPad it points at where the finger was.
+13. Scrolling a row or the page from a card, and tapping a card, open no sheet; a held finger on anything
+    that isn't a title (a button, the top bar) does what it did before.
+14. Add to Playlist (or Playlists): a second sheet with Add to / Remove from each playlist and New Playlist;
+    the choice shows in Library. Remove from Library and Remove from Continue Watching are red.
+15. No text selection, magnifier or link preview appears under the finger.
+
 ## macOS release: sources of the bundled libraries
 
 `scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself
