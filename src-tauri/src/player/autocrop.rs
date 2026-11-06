@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use polar_player::bars::{levels_for, Levels, Measured};
-use polar_player::crop::{cropdetect_for, cropdetect_reading, zoom_for, CropTracker, CropZoom, Rect, CROPDETECT};
+use polar_player::crop::{cropdetect_for, cropdetect_reading, zoom_for, CropTracker, CropZoom, Rect, Why, CROPDETECT};
 use polar_player::motion::Easing;
 use polar_player::sampler::{Feed, Sampler};
 use serde_json::{json, Value};
@@ -183,9 +183,11 @@ impl Cost {
 /// switch the tracker believes on the frame it happens (readings run a
 /// frame ahead of the screen, as mpv filters a frame before showing it, so
 /// it lands on the cut) and for bars the film animates, eased (ease-out)
-/// for one believed a few frames late. A change the lookahead
-/// ([`preroll::ahead`](super::preroll::ahead)) scheduled goes to the tracker
-/// as a cut on the frame it's due, ahead of that frame's reading. While paused
+/// for one believed a few frames late or read from a screenshot (which
+/// comes late). A change the lookahead ([`preroll::ahead`](super::preroll::ahead))
+/// scheduled goes to the tracker as a cut on the frame it's due, or on the
+/// first frame before it whose cropdetect reading shows it, ahead of that
+/// frame's reading. Each change is logged with the rule that made it. While paused
 /// no frames come and nothing changes, except finishing a move and keeping
 /// the zoom right for the window.
 pub(super) async fn autocrop(app: AppHandle, run: u64) {
@@ -296,15 +298,25 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
         }
         if let Some(t) = frame {
             // The reading is of the next frame (mpv filters one ahead): so is the change.
-            let due = mpv.ahead.locked().as_mut().and_then(|s| s.take(load, t + g.frame));
-            if let Some(change) = due {
-                tracker.cut(load, g.size, change.bars);
+            let live = reading.filter(|_| tune.cropdetect());
+            let next = t + g.frame;
+            let due = mpv.ahead.locked().as_mut().and_then(|s| {
+                let due = s.take(load, next).map(|c| (c, Why::Keyframe));
+                due.or(s.found(load, next, live).map(|c| (c, Why::Window)))
+            });
+            if let Some((change, why)) = due {
+                tracker.cut(load, g.size, change.bars, why);
             }
-            match sampler.frame(reading.filter(|_| tune.cropdetect()), tracker.following()) {
+            match sampler.frame(live, tracker.following()) {
                 Feed::Cropdetect(r) => tracker.update(load, g.size, g.display, r),
-                Feed::Measured(m) => tracker.update_measured(load, g.size, g.display, m),
+                // A screenshot's, of a frame already shown: a change it brings is eased.
+                Feed::Measured(m) => tracker.update_late(load, g.size, g.display, m),
                 // No reading for this frame: a lookahead cut still lands on it.
                 Feed::Wait => tracker.update(load, g.size, g.display, None),
+            }
+            if let Some(why) = tracker.changed() {
+                let (v, h) = tracker.bars(load);
+                tracing::info!("autocrop: bars {v}/{h} px from {next:.3} s, {}", why.describe());
             }
             if sampler.wants_shot() && in_flight.is_none_or(|t| t.elapsed() >= SHOT_GIVE_UP) {
                 in_flight = Some(Instant::now());

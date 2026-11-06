@@ -45,6 +45,7 @@ export const keys = {
   trailer: (imdbId: string | undefined) => ["trailer", imdbId] as const,
   personPhoto: (name: string) => ["person-photo", name] as const,
   mpv: ["mpv"] as const,
+  mpvLookahead: ["mpv", "lookahead"] as const,
   discord: ["discord"] as const,
   storeProblem: ["store-problem"] as const,
   secretsPlace: ["secrets-place"] as const,

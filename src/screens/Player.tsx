@@ -76,7 +76,20 @@ import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
 import { fileStream, isFileId, recentPosition } from "../lib/localFiles";
-import { getParty, isLinkId, linkLabel, linkMedia, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
+import {
+  closePartySurface,
+  getParty,
+  isLinkId,
+  linkLabel,
+  linkMedia,
+  openPartySurface,
+  partyAvailable,
+  partyPosition,
+  startParty,
+  streamHint,
+  useParty,
+  usePartySurface,
+} from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { LinkForm, PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
@@ -197,6 +210,18 @@ export function Player({
   const [ended, setEnded] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
   const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | "party" | null>(null);
+  // The Watch Party panel is a party surface (lib/party/surface.ts, #247): another one coming up closes it.
+  const partySurface = usePartySurface();
+  useEffect(() => {
+    if (options !== "party") return;
+    openPartySurface("panel");
+    return () => closePartySurface("panel");
+  }, [options]);
+  const lastSurface = useRef(partySurface);
+  useEffect(() => {
+    if (lastSurface.current === "panel" && partySurface !== "panel") setOptions((o) => (o === "party" ? null : o));
+    lastSurface.current = partySurface;
+  }, [partySurface]);
   // iOS's own menu is up (Speed, Subtitles & Audio): the controls stay while it is.
   const [nativeMenu, setNativeMenu] = useState(false);
   const updateSettings = useUpdateSettings();
@@ -1208,7 +1233,8 @@ export function Player({
                     onSelect: () => {},
                     content: (
                       <div className="party-pane-stack">
-                        <PartyInvite party={party} leave={false} />
+                        {/* Focus comes here when the party starts: what it replaces is gone (#247). */}
+                        <PartyInvite party={party} leave={false} autoFocus />
                         <PartyActions party={party} onGo={() => setOptions(null)} />
                       </div>
                     ),

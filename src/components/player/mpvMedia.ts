@@ -2,6 +2,7 @@ import { call, on } from "../../lib/platform";
 import { mpvVolume, type StartStage, type StepTone } from "../../lib/playback";
 import { listenProbe, nextProbeId, probeStep } from "./useStartLog";
 import { errorCode, errorMessage, warnFailed } from "../../lib/errors";
+import { playingTrack } from "./trackChoice";
 
 /** The slice of HTMLVideoElement the player, scrubber and track UI rely on. */
 export interface MediaLike extends EventTarget {
@@ -33,6 +34,8 @@ export interface MpvTrack {
   external?: boolean;
   "external-filename"?: string;
   selected?: boolean;
+  /** For a selected subtitle: 0 = the main one, 1 = the secondary one. */
+  "main-selection"?: number;
   "demux-channel-count"?: number;
 }
 
@@ -45,8 +48,10 @@ export interface StepDetail {
   key?: string;
 }
 
-/** How long time reports are ignored after a seek is sent, at most, if mpv never says it started. */
+/** How long time reports away from a seek's target are ignored, at most, if mpv never reaches it. */
 const SEEK_STALE_MS = 1000;
+/** A time report this close to the target (seconds) is the seek having landed. */
+const SEEK_LANDED_S = 1;
 
 /**
  * An mpv-backed stand-in for an HTMLVideoElement.
@@ -80,22 +85,19 @@ export class MpvMedia extends EventTarget implements MediaLike {
   /** mpv is running (the first load went through); options set before that wait in `early`. */
   private running = false;
   private early = new Map<string, unknown>();
-  /** A seek mpv hasn't started yet: time reports from before it are stale. */
-  private seekPending = false;
-  private seekStarted = false;
-
   /**
-   * Seek to the exact frame instead of the keyframe before it. Off, seeks are
-   * instant but can land seconds early; a watch party turns it on, or every
-   * catch-up seek lands short, looks like drift, and seeks again.
+   * The latest seek's target while mpv hasn't reported reaching it: time reports
+   * from before it (the old position, or an earlier seek's landing) are stale.
    */
-  exactSeeks = false;
+  private seekTarget: number | null = null;
+  private seekAt = 0;
 
   tracks: MpvTrack[] = [];
   /** Container chapters, when the file has any. */
   chapters: MpvChapter[] = [];
-  aid: number | "no" | null = null;
-  sid: number | "no" | null = null;
+  /** mpv's `aid`/`sid`: "auto" while mpv picks the track itself, so use `playing()` for what plays. */
+  aid: number | "no" | "auto" | null = null;
+  sid: number | "no" | "auto" | null = null;
   /** `playerExited`: mpv itself went away (crashed, or its window was closed), not the source failing. */
   error: { code: number; message: string; playerExited?: boolean } | null = null;
 
@@ -133,7 +135,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
   load(url: string, start?: number, headers: Record<string, string> | null = null) {
     this.loaded = false;
     this.isEnded = false;
-    this.seekPending = this.seekStarted = false;
+    this.seekTarget = null;
     this.error = null;
     this.time = start ?? 0;
     this.stamp = performance.now();
@@ -185,6 +187,11 @@ export class MpvMedia extends EventTarget implements MediaLike {
 
   // --- HTMLVideoElement surface -------------------------------------------
 
+  /** The audio or main subtitle track mpv is playing now, if any. */
+  playing(type: "audio" | "sub") {
+    return playingTrack(this.tracks, type, type === "audio" ? this.aid : this.sid);
+  }
+
   get currentTime() {
     if (this.isPaused || this.buffering || this.isEnded) return this.time;
     const t = this.time + ((performance.now() - this.stamp) / 1000) * this.rate;
@@ -193,10 +200,11 @@ export class MpvMedia extends EventTarget implements MediaLike {
   set currentTime(t: number) {
     this.time = t;
     this.stamp = performance.now();
-    this.seekPending = true;
-    this.seekStarted = false;
-    void this.command("seek", t, this.exactSeeks ? "absolute+exact" : "absolute+keyframes").catch(() => {
-      this.seekPending = false;
+    this.seekTarget = t;
+    this.seekAt = this.stamp;
+    // Exact: a keyframe seek lands seconds off the asked place, so a skip of 10s isn't one.
+    void this.command("seek", t, "absolute+exact").catch(() => {
+      if (this.seekTarget === t) this.seekTarget = null;
     });
     this.emit("seeking"); // as a <video> does when its currentTime is set
   }
@@ -276,9 +284,13 @@ export class MpvMedia extends EventTarget implements MediaLike {
   private onProperty(name: string, data: unknown) {
     switch (name) {
       case "time-pos":
-        // Still the old position, reported before mpv picked the seek up: keep the target.
-        if (this.seekPending && !this.seekStarted && performance.now() - this.stamp < SEEK_STALE_MS) break;
         if (typeof data === "number") {
+          // Still the old position, or where an earlier seek landed (skip forward, then straight
+          // back): keep the target until mpv reports it, or gives up on it (a seek past the end).
+          if (this.seekTarget != null) {
+            if (Math.abs(data - this.seekTarget) > SEEK_LANDED_S && performance.now() - this.seekAt < SEEK_STALE_MS) break;
+            this.seekTarget = null;
+          }
           this.time = data;
           this.stamp = performance.now();
           this.emit("timeupdate");
@@ -307,13 +319,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
         this.emit(this.buffering ? "waiting" : "playing");
         break;
       case "seeking":
-        if (data === true) {
-          if (this.seekPending) this.seekStarted = true;
-          this.emit("waiting");
-        } else {
-          if (this.seekStarted) this.seekPending = this.seekStarted = false;
-          if (!this.buffering) this.emit("playing");
-        }
+        if (data === true) this.emit("waiting");
+        else if (!this.buffering) this.emit("playing");
         break;
       case "eof-reached":
         if (data === true && this.loaded) {
@@ -344,7 +351,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
         break;
       case "aid":
       case "sid":
-        this[name] = typeof data === "number" ? data : data === false || data === "no" ? "no" : null;
+        this[name] = typeof data === "number" ? data : data === false || data === "no" ? "no" : data === "auto" ? "auto" : null;
         this.emit("tracks");
         break;
     }
