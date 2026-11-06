@@ -9,8 +9,8 @@ Report it privately, never in a public issue, pull request or discussion:
 
 - **GitHub's private vulnerability reporting** (the repository's Security tab → "Report a vulnerability"),
   once the maintainers have turned it on.
-- Until then, open a public issue that says only that you have a security report and asks for a private way
-  to send it. Don't include any details in it.
+- Until then, open an issue with the **Security vulnerability** form, which asks only for a private way to
+  send the report. Don't include any details in it.
 
 Please include what is affected, how to reproduce it, and what an attacker could do with it. You'll get an
 answer as soon as the maintainers can, and credit in the fix if you want it.

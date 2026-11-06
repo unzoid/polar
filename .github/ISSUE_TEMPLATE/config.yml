@@ -1,1 +1,5 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Security policy
+    url: https://github.com/unzoid/polarity/blob/master/SECURITY.md
+    about: What may be tested and how to report a vulnerability privately. Read it before reporting one.
