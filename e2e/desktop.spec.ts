@@ -136,21 +136,15 @@ test("a downloaded episode offers Show in Folder and Delete as buttons, and Play
   expect(r!.x + r!.width).toBeLessThanOrEqual(d!.x);
   expect(d!.x + d!.width).toBeLessThanOrEqual(s!.x);
 
-  // Headless WebKit paints this page's glass buttons (backdrop-filter) in software, at about a frame a
-  // second or none, so Playwright's wait for two still frames can run out; nothing here moves, and each
-  // button is checked visible first.
-  const still = { force: true };
-  await ep.locator(".episode-card-main").click(still);
+  await ep.locator(".episode-card-main").click();
   await expect(app.locator(".player video")).toHaveAttribute("src", /\/downloads\/.+\.mkv$/);
   await app.keyboard.press("Escape");
   await expect(app.locator(".player")).toHaveCount(0);
 
   // Delete asks for a second click.
-  await expect(del).toBeVisible();
-  await del.click(still);
+  await del.click();
   const armed = ep.getByRole("button", { name: "Click again to delete the downloaded episode" });
-  await expect(armed).toBeVisible();
-  await armed.click(still);
+  await armed.click();
   await expect(ep.getByRole("button", { name: "Download Episode" })).toBeVisible();
 });
 
