@@ -1,6 +1,6 @@
 import { useCardIntent } from "../lib/ui";
 import { prefetchMeta, preloadImage } from "../lib/net";
-import { prefetchTitlePage } from "../lib/anime";
+import { prefetchTitlePage, useEntryShown } from "../lib/anime";
 import { useRouter } from "../lib/router";
 import type { MetaPreview, Progress } from "../lib/types";
 import { cardMenu } from "./CardMenu";
@@ -18,15 +18,19 @@ export function useIntent(item: MetaPreview) {
   }, INTENT_DELAY);
 }
 
-function useOpen(item: MetaPreview) {
+function useOpen(item: MetaPreview, id = item.id) {
   const { navigate } = useRouter();
-  return () => navigate({ name: "detail", type: item.type, id: item.id, preview: item });
+  return () => navigate({ name: "detail", type: item.type, id, preview: id === item.id ? item : undefined });
 }
 
-/** Portrait 2:3 poster — used in grids (Movies, Series, Search, Library). A poster that doesn't load leaves the name. */
-export function PosterCard({ item, progress, entry }: { item: MetaPreview; progress?: number; entry?: Progress }) {
-  const open = useOpen(item);
-  const intent = useIntent(item);
+/**
+ * Portrait 2:3 poster — used in grids (Movies, Series, Search, Library). A poster that doesn't load leaves the name.
+ * `watching`: the episode being watched (`entry`'s by default); with seasons as separate shows, an anime shows its entry (#22).
+ */
+export function PosterCard({ item: stored, progress, entry, watching }: { item: MetaPreview; progress?: number; entry?: Progress; watching?: string }) {
+  const { item, opens } = useEntryShown(stored, watching ?? entry?.videoId);
+  const open = useOpen(item, opens);
+  const intent = useIntent(opens === item.id ? item : { ...item, id: opens });
   return (
     <Card
       shape="poster"
@@ -37,7 +41,7 @@ export function PosterCard({ item, progress, entry }: { item: MetaPreview; progr
       trailing={<CardRating rating={item.imdbRating} />}
       onClick={open}
       {...intent}
-      {...cardMenu(item, entry)}
+      {...cardMenu(stored, entry)}
     >
       {progress != null && <ProgressBar fraction={progress} />}
       <CardRating rating={item.imdbRating} placement="poster" />

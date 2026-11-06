@@ -139,6 +139,23 @@ handful of integers.
    episode), called from `Indexer::meta` for TMDB series. Progress stored earlier under
    TMDB numbers is not moved (docs/unverified.md).
 
+## Seasons as separate shows (#22)
+
+Settings → Anime → Seasons as separate shows changes what is shown, not what is stored. Lists
+(search, shelves, browse, TV rails) show every AniList entry as its own card instead of one per
+franchise (`cardsShown` in `src/lib/anime/franchise.ts`), and an entry's page has only its own
+episodes, with its prequel and sequel among the related titles. The library, progress, history and
+links keep one item per canonical id, so switching the setting either way moves nothing and sync
+is unchanged.
+
+A stored title's card (Continue Watching, Library, history, in both modes) shows the entry the
+episode being watched belongs to: its name and poster, the episode's number within it, and its page
+when opened. Which entry an episode belongs to is what the anime page (or a TV card being opened)
+worked out when it lined that entry's episodes up with the title's videos; it is kept on the device
+only (`src/lib/anime/entries.ts`, localStorage, newest 300 titles). An entry never lined up on this
+device leaves its title's card as stored. In TV mode an entry opens its title's page with only that
+entry's episodes, numbered as in the entry.
+
 ## What stays unsolved
 
 - Two `tt` shows that really are one show on IMDb's side (duplicates on IMDb) stay two.

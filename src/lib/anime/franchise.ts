@@ -1,6 +1,7 @@
 /**
  * One card per franchise in every anime list (test report 1, item 11): search, shelves, genres,
- * browse and TV rails. Pure; type-only imports.
+ * browse and TV rails; or, with Settings → Anime → Seasons as separate shows (#22), every entry
+ * as it came. Pure; type-only imports.
  */
 import type { AnimeCard } from "./anilist";
 
@@ -57,4 +58,9 @@ export function oneFranchiseEach<T extends AnimeCard>(items: T[]): T[] {
     const r = find(a.id);
     return !seen.has(r) && !!seen.add(r);
   });
+}
+
+/** A list as the cards to show: every entry with seasons as separate shows (#22), else one per franchise. */
+export function cardsShown<T extends AnimeCard>(items: T[], separate: boolean): T[] {
+  return separate ? items : oneFranchiseEach(items);
 }

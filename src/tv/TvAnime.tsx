@@ -8,6 +8,7 @@ import {
   useAiringToday,
   useAnimeGenre,
   useAnimeHome,
+  type Anime,
   type AnimeCard,
 } from "../lib/anime";
 import {
@@ -19,6 +20,7 @@ import {
   isMature,
   knowsNothing,
   linkAnime,
+  lineUpEntry,
   prequelOf,
   SEASON_LABEL,
   untilAiring,
@@ -192,7 +194,10 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
       setMissing(true);
       return;
     }
-    navigate({ name: "detail", type: item.type, id: imdb });
+    // Seasons as separate shows (#22): the title's page with just this entry's episodes.
+    const separate = prefs.animeSeparateEntries && item.type === "series";
+    if (separate) await lineUpEntry(qc, card, z, imdb, prefs.animeTitles);
+    navigate({ name: "detail", type: item.type, id: imdb, entry: separate ? card.id : undefined });
   };
 
   return (
@@ -216,6 +221,7 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
 export function TvAnimeDetail({ id }: { id: number }) {
   const { replace } = useRouter();
   const qc = useQueryClient();
+  const { animeSeparateEntries: separate, animeTitles } = usePrefs();
   const [missing, setMissing] = useState(false);
   useEffect(() => {
     let live = true;
@@ -224,8 +230,10 @@ export function TvAnimeDetail({ id }: { id: number }) {
       // As on desktop: the IMDb show with this entry's episodes, else Kitsu.
       let sure = true;
       let mal = z?.mappings.mal_id;
+      let anime: Anime | undefined;
       const imdb = await fetchAnime(id)
         .then(async (a) => {
+          anime = a;
           mal = a.idMal ?? mal;
           // The second half of a split part ani.zip lists under its prequel (lib/anime/splitParts.ts).
           const prequel = prequelOf(a);
@@ -239,14 +247,17 @@ export function TvAnimeDetail({ id }: { id: number }) {
       const target = imdb ?? (z?.mappings.kitsu_id ? `kitsu:${z.mappings.kitsu_id}` : null);
       if (target && sure) void linkAnime(qc, { canonical: target, anilist: id, mal, kitsu: z?.mappings.kitsu_id });
       const movie = z?.mappings.type?.toLowerCase() === "movie";
+      // Seasons as separate shows (#22): the title's page with just this entry's episodes.
+      const entry = separate && !movie && anime && target ? anime : undefined;
+      if (entry && target) await lineUpEntry(qc, entry, z, target, animeTitles);
       if (!live) return;
-      if (target) replace({ name: "detail", type: movie ? "movie" : "series", id: target });
+      if (target) replace({ name: "detail", type: movie ? "movie" : "series", id: target, entry: entry?.id });
       else setMissing(true);
     })();
     return () => {
       live = false;
     };
-  }, [id, replace, qc]);
+  }, [id, replace, qc, separate, animeTitles]);
   if (!missing) return null;
   return (
     <div className="tv-note">

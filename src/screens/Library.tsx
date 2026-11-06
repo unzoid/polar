@@ -114,6 +114,7 @@ export function LibraryPlaylist({ id, fresh }: { id: string; fresh: boolean }) {
 function Overview({ onOpen }: { onOpen: (o: Open) => void }) {
   const { data: saved } = useLibrary();
   const { data: history } = useWatchHistory();
+  const watching = useWatching();
   const { data: downloads } = useDownloads();
   const playlists = usePlaylists();
   const dl = downloads ?? [];
@@ -176,7 +177,7 @@ function Overview({ onOpen }: { onOpen: (o: Open) => void }) {
         {!!saved?.length && (
           <Row title="Recently Saved" action={seeAll("saved")}>
             {saved.slice(0, 20).map((item) => (
-              <PosterCard key={item.id} item={item} />
+              <PosterCard key={item.id} item={item} watching={watching.get(item.id)} />
             ))}
           </Row>
         )}
@@ -300,8 +301,15 @@ function arrange<T extends { type: ContentType; name: string }>(items: T[] | und
   return sort === "title" ? [...shown].sort((a, b) => a.name.localeCompare(b.name)) : shown;
 }
 
+/** Title id → the episode last watched, for saved anime shown by their entry with seasons as separate shows (#22). */
+function useWatching(): ReadonlyMap<string, string> {
+  const { data } = useWatchHistory();
+  return useMemo(() => new Map((data ?? []).map((p) => [p.metaId, p.videoId])), [data]);
+}
+
 function Saved({ kind, sort }: { kind: Kind; sort: Sort }) {
   const { data } = useLibrary();
+  const watching = useWatching();
   const items = useMemo(() => arrange(data, kind, sort), [data, kind, sort]);
   if (data?.length === 0) return <EmptyState>Titles you save with + on their page appear here.</EmptyState>;
   return (
@@ -309,7 +317,7 @@ function Saved({ kind, sort }: { kind: Kind; sort: Sort }) {
       {items?.length === 0 && <EmptyState>Nothing here yet.</EmptyState>}
       <PosterGrid>
         {items?.map((item) => (
-          <PosterCard key={item.id} item={item} />
+          <PosterCard key={item.id} item={item} watching={watching.get(item.id)} />
         ))}
       </PosterGrid>
     </>

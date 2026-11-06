@@ -32,10 +32,10 @@ import {
   aniZipQuery,
   countdown,
   FORMAT_LABEL,
-  oneFranchiseEach,
   SEASON_LABEL,
   STATUS_LABEL,
   untilAiring,
+  useCardsShown,
   useAnimeTitle,
   useShelfVisible,
 } from "../lib/anime";
@@ -434,7 +434,8 @@ function BrowseView({ from }: { from: Partial<BrowseFilters> }) {
   const years = Array.from({ length: thisYear + 2 - 1970 }, (_, i) => thisYear + 1 - i);
   const seen = new Set<number>();
   const listed = (q.data?.pages.flatMap((p) => p.media) ?? []).filter((m) => !seen.has(m.id) && seen.add(m.id));
-  const items = oneFranchiseEach(listed);
+  const shown = useCardsShown();
+  const items = shown(listed);
   const [panel, setPanel] = useState(false);
   // What's narrowing the list, each with a way to take it off again.
   type Active = { label: string; clear: Partial<BrowseFilters> };

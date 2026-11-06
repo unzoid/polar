@@ -86,6 +86,8 @@ export interface Prefs {
   animeCardScores: boolean;
   /** "Ep 5 in 2d" on posters of shows on air. */
   animeCardCountdown: boolean;
+  /** Each AniList entry (season, part, film) as its own card and page, not one per franchise. Display only (#22). */
+  animeSeparateEntries: boolean;
   /** AniList scores out of ten (8.6) or as a percentage (86%). */
   animeScoreFormat: "ten" | "percent";
   /** The schedule lists everything airing, not just shows people are following. */
@@ -140,6 +142,7 @@ const DEFAULTS: Prefs = {
   animeHiddenShelves: "",
   animeCardScores: true,
   animeCardCountdown: true,
+  animeSeparateEntries: false,
   animeScoreFormat: "ten",
   animeScheduleAll: false,
   animeHideRecaps: false,
@@ -176,6 +179,7 @@ export const SYNCED_PREFS = [
   "animeHiddenShelves",
   "animeCardScores",
   "animeCardCountdown",
+  "animeSeparateEntries",
   "animeScoreFormat",
   "animeScheduleAll",
   "animeHideRecaps",
