@@ -5,6 +5,9 @@ import type { AnimeLink } from "./library/identity";
 
 export type ContentType = "movie" | "series";
 
+/** Where the native side keeps this device's API keys and add-on links (src-tauri/src/keychain.rs, #195). */
+export type SecretsPlace = "keychain" | "file" | "unreadable";
+
 /** The app's font (Settings → Appearance). See lib/settings/fonts.ts. */
 export type UiFont = "inter" | "system" | "opendyslexic";
 

@@ -472,6 +472,23 @@ against a real project.
 - Phones: no keyring store is wired yet (`keyring` isn't built for Android/iOS); the session stays in the web
   view's storage there.
 
+## API keys and add-on links in the keychain (#195)
+
+- How they leave `polarity.json` and come back is tested here (`crates/library/src/vault.rs`: moved on the first
+  save, filled back at start, a key in the file wins, no keychain = asked once and kept in the file, an unreadable
+  keychain never written over, `tests/deviceStore.test.ts` for the Account text). The saver's use of it and
+  `secrets_place` are only type-checked; no keychain was touched on this machine. To check on each desktop
+  system: with a TMDB key and a keyed add-on installed, start this build once and change any setting. Then
+  `polarity.json` has `"secretsInKeychain":true`, no key and empty `manifestUrl`s, and an entry `polar.vault` under
+  `app.getpolar.desktop` is in Keychain Access (macOS), Credential Manager (Windows) or Seahorse/KWallet (Linux).
+  Quit and start again: the key and add-ons work. Settings → Account → API keys and addons → On this device names
+  the keychain. On Linux without a Secret Service: keys stay in the file and the text says so. With the keyring
+  locked and the prompt dismissed at start: the text says the keychain couldn't be read, and a key typed then is in
+  the file and still there after the next start with the keyring open.
+- Going back to an older build after this one moved them: the older build sees no keys and add-ons without links;
+  enter them again there.
+- Phones: no keyring store is wired (`keyring` isn't built for Android/iOS); keys stay in the app's private data file.
+
 ## Phone and tablet layouts (T-033)
 
 - The layouts were first checked by reading the CSS, and the form-factor rules by tests

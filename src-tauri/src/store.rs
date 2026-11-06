@@ -2,13 +2,15 @@
 //! (library, watch progress, anime links; see `polar_library`) per profile —
 //! in one JSON file in the app data dir. Small, readable, trivially backed
 //! up. Commands change it in memory; `polar_library::saver` writes it a
-//! moment later off the UI thread (`AppState::persist`), and on exit.
+//! moment later off the UI thread (`AppState::persist`), and on exit. API keys and add-on links
+//! go into the system's keychain instead where there is one (`polar_library::vault`, #195).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use polar_addon::Manifest;
 use polar_library::opened::{self, Opened};
+use polar_library::vault::{self, Secrets};
 pub use polar_library::{LibraryItem, Progress, Space};
 use serde::{Deserialize, Serialize};
 
@@ -290,6 +292,9 @@ pub struct Data {
     pub spaces: HashMap<String, Space>,
     /// Which space library/progress commands act on.
     pub active_space: String,
+    /// API keys and add-on links are in the keychain, emptied here (`polar_library::vault`). Set
+    /// by the saver; read once at start-up.
+    pub secrets_in_keychain: bool,
     // Pre-profiles layout; moved into the local space on load.
     #[serde(skip_serializing)]
     library: HashMap<String, LibraryItem>,
@@ -304,6 +309,31 @@ impl Data {
 
     pub fn space_mut(&mut self) -> &mut Space {
         self.spaces.entry(self.active_space.clone()).or_default()
+    }
+
+    /// Puts the keychain's secrets where the file left them empty.
+    pub fn fill_secrets(&mut self, from: &Secrets) {
+        let settings = &mut self.settings;
+        for (field, key) in [
+            ("tmdbKey", &mut settings.tmdb_key),
+            ("seekrKey", &mut settings.seekr_key),
+            ("mdblistKey", &mut settings.mdblist_key),
+            ("omdbKey", &mut settings.omdb_key),
+        ] {
+            if key.as_deref().unwrap_or("").is_empty() {
+                if let Some(stored) = from.key(field) {
+                    *key = Some(stored.into());
+                }
+            }
+        }
+        let slots = vault::slots(self.addons.iter().map(|a| a.manifest.id.as_str()));
+        for (addon, slot) in self.addons.iter_mut().zip(slots) {
+            if addon.manifest_url.is_empty() {
+                if let Some(url) = from.addon(&slot) {
+                    addon.manifest_url = url.into();
+                }
+            }
+        }
     }
 
     pub(crate) fn migrate(&mut self) {
@@ -378,13 +408,14 @@ impl Store {
         &self.path
     }
 
-    /// The file's contents as they should be now. Compact: the file is
-    /// rewritten whole, and indenting only made that bigger.
-    pub fn encode(&self) -> Result<Vec<u8>, String> {
+    /// The file's contents as they should be now, secrets still in: the saver hands them to
+    /// the keychain outside the lock, then writes it compact (the file is rewritten whole, and
+    /// indenting only made that bigger).
+    pub fn snapshot(&self) -> Result<serde_json::Value, String> {
         if let Some(problem) = &self.problem {
             return Err(format!("not saved: {problem}"));
         }
-        serde_json::to_vec(&self.data).map_err(|e| e.to_string())
+        serde_json::to_value(&self.data).map_err(|e| e.to_string())
     }
 }
 

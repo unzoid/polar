@@ -20,12 +20,15 @@ let downloads: Download[] = [];
 // `fake.html?theme=black` and the like start with that setting changed.
 const params = new URLSearchParams(location.search);
 params.delete("worst"); // fixtures.ts's worst-case switch, not a setting
+const secretsPlace = params.get("secretsPlace") ?? "keychain"; // Settings → Account's "On this device"
+params.delete("secretsPlace");
 let settings: Settings = { ...fx.settings, ...Object.fromEntries(params) };
 
 type Args = Record<string, unknown>;
 
 const commands: Record<string, (a: Args) => unknown> = {
   store_problem: () => null,
+  secrets_place: () => secretsPlace,
   settings_get: () => ({ ...settings, metadataSource: "TMDB" }),
   settings_defaults: () => fx.settings,
   settings_set: (a) => (settings = a.settings as Settings),

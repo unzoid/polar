@@ -11,7 +11,7 @@
 //! flushed, renamed over the old one, then the folder flushed, so a crash or a
 //! power cut leaves either the old file or the new one, never half of one.
 //! On Linux and macOS the file is readable by its owner only: it holds API
-//! keys and add-on links (no keychain, the owner's choice I-008).
+//! keys and add-on links where there is no keychain to take them ([`crate::vault`]).
 
 use std::fs;
 use std::io::{self, Write};

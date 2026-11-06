@@ -1,13 +1,15 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { TextField } from "../../components/ui/TextField";
 import { Edit, Lock, Trash } from "../../components/icons";
 import { useEffect, useState } from "react";
-import { useAddons, useSettings } from "../../lib/net";
+import { keys, useAddons, useSettings } from "../../lib/net";
 import { Avatar } from "../../components/Avatar";
 import { dismissNotice, exposedNames, noticeDue, removeSecretsPassphrase, SECRET_KEYS, secretsState, setSecretsPassphrase, sync, unlockSecrets, useAccount, useSettingsSyncProblem } from "../../lib/account";
-import { takeWhereStored, useSecretsNote } from "../../components/settings/secretsNote";
+import { deviceStoreText, takeWhereStored, useSecretsNote } from "../../components/settings/secretsNote";
 import { useSecretsPlain } from "../../components/settings/KeyWarning";
 import { errorMessage } from "../../lib/errors";
+import { api } from "../../lib/api";
+import { os } from "../../lib/platform";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
 import { StremioImport } from "../../components/settings/StremioImport";
@@ -222,6 +224,7 @@ function SecretsRow({ profileId, ...props }: Expandable & { profileId: string })
 
 /** What's stored where (#195), for the warnings' link: on the account server, and on this device. */
 function WhereStored({ state }: { state: "plain" | "sealed" | "locked" }) {
+  const { data: place } = useQuery({ queryKey: keys.secretsPlace, queryFn: api.secretsPlace, staleTime: Infinity });
   return (
     <dl className="settings-where">
       <dt>On the account server</dt>
@@ -231,13 +234,10 @@ function WhereStored({ state }: { state: "plain" | "sealed" | "locked" }) {
           : "Your API keys and add-on links, encrypted with your passphrase. The server can't read them."}
       </dd>
       <dt>On this device</dt>
-      <dd>{DEVICE_STORE}</dd>
+      <dd>{place && deviceStoreText(place, os)}</dd>
     </dl>
   );
 }
-
-const DEVICE_STORE =
-  "Your API keys and add-on links are in Polarity's data file (polarity.json, in the app's data folder), readable by programs running under your user account.";
 
 function DeleteAccountRow(props: Expandable) {
   const account = useAccount();
