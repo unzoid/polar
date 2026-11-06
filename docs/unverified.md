@@ -291,15 +291,18 @@ devices.
 ## Settings sync without keys and add-on links (T-029, I-009)
 
 Settings documents now carry only what a profile changed from the defaults (`settings_defaults`
-command, not run here: src-tauri only type-checks) and never API keys or add-on links. Tested here
+command, not run here: src-tauri only type-checks), and keys and add-on links apart (#89). Tested here
 as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not run in the app.
 
 1. Two devices, one profile: change Seek step on one; the other takes it after a sync. Set it back to
    the default on the first: the second goes back too.
-2. A TMDB key or an add-on added on one device does not appear on the other.
-3. Settings → Account → Sync API keys and addons → Turn On, same passphrase on both: a key set on one
-   arrives on the other, add-ons follow. Another passphrase on the second: it says the keys were
-   sealed with another passphrase and keeps its own; the first device's keys stay on the server.
+2. #89: a TMDB key or an add-on added on one device appears on the other after a sync. Services and
+   Add-ons pages and Settings → Account → API keys and addons say they're stored readable on the
+   server; the Supabase table editor shows them in `profile_settings.data.secrets`.
+3. #89: set a passphrase on the first device: `data` now has `sealed` and no `secrets`; the second
+   device says "Locked" and asks for it, keeping its own keys meanwhile; a wrong one says it doesn't
+   open them; the right one brings the keys. Change it on one device: the other asks again. Remove it
+   (confirm): both show "Not encrypted" and `data.secrets` is back.
 4. Sign out on a device that had its own keys and add-ons before signing in: they are back as they were.
 
 ## Sync leftovers: dirty set, per-key settings merge, playlists (T-053, R2)
@@ -313,7 +316,7 @@ against a real project.
 
 1. Two devices, one profile, both offline: change Seek step on one and Subtitle size on the other, then
    go online. Both end with both changes (before, the later device's whole document won).
-2. Add an add-on on a device signing in to an existing profile for the first time (sealed sync on): it stays.
+2. Add an add-on on a device signing in to an existing profile for the first time: it stays.
 3. Update the app on a device that already had an account: the first round pushes only what changed since
    its last push before the update (no full re-upload); after that, a pull is not pushed back (Supabase
    logs: no library/progress upserts right after a pull with nothing changed here).
@@ -321,7 +324,7 @@ against a real project.
    progress still goes up.
 5. 100 playlists: New Playlist disappears from Library, the card menu, the title page and TV; delete one
    and it comes back.
-6. Settings → Account says "too large to sync" only when sealed add-on links push the document past the
+6. Settings → Account says "too large to sync" only when add-on links push the document past the
    server's 16 KB; removing some makes it sync again without a restart.
 
 ## Platform layer (T-030, docs/ARCHITECTURE.md)
