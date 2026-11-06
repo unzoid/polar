@@ -1,11 +1,12 @@
 import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { usePrefs } from "../settings/prefs";
 import { keys } from "../net/queryKeys";
 import { anilistLimiter, limitedFetch } from "../net/limiter";
 import { isRecord, listOf, str } from "../parse";
 import { readAnime, readLinked, readPage, readSlot } from "./responses";
 import { walkSeasons } from "./seasons";
-import { oneFranchiseEach } from "./franchise";
+import { cardsShown } from "./franchise";
 
 /**
  * AniList (graphql.anilist.co): the anime catalogue, seasons, the airing
@@ -162,8 +163,14 @@ function readListed(hit: unknown): AnimeCard | undefined {
   const { relations, ...card } = linked;
   return { ...card, chain: relations.edges.filter((e) => e.relationType === "PREQUEL" || e.relationType === "SEQUEL").map((e) => e.node.id) };
 }
-/** A list as one card per franchise. */
-const listed = (v: unknown) => oneFranchiseEach(listOf(v, readListed));
+/** A list as it came: each entry with its prequel/sequel ids, grouped into franchises where it's shown ({@link useCardsShown}). */
+const listed = (v: unknown) => listOf(v, readListed);
+
+/** Lists as the cards to show, by the setting ({@link cardsShown}); stable while the setting stays, so a query's `select` keeps its result. */
+export function useCardsShown() {
+  const { animeSeparateEntries } = usePrefs();
+  return useCallback(<T extends AnimeCard>(items: T[]) => cardsShown(items, animeSeparateEntries), [animeSeparateEntries]);
+}
 
 /** Northern-hemisphere anime seasons, as AniList (and Japan's TV schedule) uses them. */
 export function seasonOf(date = new Date()): { season: MediaSeason; year: number } {
@@ -192,7 +199,19 @@ export interface AnimeHome {
 
 /** Every shelf on the Anime page, in one request. */
 export function useAnimeHome() {
-  return useQuery({ queryKey: keys.anime.home, staleTime: 30 * 60_000, queryFn: ({ signal }) => fetchAnimeHome(signal) });
+  const shown = useCardsShown();
+  const select = useCallback(
+    (home: AnimeHome): AnimeHome => ({
+      trending: shown(home.trending),
+      season: shown(home.season),
+      upcoming: shown(home.upcoming),
+      top: shown(home.top),
+      popular: shown(home.popular),
+      movies: shown(home.movies),
+    }),
+    [shown],
+  );
+  return useQuery({ queryKey: keys.anime.home, staleTime: 30 * 60_000, queryFn: ({ signal }) => fetchAnimeHome(signal), select });
 }
 
 export async function fetchAnimeHome(signal?: AbortSignal): Promise<AnimeHome> {
@@ -244,17 +263,21 @@ export async function genreShelf(genre: string, perPage: number): Promise<AnimeC
  * wait for the slowest); its first cards come first, the rest of the row right after.
  */
 export function useAnimeGenre(genre: string, enabled: boolean) {
+  const shown = useCardsShown();
+  const select = useCallback((cards: AnimeCard[] | undefined) => cards && shown(cards), [shown]);
   const first = useQuery({
     queryKey: keys.anime.genreFirst(genre),
     staleTime: 60 * 60_000,
     enabled,
     queryFn: () => genreShelf(genre, GENRE_FIRST),
+    select,
   });
   const all = useQuery({
     queryKey: keys.anime.genre(genre),
     staleTime: 60 * 60_000,
     enabled: enabled && first.isFetched,
     queryFn: () => genreShelf(genre, GENRE_ALL),
+    select,
   });
   return { data: all.data ?? first.data, isError: first.isError && all.isError };
 }
@@ -451,7 +474,7 @@ export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
         vars,
         signal,
       );
-      // Shown once per franchise (oneFranchiseEach, across pages by the grid): keep just the prequel/sequel links it needs.
+      // Shown once per franchise unless seasons are separate shows (cardsShown, across pages by the grid): keep just the prequel/sequel links it needs.
       const { items, hasNextPage } = readPage(data, "media");
       const media = listOf(items, readListed);
       return { pageInfo: { hasNextPage }, media };

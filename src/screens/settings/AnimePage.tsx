@@ -42,6 +42,7 @@ export function AnimePage() {
         <SettingRow id="animeCardScores" />
         <SettingRow id="animeScoreFormat" />
         <SettingRow id="animeCardCountdown" />
+        <SettingRow id="animeSeparateEntries" />
       </Card>
       <Card title="Schedule">
         <SettingRow id="animeScheduleAll" />

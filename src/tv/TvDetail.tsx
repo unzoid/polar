@@ -9,11 +9,12 @@ import { usePlaylistChecklist } from "../components/title/PlaylistChecklist";
 import { TitleHeading } from "../components/title/TitleHeading";
 import { ProgressBar } from "../components/title/Card";
 import { Still } from "../components/StillPlaceholder";
-import { stillFor } from "../lib/anime";
+import { animeEntries, entryMeta, pickTitle, stillFor } from "../lib/anime";
 import { StreamList } from "../components/StreamList";
 import { episodeCode, formatDate, formatRemaining, formatRuntime, isReleased, seasonLabel, shortRuntime } from "../lib/format";
 import { usePlayTarget, useTitlePlayback } from "../lib/playback";
 import { useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "../lib/net";
+import { usePrefs } from "../lib/settings";
 import type { ContentType, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 import { useBack, useFocusTrap, usePageActive } from "./shell";
 import { reveal } from "./spatial";
@@ -36,8 +37,14 @@ type Panel =
  * the left, and a short column of actions. Episodes and sources open as
  * full-screen panels on top; Back closes them one at a time.
  */
-export function TvDetail({ type, id, preview }: { type: ContentType; id: string; preview?: MetaPreview }) {
-  const { data: meta, isError } = useMeta(type, id);
+export function TvDetail({ type, id, preview, entry }: { type: ContentType; id: string; preview?: MetaPreview; entry?: number }) {
+  const { data: loaded, isError } = useMeta(type, id);
+  // Seasons as separate shows (#22): one AniList entry's page, its name and episodes, when it was lined up here.
+  const { animeSeparateEntries, animeTitles } = usePrefs();
+  const meta = useMemo(() => {
+    const record = loaded && entry !== undefined && animeSeparateEntries ? animeEntries.entry(id, entry) : undefined;
+    return record && loaded ? entryMeta(loaded, record, pickTitle(record.title, animeTitles) || loaded.name) : loaded;
+  }, [loaded, entry, animeSeparateEntries, animeTitles, id]);
   const shown: MetaPreview | undefined = meta ?? preview;
   const active = usePageActive();
   const [panels, setPanels] = useState<Panel[]>([]);

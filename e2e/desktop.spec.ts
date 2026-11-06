@@ -443,3 +443,27 @@ test("a Home shelf's heading opens its browse page with the filter on, and Back 
   await expect(app.getByRole("radiogroup", { name: "Catalog" }).getByRole("radio", { name: "Popular" })).toBeChecked();
   await expect(app.getByRole("combobox", { name: "Genre" })).not.toHaveText(/All Genres/);
 });
+
+test("with seasons as separate shows, Continue Watching names the anime entry the episode is part of, and only then (#22)", async ({ app }) => {
+  const row = app.locator(".row").filter({ has: app.getByRole("heading", { name: "Continue Watching" }) });
+  // The first title on the fake backend is at season 2, episode 3; its stored card names the show.
+  const stored = (await row.locator(".card").first().textContent()) ?? "";
+  expect(stored).toContain("S2");
+  await app.addInitScript(() => {
+    localStorage.setItem("polar.prefs", JSON.stringify({ ...JSON.parse(localStorage.getItem("polar.prefs") ?? "{}"), animeSeparateEntries: true }));
+    // What an anime page leaves: season 2's episodes 1–12 are this entry's 1–12.
+    localStorage.setItem("polar.animeEntries.v1", JSON.stringify({ tt9200001: { "21": { title: { english: "Paper Moon Part 2" }, runs: [[2, 1, 12, 1]], at: 1 } } }));
+  });
+  await app.reload();
+  const first = row.locator(".card").first();
+  await expect(first).toContainText("Paper Moon Part 2");
+  await expect(first).toContainText("Episode 3 · Chapter 3: Crossings");
+
+  // Off again: the card is the stored title's, as before.
+  await app.addInitScript(() =>
+    localStorage.setItem("polar.prefs", JSON.stringify({ ...JSON.parse(localStorage.getItem("polar.prefs") ?? "{}"), animeSeparateEntries: false })),
+  );
+  await app.reload();
+  await expect(row.locator(".card").first()).not.toContainText("Paper Moon Part 2");
+  await expect(row.locator(".card").first()).toContainText("S2");
+});

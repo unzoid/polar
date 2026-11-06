@@ -769,6 +769,16 @@ export const SETTINGS: SettingDef[] = [
     tv: "Airing Countdowns",
   },
   {
+    id: "animeSeparateEntries",
+    page: "anime",
+    title: "Seasons as separate shows",
+    caption: "Each season, part and film gets its own card and page. Your library and progress stay as they are",
+    keywords: "anime franchise seasons split separate entries group ungroup cours parts movies",
+    bind: p("animeSeparateEntries"),
+    control: toggle,
+    tv: "Seasons as Separate Shows",
+  },
+  {
     id: "animeScheduleAll",
     page: "anime",
     title: "List every show",

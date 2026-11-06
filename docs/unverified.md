@@ -509,6 +509,17 @@ against a real project.
   - No firewall prompt appears (the engine doesn't listen; it connects out).
   - Phones: a torrent source says it plays on the desktop app for now.
 
+## Seasons as separate shows (#22)
+
+Checked here: unit tests (`tests/animeEntries.test.ts`) and an end-to-end test of Continue Watching
+on the fake backend. AniList can't be reached here, so with the setting on, check in the app:
+- Anime page, search and Browse: a show with several seasons shows a card for each; off again, one.
+- An entry's page: no season tabs, only its episodes; its prequel and sequel under Related.
+- Watch an episode of a second season from its page, then Home: Continue Watching shows that
+  season's name and poster and "Episode N"; it opens that season's page. Library and Watched too.
+- TV mode: the same cards; a card opens the show's page with only that season's episodes.
+- Switching the setting off and on loses no progress or library items.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The

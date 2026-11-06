@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { prefetchTitlePage } from "../lib/anime";
+import { prefetchTitlePage, useEntryShown } from "../lib/anime";
 import { AmbientWash } from "../components/AmbientWash";
 import { ChevronLeft, ChevronRight, Play } from "../components/icons";
 import { Img } from "../components/Img";
@@ -344,12 +344,17 @@ function ContinueRow() {
   );
 }
 
-/** The card opens the title's page; the play button resumes straight away. */
+/**
+ * The card opens the title's page; the play button resumes straight away. With seasons as separate shows,
+ * an anime shows the entry the episode is part of and opens its page (#22).
+ */
 function ContinueCard({ progress: p }: { progress: Progress }) {
   const { navigate } = useRouter();
-  const openDetail = () => navigate({ name: "detail", type: p.type, id: p.metaId });
+  const stored = useMemo(() => progressItem(p), [p]);
+  const { item, entry, opens } = useEntryShown(stored, p.videoId);
+  const openDetail = () => navigate({ name: "detail", type: p.type, id: opens });
   // Which page it opens on is known before the click (mostly a stored anime link: no network).
-  useEffect(() => prefetchTitlePage(p.type, p.metaId), [p.type, p.metaId]);
+  useEffect(() => prefetchTitlePage(p.type, opens), [p.type, opens]);
   const resume = () => navigate({ name: "player", type: p.type, metaId: p.metaId, videoId: p.videoId, stream: p.stream });
   const fraction = p.duration ? p.position / p.duration : 0;
   const meta = useQuery({ queryKey: keys.meta(p.type, p.metaId), queryFn: () => api.meta(p.type, p.metaId), staleTime: 60 * 60_000 });
@@ -360,11 +365,17 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
       shape="landscape"
       frameClass="card-frame-resume"
       art={p.background ?? p.poster}
-      title={p.season != null ? `${episodeCode(p.season, p.episode)} · ${p.episodeTitle ?? p.name}` : p.name}
+      title={
+        entry
+          ? `Episode ${entry.number} · ${p.episodeTitle ?? item.name}`
+          : p.season != null
+            ? `${episodeCode(p.season, p.episode)} · ${p.episodeTitle ?? p.name}`
+            : p.name
+      }
       // Always shown: it's what you're watching, not a description.
       keepCaption
       onClick={openDetail}
-      {...cardMenu(progressItem(p), p)}
+      {...cardMenu(stored, p)}
       actions={
         <button
           type="button"
@@ -379,7 +390,8 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
         </button>
       }
     >
-      <ArtTitle name={p.name} logo={logo} />
+      {/* The logo names the show; an entry of it goes by its own name. */}
+      <ArtTitle name={item.name} logo={entry ? undefined : logo} />
       {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a progressive blur. */}
       <div className="card-resume">
         <ProgressBar fraction={fraction} />

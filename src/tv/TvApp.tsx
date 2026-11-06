@@ -52,7 +52,7 @@ function TvScreen({ route }: { route: Route }) {
     case "settings":
       return <TvSettings page={route.page} />;
     case "detail":
-      return <TvDetail type={route.type} id={route.id} preview={route.preview} />;
+      return <TvDetail type={route.type} id={route.id} preview={route.preview} entry={route.entry} />;
     case "player":
       return null; // the player layer
     case "anime":

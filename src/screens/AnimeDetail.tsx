@@ -14,6 +14,7 @@ import {
   animeArt,
   type AnimeCard as Card,
   franchiseArt,
+  isSeason,
   useAnime,
   useAnimeSeasons,
   useAnimeTitle,
@@ -21,6 +22,7 @@ import {
   useLinkedImdb,
 } from "../lib/anime";
 import { useMeta } from "../lib/net";
+import { usePrefs } from "../lib/settings";
 import { useFoldSnap } from "../lib/ui";
 import type { EpisodeLayout } from "../lib/types";
 
@@ -34,16 +36,21 @@ import type { EpisodeLayout } from "../lib/types";
  * cour), and the page opens at one of them with the rest as season tabs.
  * Switching swaps the hero, episodes and details in place, keeping the
  * scroll position and Back, like a show's seasons.
+ *
+ * With Settings → Anime → Seasons as separate shows (#22), the page is the
+ * entry's alone: its episodes, no season tabs, and its prequel and sequel
+ * among the related titles.
  */
 export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
+  const { animeSeparateEntries: separate } = usePrefs();
   const [activeId, setActiveId] = useState(id);
   const { data: opened } = useAnime(id);
-  const { data: walk, isPending: walking } = useAnimeSeasons(opened);
+  const { data: walk, isPending: walking } = useAnimeSeasons(separate ? undefined : opened);
   const chain = walk?.seasons;
-  const found = chain && chain.length > 1 && chain.some((s) => s.card.id === id) ? chain : undefined;
+  const found = !separate && chain && chain.length > 1 && chain.some((s) => s.card.id === id) ? chain : undefined;
   // Other seasons may be on the way (a long walk while AniList is busy): say so, with this entry as the one tab meanwhile.
   const linked = !!opened?.relations.edges.some((e) => (e.relationType === "PREQUEL" || e.relationType === "SEQUEL") && e.node.type !== "MANGA");
-  const seasonsLoading = linked && (walking || walk?.complete === false);
+  const seasonsLoading = !separate && linked && (walking || walk?.complete === false);
   const title = useAnimeTitle();
   const seasons = found ?? (seasonsLoading && opened ? [{ card: opened, label: title(opened.title) }] : undefined);
   // While a season loads, the last one stays on screen (dimmed) so the page keeps its height and place.
@@ -61,17 +68,22 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   const [imdb, setImdb] = useState<string | null>();
   const [scrolledAway, setScrolledAway] = useState(false);
   const bigTrailer = !!useTrailerOpen();
-  const firstEntry = !seasonsLoading && (!found || found[0].card.id === activeId);
+  // An entry on its own (separate shows) is the first when no season comes before it.
+  const firstKnown = separate ? !!opened : !seasonsLoading;
+  const firstEntry = separate
+    ? !!opened && !opened.relations.edges.some((e) => e.relationType === "PREQUEL" && e.node.type !== "MANGA" && isSeason(e.node))
+    : firstKnown && (!found || found[0].card.id === activeId);
   const trailer = useBackdropTrailer(firstEntry && imdb?.startsWith("tt") ? imdb : undefined, { active: onTop, paused: scrolledAway || bigTrailer });
   const onImdb = useCallback((id: string | null | undefined) => setImdb(id), []);
 
   // One background and logo for every season tab (#27): the first entry's linked title's, else its ani.zip art.
+  // A later entry on its own page (separate shows) has its own ani.zip art.
   const first = found?.[0].card ?? shown;
   const { data: firstZip } = useAniZip(first?.id ?? 0, !!first);
   const firstLinked = useLinkedImdb(first?.id ?? 0);
   const anyMovie = first?.format === "MOVIE" || shown?.format === "MOVIE";
   // A later entry whose first one has no known link: the title this one plays from, unless a movie is involved (its own title).
-  const resolved = seasonsLoading ? undefined : firstEntry ? imdb : (firstLinked ?? (anyMovie ? null : imdb));
+  const resolved = !firstKnown ? undefined : firstEntry ? imdb : separate ? null : (firstLinked ?? (anyMovie ? null : imdb));
   // Kept once found, so switching tabs (each finds its own id again) never blanks the art.
   const kept = useRef<{ first: number; imdb: string | null }>(undefined);
   if (first && resolved !== undefined && kept.current?.first !== first.id) kept.current = { first: first.id, imdb: resolved };
