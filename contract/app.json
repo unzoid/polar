@@ -3,6 +3,7 @@
   "CmdError": ["code","message"],
   "Cue": ["endMs","h","sheet","startMs","w","x","y"],
   "Download": ["addedAt","background","episode","episodeTitle","error","file","headers","id","logo","metaId","name","poster","quality","received","season","state","thumbnail","total","type","url"],
+  "Imported": ["library","progress"],
   "InstalledAddon": ["manifest","manifestUrl"],
   "LocalChanges": ["library","links","progress","pulledAt"],
   "Playable.external": ["kind","url"],

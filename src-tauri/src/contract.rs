@@ -11,7 +11,7 @@ use polar_library::Changes;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
-use super::{CacheInfo, CmdError, Playable, SearchResults, SettingsView, StreamsResult, SubtitleOption};
+use super::{CacheInfo, CmdError, Imported, Playable, SearchResults, SettingsView, StreamsResult, SubtitleOption};
 use crate::downloads::{Download, DownloadState};
 use crate::store::{InstalledAddon, Settings, SubtitleStyle};
 use crate::sync::LocalChanges;
@@ -94,6 +94,7 @@ fn field_names_match_contract() {
     );
     add("SearchResults", keys(&SearchResults { movies: vec![], series: vec![] }));
     add("CacheInfo", keys(&CacheInfo { path: "p".into(), bytes: 1 }));
+    add("Imported", keys(&Imported { library: 1, progress: 1 }));
     let cue = crate::seekr::Cue { start_ms: 0, end_ms: 1, sheet: "s".into(), x: 0, y: 0, w: 1, h: 1 };
     add("Cue", keys(&cue));
     add("PreviewTrack", keys(&crate::seekr::PreviewTrack { cues: vec![cue], source_duration_ms: 1 }));

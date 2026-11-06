@@ -8,6 +8,7 @@ import type { CommandError } from "./errors";
 import type { AnimeLink } from "./library/identity";
 import type {
   CacheInfo,
+  Imported,
   ExternalRatings,
   InstalledAddon,
   LibraryItem,
@@ -129,6 +130,7 @@ export const contract = {
   Untitled: { id: true, type: true } satisfies Keys<TitleRef>,
   // contract/app.json (src-tauri)
   CacheInfo: { bytes: true, path: true } satisfies Keys<CacheInfo>,
+  Imported: { library: true, progress: true } satisfies Keys<Imported>,
   CmdError: { code: true, message: true } satisfies Keys<CommandError>,
   Cue: { endMs: true, h: true, sheet: true, startMs: true, w: true, x: true, y: true } satisfies Keys<SeekCue>,
   Download: {
