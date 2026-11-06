@@ -12,10 +12,12 @@ import { serveMedia } from "./media";
  * element to hold still over two frames runs out on clicks and hovers there.
  * In WebKit every page is drawn without it; no test looks at the blur.
  */
-export const test = base.extend<{ tv: boolean; app: Page }>({
+export const test = base.extend<{ tv: boolean; account: boolean; app: Page }>({
   /** Start in TV mode (`test.use({ tv: true })`), as the Controls page's switch leaves it. */
   tv: [false, { option: true }],
-  app: async ({ page, baseURL, tv, browserName }, use) => {
+  /** Start signed in to the fake shell's account, with watch parties in the page (`test.use({ account: true })`). */
+  account: [false, { option: true }],
+  app: async ({ page, baseURL, tv, account, browserName }, use) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     await page.route(
@@ -32,7 +34,7 @@ export const test = base.extend<{ tv: boolean; app: Page }>({
         }),
       );
     if (tv) await page.addInitScript(() => localStorage.setItem("polar.tvMode", "1"));
-    await page.goto("/fake.html");
+    await page.goto(account ? "/fake.html?account=1" : "/fake.html");
     await expect(page.locator("#root > *").first()).toBeAttached();
     await use(page);
     expect(errors, "uncaught errors in the page").toEqual([]);
@@ -46,3 +48,12 @@ export const card = (page: Page, name: string) => page.getByRole("button", { nam
 
 /** The player's clock (remaining time by default), as text. */
 export const clock = (page: Page) => page.locator(".player-remaining").textContent();
+
+/**
+ * The watch party's dialogs and panels on screen (#247): the join dialog, a link to confirm, "Watch party over",
+ * the party menu (top bar popover, TV panel) and the player's Watch Party panel. Never more than one.
+ */
+export const partySurfaces = (page: Page) =>
+  page
+    .locator(".party-dialog, .party-link-confirm, .party-popover, .tv-party, .tv-join, .options-overlay[data-open=true]:has(.party-pane, .party-pane-stack)")
+    .filter({ visible: true });

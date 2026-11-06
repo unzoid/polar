@@ -99,39 +99,3 @@ export function sameFile(s: Stream, hint: StreamHint) {
   const h = streamHint(s);
   return !!h && !!hint.release && hint.release.toLowerCase() === h.release?.toLowerCase();
 }
-
-// --- Join sheet (opened from the profile menu) -------------------------------
-
-let joinOpen = false;
-const joinListeners = new Set<() => void>();
-export function setJoinPartyOpen(open: boolean) {
-  joinOpen = open;
-  joinListeners.forEach((l) => l());
-}
-export function useJoinPartyOpen() {
-  return useSyncExternalStore(
-    (l) => {
-      joinListeners.add(l);
-      return () => joinListeners.delete(l);
-    },
-    () => joinOpen,
-  );
-}
-
-// --- Party menu (TV mode's panel; the desktop opens it from the top bar) -----
-
-let menuOpen = false;
-const menuListeners = new Set<() => void>();
-export function setPartyMenuOpen(open: boolean) {
-  menuOpen = open;
-  menuListeners.forEach((l) => l());
-}
-export function usePartyMenuOpen() {
-  return useSyncExternalStore(
-    (l) => {
-      menuListeners.add(l);
-      return () => menuListeners.delete(l);
-    },
-    () => menuOpen,
-  );
-}
