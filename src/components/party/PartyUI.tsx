@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { ease } from "../../lib/ui";
+import { anchorOf, nativeDialogsAvailable, shareNatively } from "../../lib/platform";
+import { warnFailed } from "../../lib/errors";
 import {
   CODE_LENGTH,
   joinParty,
@@ -42,8 +44,9 @@ export function PartyInvite({ party }: { party: PartyState }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  const invite = `Watch with me on Polarity. Party code: ${party.code}`;
   const copy = () => {
-    void navigator.clipboard.writeText(`Watch with me on Polarity. Party code: ${party.code}`).then(() => {
+    void navigator.clipboard.writeText(invite).then(() => {
       setCopied(true);
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setCopied(false), 1800);
@@ -67,14 +70,21 @@ export function PartyInvite({ party }: { party: PartyState }) {
             : "Friends join from their profile menu with this code."}
       </p>
       <div className="party-buttons">
-        <Button variant="primary" className="party-copy" onClick={copy} data-copied={copied}>
-          <span className="party-copy-label" data-shown={!copied}>
-            Copy Invite
-          </span>
-          <span className="party-copy-label" data-shown={copied} aria-hidden={!copied}>
-            <Check size={16} /> Copied
-          </span>
-        </Button>
+        {nativeDialogsAvailable ? (
+          // iOS: the share sheet, which copies too.
+          <Button variant="primary" onClick={(e) => void shareNatively({ text: invite, anchor: anchorOf(e.currentTarget) }).catch(warnFailed("share sheet"))}>
+            Share Invite
+          </Button>
+        ) : (
+          <Button variant="primary" className="party-copy" onClick={copy} data-copied={copied}>
+            <span className="party-copy-label" data-shown={!copied}>
+              Copy Invite
+            </span>
+            <span className="party-copy-label" data-shown={copied} aria-hidden={!copied}>
+              <Check size={16} /> Copied
+            </span>
+          </Button>
+        )}
         <Button variant="glass" onClick={leaveParty}>
           Leave Party
         </Button>

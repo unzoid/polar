@@ -226,6 +226,14 @@ To check on an iPhone and an iPad on iOS 26, and an iPhone on iOS 17 or 18:
 8. Status bar: light text over the dark app; hidden in the player, back after (`ios/system_bars.m` now goes
    through the tab bar controller).
 
+Alerts and the share sheet (`ios/dialogs.m`, `lib/platform/nativeDialogs.ts`), the same way unrun:
+9. Delete a playlist (Library) and a finished download: an action sheet with a red Delete and Cancel, from
+   the bottom on an iPhone and pointing at the bin on an iPad; tapping outside on an iPad deletes nothing.
+10. Sign out with changes not yet synced (offline): an alert with Try Again, Sign Out Anyway (red) and
+    Cancel; Try Again still offline asks again.
+11. In a watch party, Share Invite: the share sheet with the invite text (Copy among its actions); on an
+    iPad it points at the button.
+
 ## macOS release: sources of the bundled libraries
 
 `scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself

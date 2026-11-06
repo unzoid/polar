@@ -198,7 +198,9 @@ static PolarTabs *controller;
 
 @end
 
-static UIWindow *app_window(void) {
+/// The app's window (dialogs.m too).
+UIWindow *polar_app_window(void);
+UIWindow *polar_app_window(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
         if (![scene isKindOfClass:UIWindowScene.class]) continue;
         UIWindowScene *ws = (UIWindowScene *)scene;
@@ -211,7 +213,7 @@ static UIWindow *app_window(void) {
 
 /// Put the tab bar controller around Tauri's: it takes the window, and Tauri's moves into a tab.
 static void install(void) {
-    UIWindow *window = app_window();
+    UIWindow *window = polar_app_window();
     UIViewController *host = window.rootViewController;
     if (!host) return;
     PolarTabs *tabs = [PolarTabs new];
