@@ -8,6 +8,7 @@ import { useSecretsNote } from "../../components/settings/secretsNote";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
+import { StremioImport } from "../../components/settings/StremioImport";
 
 export function AccountPage() {
   const account = useAccount();
@@ -55,6 +56,8 @@ export function AccountPage() {
           </p>
         )}
       </Card>
+
+      <StremioImport />
 
       <Card title="Danger Zone">
         <DeleteAccountRow {...expand("delete")} />

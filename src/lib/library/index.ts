@@ -8,5 +8,6 @@ export * from "./identity";
 export * from "./playlistChecklist";
 export * from "./playlistCodec";
 export * from "./playlists";
+export * from "./stremioImport";
 export * from "./titleActions";
 export * from "./watched";

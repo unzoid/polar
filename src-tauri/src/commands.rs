@@ -315,6 +315,28 @@ pub fn progress_save_many(state: State<'_, AppState>, progress: Vec<Progress>) -
     state.persist(|d| d.space_mut().progress_save(progress, now()))
 }
 
+/// What was added by [`library_import`].
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Imported {
+    pub library: usize,
+    pub progress: usize,
+}
+
+/// Library items and progress exported by another app, with their own times
+/// (`Space::import_exported`): nothing newer here is overwritten, and importing the same
+/// file again adds nothing.
+#[tauri::command]
+pub fn library_import(
+    state: State<'_, AppState>,
+    library: Vec<LibraryItem>,
+    progress: Vec<Progress>,
+) -> Result<Imported> {
+    let mut added = (0, 0);
+    state.persist_now(|d| added = d.space_mut().import_exported(library, progress, now()))?;
+    Ok(Imported { library: added.0, progress: added.1 })
+}
+
 /// Latest unfinished video per title, newest first.
 #[tauri::command]
 pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {

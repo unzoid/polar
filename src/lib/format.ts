@@ -35,6 +35,9 @@ export function episodeCode(season?: number, episode?: number) {
   return `S${season}, E${episode}`;
 }
 
+/** "49 min" → 2940 seconds; 0 when unknown. */
+export const runtimeSeconds = (runtime?: string) => Number(runtime?.match(/(\d+)\s*min/)?.[1] ?? 0) * 60;
+
 export function isReleased(video: Video) {
   return !video.released || new Date(video.released).getTime() <= Date.now();
 }

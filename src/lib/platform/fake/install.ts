@@ -58,6 +58,13 @@ const commands: Record<string, (a: Args) => unknown> = {
   progress_for: (a) => progress.filter((p) => p.metaId === a.metaId),
   progress_save: (a) => void progress.unshift(a.progress as Progress),
   progress_save_many: () => undefined,
+  library_import: (a) => {
+    const { library: items, progress: rows } = a as { library: LibraryItem[]; progress: Progress[] };
+    const fresh = items.filter((i) => !library.some((l) => l.id === i.id));
+    library.unshift(...fresh);
+    progress.unshift(...rows);
+    return { library: fresh.length, progress: rows.length };
+  },
   continue_watching: () => progress,
   watch_history: () => progress,
   anime_links: () => [],
