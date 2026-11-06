@@ -141,6 +141,80 @@
   width: 104px;
   height: 104px;
 }
+/* Seek back / ahead (SkipTransport.tsx): the arrow and its number share the circle. A press slides
+   the number out past the circle's outer side as "+10" (−10 going back), the arrow turning with it,
+   and folds it back in a moment later. Transitions, not keyframes: presses come in quick runs, and
+   each one retargets from wherever the last left off. */
+.skip-transport {
+  position: relative;
+}
+.skip-transport > * {
+  grid-area: 1 / 1;
+}
+.skip-arrow {
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.skip-num,
+.skip-total {
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+  pointer-events: none;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+.skip-num {
+  font-size: 1.1875rem; /* the 8-unit figure of the old 24-unit glyph, at 56px */
+  padding-top: 2px; /* sits in the circle's optical middle, under the arrowhead's weight */
+}
+/* Starts where the number is (the circle's middle, half the 84px button in) and travels outwards. */
+.skip-total {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  font-size: 1.5rem;
+  opacity: 0;
+  white-space: nowrap;
+}
+.skip-transport[data-dir="forward"] .skip-total {
+  left: 100%;
+  transform: translateX(-42px);
+}
+.skip-transport[data-dir="back"] .skip-total {
+  right: 100%;
+  transform: translateX(42px);
+}
+.skip-transport[data-out="true"] .skip-total {
+  opacity: 1;
+  transform: translateX(0);
+}
+.skip-transport[data-out="true"] .skip-num {
+  opacity: 0;
+}
+.skip-transport[data-dir="forward"][data-out="true"] .skip-num {
+  transform: translateX(14px);
+}
+.skip-transport[data-dir="back"][data-out="true"] .skip-num {
+  transform: translateX(-14px);
+}
+.skip-transport[data-dir="forward"][data-out="true"] .skip-arrow {
+  transform: rotate(40deg);
+}
+.skip-transport[data-dir="back"][data-out="true"] .skip-arrow {
+  transform: rotate(-40deg);
+}
+/* Reduced motion: the number and the count swap with a fade; nothing travels or turns. */
+@media (prefers-reduced-motion: reduce) {
+  .skip-transport .skip-total,
+  .skip-transport .skip-num,
+  .skip-transport .skip-arrow {
+    transform: none !important;
+  }
+  .skip-arrow {
+    transition: none;
+  }
+}
 .player-transport:active,
 .player-icon:active,
 .player-action:active {
@@ -1572,5 +1646,183 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   :root[data-form="phone"] .options-close {
     top: calc(0.75rem + var(--safe-top));
     left: 0.75rem;
+  }
+}
+
+/* --- Episodes (EpisodeRail.tsx): the season dropdown, then the season's episodes side by side,
+   each a still, "3. Title" with Download beside it, its length and synopsis. The one playing has
+   a ring and a bold title. The column spans the screen and the rail scrolls sideways. */
+.options-title[data-hidden] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.options-column[data-size="full"] {
+  width: min(1600px, calc(100vw - 2 * var(--gutter)));
+  max-height: 86vh;
+}
+.options-column[data-size="full"] .options-head {
+  margin: 0 0 1.25rem;
+}
+/* The rail scrolls itself; the list's vertical fades would dim its cards' text. */
+.options-column[data-size="full"] .options-list {
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+  mask-image: none;
+}
+.episode-rail {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: clamp(220px, 24vw, 340px);
+  align-items: start;
+  gap: 1.25rem;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding: 3px 3px 0.5rem;
+  margin: -3px -3px 0;
+}
+.episode-rail::-webkit-scrollbar {
+  display: none;
+}
+.episode-rail-card {
+  position: relative;
+  container-type: inline-size;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.episode-rail-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  color: var(--text-2);
+}
+.episode-rail-card:not([aria-current]) .episode-rail-main:disabled {
+  opacity: 0.5;
+}
+.episode-rail-card[aria-current] .episode-rail-main {
+  color: var(--text);
+  cursor: default;
+}
+.episode-rail-still {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--fill-2);
+}
+.episode-rail-still img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.episode-rail-card[aria-current] .episode-rail-still {
+  box-shadow: 0 0 0 2px var(--text);
+}
+.episode-rail-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding-left: 2px; /* the triangle's weight sits left of its box */
+  border-radius: var(--r-round);
+  background: rgb(0 0 0 / 0.45);
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.85);
+  color: #fff;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.episode-rail-main:active .episode-rail-play {
+  transform: scale(0.92);
+}
+.episode-rail-now {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  background: var(--pill-light);
+  color: var(--text-on-light);
+  font-weight: 700;
+}
+.episode-rail-watched {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--pill-light);
+  color: var(--text-on-light);
+}
+.episode-rail-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  padding-right: 2.75rem; /* Download's place */
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  line-height: 1.3;
+}
+.episode-rail-card[aria-current] .episode-rail-title {
+  font-weight: 700;
+}
+/* Beside the title, just under the still (the card's width sets the still's height). */
+.episode-rail-card .episode-rail-download {
+  position: absolute;
+  top: calc(100cqw * 9 / 16 + 0.25rem);
+  right: -0.25rem;
+  color: var(--text);
+}
+.episode-rail-meta {
+  margin: 0.75rem 0 0.25rem;
+  color: var(--text-3);
+}
+.episode-rail-overview {
+  margin: 0;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+}
+@media (hover: hover) and (pointer: fine) {
+  .episode-rail-card:not([aria-current]) .episode-rail-main:not(:disabled):hover {
+    color: var(--text);
+  }
+}
+/* Settings → Browsing → Spoilers, as on the title page. */
+:root[data-hide-thumbs="true"] .episode-rail-card[data-unwatched="true"] .episode-rail-still img {
+  filter: blur(22px) brightness(0.7);
+  transform: scale(1.15);
+}
+:root[data-hide-overviews="true"] .episode-rail-card[data-unwatched="true"] .episode-rail-overview {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .episode-rail-play {
+    transition: none;
+  }
+}
+/* A phone held upright: a card most of the screen wide, the next one peeking in. */
+@media (orientation: portrait) {
+  :root[data-form="phone"] .episode-rail {
+    grid-auto-columns: min(78vw, 340px);
   }
 }

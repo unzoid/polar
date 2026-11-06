@@ -43,7 +43,9 @@ import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
 import { SkipButton, useSkipSegments } from "../components/player/SkipSegments";
 import { OptionsOverlay, type OptionItem } from "../components/player/OptionsOverlay";
-import { SkipIcon } from "../components/player/icons";
+import { EpisodeRail } from "../components/player/EpisodeRail";
+import { Dropdown } from "../components/Dropdown";
+import { SkipTransport } from "../components/player/SkipTransport";
 import { useTracks } from "../components/player/useTracks";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -899,9 +901,13 @@ export function Player({
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
       {ready && started && (
         <div className="player-center">
-          <IconButton variant="transport" onClick={() => seekBy(-seekStep)} label={`Back ${seekStep} seconds`} title={withShortcut(`Back ${seekStep}s`, "seekBack")}>
-            <SkipIcon direction="back" seconds={seekStep} size={56} />
-          </IconButton>
+          <SkipTransport
+            direction="back"
+            seconds={seekStep}
+            onSkip={() => seekBy(-seekStep)}
+            label={`Back ${seekStep} seconds`}
+            title={withShortcut(`Back ${seekStep}s`, "seekBack")}
+          />
           <IconButton variant="transport" className="player-transport-main" onClick={togglePlay} label={paused ? "Play" : "Pause"} title={withShortcut("Play/Pause", "playPause")}>
             {buffering ? (
               <Spinner className="player-spinner" size={52} label="Buffering" />
@@ -911,9 +917,13 @@ export function Player({
               <Pause size={64} fill="currentColor" strokeWidth={0} />
             )}
           </IconButton>
-          <IconButton variant="transport" onClick={() => seekBy(seekStep)} label={`Forward ${seekStep} seconds`} title={withShortcut(`Forward ${seekStep}s`, "seekForward")}>
-            <SkipIcon direction="forward" seconds={seekStep} size={56} />
-          </IconButton>
+          <SkipTransport
+            direction="forward"
+            seconds={seekStep}
+            onSkip={() => seekBy(seekStep)}
+            label={`Forward ${seekStep} seconds`}
+            title={withShortcut(`Forward ${seekStep}s`, "seekForward")}
+          />
         </div>
       )}
 
@@ -1086,21 +1096,56 @@ export function Player({
         open={options === "episodes"}
         onClose={() => setOptions(null)}
         media={media}
-        columns={[
-          {
-            title: "Seasons",
-            value: String(shownSeason),
-            options: seasons.map((n) => ({ id: String(n), label: seasonLabel(n) })),
-            onSelect: (id) => setPickSeason(Number(id)), // browse; playback continues
-          },
-          {
-            title: "Episodes",
-            size: "wide",
-            value: videoId,
-            options: episodeItems,
-            onSelect: (id) => id !== videoId && playVideo(id),
-          },
-        ]}
+        columns={
+          tv || !meta
+            ? [
+                {
+                  title: "Seasons",
+                  value: String(shownSeason),
+                  options: seasons.map((n) => ({ id: String(n), label: seasonLabel(n) })),
+                  onSelect: (id) => setPickSeason(Number(id)), // browse; playback continues
+                },
+                {
+                  title: "Episodes",
+                  size: "wide",
+                  value: videoId,
+                  options: episodeItems,
+                  onSelect: (id) => id !== videoId && playVideo(id),
+                },
+              ]
+            : // A pointer or a finger: the season to browse in a dropdown, its episodes side by side under it.
+              [
+                {
+                  title: "Episodes",
+                  size: "full",
+                  titleHidden: true,
+                  header: (
+                    <Dropdown
+                      label="Season"
+                      size="large"
+                      value={String(shownSeason)}
+                      onChange={(id) => setPickSeason(Number(id))} // browse; playback continues
+                      options={seasons.map((n) => ({ value: String(n), label: seasonLabel(n) }))}
+                    />
+                  ),
+                  options: [],
+                  onSelect: () => {},
+                  content: (
+                    <EpisodeRail
+                      meta={meta}
+                      episodes={meta.videos.filter((v) => v.season === shownSeason)}
+                      playing={videoId}
+                      progress={progressById}
+                      still={(v) => stillFor(v.id) ?? v.thumbnail}
+                      onPlay={(id) => {
+                        setOptions(null);
+                        playVideo(id);
+                      }}
+                    />
+                  ),
+                },
+              ]
+        }
       />
       <OptionsOverlay
         open={options === "sources"}
