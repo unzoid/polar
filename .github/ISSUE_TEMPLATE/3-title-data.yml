@@ -1,0 +1,55 @@
+name: Wrong or missing title information
+description: Missing seasons or episodes, wrong air dates, the wrong picture, logo or name, or an anime grouped or split wrongly.
+labels: [bug]
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Which title
+      description: The film, show or anime as Polarity shows it, and the season or episode if it is about one.
+    validations:
+      required: true
+  - type: dropdown
+    id: what
+    attributes:
+      label: What is wrong
+      multiple: true
+      options:
+        - Seasons or episodes are missing
+        - Episodes are numbered or ordered wrongly
+        - An episode shows as not out yet, but it is
+        - The picture, background or logo is wrong or missing
+        - The name or description is wrong or in the wrong language
+        - An anime's seasons are grouped or split wrongly
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What Polarity shows, and what is right
+      description: For example "Season 3 starts at episode 7; episodes 1 to 6 aired in May". A link to the title's page on IMDb, TMDB, AniList or MyAnimeList helps a lot.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where you see it
+      multiple: true
+      options:
+        - Title page
+        - Cards in rows or grids
+        - Continue Watching or Library
+        - Calendar
+        - Search
+        - TV mode
+  - type: input
+    id: version
+    attributes:
+      label: Polarity version
+      description: Settings → About.
+      placeholder: "0.17.0"
+  - type: textarea
+    id: shots
+    attributes:
+      label: Screenshots

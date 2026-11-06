@@ -1,0 +1,81 @@
+name: Playback or a source doesn't work
+description: A video won't start, stops, stutters, has no sound or subtitles, is cropped wrongly, or a source is shown wrongly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't name or link add-ons, sites or where a stream comes from. Describe the kind of stream instead: that is enough to find the problem.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: For example "stays on Loading", "plays without sound", "subtitles out of sync", "black bars stay", "seeking restarts the video".
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of stream
+      multiple: true
+      options:
+        - A link from an add-on (http or https)
+        - A torrent stream from an add-on
+        - A trailer or YouTube video
+        - A downloaded episode or film
+        - I don't know
+    validations:
+      required: true
+  - type: dropdown
+    id: always
+    attributes:
+      label: How often
+      options:
+        - Every video
+        - Only some videos or sources
+        - Only sometimes with the same video
+  - type: textarea
+    id: steps
+    attributes:
+      label: What you did
+      description: Which page you started from, what you picked, and what you changed (quality, audio track, subtitles, autocrop) before it went wrong.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where you saw it
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android phone or tablet
+        - Android TV / Google TV / Fire TV
+    validations:
+      required: true
+  - type: checkboxes
+    id: only
+    attributes:
+      label: Only on these systems?
+      description: Tick it only if this is specific to the systems picked above (it doesn't happen on others, or it's about something only they have). The issue is then labelled with them.
+      options:
+        - label: It only happens on the systems I picked.
+  - type: input
+    id: version
+    attributes:
+      label: Polarity version
+      description: Settings → About.
+      placeholder: "0.17.0"
+  - type: textarea
+    id: steplog
+    attributes:
+      label: The player's step log
+      description: |
+        In the player, open the step log (the steps shown while a video loads) and copy what it says. Remove any link it shows. polar.log helps too (Windows `%LOCALAPPDATA%\app.getpolar.desktop\logs`, macOS `~/Library/Logs/app.getpolar.desktop`, Linux `~/.local/share/app.getpolar.desktop/logs`).
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you send
+      options:
+        - label: I removed every stream link, API key, add-on link and anything personal, and named no add-on or site.
+          required: true
