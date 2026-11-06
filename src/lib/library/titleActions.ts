@@ -12,9 +12,9 @@ import { isWatched, markWatched, movieEntry, showEntries } from "./watched";
  * Watched), which adds that one episode's own actions.
  */
 export function useTitleActions(item: MetaPreview, entry?: Progress) {
-  const { data: meta } = useMeta(item.type, item.id);
-  const { data: progress } = useProgress(item.id);
-  const { data: library } = useLibrary();
+  const { data: meta, isPending: metaPending } = useMeta(item.type, item.id);
+  const { data: progress, isPending: progressPending } = useProgress(item.id);
+  const { data: library, isPending: libraryPending } = useLibrary();
   const toggleLibrary = useToggleLibrary();
   const inPlaylist = inAnyPlaylist(usePlaylists(), item.id);
   const inLibrary = !!library?.some((l) => l.id === item.id);
@@ -31,6 +31,8 @@ export function useTitleActions(item: MetaPreview, entry?: Progress) {
 
   return {
     meta,
+    /** Everything the choices below depend on has loaded (or failed to): a list drawn once, like iOS's sheet, waits for it. */
+    settled: !metaPending && !progressPending && !libraryPending,
     isSeries,
     trailerYtId: meta?.trailerYtId,
     trailerSource: meta?.trailerSource,

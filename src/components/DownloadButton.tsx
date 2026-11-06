@@ -120,7 +120,7 @@ export function DownloadButton({
 
 /** A finished download: Show in Folder where there is a file manager, and Delete (click twice). */
 function DownloadedActions({ d, className, size, what }: { d: DownloadRecord; className: string; size: number; what: string }) {
-  const { armed, props } = useConfirmDelete(() => void removeDownload(d.id));
+  const { armed, props } = useConfirmDelete(() => void removeDownload(d.id), "Delete Download");
   return (
     <>
       {canRevealDownloads && (

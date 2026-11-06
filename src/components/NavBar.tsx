@@ -18,8 +18,10 @@ import { PartyMenu } from "./party/PartyMenu";
 import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
 import { Chip } from "./ui/Chip";
 import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "./ui/Menu";
+import { useNativeTabs } from "./NativeTabs";
+import type { NavLink } from "../lib/navTabs";
 
-const LINKS: { route: TabRoute; label: string }[] = [
+const LINKS: NavLink[] = [
   { route: { name: "home" }, label: "Home" },
   { route: { name: "discover", type: "series" }, label: "Series" },
   { route: { name: "discover", type: "movie" }, label: "Movies" },
@@ -27,7 +29,7 @@ const LINKS: { route: TabRoute; label: string }[] = [
   { route: { name: "library" }, label: "Library" },
 ];
 /** Settings → Browsing → Show the Calendar (off by default). */
-const CALENDAR: { route: TabRoute; label: string } = { route: { name: "calendar" }, label: "Calendar" };
+const CALENDAR: NavLink = { route: { name: "calendar" }, label: "Calendar" };
 
 const SCROLLED_AT = 8;
 
@@ -53,6 +55,7 @@ export function NavBar() {
   const { animeEnabled, showTvButton } = usePrefs();
   const sections = animeEnabled ? LINKS : LINKS.filter((l) => l.route.name !== "anime");
   const links = settings?.showCalendar ? [...sections, CALENDAR] : sections;
+  useNativeTabs(links);
 
   return (
     <header className="navbar" data-scrolled={scrolled} data-tauri-drag-region>
@@ -119,7 +122,7 @@ function NavParty() {
  * narrow window never cuts one in half. Every tab stays rendered (the
  * overflowing ones invisible) so their widths can be measured.
  */
-function NavLinks({ links, isActive, open }: { links: typeof LINKS; isActive: (r: TabRoute) => boolean; open: (r: TabRoute) => void }) {
+function NavLinks({ links, isActive, open }: { links: NavLink[]; isActive: (r: TabRoute) => boolean; open: (r: TabRoute) => void }) {
   const nav = useRef<HTMLElement>(null);
   const more = useRef<HTMLButtonElement>(null);
   const [fit, setFit] = useState(links.length);
