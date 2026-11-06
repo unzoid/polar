@@ -62,22 +62,11 @@ export class Hub {
       const id = me.id;
       const lag = this.lags.get(id) ?? 40;
       this.clients.set(id, { lag, handlers });
-      let current = me;
-      this.sim.after(() => {
-        this.track(id, current);
-        handlers.onStatus("joined");
-      }, lag * 2);
+      this.sim.after(() => handlers.onStatus("joined"), lag * 2);
       return {
         send: (message: Record<string, unknown>) => this.sim.after(() => !this.dropMessages.has(id) && this.broadcast(message), lag),
-        track: (p: PartyPresence) => {
-          current = p;
-          this.sim.after(() => this.track(id, p), lag);
-        },
-        reconnect: () =>
-          this.sim.after(() => {
-            this.track(id, current);
-            handlers.onStatus("joined");
-          }, lag * 2),
+        track: (p: PartyPresence) => this.sim.after(() => this.track(id, p), lag),
+        reconnect: () => this.sim.after(() => handlers.onStatus("joined"), lag * 2),
         close: () =>
           this.sim.after(() => {
             this.clients.delete(id);

@@ -72,7 +72,6 @@ interface Session {
 interface Channel {
   id: string;
   handlers: PartyHandlers;
-  current: PartyPresence;
   session: Session | null;
   closed: boolean;
   /** Its channel was closed by the server: what it sends still goes out over REST, nothing comes in. */
@@ -123,15 +122,12 @@ export class ChaosHub implements SimServer {
 
   readonly party = {
     connect: (_code: string, me: PartyPresence, handlers: PartyHandlers): PartyLink => {
-      const ch: Channel = { id: me.id, handlers, current: me, session: null, closed: false, rest: false };
+      const ch: Channel = { id: me.id, handlers, session: null, closed: false, rest: false };
       this.channels.set(me.id, ch);
       this.join(ch);
       return {
         send: (message) => (ch.rest && !ch.session ? this.rest(ch, message) : this.up(ch, (s) => this.broadcast(s, message))),
-        track: (p) => {
-          ch.current = p;
-          this.up(ch, (s) => this.track(ch, s, p));
-        },
+        track: (p) => this.up(ch, (s) => this.track(ch, s, p)),
         reconnect: () => {
           // As supabase.ts does: the old channel goes (its leave reaches the server if the connection still works), a new one opens.
           const s = ch.session;
@@ -153,7 +149,7 @@ export class ChaosHub implements SimServer {
     },
   };
 
-  /** A new session: the server's join reply, then its presence state, then (as supabase.ts does) the entry tracked. */
+  /** A new session: the server's join reply, then its presence state; the app tracks its entry itself. */
   private join(ch: Channel) {
     const s: Session = { pid: ++this.pid, up: true, down: true, live: false, copy: {}, lastPresence: 0, lastUp: 0 };
     ch.session = s;
@@ -164,11 +160,7 @@ export class ChaosHub implements SimServer {
       if (ch.closed || ch.session !== s) return;
       s.live = true;
       this.note(`${ch.id} joined (session ${s.pid})`);
-      this.sim.after(() => {
-        if (!s.down) return;
-        ch.handlers.onStatus("joined");
-        this.up(ch, (x) => this.track(ch, x, ch.current));
-      }, lag);
+      this.sim.after(() => s.down && ch.handlers.onStatus("joined"), lag);
       this.presenceTo(s, (copy) => {
         for (const k of Object.keys(copy)) delete copy[k];
         Object.assign(copy, this.snapshot());

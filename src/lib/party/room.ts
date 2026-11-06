@@ -234,8 +234,6 @@ export function createPartyRoom(deps: PartyDeps) {
   let cancelEntry: (() => void) | null = null;
   /** My entry sent this many times since the server's copy was last up to date. */
   let unconfirmed = 0;
-  /** A reconnect waiting for the budget (a join sends my entry). */
-  let cancelReopen: (() => void) | null = null;
   /** The newest of my timelines the host refused: my next change numbers past it, so a late refusal can't hit that one. */
   let refusedV = 0;
   /** Joiners the host was heard letting in: in, even while my copy of their entry still says knocking. */
@@ -301,7 +299,7 @@ export function createPartyRoom(deps: PartyDeps) {
     const at = Math.max(clock.now() + wait, entryFree());
     cancelEntry = later(() => {
       cancelEntry = null;
-      if (!self || !link || state?.status !== "live") return; // a join sends it
+      if (!self || !link || state?.status !== "live") return; // sent once the channel is back
       entrySent.push(clock.now());
       unconfirmed++;
       if (staleSince != null) staleSince = clock.now();
@@ -309,17 +307,13 @@ export function createPartyRoom(deps: PartyDeps) {
     }, at - clock.now());
   }
 
-  /** Drop the connection and open a new one, as soon as the budget allows the join's entry. */
+  /** Drop the connection and open a new one (joining costs no presence update: my entry follows within the budget). */
   function reopen(why: string) {
-    if (!link || cancelReopen) return;
+    if (!link) return;
     say(why);
     unanswered = 0;
     update({ status: "error" });
-    cancelReopen = later(() => {
-      cancelReopen = null;
-      unanswered = 0;
-      link?.reconnect();
-    }, Math.max(0, entryFree() - clock.now()));
+    link.reconnect();
   }
 
   const isHost = () => !!state && !!self && !state.knocking && state.hostId === self.id;
@@ -395,7 +389,6 @@ export function createPartyRoom(deps: PartyDeps) {
     cancels.clear();
     cancelJoinTimeout = null;
     cancelEntry = null;
-    cancelReopen = null;
     unconfirmed = 0;
     refusedV = 0;
     known.clear();
@@ -585,9 +578,9 @@ export function createPartyRoom(deps: PartyDeps) {
           return;
         }
         unanswered = 0;
-        // The join sent my entry (as the link had it last): it counts against the budget.
-        entrySent.push(clock.now());
-        unconfirmed = 1;
+        // A new channel has no entry of mine: send it, as soon as the budget allows.
+        unconfirmed = 0;
+        sendEntry(0);
         // Nobody could be heard while I was cut off: their silence counts from now.
         for (const m of listed) heard.set(m.id, Math.max(heard.get(m.id) ?? 0, clock.now()));
         if (ghosts.size) {
@@ -1011,7 +1004,7 @@ export function createPartyRoom(deps: PartyDeps) {
       say(`${tag(id)} gone: missing from presence, not heard from for ${Math.round((now - (heard.get(id) ?? since)) / 1000)} s`);
       missing.delete(id);
       heard.delete(id);
-      known.delete(id);
+      // `known` keeps its entry: heard from again before presence has it back, it shows as Reconnecting.
       if (!state.quiet && !state.rules.out.includes(id)) note(member, "left");
       gone = true;
     }
