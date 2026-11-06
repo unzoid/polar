@@ -1,4 +1,4 @@
-//! What to make of a data file read at start-up (`polar.json`, `downloads.json`).
+//! What to make of a data file read at start-up (`polarity.json`, `downloads.json`).
 //!
 //! Only a file that isn't there means "start fresh". Any other read error (a
 //! file locked by antivirus or a sync tool, a permission change, a disk error)

@@ -273,7 +273,7 @@ pub struct InstalledAddon {
 /// The space used when nobody is signed in.
 pub const LOCAL_SPACE: &str = "local";
 
-/// Layout of `polar.json`, bumped when a change needs old files read
+/// Layout of `polarity.json`, bumped when a change needs old files read
 /// differently. 0 = files from before the field existed.
 pub const VERSION: u32 = 1;
 

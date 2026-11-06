@@ -74,7 +74,8 @@ bun run index
 1. Open Settings and add a Stremio addon URL.
 2. Optionally add a TMDB API key. 
 
-Settings, keys and add-on URLs are kept in `polar.json` in the app's data folder. On Linux and macOS
+Settings, keys and add-on URLs are kept in `polarity.json` in the app's data folder (called `polar.json` in
+earlier versions; the first start renames it and keeps the old one as `polar.json.moved`). On Linux and macOS
 only your user account can read it, and Windows keeps app data per user, but it isn't encrypted:
 other programs running as you can read your keys. Your sign-in session is kept in the system's
 keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service such as GNOME Keyring

@@ -2,7 +2,7 @@
 //! Credential Manager on Windows, the Secret Service on Linux. The web view's auth client
 //! stores its session through these commands (src/lib/platform/keychain.ts); where there is no
 //! keychain, or it refuses, the commands fail and the web view keeps the session itself, as
-//! before. API keys stay in polar.json (I-008).
+//! before. API keys stay in polarity.json (I-008).
 //!
 //! How a value is split to fit is `polar_library::keychain`; this file only talks to the
 //! `keyring` crate. Phone builds have no `keyring` here yet: every command says unavailable.
