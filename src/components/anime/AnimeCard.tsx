@@ -81,9 +81,10 @@ export function useOpenAnime(item: Media) {
  * An anime's poster: the cover with its own key colour behind it while it
  * loads and, as Settings → Anime has them, the AniList score and when the next
  * episode lands. `label` replaces the caption's facts (a relation type,
- * "Episode 5 · 18:30").
+ * "Episode 5 · 18:30"). `onOpen` replaces opening its page (a season tab of the
+ * page it's on); `current` marks the entry on screen.
  */
-export function AnimeCard({ item, label }: { item: Media; label?: string }) {
+export function AnimeCard({ item, label, onOpen, current }: { item: Media; label?: string; onOpen?: (e: React.MouseEvent<HTMLElement>) => void; current?: boolean }) {
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
   const prefs = usePrefs();
@@ -104,7 +105,8 @@ export function AnimeCard({ item, label }: { item: Media; label?: string }) {
   return (
     <Card
       shape="poster"
-      className="anime-card"
+      className={current ? "anime-card anime-card-current" : "anime-card"}
+      aria-current={current || undefined}
       frameClass="anime-card-frame"
       art={art}
       artFallbacks={artFallbacks}
@@ -117,6 +119,7 @@ export function AnimeCard({ item, label }: { item: Media; label?: string }) {
           : cardFacts(item))
       }
       {...(isAnime ? open : { onClick: () => void api.openExternal(readOn), hint: "Open on MyAnimeList" })}
+      {...(onOpen && { onClick: onOpen })}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >
       {prefs.matureContent === "blur" && isMature(item) && <MatureCover />}

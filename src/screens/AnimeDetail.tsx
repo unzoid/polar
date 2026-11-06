@@ -100,7 +100,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   if (!shown) return <Skeleton className="detail-loading" />;
 
   const art = franchiseArt({ imdb: franchiseImdb, meta, metaLoading, first: animeArt(first ?? shown, firstZip) });
-  const franchise = seasons && { seasons, active: activeId, select: setActiveId, loading: seasonsLoading };
+  const franchise = seasons && { seasons, active: activeId, select: setActiveId, loading: seasonsLoading, order: found && walk?.order };
   const backdrop = (
     <div className="detail-bg" aria-hidden>
       <Img src={art.background} alt="" loading="eager" className="detail-bg-sharp" />

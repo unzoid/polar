@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import {
   alignByAirDate,
   type Anime,
-  type AnimeSeason,
   type AniZipEpisode,
   aniZipQuery,
   distinctLabels,
+  type FranchiseTabs,
   matchVideo,
   playContext,
   regularEpisodes,
@@ -30,13 +30,9 @@ import { SearchField } from "../ui/SearchField";
 import { Switch } from "../ui/Switch";
 import { useAnimePlayback } from "./useAnimePlayback";
 
-/** The franchise's seasons, which one is showing, and how to show another. */
-export interface Franchise {
-  seasons: AnimeSeason[];
-  active: number;
+/** The franchise's seasons, which one is showing (lib/anime/relatedRows.ts), and how to show another. */
+export interface Franchise extends FranchiseTabs {
   select: (id: number) => void;
-  /** More seasons are still being looked up. */
-  loading?: boolean;
 }
 
 const PAGE = 100;
