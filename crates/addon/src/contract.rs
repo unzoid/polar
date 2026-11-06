@@ -8,6 +8,7 @@
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
+use crate::probe::Readiness;
 use crate::rank::{RankedStream, StreamQuality};
 use crate::types::*;
 
@@ -122,6 +123,9 @@ fn field_names_match_contract() {
     );
     add("Stream", keys(&stream()));
     add("StreamQuality", keys(&StreamQuality::default()));
+    add("Readiness.ready", keys(&Readiness::Ready { ms: 1 }));
+    add("Readiness.notReady", keys(&Readiness::NotReady { reason: "r".into() }));
+    add("Readiness.unchecked", keys(&Readiness::Unchecked));
     add(
         "RankedStream",
         keys(&RankedStream {

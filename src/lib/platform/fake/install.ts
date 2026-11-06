@@ -78,6 +78,8 @@ const commands: Record<string, (a: Args) => unknown> = {
   mpv_available: () => false,
   resolve_stream: (a) => ({ kind: "url", url: (a.stream as { url: string }).url }),
   stream_probe: (a) => a.url,
+  // One source a placeholder, the rest quick (#21).
+  stream_ready: (a) => (String(a.url).endsWith("/1.mp4") ? { state: "notReady", reason: "Not ready at the source" } : { state: "ready", ms: 400 }),
   space_untitled: () => [],
   sync_changes: () => ({ library: [], progress: [], links: [], cursor: 0, pulledAt: null }),
   // Window, app and plugin calls: answered with nothing.

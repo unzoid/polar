@@ -260,6 +260,7 @@ pub fn run() {
             player::mpv_available,
             player::mpv_load,
             streamcheck::stream_probe,
+            streamcheck::stream_ready,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,

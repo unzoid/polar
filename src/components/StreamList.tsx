@@ -1,9 +1,9 @@
-import { AlertCircle, Check } from "./icons";
+import { AlertCircle, Check, Instant } from "./icons";
 import { useRouter } from "../lib/router";
 import { openSettings, type PageId } from "../lib/settings";
 import { useSettings, useStreams } from "../lib/net";
-import { sourceRow, TAG_LABELS, tagsOf, useSourceFilters } from "../lib/playback";
-import type { ContentType, RankedStream } from "../lib/types";
+import { READY_CHECKS, sourceRow, startsIn, TAG_LABELS, tagsOf, useReadiness, useSourceFilters } from "../lib/playback";
+import type { ContentType, RankedStream, Readiness } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
 import { Button } from "./ui/Button";
 import { errorMessage } from "../lib/errors";
@@ -34,6 +34,8 @@ export function StreamList({
   const { data, isLoading, isError, error } = useStreams(type, videoId);
   const { data: settings } = useSettings();
   const f = useSourceFilters(data?.streams, settings);
+  // The first few sources in view get a look ahead of time (#21).
+  const ready = useReadiness(f.view.slice(0, Math.min(f.matched, READY_CHECKS)).map(({ r }) => r));
 
   if (isLoading) {
     return (
@@ -95,19 +97,19 @@ export function StreamList({
       {grouped && best && (
         <>
           <div className="stream-group-label t-micro faint">Best Match</div>
-          <StreamRow s={best} featured current={currentKey === streamKey(best)} onPick={onPick} />
+          <StreamRow s={best} featured current={currentKey === streamKey(best)} readiness={ready.get(streamKey(best))} onPick={onPick} />
           {rest.length > 0 && <div className="stream-group-label t-micro faint">More Sources</div>}
           {rest.map((s) => (
-            <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} onPick={onPick} />
+            <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} readiness={ready.get(streamKey(s))} onPick={onPick} />
           ))}
         </>
       )}
-      {!grouped && shown.map((s) => <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} onPick={onPick} />)}
+      {!grouped && shown.map((s) => <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} readiness={ready.get(streamKey(s))} onPick={onPick} />)}
       {others.length > 0 && (
         <>
           <div className="stream-group-label t-micro faint">Other Sources</div>
           {others.map((s) => (
-            <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} onPick={onPick} />
+            <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} readiness={ready.get(streamKey(s))} onPick={onPick} />
           ))}
         </>
       )}
@@ -129,26 +131,38 @@ function StreamRow({
   s,
   featured,
   current,
+  readiness,
   onPick,
 }: {
   s: RankedStream;
   featured?: boolean;
   current?: boolean;
+  /** What a look at the link ahead of time found (#21); unchecked rows look as before. */
+  readiness?: Readiness;
   onPick: (s: RankedStream) => void;
 }) {
   const row = sourceRow(s);
   const tags = tagsOf(s).filter((t) => ROW_TAGS.has(t));
+  const isReady = readiness?.state === "ready";
+  const note =
+    readiness?.state === "ready"
+      ? `Ready to play: this link answered with the video in ${(readiness.ms / 1000).toFixed(1)} s`
+      : readiness?.state === "notReady"
+        ? readiness.reason
+        : undefined;
+  // The release name is for the curious: on hover, not in the row.
+  const release = s.stream.title ?? s.stream.description;
   return (
     <button
       className="stream-row pressable"
       data-featured={featured}
       data-current={current}
+      data-ready={readiness?.state === "ready" ? "yes" : readiness?.state === "notReady" ? "no" : undefined}
       onClick={() => onPick(s)}
-      // The release name is for the curious: on hover, not in the row.
-      title={s.stream.title ?? s.stream.description}
+      title={[note, release].filter(Boolean).join("\n") || undefined}
     >
       <span className="stream-lead" aria-hidden>
-        {current ? <Check size={16} strokeWidth={2.5} /> : null}
+        {current ? <Check size={16} strokeWidth={2.5} /> : isReady ? <Instant size={15} fill="currentColor" strokeWidth={0} /> : null}
       </span>
       <span className="stream-text">
         <span className="stream-main">
@@ -161,7 +175,7 @@ function StreamRow({
           {s.quality.lowQualitySource && <span className="badge badge-bad">CAM</span>}
         </span>
         <span className="stream-sub t-caption">
-          {current ? "Playing · " : ""}
+          {current ? "Playing · " : readiness?.state === "ready" ? `Ready · ${startsIn(readiness.ms)} · ` : readiness?.state === "notReady" ? `${readiness.reason} · ` : ""}
           {row.detail}
         </span>
       </span>

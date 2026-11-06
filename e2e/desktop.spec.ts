@@ -218,3 +218,21 @@ test("settings change and stay changed", async ({ app }) => {
   await app.keyboard.press("Escape");
   await expect(settings).toHaveCount(0);
 });
+
+test("a source list marks its first links ready or not ready, checked ahead of time (#21)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Choose source", exact: true }).click();
+  // The fake shell answers every link as ready in 0.4 s except one placeholder.
+  const ready = app.locator('.stream-row[data-ready="yes"]');
+  const notReady = app.locator('.stream-row[data-ready="no"]');
+  await expect(ready.first()).toContainText("Ready · starts in 0.4 s");
+  await expect(ready.first().locator(".stream-lead svg")).toBeVisible();
+  await expect(ready.first()).toHaveAttribute("title", /^Ready to play: this link answered with the video in 0\.4 s/);
+  await expect(ready).toHaveCount(3);
+  await expect(notReady).toHaveCount(1);
+  await expect(notReady).toContainText("Not ready at the source");
+  expect(await notReady.locator(".stream-text").evaluate((e) => getComputedStyle(e).opacity)).toBe("0.5");
+  // Only the first few are checked: the last source stays as it was.
+  await expect(app.locator(".stream-row").last()).not.toHaveAttribute("data-ready");
+});

@@ -20,6 +20,7 @@ import type {
   Playable,
   Progress,
   RankedStream,
+  Readiness,
   SearchResults,
   SeekCue,
   SeekTrack,
@@ -93,6 +94,9 @@ export const contract = {
   } satisfies Keys<MetaPreview>,
   Person: { character: true, name: true, photo: true } satisfies Keys<Person>,
   RankedStream: { addon: true, label: true, quality: true, score: true, stream: true } satisfies Keys<RankedStream>,
+  "Readiness.ready": { state: true, ms: true } satisfies Keys<Extract<Readiness, { state: "ready" }>>,
+  "Readiness.notReady": { state: true, reason: true } satisfies Keys<Extract<Readiness, { state: "notReady" }>>,
+  "Readiness.unchecked": { state: true } satisfies Keys<Extract<Readiness, { state: "unchecked" }>>,
   Stream: { behaviorHints: true, description: true, externalUrl: true, name: true, title: true, url: true, ytId: true } satisfies Keys<Stream>,
   StreamQuality: {
     codec: true,
