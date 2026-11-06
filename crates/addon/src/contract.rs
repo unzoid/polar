@@ -8,6 +8,7 @@
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
+use crate::probe::Readiness;
 use crate::rank::{RankedStream, StreamQuality};
 use crate::types::*;
 
@@ -48,6 +49,9 @@ fn stream() -> Stream {
         url: s("https://a.io/v.mkv"),
         yt_id: s("y"),
         external_url: s("https://a.io"),
+        info_hash: s("0123456789abcdef0123456789abcdef01234567"),
+        file_idx: Some(0),
+        sources: Some(vec!["tracker:udp://tracker.example.org:1337/announce".into()]),
         name: s("n"),
         title: s("t"),
         description: s("d"),
@@ -122,6 +126,9 @@ fn field_names_match_contract() {
     );
     add("Stream", keys(&stream()));
     add("StreamQuality", keys(&StreamQuality::default()));
+    add("Readiness.ready", keys(&Readiness::Ready { ms: 1 }));
+    add("Readiness.notReady", keys(&Readiness::NotReady { reason: "r".into() }));
+    add("Readiness.unchecked", keys(&Readiness::Unchecked));
     add(
         "RankedStream",
         keys(&RankedStream {

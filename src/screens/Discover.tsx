@@ -19,9 +19,10 @@ const CATALOGS = [
   { id: "classics", label: "Classics" },
 ];
 
-export function Discover({ type }: { type: ContentType }) {
-  const [catalog, setCatalog] = useState("trending");
-  const [picked, setGenre] = useState<string>();
+/** `catalog` and `genre`: where it opens (a Home shelf's heading opens its own list, #48). */
+export function Discover({ type, catalog: initialCatalog, genre: initialGenre }: { type: ContentType; catalog?: string; genre?: string }) {
+  const [catalog, setCatalog] = useState(() => (CATALOGS.some((c) => c.id === initialCatalog) ? initialCatalog! : "trending"));
+  const [picked, setGenre] = useState(initialGenre);
   // Movies and Series share this screen: a genre from one may not exist in the other.
   const genre = picked && BROWSE_GENRES[type].includes(picked) ? picked : undefined;
 

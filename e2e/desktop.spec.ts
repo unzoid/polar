@@ -116,7 +116,7 @@ test("a wheel turn down a show's page lands its season tabs below the navbar's b
   expect((await tabs.boundingBox())!.y).toBe(last);
 });
 
-test("an episode's Sources and Download buttons show alike, on a dark fill, without hovering (#18)", async ({ app }) => {
+test("an episode's Sources and Download buttons show alike, quietly, only while the card is pointed at or focused (#18, #79)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();
   const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
@@ -128,12 +128,33 @@ test("an episode's Sources and Download buttons show alike, on a dark fill, with
       const alpha = Number(/rgba?\(([^)]+)\)/.exec(s.backgroundColor)?.[1].split(",")[3] ?? 1);
       return { opacity: s.opacity, alpha, color: s.color, size: b.getBoundingClientRect().width };
     });
+  // Out of the way while nothing points at the card.
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("0");
+  expect((await look(".episode-download")).opacity).toBe("0");
+
+  // Pointing at the card shows both, alike: a white glyph on a lighter fill than before, the same size.
+  await ep.hover();
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("1");
   const sources = await look(".episode-sources");
   const download = await look(".episode-download");
   expect(sources).toEqual(download);
-  expect(sources.opacity).toBe("1");
   expect(sources.color).toBe("rgb(255, 255, 255)");
-  expect(sources.alpha).toBeGreaterThanOrEqual(0.5);
+  expect(sources.alpha).toBeGreaterThanOrEqual(0.4);
+  expect(sources.alpha).toBeLessThan(0.55);
+  expect(sources.size).toBe(32);
+
+  // Keyboard focus on the card shows them too; the tap area stays 44 px.
+  await app.mouse.move(0, 0);
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("0");
+  await ep.locator(".episode-card-main").focus();
+  await app.keyboard.press("Shift+Tab");
+  await app.keyboard.press("Tab");
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("1");
+  const tap = await ep.locator(".episode-sources").evaluate((b) => {
+    const a = getComputedStyle(b, "::after");
+    return b.getBoundingClientRect().width - 2 * parseFloat(a.top);
+  });
+  expect(tap).toBe(44);
 });
 
 test("a downloaded episode offers Show in Folder and Delete as buttons, and Play takes the download (#25)", async ({ app }) => {
@@ -197,6 +218,52 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await expect(player).toHaveCount(0);
 });
 
+test("with an AirPlay receiver around, the player sends the video to it and back (#19)", async ({ app }) => {
+  // WebKit's AirPlay surface, as WKWebView on macOS has it: a receiver is there, and the picker toggles to it and back.
+  await app.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.WebKitPlaybackTargetAvailabilityEvent = class extends Event {};
+    const wireless = new WeakSet<HTMLMediaElement>();
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (this: HTMLMediaElement, type: string, ...rest: unknown[]) {
+      (add as (...a: unknown[]) => void).call(this, type, ...rest);
+      if (type === "webkitplaybacktargetavailabilitychanged")
+        setTimeout(() => this.dispatchEvent(Object.assign(new Event(type), { availability: "available" })), 50);
+    } as typeof add;
+    Object.defineProperty(HTMLMediaElement.prototype, "webkitCurrentPlaybackTargetIsWireless", {
+      get(this: HTMLMediaElement) {
+        return wireless.has(this);
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "webkitShowPlaybackTargetPicker", {
+      value(this: HTMLMediaElement) {
+        if (wireless.has(this)) wireless.delete(this);
+        else wireless.add(this);
+        this.dispatchEvent(new Event("webkitcurrentplaybacktargetiswirelesschanged"));
+      },
+    });
+  });
+  await app.reload();
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+
+  const airplay = app.locator(".player-top").getByRole("button", { name: "AirPlay" });
+  await expect(airplay).toBeVisible();
+  await airplay.click();
+  await expect(app.getByText("Playing on AirPlay")).toBeVisible();
+  await expect(airplay).toHaveAttribute("aria-pressed", "true");
+  // The controls still drive it.
+  await app.keyboard.press(" ");
+  await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+
+  // Picking this computer again plays here.
+  await app.locator(".player-casting").getByRole("button", { name: "AirPlay" }).click();
+  await expect(app.getByText("Playing on AirPlay")).toHaveCount(0);
+  await expect(airplay).toHaveAttribute("aria-pressed", "false");
+});
+
 test("settings change and stay changed", async ({ app }) => {
   const open = async () => {
     await app.getByRole("button", { name: /^Profile/ }).click();
@@ -217,4 +284,232 @@ test("settings change and stay changed", async ({ app }) => {
   await expect(settings.getByRole("heading", { level: 2, name: /Appearance/ }).first()).toBeVisible();
   await app.keyboard.press("Escape");
   await expect(settings).toHaveCount(0);
+});
+
+test("Settings → Sources has the torrent limits, kept on this device (#47)", async ({ app }) => {
+  const open = async () => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Settings" }).click();
+    const settings = app.getByRole("dialog", { name: /^Settings/ });
+    await settings.getByRole("button", { name: "Sources", exact: true }).click();
+    return settings;
+  };
+  let settings = await open();
+  await expect(settings.getByRole("heading", { name: "Torrent Sources" })).toBeVisible();
+  await expect(settings.getByText("Torrent cache limit")).toBeVisible();
+  await expect(settings.getByText("Torrent speed limit")).toBeVisible();
+  const sharing = settings.getByRole("switch", { name: /^Keep sharing after playback/ });
+  // Nothing is shared after playback until the user turns it on.
+  await expect(sharing).not.toBeChecked();
+  await sharing.click();
+  await expect(sharing).toBeChecked();
+  await app.keyboard.press("Escape");
+  await expect(settings).toHaveCount(0);
+
+  settings = await open();
+  await expect(settings.getByRole("switch", { name: /^Keep sharing after playback/ })).toBeChecked();
+  expect(await app.evaluate(() => JSON.parse(localStorage.getItem("polar.prefs") ?? "{}").torrentKeepSharing)).toBe(true);
+});
+
+test("a source list marks its first links ready or not ready, checked ahead of time (#21)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Choose source", exact: true }).click();
+  // The fake shell answers every link as ready in 0.4 s except one placeholder.
+  const ready = app.locator('.stream-row[data-ready="yes"]');
+  const notReady = app.locator('.stream-row[data-ready="no"]');
+  await expect(ready.first()).toContainText("Ready · starts in 0.4 s");
+  await expect(ready.first().locator(".stream-lead svg")).toBeVisible();
+  await expect(ready.first()).toHaveAttribute("title", /^Ready to play: this link answered with the video in 0\.4 s/);
+  await expect(ready).toHaveCount(3);
+  await expect(notReady).toHaveCount(1);
+  await expect(notReady).toContainText("Not ready at the source");
+  expect(await notReady.locator(".stream-text").evaluate((e) => getComputedStyle(e).opacity)).toBe("0.5");
+  // Only the first few are checked: the last source stays as it was.
+  await expect(app.locator(".stream-row").last()).not.toHaveAttribute("data-ready");
+});
+
+test("the player's Sources panel marks the same links (#21)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Sources", exact: true }).click();
+  const sources = app.getByRole("radiogroup", { name: "Sources" });
+  // The source playing keeps its check; the next ones are marked.
+  await expect(sources.locator('[data-ready="yes"]')).toHaveCount(3);
+  await expect(sources.locator('[data-ready="no"]')).toContainText("Not ready at the source");
+  await expect(sources.locator('[data-ready="yes"]').nth(1).locator(".options-check svg")).toBeVisible();
+  await expect(sources.locator('[data-ready="yes"]').nth(1)).toContainText("Ready · starts in 0.4 s");
+});
+
+test("while a downloaded episode plays, its copy is the first source and picking it goes back to the file (#23)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
+  await ep.getByRole("button", { name: "Download Episode" }).click();
+  await app.locator(".sheet .stream-row").first().click();
+  await expect(ep.getByRole("button", { name: "Delete Downloaded Episode" })).toBeVisible();
+
+  await ep.locator(".episode-card-main").click();
+  const video = app.locator(".player video");
+  await expect(video).toHaveAttribute("src", /\/downloads\/.+\.mkv$/);
+  const sources = app.getByRole("radiogroup", { name: "Sources" });
+  const open = async () => {
+    await app.getByRole("button", { name: "Sources", exact: true }).click();
+    await expect(sources).toBeVisible();
+  };
+  await open();
+  const copy = sources.getByRole("radio").first();
+  await expect(copy).toContainText("Downloaded copy");
+  await expect(copy).toContainText("On this device");
+  await expect(copy).toHaveAttribute("aria-checked", "true");
+
+  // Another source, then back to the copy.
+  await sources.getByRole("radio").nth(2).click();
+  await expect(video).toHaveAttribute("src", /^https:\/\/media\.example\//);
+  await open();
+  await expect(sources.getByRole("radio").first()).toHaveAttribute("aria-checked", "false");
+  await sources.getByRole("radio").first().click();
+  await expect(video).toHaveAttribute("src", /\/downloads\/.+\.mkv$/);
+});
+
+test("a Stremio export is read, previewed and imported; its add-ons are only listed (#12)", async ({ app }) => {
+  const file = {
+    addons: {
+      addons: [{ transportUrl: "https://addon.example.org/TOKEN/manifest.json", flags: {}, manifest: { id: "org.example.one", name: "Example One" } }],
+    },
+    library: [
+      {
+        _id: "0001",
+        d: {
+          _id: "tt0000999",
+          _ctime: "2026-01-01T10:00:00.000Z",
+          _mtime: "2026-01-02T10:00:00.000Z",
+          type: "movie",
+          name: "Harbour Lights",
+          removed: false,
+          temp: false,
+          state: { video_id: "tt0000999", timeOffset: 1_200_000, duration: 5_400_000, lastWatched: "2026-01-02T10:00:00.000Z" },
+        },
+      },
+    ],
+  };
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  // Signed out (as here), it's under Advanced; signed in, under Account.
+  await settings.getByRole("button", { name: "Advanced", exact: true }).click();
+  await settings.locator('input[type="file"]').setInputFiles({ name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await expect(settings.getByText("1 title Polarity can show")).toBeVisible();
+  await expect(settings.getByRole("switch", { name: /^Where you left off/ })).toBeChecked();
+  const addon = settings.getByRole("switch", { name: /^Example One/ });
+  await expect(addon).not.toBeChecked();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText("Added 1 title to your library and 1 progress entry.")).toBeVisible();
+  await expect(addon).toHaveCount(0);
+});
+
+test("Download Season downloads every released episode of the season, then says so (#24)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const season = app.locator(".seasons-bar").getByRole("button", { name: /^Download Season/ });
+  await expect(season).toBeEnabled();
+  await expect(app.getByRole("button", { name: "Download Show", exact: true })).toBeVisible();
+  await season.click();
+  // The fake shell finishes each download at once.
+  await expect(app.locator(".seasons-bar").getByRole("button", { name: "Season Downloaded" })).toBeDisabled({ timeout: 15_000 });
+  const released = app.locator(".episode-card:has(.episode-card-main:not([disabled]))");
+  const count = await released.count();
+  expect(count).toBeGreaterThan(1);
+  await expect(released.getByRole("button", { name: "Delete Downloaded Episode" })).toHaveCount(count);
+});
+
+test("the title page's Download button names what it downloads (#26)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const actions = app.locator(".detail-actions");
+  await expect(actions.getByRole("button", { name: "Download S1 E1", exact: true })).toHaveText("Download S1 E1");
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
+});
+
+test("with Show on Discord set to the title, the player sends what plays, its pause, and clears it on close (#31)", async ({ app }) => {
+  const sent = () => app.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as ({ details: string; state?: string; end?: number } | null)[]);
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("combobox", { name: "Show on Discord" }).click();
+  await app.getByRole("option", { name: "What you're watching" }).click();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "The Glass Orchard" });
+  expect((await sent()).at(-1)?.end).toBeGreaterThan(Date.now());
+
+  await app.keyboard.press(" ");
+  await expect.poll(async () => (await sent()).at(-1)?.state).toBe("Paused");
+  await app.keyboard.press("Escape");
+  await expect(app.locator(".player")).toHaveCount(0);
+  await expect.poll(async () => (await sent()).at(-1)).toBeNull();
+  // Nothing was sent before it played.
+  expect((await sent())[0]).not.toBeNull();
+});
+
+test("a Home shelf's heading opens its browse page with the filter on, and Back returns to the same place (#48)", async ({ app }) => {
+  const home = app.locator('.page[data-active="true"] .scroll');
+  const heading = app.getByRole("button", { name: "New Movies", exact: true });
+  await heading.scrollIntoViewIfNeeded();
+  const before = await home.evaluate((el) => el.scrollTop);
+  expect(before).toBeGreaterThan(0);
+  // Reachable with the keyboard, like any button.
+  await heading.focus();
+  await app.keyboard.press("Enter");
+
+  await expect(app.getByRole("heading", { level: 1, name: "Movies" })).toBeVisible();
+  await expect(app.getByRole("radiogroup", { name: "Catalog" }).getByRole("radio", { name: "New" })).toBeChecked();
+  await expect(app.getByRole("combobox", { name: "Genre" })).toHaveText(/All Genres/);
+
+  await app.keyboard.press("Escape");
+  await expect(heading).toBeVisible();
+  expect(await home.evaluate((el) => el.scrollTop)).toBe(before);
+
+  // A genre shelf (today's pick) opens its type at Popular with that genre picked.
+  const genreTitles = await app.locator(".row-title-link").allTextContents();
+  // lib/catalog/shelves.ts's GENRES.
+  const known = ["Action & Adventure", "Sci-Fi Movies", "Animated Movies", "Comedy Movies", "Horror Movies", "Thrillers", "Romance Movies", "Crime Movies"]
+    .concat(["Fantasy Movies", "Documentaries", "Comedy Series", "Crime Series", "Drama Series", "Sci-Fi & Fantasy Series", "Animated Series", "Mystery Series", "Docuseries"]);
+  const pick = genreTitles.map((t) => t.trim()).find((t) => known.includes(t));
+  expect(pick).toBeDefined();
+  await app.getByRole("button", { name: pick, exact: true }).click();
+  await expect(app.getByRole("radiogroup", { name: "Catalog" }).getByRole("radio", { name: "Popular" })).toBeChecked();
+  await expect(app.getByRole("combobox", { name: "Genre" })).not.toHaveText(/All Genres/);
+});
+
+test("with seasons as separate shows, Continue Watching names the anime entry the episode is part of, and only then (#22)", async ({ app }) => {
+  const row = app.locator(".row").filter({ has: app.getByRole("heading", { name: "Continue Watching" }) });
+  // The first title on the fake backend is at season 2, episode 3; its stored card names the show.
+  const stored = (await row.locator(".card").first().textContent()) ?? "";
+  expect(stored).toContain("S2");
+  await app.addInitScript(() => {
+    localStorage.setItem("polar.prefs", JSON.stringify({ ...JSON.parse(localStorage.getItem("polar.prefs") ?? "{}"), animeSeparateEntries: true }));
+    // What an anime page leaves: season 2's episodes 1–12 are this entry's 1–12.
+    localStorage.setItem("polar.animeEntries.v1", JSON.stringify({ tt9200001: { "21": { title: { english: "Paper Moon Part 2" }, runs: [[2, 1, 12, 1]], at: 1 } } }));
+  });
+  await app.reload();
+  const first = row.locator(".card").first();
+  await expect(first).toContainText("Paper Moon Part 2");
+  await expect(first).toContainText("Episode 3 · Chapter 3: Crossings");
+
+  // Off again: the card is the stored title's, as before.
+  await app.addInitScript(() =>
+    localStorage.setItem("polar.prefs", JSON.stringify({ ...JSON.parse(localStorage.getItem("polar.prefs") ?? "{}"), animeSeparateEntries: false })),
+  );
+  await app.reload();
+  await expect(row.locator(".card").first()).not.toContainText("Paper Moon Part 2");
+  await expect(row.locator(".card").first()).toContainText("S2");
 });

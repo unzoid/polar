@@ -202,6 +202,8 @@ pub enum Playable {
     Url {
         url: String,
     },
+    /// A torrent from the user's add-on: the player opens it with `torrent_open`.
+    Torrent {},
     /// Needs a browser (e.g. YouTube trailers, "watch on" links).
     External {
         url: String,
@@ -211,7 +213,7 @@ pub enum Playable {
     },
 }
 
-/// Turn a stream into something playable: a link, or a YouTube video opened outside.
+/// Turn a stream into something playable: a link, a torrent, or a YouTube video opened outside.
 #[tauri::command]
 pub fn resolve_stream(stream: Stream) -> Result<Playable> {
     Ok(resolve(stream))
@@ -225,6 +227,9 @@ pub fn resolve(stream: Stream) -> Playable {
             return Playable::Unsupported { reason: "This download is no longer on this device.".into() };
         }
         return Playable::Url { url };
+    }
+    if stream.info_hash.is_some() {
+        return Playable::Torrent {};
     }
     if let Some(yt) = stream.yt_id {
         // An add-on's id goes into a link the system opens: only a real video id gets through (L13).
@@ -248,6 +253,13 @@ fn installed(state: &State<'_, AppState>) -> Vec<InstalledAddon> {
 #[tauri::command]
 pub fn addons_list(state: State<'_, AppState>) -> Vec<InstalledAddon> {
     installed(&state)
+}
+
+/// The manifest URLs of the add-ons the app installs itself: a profile new to this device keeps
+/// them when it starts without anyone else's add-ons (#80).
+#[tauri::command]
+pub fn addons_bundled() -> Vec<String> {
+    crate::BUNDLED_ADDONS.iter().map(|u| u.to_string()).collect()
 }
 
 #[tauri::command]
@@ -315,6 +327,28 @@ pub fn progress_save_many(state: State<'_, AppState>, progress: Vec<Progress>) -
     state.persist(|d| d.space_mut().progress_save(progress, now()))
 }
 
+/// What was added by [`library_import`].
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Imported {
+    pub library: usize,
+    pub progress: usize,
+}
+
+/// Library items and progress exported by another app, with their own times
+/// (`Space::import_exported`): nothing newer here is overwritten, and importing the same
+/// file again adds nothing.
+#[tauri::command]
+pub fn library_import(
+    state: State<'_, AppState>,
+    library: Vec<LibraryItem>,
+    progress: Vec<Progress>,
+) -> Result<Imported> {
+    let mut added = (0, 0);
+    state.persist_now(|d| added = d.space_mut().import_exported(library, progress, now()))?;
+    Ok(Imported { library: added.0, progress: added.1 })
+}
+
 /// Latest unfinished video per title, newest first.
 #[tauri::command]
 pub fn continue_watching(state: State<'_, AppState>) -> Vec<Progress> {
@@ -337,16 +371,23 @@ pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
 /// `updatedAt` is set here. Returns whether anything changed: the anime
 /// pages call this on every visit, and a link that says what the stored one
 /// already does keeps the stored one's time (so sync has nothing to send).
+/// A link the anime id lists already give, for a show with nothing kept
+/// under its ids yet, isn't stored at all (#102, `Space::needs_link`).
 #[tauri::command]
-pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<bool> {
+pub async fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<bool> {
     if !link.is_valid() {
         return Err(CmdError::Unsupported(format!("not a title id Polarity keys by: {}", link.canonical)));
     }
-    let known = {
+    // What the anime id lists say (none when they can't be read: then the link is kept).
+    let listed = state.anime_lists.find(&polar_anime::AnimeKey::Anilist(link.anilist)).await.and_then(|m| m.imdb_id);
+    let skip = {
         let store = state.store.locked();
-        store.data.space().and_then(|s| s.links.get(&link.anilist)).is_some_and(|old| old.same_target(&link))
+        store.data.space().is_some_and(|s| {
+            s.links.get(&link.anilist).is_some_and(|old| old.same_target(&link))
+                || !s.needs_link(&link, listed.as_deref())
+        })
     };
-    if known {
+    if skip {
         return Ok(false);
     }
     link.updated_at = now();

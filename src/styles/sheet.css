@@ -138,6 +138,13 @@
 .stream-row[data-current="true"] .stream-lead {
   color: var(--text);
 }
+/* Checked ahead of time (#21): ready shows the bolt, not ready is dimmed and says why. */
+.stream-row[data-ready="yes"] .stream-lead {
+  color: var(--text);
+}
+.stream-row[data-ready="no"] :is(.stream-text, .stream-size) {
+  opacity: 0.5;
+}
 .stream-text {
   flex: 1;
   min-width: 0;

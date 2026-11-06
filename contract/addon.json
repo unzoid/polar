@@ -6,7 +6,10 @@
   "MetaPreview": ["background","description","genres","id","imdbRating","logo","name","poster","releaseInfo","type"],
   "Person": ["character","name","photo"],
   "RankedStream": ["addon","label","quality","score","stream"],
-  "Stream": ["behaviorHints","description","externalUrl","name","title","url","ytId"],
+  "Readiness.notReady": ["reason","state"],
+  "Readiness.ready": ["ms","state"],
+  "Readiness.unchecked": ["state"],
+  "Stream": ["behaviorHints","description","externalUrl","fileIdx","infoHash","name","sources","title","url","ytId"],
   "StreamQuality": ["codec","direct","dolbyVision","hdr","languages","lowQualitySource","resolution","sizeBytes","source","tags"],
   "Video": ["episode","id","overview","rating","released","season","thumbnail","title"]
 }

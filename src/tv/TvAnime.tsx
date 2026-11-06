@@ -7,16 +7,22 @@ import {
   seasonOf,
   useAiringToday,
   useAnimeGenre,
+  useAniListBusy,
   useAnimeHome,
+  type Anime,
   type AnimeCard,
 } from "../lib/anime";
 import {
   animePreview,
   aniZipQuery,
   countdown,
+  entryZip,
   imdbForAnime,
   isMature,
+  knowsNothing,
   linkAnime,
+  lineUpEntry,
+  prequelOf,
   SEASON_LABEL,
   untilAiring,
   useAnimeScore,
@@ -131,7 +137,9 @@ export function TvAnimeRail({
   chip?: (a: AnimeCard) => string | undefined;
 }) {
   const { matureContent } = usePrefs();
-  if (!items) return <TvSkeletonRail title={title} shape={shape} />;
+  // Waiting its turn behind AniList's limit: said beside the title (#109).
+  const busy = useAniListBusy();
+  if (!items) return <TvSkeletonRail title={title} shape={shape} note={busy ? "AniList is busy, loading…" : undefined} />;
   // TV has no blur: the stage would show the art full-size the moment the
   // card has focus, so "blur" leaves it out here too.
   const kept = matureContent === "show" ? items : items.filter((a) => !isMature(a));
@@ -161,12 +169,9 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
   const timer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  // A widescreen card shows the linked IMDb title's backdrop first, opened or not (#34).
+  // The linked IMDb title's backdrop or poster first, opened or not (#34), the same for every season of a show (#27).
   const imdb = useLinkedImdb(card.id);
-  const { item, fallbacks } = useMemo(() => {
-    const preview = animePreview(card, zip, prefs.animeTitles);
-    return shape === "landscape" ? withLinkedArt(preview, imdb) : { item: preview, fallbacks: undefined };
-  }, [card, zip, prefs.animeTitles, shape, imdb]);
+  const { item, fallbacks } = useMemo(() => withLinkedArt(animePreview(card, zip, prefs.animeTitles), imdb, shape), [card, zip, prefs.animeTitles, shape, imdb]);
   const next = prefs.animeCardCountdown ? card.nextAiringEpisode : undefined;
   const nextText = next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`;
   // What's on the card stays artwork; when it airs goes on the stage above.
@@ -192,7 +197,10 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
       setMissing(true);
       return;
     }
-    navigate({ name: "detail", type: item.type, id: imdb });
+    // Seasons as separate shows (#22): the title's page with just this entry's episodes.
+    const separate = prefs.animeSeparateEntries && item.type === "series";
+    if (separate) await lineUpEntry(qc, card, z, imdb, prefs.animeTitles);
+    navigate({ name: "detail", type: item.type, id: imdb, entry: separate ? card.id : undefined });
   };
 
   return (
@@ -216,17 +224,23 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
 export function TvAnimeDetail({ id }: { id: number }) {
   const { replace } = useRouter();
   const qc = useQueryClient();
+  const { animeSeparateEntries: separate, animeTitles } = usePrefs();
   const [missing, setMissing] = useState(false);
   useEffect(() => {
     let live = true;
     void (async () => {
-      const z = await qc.fetchQuery(aniZipQuery(id)).catch(() => null);
+      let z = await qc.fetchQuery(aniZipQuery(id)).catch(() => null);
       // As on desktop: the IMDb show with this entry's episodes, else Kitsu.
       let sure = true;
       let mal = z?.mappings.mal_id;
+      let anime: Anime | undefined;
       const imdb = await fetchAnime(id)
-        .then((a) => {
+        .then(async (a) => {
+          anime = a;
           mal = a.idMal ?? mal;
+          // The second half of a split part ani.zip lists under its prequel (lib/anime/splitParts.ts).
+          const prequel = prequelOf(a);
+          if (knowsNothing(z) && prequel !== undefined) z = entryZip(a, z, await qc.fetchQuery(aniZipQuery(prequel)).catch(() => null)) ?? null;
           return imdbForAnime(a, z, cachedLookup(qc));
         })
         .catch(() => {
@@ -236,14 +250,17 @@ export function TvAnimeDetail({ id }: { id: number }) {
       const target = imdb ?? (z?.mappings.kitsu_id ? `kitsu:${z.mappings.kitsu_id}` : null);
       if (target && sure) void linkAnime(qc, { canonical: target, anilist: id, mal, kitsu: z?.mappings.kitsu_id });
       const movie = z?.mappings.type?.toLowerCase() === "movie";
+      // Seasons as separate shows (#22): the title's page with just this entry's episodes.
+      const entry = separate && !movie && anime && target ? anime : undefined;
+      if (entry && target) await lineUpEntry(qc, entry, z, target, animeTitles);
       if (!live) return;
-      if (target) replace({ name: "detail", type: movie ? "movie" : "series", id: target });
+      if (target) replace({ name: "detail", type: movie ? "movie" : "series", id: target, entry: entry?.id });
       else setMissing(true);
     })();
     return () => {
       live = false;
     };
-  }, [id, replace, qc]);
+  }, [id, replace, qc, separate, animeTitles]);
   if (!missing) return null;
   return (
     <div className="tv-note">

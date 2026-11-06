@@ -1,8 +1,9 @@
 /**
  * A franchise's seasons from AniList's prequel/sequel links (test report 1, items 8 and 12). Pure:
- * the network comes in as `link`, so tests walk made-up franchises. Type-only imports.
+ * the network comes in as `link`, so tests walk made-up franchises.
  */
 import type { AnimeCard, ChainLink, MediaFormat } from "./anilist";
+import { sameSplitEntry } from "./splitParts";
 
 export interface AnimeSeason {
   card: AnimeCard;
@@ -64,7 +65,10 @@ export async function walkSeasons(root: ChainLink, link: (id: number) => Promise
     return out;
   };
   const [before, after] = await Promise.all([walk(root, "PREQUEL"), walk(root, "SEQUEL")]);
-  const chain = [...before.reverse(), root, ...after].filter((n) => n.id === root.id || isSeason(n));
+  const all = [...before.reverse(), root, ...after];
+  // A short first part of a split entry ("… - 1st Leg" before "… - 2nd Leg") is a season like the rest of it.
+  const part = (n: ChainLink, i: number) => [all[i - 1], all[i + 1]].some((m) => !!m && m.format !== "MOVIE" && isSeason(m) && sameSplitEntry(n, m));
+  const chain = all.filter((n, i) => n.id === root.id || (SEASON_FORMATS.has(n.format!) && (isSeason(n) || part(n, i))));
   let season = 0;
   return {
     seasons: chain.map((card) => ({ card, label: card.format === "MOVIE" ? "Movie" : `Season ${++season}` })),

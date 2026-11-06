@@ -4,6 +4,7 @@ import { playContext } from "./anime/playContext";
 import { isKitsuId, kitsuMeta } from "./anime/kitsu";
 import type {
   CacheInfo,
+  Imported,
   ContentType,
   ExternalRatings,
   InstalledAddon,
@@ -11,6 +12,7 @@ import type {
   Meta,
   MetaPreview,
   Playable,
+  Readiness,
   Progress,
   Settings,
   Stream,
@@ -24,9 +26,12 @@ import type {
   SyncLibraryItem,
   TitleDisplay,
   TitleRef,
+  TorrentLink,
 } from "./types";
 import { settingsChanged } from "./settings/changes";
 import type { AnimeLink } from "./library/identity";
+import type { DiscordActivity } from "./playback/discordPresence";
+import type { TorrentLimits } from "./playback/torrent";
 
 /** A native command; a change it couldn't save is reported app-wide (errors.ts onSaveFailure) and still rejects. */
 const call = <T = unknown>(command: string, args?: Record<string, unknown>) =>
@@ -58,9 +63,15 @@ export const api = {
   streams: (type: ContentType, videoId: string) =>
     call<StreamsResult>("streams", { ty: type, videoId, altIds: playContext.altIds(videoId) ?? null }),
   resolveStream: (stream: Stream) => call<Playable>("resolve_stream", { stream }),
+  /** Start playing a torrent source (replacing the one playing); its steps arrive as `player://torrent` with `stepId`. */
+  torrentOpen: (stream: Stream, limits: TorrentLimits, stepId: number) => call<TorrentLink>("torrent_open", { stream, limits, stepId }),
+  /** The player closed: stop the torrent and delete its files, unless the user keeps sharing. */
+  torrentClose: (limits: TorrentLimits) => call<void>("torrent_close", { limits }),
   /** The link check mpv_load runs, for the built-in player: the URL to open, or why it won't play. */
   streamProbe: (url: string, probeId: number, headers: Record<string, string> | null = null) =>
     call<string>("stream_probe", { url, probeId, headers }),
+  /** One look at a source's link ahead of time (#21): ready to play, or why not. */
+  streamReady: (url: string, headers: Record<string, string> | null = null) => call<Readiness>("stream_ready", { url, headers }),
   subtitles: (type: ContentType, videoId: string) =>
     call<SubtitleOption[]>("subtitles", { ty: type, videoId }),
   subtitleVtt: (url: string) => call<string>("subtitle_vtt", { url }),
@@ -72,6 +83,8 @@ export const api = {
   ratings: (type: ContentType, id: string) => call<ExternalRatings>("ratings", { ty: type, id }),
 
   addons: () => call<InstalledAddon[]>("addons_list"),
+  /** The add-ons the app installs itself, by manifest URL. */
+  bundledAddons: () => call<string[]>("addons_bundled"),
   installAddon: (url: string) => call<InstalledAddon>("addon_install", { url }).then(changed),
   removeAddon: (id: string) => call<void>("addon_remove", { id }).then(changed),
 
@@ -81,6 +94,8 @@ export const api = {
   saveProgress: (progress: Progress) => call<void>("progress_save", { progress }),
   /** In one save; the last entry counts as the most recently touched. */
   saveProgressMany: (progress: Progress[]) => call<void>("progress_save_many", { progress }),
+  /** Library items and progress from another app, keeping their times; newer entries here win. */
+  importLibrary: (library: LibraryItem[], progress: Progress[]) => call<Imported>("library_import", { library, progress }),
   continueWatching: () => call<Progress[]>("continue_watching"),
   /** The latest video per title you've watched (finished or under way), newest first. */
   watchHistory: () => call<Progress[]>("watch_history"),
@@ -115,6 +130,10 @@ export const api = {
   resetSettings: () => call<Settings>("settings_reset").then(changed),
 
   mpvAvailable: () => call<boolean>("mpv_available"),
+  /** Whether this build can show what plays on Discord (desktop, built with a Discord application). */
+  discordAvailable: () => call<boolean>("discord_available").catch(() => false),
+  /** Shows what plays on the user's Discord profile, or clears it (null); nothing happens without Discord. */
+  discordPresence: (activity: DiscordActivity | null) => call<void>("discord_presence", { activity }).catch(() => {}),
   /** Why saved data couldn't be read at start-up; `null` when it could. */
   storeProblem: () => call<string | null>("store_problem"),
 };

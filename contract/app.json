@@ -3,9 +3,11 @@
   "CmdError": ["code","message"],
   "Cue": ["endMs","h","sheet","startMs","w","x","y"],
   "Download": ["addedAt","background","episode","episodeTitle","error","file","headers","id","logo","metaId","name","poster","quality","received","season","state","thumbnail","total","type","url"],
+  "Imported": ["library","progress"],
   "InstalledAddon": ["manifest","manifestUrl"],
   "LocalChanges": ["library","links","progress","pulledAt"],
   "Playable.external": ["kind","url"],
+  "Playable.torrent": ["kind"],
   "Playable.unsupported": ["kind","reason"],
   "Playable.url": ["kind","url"],
   "PreviewTrack": ["cues","sourceDurationMs"],
@@ -16,5 +18,6 @@
   "Span": ["end","start"],
   "StreamsResult": ["failed","hidden","streams"],
   "SubtitleOption": ["addon","id","lang","url"],
-  "SubtitleStyle": ["background","color","font","opacity","outline","outlineColor","raise","size"]
+  "SubtitleStyle": ["background","color","font","opacity","outline","outlineColor","raise","size"],
+  "TorrentLink": ["size","url"]
 }

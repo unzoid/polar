@@ -32,6 +32,7 @@ import { TvJoinParty } from "./TvJoinParty";
 import { useJoinPartyOpen } from "../lib/party";
 import { ErrorBoundary } from "../components/ui/ErrorBoundary";
 import { StoreProblemToast } from "../components/StoreProblemToast";
+import { AccountFullToast } from "../components/AccountFullToast";
 
 function TvScreen({ route }: { route: Route }) {
   switch (route.name) {
@@ -51,7 +52,7 @@ function TvScreen({ route }: { route: Route }) {
     case "settings":
       return <TvSettings page={route.page} />;
     case "detail":
-      return <TvDetail type={route.type} id={route.id} preview={route.preview} />;
+      return <TvDetail type={route.type} id={route.id} preview={route.preview} entry={route.entry} />;
     case "player":
       return null; // the player layer
     case "anime":
@@ -260,6 +261,7 @@ export function TvApp() {
         )}
         <ControllerToast tv />
         <StoreProblemToast tv />
+        <AccountFullToast tv />
       </main>
       <PlayerLayer player={player} leaving={leaving} />
     </div>

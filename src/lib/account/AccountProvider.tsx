@@ -6,7 +6,7 @@ import { readProfile } from "./backend";
 import { backend, type AccountUser, type Profile, type ProfileInput } from ".";
 import { forgetPlaylists, importLocalPlaylists } from "../library/playlists";
 import { clearRecentSearches } from "../catalog/recentSearches";
-import { forgetSettings, keepDeviceSettings, markDeviceSettings, restoreDeviceSettings, restoreSettings } from "./settingsSync";
+import { forgetSettings, keepDeviceSettings, markDeviceSettings, restoreDeviceSettings, restoreSettings, startProfile } from "./settingsSync";
 import { refreshLocalViews, sync } from "./sync";
 
 /**
@@ -32,7 +32,7 @@ export interface Account {
   canCancelSignIn: boolean;
 
   /** Email a sign-in code (new emails get an account automatically). */
-  sendCode(email: string): Promise<void>;
+  sendCode(email: string, captchaToken?: string): Promise<void>;
   verifyCode(email: string, code: string): Promise<void>;
   /** Signed in but loading profiles failed: try that part again. */
   resume(): Promise<void>;
@@ -95,6 +95,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     await Promise.race([sync.flush(), new Promise((r) => setTimeout(r, 3000))]);
     await api.activateSpace(p.id);
     await keepDeviceSettings(p.id).catch(warnFailed("Keeping this device's settings"));
+    // New to this device: none of the add-ons and keys of whoever was here before, unless they're shared (#80).
+    await startProfile(p.id).catch(warnFailed("Starting the profile without this device's add-ons and keys"));
     // This profile's settings as this device last synced them; reinstalling
     // addons can take a moment, so don't hold the app for it.
     await Promise.race([restoreSettings(p.id).catch(warnFailed("Restoring the profile's settings")), new Promise((r) => setTimeout(r, 1500))]);
@@ -212,8 +214,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       lastProfileId: localStorage.getItem(LAST_PROFILE_KEY),
       canCancelSignIn,
 
-      async sendCode(email) {
-        await need().auth.sendCode(email.trim().toLowerCase());
+      async sendCode(email, captchaToken) {
+        await need().auth.sendCode(email.trim().toLowerCase(), captchaToken);
       },
       async verifyCode(email, code) {
         const u = await need().auth.verifyCode(email.trim().toLowerCase(), code.replace(/\s/g, ""));

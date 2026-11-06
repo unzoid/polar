@@ -3,15 +3,19 @@ import { TextField } from "../../components/ui/TextField";
 import { Edit, Lock, Trash } from "../../components/icons";
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
-import { removeSecretsPassphrase, secretsState, setSecretsPassphrase, settingsTooLarge, sync, unlockSecrets, useAccount } from "../../lib/account";
+import { removeSecretsPassphrase, secretsState, setSecretsPassphrase, sync, unlockSecrets, useAccount, useSettingsSyncProblem } from "../../lib/account";
 import { useSecretsNote } from "../../components/settings/secretsNote";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
+import { StremioImport } from "../../components/settings/StremioImport";
+import { CopySetup } from "../../components/settings/CopySetup";
+import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AccountPage() {
   const account = useAccount();
   const expand = useExpanded();
+  const settingsProblem = useSettingsSyncProblem();
 
   if (account.status === "guest") {
     return (
@@ -29,7 +33,7 @@ export function AccountPage() {
 
   return (
     <>
-      <Card footer="Your library, where you are in each title, playlists, settings and shortcuts sync automatically. API keys, addons, volume and TV mode stay on this device.">
+      <Card footer="Your library, where you are in each title, playlists, settings, shortcuts, API keys and add-ons sync automatically. Volume and TV mode stay on this device.">
         <ActionRow title="Email" caption={account.user?.email} label="Sign Out" onClick={() => void account.signOut()} />
       </Card>
 
@@ -45,10 +49,20 @@ export function AccountPage() {
 
       <Card title="Sync">
         {account.profile && <SecretsRow profileId={account.profile.id} {...expand("secrets")} />}
-        {settingsTooLarge() && (
+        <SettingRow id="shareAddonsAndKeys" />
+        {settingsProblem === "too_large" && (
           <p className="settings-error">This profile's settings are too large to sync. Add-on links take the most room: remove some to sync again.</p>
         )}
+        {settingsProblem === "not_set_up" && (
+          <p className="settings-error">
+            Settings and addons can't sync: the account server isn't set up for them yet. They stay on this device; your library and history still sync.
+          </p>
+        )}
       </Card>
+
+      <CopySetup />
+
+      <StremioImport />
 
       <Card title="Danger Zone">
         <DeleteAccountRow {...expand("delete")} />

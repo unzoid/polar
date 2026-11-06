@@ -84,7 +84,7 @@ can decode it.
 Built without running on Android: Back (button, gesture, a remote's Back) reaches the page through Tauri's
 `onBackButtonPress` (`lib/platform/back.ts`), which takes Back over from the system; the page presses Escape where
 focus is (`lib/ui/systemBack.ts`), so the top layer closes, then the player or pushed page; on a tab's own page Back
-goes Home, and on Home it closes the app (`exit`, permission `core:app:allow-exit` in `capabilities/mobile.json`).
+goes Home, and on Home the app goes to the background as Android's own Back does (`polarDevice.leave` in `MainActivity.kt`; `exit` only if that bridge is missing).
 A focused text field loses focus first. Tested here: the decision (`tests/systemBack.test.ts`) and the Escape it
 sends (`tests/dom/systemBack.test.ts`). Not known: whether the WebView also delivers KEYCODE_BACK to the page as a
 key (it would go back twice), and the account screens before sign-in, which register no handler (the system's
@@ -502,6 +502,56 @@ against a real project.
   letterboxed film, and a stream over HTTPS. `licenses/mpv/BUNDLED.txt` in the installed app lists the libraries,
   and the release lists `Polarity_<version>_x64_mpv-sources.tar` among its files.
 
+## Torrent sources (#47)
+
+- Checked here: `crates/torrent`'s loopback test (a second session shares a made-up file; the engine fetches it
+  with no DHT or trackers, serves it with ranges, seeks, closes, keeps it when sharing, refuses a file over the
+  cache limit and a file index the torrent lacks); the step lines and limits in `tests/torrentSteps.test.ts`;
+  the app side type-checks for Linux and Windows. Not run here: a real swarm, mpv or `<video>` playing the
+  loopback link, the DHT from a home network.
+- To check on Windows, macOS and Linux, with a stream add-on of your own that returns torrent streams of a file
+  you're entitled to watch (an open film):
+  - The loading screen shows "Looking for peers", "File list from peers … file N of M (.mkv, size)", then a
+    peer line that updates in place, then mpv's buffering lines; it starts within a few seconds of the first
+    peers. Seeking far ahead resumes after a short wait (those pieces are fetched first). Copy details shows no
+    file name, hash or link beyond "this computer".
+  - Settings → Sources → Torrent Sources: a speed limit of 5 Mbit/s holds the download near 600 KB/s (Task
+    Manager / Activity Monitor); a cache limit smaller than the file refuses it with a message naming both sizes.
+  - Close the player: `torrent-cache` in the app's cache folder (Windows `%LOCALAPPDATA%\app.getpolar.desktop`,
+    macOS `~/Library/Caches/app.getpolar.desktop`, Linux `~/.cache/app.getpolar.desktop`) is empty again within
+    a second or two, and upload stops. With "Keep sharing after playback" on, it stays and keeps uploading until
+    Polarity quits; the next start finds the folder empty.
+  - No firewall prompt appears (the engine doesn't listen; it connects out).
+  - Phones: a torrent source says it plays on the desktop app for now.
+
+## Seasons as separate shows (#22)
+
+Checked here: unit tests (`tests/animeEntries.test.ts`) and an end-to-end test of Continue Watching
+on the fake backend. AniList can't be reached here, so with the setting on, check in the app:
+- Anime page, search and Browse: a show with several seasons shows a card for each; off again, one.
+- An entry's page: no season tabs, only its episodes; its prequel and sequel under Related.
+- Watch an episode of a second season from its page, then Home: Continue Watching shows that
+  season's name and poster and "Episode N"; it opens that season's page. Library and Watched too.
+- TV mode: the same cards; a card opens the show's page with only that season's episodes.
+- Switching the setting off and on loses no progress or library items.
+
+## AirPlay on macOS (#19)
+
+Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,
+`tests/dom/airplay.test.ts`), and the button, the "Playing on AirPlay" screen and coming back in an
+end-to-end test with WebKit's AirPlay calls stood in for. Needs a Mac and an AirPlay receiver on the
+same network:
+- Play an MP4 or HLS source with mpv: an AirPlay button appears at the top right once the file has
+  started. Pick the receiver: it plays from the same moment; the app shows "Playing on AirPlay".
+- Play/pause, seeking, the 10-second skips and volume act on the receiver; the time and seek bar follow it.
+- Open the AirPlay list again and pick this Mac: mpv carries on from the receiver's position.
+- Continue Watching shows the receiver's position after leaving the player while casting.
+- An MKV source, a source that needs add-on request headers, or a download: no AirPlay button.
+- In a watch party there's no AirPlay button; while casting there's no Watch Party button.
+- Without mpv (built-in player) the same, with the element on screen sent as it is.
+- Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
+  untested. Subtitles inside the file aren't sent.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The
@@ -700,3 +750,40 @@ against a real project.
   is gone; start a download of a source that plays in a browser ("can't be downloaded"); play a source that answers
   404 (the loading screen says `Failed at the source's server`) and, with mpv missing from its folder, any source
   (`Failed at the player`). Signed in with 5 profiles, adding a sixth says "An account can have up to 5 profiles."
+- Account limits (#110; supabase/migrations/20261107000000_account_limits.sql, tested in PGlite:
+  tests/sql/accountLimits.test.ts). Not run on a real project. To check on a copy (docs/supabase-storage.md
+  §7, §8): apply the migration, run `supabase/checks/account_limits.sql` (every count 0, then the
+  validations go through) and `supabase/admin/account_usage.sql`; sign in and sync as usual (nothing
+  changes below the caps). The "Your account is full" toast (`AccountFullToast`) and syncing the other
+  kinds while one is full are tested in parts (spacePush, dbError), not in the running app.
+- CAPTCHA on sign-in (#110; `lib/account/captcha.ts`, `screens/account/Captcha.tsx`): never shown, since
+  no site key exists yet. Unverified: whether Turnstile's widget loads and passes in the app's web view
+  on each platform (pages come from `tauri://localhost` on macOS, Linux and iOS and
+  `http://tauri.localhost` on Windows and Android; the CSP allows `https://challenges.cloudflare.com`
+  as script and frame), and whether Supabase also asks for a CAPTCHA when the code is entered (the app
+  sends one only with the request for a code). To check, on each platform with a build carrying
+  `VITE_CAPTCHA_SITE_KEY` and CAPTCHA on in a test project: ask for a code: the check shows under the
+  button, and once passed the code is sent; enter the code: signed in. With CAPTCHA off: no check shows.
+- `polar.json` renamed `polarity.json` (#40; `polar_library::moved::take_over_or_keep`, tested on Linux): at
+  the first start of this version the file is copied to `polarity.json` (owner-only on Linux and macOS), then
+  the old one renamed `polar.json.moved`. If the copy can't be made, `polar.json` stays in use and the next start
+  tries again. The log (`polar.log`) and the `app.getpolar.desktop` folders keep their names. To check on each
+  desktop: with a library and settings from the previous version, start this one: everything is there, the app
+  data folder has `polarity.json` and `polar.json.moved` and no `polar.json`; change a setting, quit, start
+  again: still changed. An earlier version started after this one finds no `polar.json` and starts empty
+  (rename `polar.json.moved` back to go back).
+- Add-ons and API keys per profile on a device (#80; `startProfile`, `setupSources`, `copySetup` in
+  `lib/account/settingsSync.ts`, tested with the mocked store). Settings → Account → Sync → "Share add-ons and keys
+  between profiles on this device": on for installs from before this version (prefs or an account's settings
+  already stored), off for new ones. Off, a profile this device has never synced starts without the add-ons and
+  keys in the store (only the app's own subtitles add-on stays), takes its account's own on the first sync round,
+  and sends nobody else's up; while it has none, Settings → Account offers "From Guest on this device" and the
+  account's other profiles synced here. Not run signed in. To check, with sharing off: as a guest add a TMDB key
+  and an add-on; sign in to a new account: no key, no add-on, and the offer lists Guest; copy: both there; sign
+  out: the guest's set as it was; sign in to a second account: it never sees the first account's set.
+- AniList requests by priority, rows kept on the device (#109; `lib/net/limiter.ts`, `lib/net/deviceCache.ts`,
+  tested with a fake clock and a fake AniList). Not run against AniList. To check, with devtools' Network filtered to
+  `anilist`: scroll the Anime page to the genre rows; rows on screen fill within a few seconds even while AniList
+  answers `X-RateLimit-Limit: 30`, and then each row is one request. Open a card while rows are still loading: its
+  page doesn't wait behind them. After a 429, loading shelves say "AniList is busy, loading…". Quit and start again:
+  the Anime page draws its rows at once. Settings → About → Cache → Clear empties them.

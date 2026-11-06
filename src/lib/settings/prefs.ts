@@ -1,6 +1,6 @@
 import { storeLocal } from "../errors";
 import { useSyncExternalStore } from "react";
-import { likeTemplate, storedJson } from "../parse";
+import { isRecord, likeTemplate, storedJson } from "../parse";
 import { settingsChanged } from "./changes";
 
 /** TV mode's interface sound packs (tv/sounds.ts renders them). */
@@ -42,6 +42,13 @@ export interface Prefs {
   uiScale: number;
   /** Pause when the window is minimized. */
   pauseOnMinimize: boolean;
+  /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title. */
+  discordPresence: "off" | "app" | "title";
+  /**
+   * A profile new to this device starts with the add-ons and API keys already here (#80). Off: it starts
+   * with none (its own from the account, once they sync) and Settings offers to copy a set from this device.
+   */
+  shareAddonsAndKeys: boolean;
   /** mpv: louder dialogue when surround is folded down to stereo. */
   dialogueBoost: boolean;
   /** mpv: even out loud and quiet scenes. */
@@ -58,6 +65,12 @@ export interface Prefs {
   autocropEveryFrame: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
+  /** Torrent sources: most GB their cache on this device may hold; 0 = no limit. */
+  torrentCacheGb: number;
+  /** Torrent sources: download and upload cap in Mbit/s; 0 = none. */
+  torrentSpeedMbps: number;
+  /** Torrent sources: keep sharing what was played until the app quits. Off: stop and delete it when playback ends. */
+  torrentKeepSharing: boolean;
   /** Keep the last few searches. */
   saveRecentSearches: boolean;
   /** Genres under the empty search field. */
@@ -79,6 +92,8 @@ export interface Prefs {
   animeCardScores: boolean;
   /** "Ep 5 in 2d" on posters of shows on air. */
   animeCardCountdown: boolean;
+  /** Each AniList entry (season, part, film) as its own card and page, not one per franchise. Display only (#22). */
+  animeSeparateEntries: boolean;
   /** AniList scores out of ten (8.6) or as a percentage (86%). */
   animeScoreFormat: "ten" | "percent";
   /** The schedule lists everything airing, not just shows people are following. */
@@ -114,6 +129,8 @@ const DEFAULTS: Prefs = {
   preferFileChapters: true,
   uiScale: 1,
   pauseOnMinimize: false,
+  discordPresence: "off",
+  shareAddonsAndKeys: false,
   dialogueBoost: false,
   volumeLeveling: false,
   hwdec: true,
@@ -122,6 +139,9 @@ const DEFAULTS: Prefs = {
   autocropLookahead: true,
   autocropEveryFrame: false,
   buffer: "normal",
+  torrentCacheGb: 20,
+  torrentSpeedMbps: 0,
+  torrentKeepSharing: false,
   saveRecentSearches: true,
   searchSuggestions: true,
   autoDownloadUpdates: true,
@@ -131,6 +151,7 @@ const DEFAULTS: Prefs = {
   animeHiddenShelves: "",
   animeCardScores: true,
   animeCardCountdown: true,
+  animeSeparateEntries: false,
   animeScoreFormat: "ten",
   animeScheduleAll: false,
   animeHideRecaps: false,
@@ -144,7 +165,10 @@ const DEFAULTS: Prefs = {
 
 const STORAGE = "polar.prefs";
 
-let prefs: Prefs = { ...DEFAULTS, ...readPrefs(storedJson(localStorage, STORAGE)) };
+const stored = storedJson(localStorage, STORAGE);
+/** Installs from before #80 (prefs or an account's settings stored already) keep sharing add-ons and keys. */
+const earlier = (stored !== undefined || localStorage.getItem("polar.settingsOwner") !== null) && !(isRecord(stored) && "shareAddonsAndKeys" in stored);
+let prefs: Prefs = { ...DEFAULTS, ...(earlier ? { shareAddonsAndKeys: true } : {}), ...readPrefs(stored) };
 const listeners = new Set<() => void>();
 
 export const getPrefs = () => prefs;
@@ -164,6 +188,7 @@ export const SYNCED_PREFS = [
   "animeHiddenShelves",
   "animeCardScores",
   "animeCardCountdown",
+  "animeSeparateEntries",
   "animeScoreFormat",
   "animeScheduleAll",
   "animeHideRecaps",

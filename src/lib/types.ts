@@ -93,6 +93,10 @@ export interface Stream {
   url?: string;
   ytId?: string;
   externalUrl?: string;
+  /** A torrent: its info hash, the file to play (0-based) and `sources` (`tracker:<url>`, `dht:<hash>`). */
+  infoHash?: string;
+  fileIdx?: number;
+  sources?: string[];
   name?: string;
   title?: string;
   description?: string;
@@ -116,6 +120,9 @@ export interface StreamQuality {
   source?: string | null;
 }
 
+/** Whether a source's link would start now (#21), from one look at it ahead of time. */
+export type Readiness = { state: "ready"; ms: number } | { state: "notReady"; reason: string } | { state: "unchecked" };
+
 export interface RankedStream {
   stream: Stream;
   addon: string;
@@ -138,6 +145,18 @@ export interface SearchResults {
 }
 
 /** The anime cache folder (fillers.json, anime-list-mini.json) and the size of its files. */
+/** What `library_import` added: library items and progress entries. */
+export interface Imported {
+  library: number;
+  progress: number;
+}
+
+/** A torrent being played: the loopback link the player opens, and the file's size. */
+export interface TorrentLink {
+  url: string;
+  size: number;
+}
+
 export interface CacheInfo {
   path: string;
   bytes: number;
@@ -145,6 +164,8 @@ export interface CacheInfo {
 
 export type Playable =
   | { kind: "url"; url: string }
+  /** Opened with `api.torrentOpen`. */
+  | { kind: "torrent" }
   | { kind: "external"; url: string }
   | { kind: "unsupported"; reason: string };
 

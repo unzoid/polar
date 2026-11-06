@@ -13,10 +13,17 @@ function useAvatarUri(id: string) {
     const known = cache.get(key);
     if (known) return setUri(known);
     let live = true;
-    void (art ??= import("./avatarArt")).then(({ avatarArt }) => {
-      if (!cache.has(key)) cache.set(key, avatarArt(key));
-      if (live) setUri(cache.get(key));
-    });
+    (art ??= import("./avatarArt")).then(
+      ({ avatarArt }) => {
+        if (!cache.has(key)) cache.set(key, avatarArt(key));
+        if (live) setUri(cache.get(key));
+      },
+      // The chunk didn't load (offline, or the page is going away mid-load, which WebKit
+      // reports as a failed import): the tile shows its colours only, and the next avatar tries again.
+      () => {
+        art = undefined;
+      },
+    );
     return () => {
       live = false;
     };

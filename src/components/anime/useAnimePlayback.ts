@@ -3,9 +3,13 @@ import { useEffect, useMemo } from "react";
 import {
   type Anime,
   type AnimeCard,
+  animeEntries,
   animeEpisodes,
+  entryZip,
+  knowsNothing,
   linkAnime,
   playContext,
+  prequelOf,
   progressByVideo,
   rememberStill,
   upNext,
@@ -13,17 +17,26 @@ import {
   useAniZip,
 } from "../../lib/anime";
 import { usePrefs } from "../../lib/settings";
-import { useMeta, useProgress } from "../../lib/net";
+import { useLibrary, useMeta, useProgress } from "../../lib/net";
 import { watchedFraction } from "../../lib/library";
 
 /**
  * Everything the anime page needs to play: the episodes, matched to the
  * app's videos, and where you're up to (lib/anime/episodes.ts). Also links
  * the entry to the id it plays from, and leaves the player what it can't
- * know itself (MAL numbering, Kitsu ids, stills).
+ * know itself (MAL numbering, Kitsu ids, stills) and cards which entry each
+ * episode is part of.
  */
 export function useAnimePlayback(anime: AnimeCard | Anime) {
-  const { data: zip } = useAniZip(anime.id);
+  const { data: own } = useAniZip(anime.id);
+  // An entry ani.zip doesn't know may be the second half of a split part, listed under its prequel's record.
+  const prequel = prequelOf(anime);
+  const borrow = own !== undefined && knowsNothing(own) && prequel !== undefined;
+  const { data: prequelZip, isError: noPrequel } = useAniZip(prequel ?? 0, borrow);
+  const zip = useMemo(
+    () => (borrow && prequelZip === undefined && !noPrequel ? undefined : entryZip(anime, own, prequelZip)),
+    [anime, own, borrow, prequelZip, noPrequel],
+  );
   const isMovie = anime.format === "MOVIE";
   const kitsu = zip?.mappings.kitsu_id;
   // ani.zip's IMDb show, unless its episodes stop before this entry's (then the
@@ -40,11 +53,15 @@ export function useAnimePlayback(anime: AnimeCard | Anime) {
   const episodes = useMemo(() => animeEpisodes({ anime, zip, videos: meta?.videos ?? [], imdb, titles: animeTitles }), [zip, meta, anime, animeTitles, imdb]);
 
   // The id this entry plays from, for the backend: library and progress kept under its other ids move onto it.
-  // Only once the IMDb lookup has answered, so a failed lookup doesn't link the entry to its Kitsu id.
+  // Only once the IMDb lookup has answered, so a failed lookup doesn't link the entry to its Kitsu id. A link
+  // the anime id lists already give is only kept once the show is in the library or has progress (#102), so
+  // it's asked again when that happens.
   const qc = useQueryClient();
+  const { data: library } = useLibrary();
+  const used = !!progress?.length || !!library?.some((l) => l.id === metaId);
   useEffect(() => {
     if (metaId && imdbKnown) void linkAnime(qc, { canonical: metaId, anilist: anime.id, mal: malId, kitsu });
-  }, [qc, metaId, imdbKnown, anime.id, malId, kitsu]);
+  }, [qc, metaId, imdbKnown, anime.id, malId, kitsu, used]);
 
   // AniSkip needs MyAnimeList's numbering, and stream addons know an IMDb-matched episode by its Kitsu id
   // too; the player can't know either. Leave them (kept across restarts) for every episode.
@@ -53,7 +70,9 @@ export function useAnimePlayback(anime: AnimeCard | Anime) {
     if (!metaId || !imdbKnown) return;
     const lined = episodes.flatMap((e): [string, number][] => (e.video ? [[e.video.id, e.number]] : []));
     playContext.remember(metaId, { mal: malId, kitsu }, lined);
-  }, [episodes, malId, kitsu, metaId, imdbKnown]);
+    // Which entry these episodes are, for cards with seasons as separate shows (#22).
+    if (!isMovie) animeEntries.remember(metaId, anime.id, { title: anime.title, cover: anime.coverImage.extraLarge ?? anime.coverImage.large }, lined);
+  }, [episodes, malId, kitsu, metaId, imdbKnown, isMovie, anime.id, anime.title, anime.coverImage]);
 
   const byVideo = useMemo(() => progressByVideo(progress ?? [], { episodes, imdb, kitsu, isMovie }), [progress, episodes, imdb, kitsu, isMovie]);
   const next = useMemo(() => upNext({ episodes, byVideo, isMovie, metaId, watched: watchedFraction() }), [episodes, byVideo, isMovie, metaId]);

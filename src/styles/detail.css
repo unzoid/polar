@@ -332,6 +332,38 @@
   /* Room for the focus ring, which overflow would clip. */
   padding: 4px 0;
 }
+/* A whole season or show downloading as one batch (#24): where it is, a thin bar, pause and cancel. */
+.batch-download {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.batch-download-start {
+  flex: none;
+}
+.batch-download-status {
+  color: var(--text-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.batch-download-bar {
+  width: 4.5rem;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.16);
+}
+.batch-download-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--text);
+  transform-origin: left;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.batch-download[data-state="paused"] .batch-download-bar > span {
+  background: var(--text-3);
+}
 .seasons-picker::-webkit-scrollbar,
 .seasons-tabs::-webkit-scrollbar {
   display: none;
@@ -463,28 +495,34 @@
 .episode-rating {
   margin-left: 0.5rem;
 }
-/* Sources and Download on an episode's still (#18): both always there and alike, a white glyph on
-   a dark fill with a thin light edge, so they hold up on any picture (on a white still the fill is
-   a mid grey, 4.6:1 against the glyph). Pointing at or focusing the card deepens the fill; the
-   glyph never dims. Each takes 44 px of taps around its 36 px circle. (Download used to show
-   dimmed and Sources only on hover, test report 1 item 18: touch and TV have no hover.) */
+/* Sources and Download on an episode's still (#18, #79): alike, a white glyph on a light dark fill
+   with a thin edge and a soft shadow under the glyph, so they still read on a bright still (on white
+   the fill is a mid grey, 3:1 against the glyph). On desktop they show while the pointer is on the
+   card or something in it has keyboard focus, and fade out otherwise, so a season of cards doesn't
+   pull the eye off the stills; a download coming down keeps its ring in view. Touch screens have no
+   hover: there they always show, in the same quiet style. Each takes 44 px of taps around its 32 px
+   circle. */
 .episode-card .btn.btn-icon:is(.episode-sources, .episode-download) {
   position: absolute;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   color: #fff;
-  background: rgb(0 0 0 / 0.55);
+  background: rgb(0 0 0 / 0.42);
   backdrop-filter: blur(12px);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
   transition:
+    opacity var(--dur-fast) var(--ease-std),
     background-color var(--dur-fast) var(--ease-std),
     box-shadow var(--dur-fast) var(--ease-std),
     transform var(--dur-press) var(--ease-out);
 }
+.episode-card .btn.btn-icon:is(.episode-sources, .episode-download) svg {
+  filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.45));
+}
 .episode-card .btn.btn-icon:is(.episode-sources, .episode-download)::after {
   content: "";
   position: absolute;
-  inset: -4px;
+  inset: -6px;
   border-radius: 50%;
 }
 .episode-sources {
@@ -495,27 +533,31 @@
   top: 10px;
   right: 54px;
 }
-.episode-card:focus-within .btn.btn-icon:is(.episode-sources, .episode-download),
-.episode-card .btn.btn-icon.episode-download:not([data-download="none"]) {
-  background: rgb(0 0 0 / 0.72);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4);
-}
 .episode-card .btn.btn-icon:is(.episode-sources, .episode-download):active {
-  background: rgb(0 0 0 / 0.85);
+  background: rgb(0 0 0 / 0.7);
 }
 @media (hover: hover) and (pointer: fine) {
-  .episode-card:hover .btn.btn-icon:is(.episode-sources, .episode-download) {
-    background: rgb(0 0 0 / 0.72);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4);
+  .episode-card .btn.btn-icon:is(.episode-sources, .episode-download) {
+    opacity: 0;
+  }
+  .episode-card:is(:hover, :has(:focus-visible)) .btn.btn-icon:is(.episode-sources, .episode-download),
+  .episode-card .btn.btn-icon.episode-download:is([data-download="starting"], [data-download="downloading"], [data-download="paused"]) {
+    opacity: 1;
   }
   .episode-card .btn.btn-icon:is(.episode-sources, .episode-download):hover {
-    background: rgb(0 0 0 / 0.85);
+    background: rgb(0 0 0 / 0.62);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .episode-card .btn.btn-icon:is(.episode-sources, .episode-download) {
+    transition: none;
   }
 }
 .episode-card[data-layout="list"] .episode-download {
   top: 50%;
   right: 3.5rem;
-  margin-top: -18px;
+  margin-top: -16px;
 }
 /* A downloaded episode (#25): Show in Folder left of Delete, which keeps the download's place. Armed,
    Delete keeps the dark fill so it still reads on the still: the bin and its edge turn red. */
@@ -603,7 +645,7 @@
 .episode-card[data-layout="list"] .episode-sources {
   top: 50%;
   right: 0.75rem;
-  margin-top: -18px;
+  margin-top: -16px;
 }
 .episode-card[data-layout="list"] .episode-card-main:focus-visible {
   outline: 2px solid var(--text);

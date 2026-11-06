@@ -11,7 +11,7 @@ use polar_library::Changes;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
-use super::{CacheInfo, CmdError, Playable, SearchResults, SettingsView, StreamsResult, SubtitleOption};
+use super::{CacheInfo, CmdError, Imported, Playable, SearchResults, SettingsView, StreamsResult, SubtitleOption};
 use crate::downloads::{Download, DownloadState};
 use crate::store::{InstalledAddon, Settings, SubtitleStyle};
 use crate::sync::LocalChanges;
@@ -80,8 +80,10 @@ fn field_names_match_contract() {
     );
     add("LocalChanges", keys(&LocalChanges { changes: Changes::default(), pulled_at: s("2026-01-01") }));
     add("StreamsResult", keys(&StreamsResult { streams: vec![], failed: vec![], hidden: 0 }));
+    add("TorrentLink", keys(&crate::torrent::TorrentLink { url: "http://127.0.0.1:1/t/1/video.mkv".into(), size: 1 }));
     add("Playable.url", keys(&Playable::Url { url: "https://a.io".into() }));
     add("Playable.external", keys(&Playable::External { url: "https://a.io".into() }));
+    add("Playable.torrent", keys(&Playable::Torrent {}));
     add("Playable.unsupported", keys(&Playable::Unsupported { reason: "r".into() }));
     add(
         "SubtitleOption",
@@ -94,6 +96,7 @@ fn field_names_match_contract() {
     );
     add("SearchResults", keys(&SearchResults { movies: vec![], series: vec![] }));
     add("CacheInfo", keys(&CacheInfo { path: "p".into(), bytes: 1 }));
+    add("Imported", keys(&Imported { library: 1, progress: 1 }));
     let cue = crate::seekr::Cue { start_ms: 0, end_ms: 1, sheet: "s".into(), x: 0, y: 0, w: 1, h: 1 };
     add("Cue", keys(&cue));
     add("PreviewTrack", keys(&crate::seekr::PreviewTrack { cues: vec![cue], source_duration_ms: 1 }));

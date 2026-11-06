@@ -13,6 +13,7 @@
  * catches up with the server. The device's own settings (guest, signed out)
  * are kept aside while a profile has the store, and put back at sign-out.
  */
+import { useSyncExternalStore } from "react";
 import { storeLocal } from "../errors";
 import { api } from "../api";
 import { queryClient } from "../net/queries";
@@ -102,7 +103,34 @@ const setLocked = (space: string, yes: boolean) => void (yes ? locked.add(space)
  * changes, and Settings → Account says so meanwhile.
  */
 let refused: string | null = null;
-export const settingsTooLarge = () => refused !== null;
+
+/**
+ * The server has no settings table (its `profile_settings` migration hasn't run, #16): library,
+ * progress and playlists still sync, settings and add-ons stay on this device. Logged once, and
+ * Settings → Account says so until a round reaches the table.
+ */
+let notSetUp = false;
+const problemListeners = new Set<() => void>();
+
+/** Why settings don't reach the account, for Settings → Account; null while they sync. */
+export function settingsSyncProblem(): "not_set_up" | "too_large" | null {
+  return notSetUp ? "not_set_up" : refused !== null ? "too_large" : null;
+}
+
+/** `settingsSyncProblem`, kept current as sync rounds find it. */
+export function useSettingsSyncProblem() {
+  return useSyncExternalStore((changed) => {
+    problemListeners.add(changed);
+    return () => void problemListeners.delete(changed);
+  }, settingsSyncProblem);
+}
+
+function setProblem(next: { notSetUp?: boolean; refused?: string | null }) {
+  const before = settingsSyncProblem();
+  if (next.notSetUp !== undefined) notSetUp = next.notSetUp;
+  if (next.refused !== undefined) refused = next.refused;
+  if (settingsSyncProblem() !== before) for (const l of problemListeners) l();
+}
 
 function load(space: string): Saved | null {
   const v = storedJson(localStorage, storageKey(space));
@@ -281,6 +309,64 @@ export async function restoreDeviceSettings() {
 }
 
 /**
+ * Entering a profile this device has never synced (#80): unless Settings → Account shares add-ons
+ * and keys between profiles here, it starts with none of the ones in the store (the guest's, or the
+ * profile's before it), only the add-ons the app installs itself. Its first round then takes the
+ * account's own, and nothing of anyone else's goes up to its account. Settings offers to copy a set
+ * from this device (`setupSources`, `copySetup`). Returns whether it cleared anything.
+ */
+export async function startProfile(space: string): Promise<boolean> {
+  if (load(space) || getPrefs().shareAddonsAndKeys) return false;
+  const [settings, installed, bundled] = await Promise.all([api.settings(), api.addons(), api.bundledAddons().catch(() => [] as string[])]);
+  const own = settings as unknown as Record<string, unknown>;
+  const keyed = SECRET_KEYS.some((k) => own[k]);
+  const others = installed.filter((a) => !bundled.includes(a.manifestUrl));
+  if (!keyed && !others.length) return false;
+  applying = true;
+  try {
+    if (keyed) queryClient.setQueryData(["settings"], await api.saveSettings({ ...settings, ...Object.fromEntries(SECRET_KEYS.map((k) => [k, null])) }));
+    if (others.length) await applyAddons(installed.filter((a) => bundled.includes(a.manifestUrl)).map((a) => a.manifestUrl));
+  } finally {
+    applying = false;
+  }
+  return true;
+}
+
+/** A set of add-ons and keys on this device that a profile could start from. */
+export interface SetupSource {
+  /** DEVICE ("local") for the guest's, else a profile id. */
+  id: string;
+  keys: number;
+  addons: number;
+}
+
+/**
+ * Where `space` could copy add-ons and keys from (#80): the guest's set kept on this device, and the
+ * sets of `others` (the account's other profiles) as this device last synced them. Only sets with
+ * something in them.
+ */
+export function setupSources(space: string, others: string[]): SetupSource[] {
+  return [DEVICE, ...others.filter((id) => id !== space && id !== DEVICE)].flatMap((id) => {
+    const secrets = load(id)?.doc.secrets;
+    const keys = secrets ? Object.values(secrets.keys).filter(Boolean).length : 0;
+    const addons = secrets?.addons.length ?? 0;
+    return keys || addons ? [{ id, keys, addons }] : [];
+  });
+}
+
+/** Settings → Account's offer, taken: `from`'s keys and add-ons added to what this profile has. They sync as any change does. */
+export async function copySetup(from: string): Promise<string[]> {
+  const secrets = load(from)?.doc.secrets;
+  if (!secrets) return [];
+  const settings = await api.settings();
+  const own = settings as unknown as Record<string, unknown>;
+  const fill = Object.fromEntries(SECRET_KEYS.flatMap((k) => (!own[k] && secrets.keys[k] ? [[k, secrets.keys[k]]] : [])));
+  if (Object.keys(fill).length) queryClient.setQueryData(["settings"], await api.saveSettings({ ...settings, ...fill }));
+  const installed = (await api.addons()).map((a) => a.manifestUrl);
+  return applyAddons([...new Set([...installed, ...secrets.addons])]);
+}
+
+/**
  * One round with the server. Safe to call often: a single small read, and a write only when one
  * side changed. Edits on both sides since the last agreed copy merge per key; the first round of a
  * profile on this device takes the server's document but no add-on away; when the server kept a
@@ -294,9 +380,14 @@ export async function syncSettings(space: string, backend: AccountBackend, isAct
       remote = await backend.settings.get(space);
     } catch (e) {
       // Server hasn't been migrated for settings yet: everything else still syncs.
-      if (e instanceof AccountError && e.code === "not_set_up") return;
+      if (e instanceof AccountError && e.code === "not_set_up") {
+        if (!notSetUp) console.warn("sync: the server has no profile_settings table; settings and add-ons stay on this device");
+        setProblem({ notSetUp: true });
+        return;
+      }
       throw e;
     }
+    setProblem({ notSetUp: false });
     if (!isActive()) return;
     const saved = load(space);
     const local = await current(saved);
@@ -336,10 +427,10 @@ export async function syncSettings(space: string, backend: AccountBackend, isAct
       stored = await backend.settings.put(space, { data, updatedAt });
     } catch (e) {
       if (!(e instanceof AccountError && e.code === "settings_too_large")) throw e;
-      refused = sent;
+      setProblem({ refused: sent });
       return;
     }
-    refused = null;
+    setProblem({ refused: null });
     if (stored !== null) {
       save(space, { doc: next, at: stored, missing });
       settled();

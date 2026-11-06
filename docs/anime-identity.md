@@ -86,6 +86,15 @@ handful of integers.
   re-keys after pulling a link reaches exactly the state the linking device pushed.
 - **Tauri commands** (`src-tauri/src/commands.rs`): `link_anime(link)` (sets `updatedAt`) and
   `anime_links()`; the library/progress commands call `crates/library`.
+- **Only links that say something** (#102): `link_anime` stores nothing when the link names the
+  IMDb title the anime id lists already give the entry and nothing is kept under the show's ids
+  (`Space::needs_link`): every device and every card works that answer out from the lists the same
+  way (`linkedImdb`: a stored link first, else the lists'). Stored: links that differ from the
+  lists (title search, Kitsu-only shows, corrections), ones the profile already has, and any for a
+  show in the library or with progress, so a later change in the lists can't move what's there.
+  The desktop anime page asks again once the show is added to the library or gets progress; the
+  TV path links when a card is opened, before anything is kept, so such a show's link is stored
+  the next time it's opened on desktop. Links stored before #102 stay.
 - **Front end**: `src/lib/library/identity.ts` holds the id grammar (parse/format `tt`, `kitsu:`,
   `anilist:`, `mal:`, episode ids) and `canonicalId()`. The anime pages (desktop `AnimeDetail`, TV
   `TvAnime`) call `linkAnime` (`src/lib/anime/links.ts`) once the IMDb lookup has answered; the
@@ -129,6 +138,23 @@ handful of integers.
    IMDb-only episodes added, TMDB-only ones kept unless their id is IMDb's for another
    episode), called from `Indexer::meta` for TMDB series. Progress stored earlier under
    TMDB numbers is not moved (docs/unverified.md).
+
+## Seasons as separate shows (#22)
+
+Settings → Anime → Seasons as separate shows changes what is shown, not what is stored. Lists
+(search, shelves, browse, TV rails) show every AniList entry as its own card instead of one per
+franchise (`cardsShown` in `src/lib/anime/franchise.ts`), and an entry's page has only its own
+episodes, with its prequel and sequel among the related titles. The library, progress, history and
+links keep one item per canonical id, so switching the setting either way moves nothing and sync
+is unchanged.
+
+A stored title's card (Continue Watching, Library, history, in both modes) shows the entry the
+episode being watched belongs to: its name and poster, the episode's number within it, and its page
+when opened. Which entry an episode belongs to is what the anime page (or a TV card being opened)
+worked out when it lined that entry's episodes up with the title's videos; it is kept on the device
+only (`src/lib/anime/entries.ts`, localStorage, newest 300 titles). An entry never lined up on this
+device leaves its title's card as stored. In TV mode an entry opens its title's page with only that
+entry's episodes, numbered as in the entry.
 
 ## What stays unsolved
 

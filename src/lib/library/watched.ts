@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { sync } from "../account/sync";
-import { isReleased } from "../format";
+import { isReleased, runtimeSeconds } from "../format";
 import { keys, queryClient } from "../net/queries";
 import type { Meta, MetaPreview, Progress, Settings, Video } from "../types";
 
@@ -16,8 +16,6 @@ export function watchedFraction() {
 
 export const isWatched = (position: number, duration: number) => duration > 0 && position / duration >= watchedFraction();
 
-/** "49 min" → 2940 seconds; 0 when unknown. */
-const runtimeSeconds = (runtime?: string) => Number(runtime?.match(/(\d+)\s*min/)?.[1] ?? 0) * 60;
 
 /** A progress entry for a video that hasn't been played yet. */
 function blank(item: MetaPreview, videoId: string, duration: number, extra: Partial<Progress> = {}): Progress {

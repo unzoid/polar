@@ -1,12 +1,16 @@
-//! A data file that moved to another folder between versions (the downloads list: from roaming
-//! to local app data, test report 1 item 29).
+//! A data file that moved between versions: the downloads list from roaming to local app data
+//! (test report 1 item 29), `polar.json` renamed `polarity.json` (#40).
 //!
 //! [`take_over`] copies the old file to its new place once, then renames the old one to
 //! `<name>.moved` so nothing is left that looks current but is read by nobody (re-test 2). The
-//! rename comes only after the new copy exists; a copy that fails leaves the old file as it was.
+//! copy is written whole or not at all ([`write_atomic`]), and the rename comes only after it
+//! exists; a copy that fails leaves the old file as it was. [`take_over_or_keep`] says which file
+//! to read afterwards.
 
 use std::io;
 use std::path::{Path, PathBuf};
+
+use crate::saver::write_atomic;
 
 /// What [`take_over`] did.
 #[derive(Debug, PartialEq, Eq)]
@@ -34,14 +38,20 @@ pub fn take_over(old: &Path, new: &Path) -> io::Result<TakeOver> {
     let done = if new.exists() {
         TakeOver::Retired
     } else {
-        if let Some(dir) = new.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        std::fs::copy(old, new)?;
+        write_atomic(new, &std::fs::read(old)?)?;
         TakeOver::Moved
     };
     std::fs::rename(old, retired_name(old))?;
     Ok(done)
+}
+
+/// [`take_over`], then the file to read: the new one, unless the takeover failed before it existed
+/// (the old file couldn't be read, the disk is full). Then the old one stays in use this time, so
+/// the app reads it (or says it can't) rather than starting empty, and the next start tries again.
+pub fn take_over_or_keep(old: &Path, new: &Path) -> (PathBuf, io::Result<TakeOver>) {
+    let done = take_over(old, new);
+    let path = if done.is_err() && !new.is_file() { old } else { new };
+    (path.to_path_buf(), done)
 }
 
 #[cfg(test)]
@@ -88,6 +98,42 @@ mod tests {
         std::fs::write(dir.join("blocked"), b"").unwrap();
         assert!(take_over(&old, &dir.join("blocked/downloads.json")).is_err());
         assert!(old.exists() && !retired_name(&old).exists());
+    }
+
+    #[test]
+    fn polar_json_becomes_polarity_json_owner_only() {
+        let dir = scratch("rename");
+        let (old, new) = (dir.join("old/polar.json"), dir.join("old/polarity.json"));
+        std::fs::write(&old, b"{\"version\":1}").unwrap();
+        let (path, done) = take_over_or_keep(&old, &new);
+        assert_eq!((path, done.unwrap()), (new.clone(), TakeOver::Moved));
+        assert_eq!(std::fs::read(&new).unwrap(), b"{\"version\":1}");
+        assert!(!old.exists() && retired_name(&old).exists());
+        #[cfg(unix)]
+        assert_eq!(
+            std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(&new).unwrap().permissions()) & 0o777,
+            0o600
+        );
+        // Next start: nothing left to do.
+        assert_eq!(take_over_or_keep(&old, &new).1.unwrap(), TakeOver::Nothing);
+        // A first start: no file at all, the new name.
+        let fresh = dir.join("fresh");
+        assert_eq!(
+            take_over_or_keep(&fresh.join("polar.json"), &fresh.join("polarity.json")).0,
+            fresh.join("polarity.json")
+        );
+    }
+
+    #[test]
+    fn a_failed_takeover_keeps_reading_the_old_file() {
+        let dir = scratch("keep");
+        let old = dir.join("old/polar.json");
+        std::fs::write(&old, b"{}").unwrap();
+        std::fs::write(dir.join("blocked"), b"").unwrap();
+        let (path, done) = take_over_or_keep(&old, &dir.join("blocked/polarity.json"));
+        assert!(done.is_err());
+        assert_eq!(path, old);
+        assert!(old.exists());
     }
 
     #[test]

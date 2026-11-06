@@ -25,4 +25,5 @@ export * from "./avatars";
 export * from "./AccountProvider";
 export * from "./sync";
 export * from "./settingsSync";
+export { SECRET_KEYS } from "./settingsDoc";
 export * from "./spacePush";

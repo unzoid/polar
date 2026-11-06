@@ -85,3 +85,14 @@ test("a title page's action row fits a phone", async ({ app }) => {
   const box = await download.boundingBox();
   expect(box!.x + box!.width).toBeLessThanOrEqual(app.viewportSize()!.width);
 });
+
+test("on touch, an episode's Sources and Download buttons are always there, in the quiet style (#79)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).tap();
+  await card(app, "Fieldwork").tap();
+  const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
+  await expect(ep).toBeVisible();
+  for (const sel of [".episode-sources", ".episode-download"]) {
+    await expect(ep.locator(sel)).toBeVisible();
+    expect(await ep.locator(sel).evaluate((b) => getComputedStyle(b).opacity)).toBe("1");
+  }
+});

@@ -1,11 +1,13 @@
-import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { usePrefs } from "../settings/prefs";
 import { keys } from "../net/queryKeys";
-import { anilistLimiter, limitedFetch } from "../net/limiter";
+import { anilistLimiter, limitedFetch, PRIORITY, type Priority } from "../net/limiter";
+import { readCached, writeCached } from "../net/deviceCache";
 import { isRecord, listOf, str } from "../parse";
 import { readAnime, readLinked, readPage, readSlot } from "./responses";
 import { walkSeasons } from "./seasons";
-import { oneFranchiseEach } from "./franchise";
+import { cardsShown } from "./franchise";
 
 /**
  * AniList (graphql.anilist.co): the anime catalogue, seasons, the airing
@@ -13,26 +15,83 @@ import { oneFranchiseEach } from "./franchise";
  *
  * It rate-limits per IP (30–90 requests a minute), so the Anime page asks for
  * all of its shelves in one request, results are cached generously, and every
- * request goes through one shared budget that waits out a 429
- * (lib/net/limiter.ts).
+ * request goes through one shared budget that waits out a 429 and lets the
+ * most urgent request go first (lib/net/limiter.ts, #109). The answers rows and
+ * pages are drawn from are also kept on the device (lib/net/deviceCache.ts), so
+ * they draw at once on the next visit and the next start.
  */
 const ENDPOINT = "https://graphql.anilist.co";
 
+/** How long the Anime page's rows, and an entry's page, are drawn from the device before they must be asked again. */
+const ROWS_ON_DEVICE = 12 * 60 * 60_000;
+const PAGE_ON_DEVICE = 24 * 60 * 60_000;
+
+/** One request's place on the device: the query's text (hashed) with its variables. */
+function deviceKey(query: string, variables: Record<string, unknown>) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < query.length; i++) h = Math.imul(h ^ query.charCodeAt(i), 0x01000193);
+  return `anilist.${(h >>> 0).toString(36)}.${JSON.stringify(variables)}`;
+}
+
+export interface Ask {
+  /** How urgent it is (lib/net/limiter.ts); on screen by default. */
+  priority?: Priority;
+  /** Keep the answer on the device for {@link fromDevice}. */
+  keep?: boolean;
+}
+
 /** The `data` of AniList's answer, unread: callers take what they asked for through lib/anime/responses.ts. */
-export async function gql(query: string, variables: Record<string, unknown> = {}, signal?: AbortSignal): Promise<Record<string, unknown>> {
-  const res = await limitedFetch(anilistLimiter, ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query, variables }),
-    signal,
-  });
+export async function gql(
+  query: string,
+  variables: Record<string, unknown> = {},
+  signal?: AbortSignal,
+  { priority, keep = false }: Ask = {},
+): Promise<Record<string, unknown>> {
+  const res = await limitedFetch(
+    anilistLimiter,
+    ENDPOINT,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ query, variables }),
+      signal,
+    },
+    { priority },
+  );
   const json: unknown = await res.json().catch(() => null);
   const data = isRecord(json) && isRecord(json.data) ? json.data : undefined;
   if (!res.ok || !data) {
     const error = isRecord(json) && Array.isArray(json.errors) && isRecord(json.errors[0]) ? str(json.errors[0].message) : undefined;
     throw new Error(error ?? `AniList answered ${res.status}`);
   }
+  if (keep) writeCached(deviceKey(query, variables), data);
   return data;
+}
+
+/**
+ * A query's `initialData` from what the device kept of the same request (read once, through
+ * `read` like a fresh answer), with when it came: React Query draws it at once and asks again in
+ * the background once it's older than the query's `staleTime`.
+ */
+function fromDevice<T>(query: string, variables: Record<string, unknown>, maxAge: number, read: (data: Record<string, unknown>) => T | undefined) {
+  let seed: { data: T | undefined; at: number | undefined } | undefined;
+  const get = () => {
+    if (!seed) {
+      const kept = readCached(deviceKey(query, variables), maxAge);
+      const data = kept && isRecord(kept.data) ? read(kept.data) : undefined;
+      seed = { data, at: data === undefined ? undefined : kept?.at };
+    }
+    return seed;
+  };
+  return { initialData: () => get().data, initialDataUpdatedAt: () => get().at };
+}
+
+const subscribeBusy = (listener: () => void) => anilistLimiter.subscribe(listener);
+const isBusy = () => anilistLimiter.busy;
+
+/** AniList is holding requests back (a 429's pause, or its reduced limit) long enough to say so on screen. */
+export function useAniListBusy() {
+  return useSyncExternalStore(subscribeBusy, isBusy);
 }
 
 // --- Types -----------------------------------------------------------------
@@ -162,8 +221,14 @@ function readListed(hit: unknown): AnimeCard | undefined {
   const { relations, ...card } = linked;
   return { ...card, chain: relations.edges.filter((e) => e.relationType === "PREQUEL" || e.relationType === "SEQUEL").map((e) => e.node.id) };
 }
-/** A list as one card per franchise. */
-const listed = (v: unknown) => oneFranchiseEach(listOf(v, readListed));
+/** A list as it came: each entry with its prequel/sequel ids, grouped into franchises where it's shown ({@link useCardsShown}). */
+const listed = (v: unknown) => listOf(v, readListed);
+
+/** Lists as the cards to show, by the setting ({@link cardsShown}); stable while the setting stays, so a query's `select` keeps its result. */
+export function useCardsShown() {
+  const { animeSeparateEntries } = usePrefs();
+  return useCallback(<T extends AnimeCard>(items: T[]) => cardsShown(items, animeSeparateEntries), [animeSeparateEntries]);
+}
 
 /** Northern-hemisphere anime seasons, as AniList (and Japan's TV schedule) uses them. */
 export function seasonOf(date = new Date()): { season: MediaSeason; year: number } {
@@ -190,27 +255,45 @@ export interface AnimeHome {
   movies: AnimeCard[];
 }
 
-/** Every shelf on the Anime page, in one request. */
+/** Every shelf on the Anime page, in one request; drawn from the device at once when it kept them. */
 export function useAnimeHome() {
-  return useQuery({ queryKey: keys.anime.home, staleTime: 30 * 60_000, queryFn: ({ signal }) => fetchAnimeHome(signal) });
+  const shown = useCardsShown();
+  const select = useCallback(
+    (home: AnimeHome): AnimeHome => ({
+      trending: shown(home.trending),
+      season: shown(home.season),
+      upcoming: shown(home.upcoming),
+      top: shown(home.top),
+      popular: shown(home.popular),
+      movies: shown(home.movies),
+    }),
+    [shown],
+  );
+  const seed = useMemo(() => fromDevice(HOME_QUERY, homeVariables(), ROWS_ON_DEVICE, readHome), []);
+  return useQuery({ queryKey: keys.anime.home, staleTime: 30 * 60_000, queryFn: ({ signal }) => fetchAnimeHome(signal), select, ...seed });
+}
+
+const homePage = (args: string) => `Page(perPage: 24) { media(type: ANIME, isAdult: false, ${args}) { ${LISTED} } }`;
+const HOME_QUERY = `query ($season: MediaSeason, $year: Int, $nextSeason: MediaSeason, $nextYear: Int) {
+  trending: ${homePage("sort: TRENDING_DESC")}
+  season: ${homePage("season: $season, seasonYear: $year, sort: POPULARITY_DESC")}
+  upcoming: ${homePage("season: $nextSeason, seasonYear: $nextYear, sort: POPULARITY_DESC")}
+  top: ${homePage("sort: SCORE_DESC, popularity_greater: 20000")}
+  popular: ${homePage("sort: POPULARITY_DESC")}
+  movies: ${homePage("format: MOVIE, sort: POPULARITY_DESC")}
+}`;
+
+function homeVariables() {
+  const now = seasonOf();
+  const next = nextSeason(now);
+  return { season: now.season, year: now.year, nextSeason: next.season, nextYear: next.year };
 }
 
 export async function fetchAnimeHome(signal?: AbortSignal): Promise<AnimeHome> {
-  const now = seasonOf();
-  const next = nextSeason(now);
-  const page = (args: string) => `Page(perPage: 24) { media(type: ANIME, isAdult: false, ${args}) { ${LISTED} } }`;
-  const data = await gql(
-`query ($season: MediaSeason, $year: Int, $nextSeason: MediaSeason, $nextYear: Int) {
-  trending: ${page("sort: TRENDING_DESC")}
-  season: ${page("season: $season, seasonYear: $year, sort: POPULARITY_DESC")}
-  upcoming: ${page("season: $nextSeason, seasonYear: $nextYear, sort: POPULARITY_DESC")}
-  top: ${page("sort: SCORE_DESC, popularity_greater: 20000")}
-  popular: ${page("sort: POPULARITY_DESC")}
-  movies: ${page("format: MOVIE, sort: POPULARITY_DESC")}
-}`,
-{ season: now.season, year: now.year, nextSeason: next.season, nextYear: next.year },
-signal,
-  );
+  return readHome(await gql(HOME_QUERY, homeVariables(), signal, { keep: true }));
+}
+
+function readHome(data: Record<string, unknown>): AnimeHome {
   const shelf = (k: keyof AnimeHome) => listed(isRecord(data[k]) ? data[k].media : undefined);
   return {
     trending: shelf("trending"),
@@ -227,34 +310,58 @@ export const GENRE_FIRST = 8;
 /** The whole shelf, asked for once the first cards are in. */
 const GENRE_ALL = 24;
 
-/** A genre's shelf, trending first: `perPage` entries, in a request of its own. */
-export async function genreShelf(genre: string, perPage: number): Promise<AnimeCard[] | undefined> {
-  const data = await gql(
-    `query ($genre: String) {
+const genreQuery = (perPage: number) =>
+  `query ($genre: String) {
       Page(perPage: ${perPage}) { media(type: ANIME, isAdult: false, genre: $genre, sort: TRENDING_DESC) { ${LISTED} } }
-    }`,
-    { genre },
-  );
-  return listed(isRecord(data.Page) ? data.Page.media : undefined);
+    }`;
+const readShelf = (data: Record<string, unknown>) => listed(isRecord(data.Page) ? data.Page.media : undefined);
+
+/** A genre's shelf, trending first: `perPage` entries, in a request of its own. The whole row is kept on the device. */
+export async function genreShelf(genre: string, perPage: number, signal?: AbortSignal, priority?: Priority): Promise<AnimeCard[] | undefined> {
+  return readShelf(await gql(genreQuery(perPage), { genre }, signal, { priority, keep: perPage === GENRE_ALL }));
 }
+
+const level = (p: Priority) => (typeof p === "function" ? p() : p);
+
+/** A row's priority from where it is on the page (lib/ui/viewport.ts useViewportPlace): far away it's background work. */
+export const rowPriority = (place: "in" | "near" | "far") => (place === "in" ? PRIORITY.visible : place === "near" ? PRIORITY.near : PRIORITY.background);
+
+/** A row moved: AniList's queue looks at the priorities again. */
+export const reprioritiseAniList = () => anilistLimiter.wake();
 
 /**
  * One shelf per genre, fetched when it scrolls near. Each shelf is its own request and shows as soon
  * as it's in, never waiting for another (re-test 21: one request for several rows made all of them
- * wait for the slowest); its first cards come first, the rest of the row right after.
+ * wait for the slowest); its first cards come first, the rest of the row right after, behind every
+ * row's first cards. While AniList is degraded the row comes in one request instead of two (#109).
+ * `priority`: where the row is (lib/net/limiter.ts), read when its request's turn comes. A row the
+ * device kept draws at once and refreshes once it's an hour old.
  */
-export function useAnimeGenre(genre: string, enabled: boolean) {
+export function useAnimeGenre(genre: string, enabled: boolean, priority: Priority = PRIORITY.visible) {
+  const qc = useQueryClient();
+  const shown = useCardsShown();
+  const select = useCallback((cards: AnimeCard[] | undefined) => cards && shown(cards), [shown]);
+  const seed = useMemo(() => fromDevice(genreQuery(GENRE_ALL), { genre }, ROWS_ON_DEVICE, readShelf), [genre]);
+  const haveAll = seed.initialData() !== undefined || qc.getQueryData(keys.anime.genre(genre)) !== undefined;
   const first = useQuery({
     queryKey: keys.anime.genreFirst(genre),
     staleTime: 60 * 60_000,
-    enabled,
-    queryFn: () => genreShelf(genre, GENRE_FIRST),
+    enabled: enabled && !haveAll,
+    queryFn: async ({ signal }) => {
+      if (!anilistLimiter.reduced) return genreShelf(genre, GENRE_FIRST, signal, priority);
+      const all = await genreShelf(genre, GENRE_ALL, signal, priority);
+      if (all) qc.setQueryData(keys.anime.genre(genre), all);
+      return all;
+    },
+    select,
   });
   const all = useQuery({
     queryKey: keys.anime.genre(genre),
     staleTime: 60 * 60_000,
-    enabled: enabled && first.isFetched,
-    queryFn: () => genreShelf(genre, GENRE_ALL),
+    enabled: enabled && (haveAll || first.isFetched),
+    queryFn: ({ signal }) => genreShelf(genre, GENRE_ALL, signal, () => level(priority) + 0.5),
+    select,
+    ...seed,
   });
   return { data: all.data ?? first.data, isError: first.isError && all.isError };
 }
@@ -311,17 +418,48 @@ export function useAnimeSeasons(anime: Anime | undefined) {
  * shouldn't collapse to a skeleton and lose its scroll position).
  */
 export function useAnime(id: number, { keepPrevious = false } = {}) {
-  return useQuery({
-queryKey: keys.anime.media(id),
-staleTime: 30 * 60_000,
-queryFn: ({ signal }) => fetchAnime(id, signal),
-placeholderData: keepPrevious ? keepPreviousData : undefined,
-  });
+  useEffect(() => {
+    opened.set(id, (opened.get(id) ?? 0) + 1);
+    // A hover may have queued this entry's details as background work: they go first now.
+    anilistLimiter.wake();
+    return () => {
+      const n = (opened.get(id) ?? 1) - 1;
+      if (n) opened.set(id, n);
+      else opened.delete(id);
+    };
+  }, [id]);
+  return useQuery({ ...animeQuery(id), placeholderData: keepPrevious ? keepPreviousData : undefined });
 }
 
-export async function fetchAnime(id: number, signal?: AbortSignal): Promise<Anime> {
-  const data = await gql(
-    `query ($id: Int) {
+/** Entries whose page is open (how many times), so their details go first whoever asked for them (#109). */
+const opened = new Map<number, number>();
+
+/** An entry's page data as a query: kept on the device a day, drawn from it at once. */
+export function animeQuery(id: number, priority: Priority = PRIORITY.page) {
+  return {
+    queryKey: keys.anime.media(id),
+    staleTime: 30 * 60_000,
+    queryFn: ({ signal }: { signal: AbortSignal }) => fetchAnime(id, signal, priority),
+    ...fromDevice(ANIME_QUERY, { id }, PAGE_ON_DEVICE, (data) => readAnime(data.Media)),
+  };
+}
+
+/**
+ * Warms an entry's page data (the pointer rests on its card) as background work, moved to the
+ * front if the page opens before it's in.
+ */
+export function prefetchAnime(qc: QueryClient, id: number) {
+  return qc.prefetchQuery(animeQuery(id, () => (opened.has(id) ? PRIORITY.page : PRIORITY.background)));
+}
+
+export async function fetchAnime(id: number, signal?: AbortSignal, priority: Priority = PRIORITY.page): Promise<Anime> {
+  const data = await gql(ANIME_QUERY, { id }, signal, { priority, keep: true });
+  const media = readAnime(data.Media);
+  if (!media) throw new Error(`AniList has no anime ${id}`);
+  return media;
+}
+
+const ANIME_QUERY = `query ($id: Int) {
       Media(id: $id, type: ANIME) {
         ${CARD}
         description(asHtml: false)
@@ -344,14 +482,7 @@ export async function fetchAnime(id: number, signal?: AbortSignal): Promise<Anim
         rankings { rank type context allTime season year }
         airingSchedule(perPage: 50) { nodes { episode airingAt } }
       }
-    }`,
-    { id },
-    signal,
-  );
-  const media = readAnime(data.Media);
-  if (!media) throw new Error(`AniList has no anime ${id}`);
-  return media;
-}
+    }`;
 
 export interface AiringSlot {
   id: number;
@@ -451,7 +582,7 @@ export function useAnimeBrowse(f: BrowseFilters, enabled = true) {
         vars,
         signal,
       );
-      // Shown once per franchise (oneFranchiseEach, across pages by the grid): keep just the prequel/sequel links it needs.
+      // Shown once per franchise unless seasons are separate shows (cardsShown, across pages by the grid): keep just the prequel/sequel links it needs.
       const { items, hasNextPage } = readPage(data, "media");
       const media = listOf(items, readListed);
       return { pageInfo: { hasNextPage }, media };

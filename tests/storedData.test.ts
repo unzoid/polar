@@ -1,6 +1,15 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { count, likeTemplate, listOf, storedJson } from "../src/lib/parse";
-import { fromLibraryRow, fromLinkRow, fromPlaylistRow, fromProgressRow, toLibraryRow, toProgressRows } from "../src/lib/account/supabase";
+import {
+  fromLibraryRow,
+  fromLinkRow,
+  fromPlaylistRow,
+  fromProgressRow,
+  syncableId,
+  toLibraryRow,
+  toLibraryRows,
+  toProgressRows,
+} from "../src/lib/account/supabase";
 import { readProfile } from "../src/lib/account/backend";
 import { playContextStore } from "../src/lib/anime/playContext";
 import type { Progress } from "../src/lib/types";
@@ -173,6 +182,23 @@ describe("pulled rows (critique M9)", () => {
       ["tt2:1:3", 99],
       ["tt2:1:4", 120],
     ]);
+  });
+
+  test("titles the server would refuse stay on this device (#110)", () => {
+    expect([syncableId("tt1"), syncableId("x".repeat(200)), syncableId("é".repeat(101)), syncableId("tt1\n"), syncableId("")]).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+    const item = { id: "tt1", type: "movie", name: "", poster: null, addedAt: 1000, deleted: false, updatedAt: 1000 } as const;
+    expect(toLibraryRows("p1", [item, { ...item, id: "tt\t2" }]).map((r) => r.meta_id)).toEqual(["tt1"]);
+    // One entry past 512 bytes: kept only by a server that keeps every episode.
+    const long = { ...watched("tt2:1:3", 1, 3, 99), videoId: "x".repeat(600) };
+    const bad = { ...watched("tt2:1:3", 1, 3, 99), metaId: "tt\n2" };
+    expect(toProgressRows("p1", [long, bad], false)).toEqual({ rows: [], unsent: [] });
+    expect(toProgressRows("p1", [long, bad], true).rows.map((r) => r.meta_id)).toEqual(["tt2"]);
   });
 
   test("progress: a few seconds of another episode never becomes the title's one row (test report 1, item 4)", () => {

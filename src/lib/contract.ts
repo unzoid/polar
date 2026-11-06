@@ -8,6 +8,7 @@ import type { CommandError } from "./errors";
 import type { AnimeLink } from "./library/identity";
 import type {
   CacheInfo,
+  Imported,
   ExternalRatings,
   InstalledAddon,
   LibraryItem,
@@ -20,6 +21,7 @@ import type {
   Playable,
   Progress,
   RankedStream,
+  Readiness,
   SearchResults,
   SeekCue,
   SeekTrack,
@@ -33,6 +35,7 @@ import type {
   SubtitleStyle,
   SyncLibraryItem,
   TitleRef,
+  TorrentLink,
   Video,
 } from "./types";
 
@@ -93,7 +96,21 @@ export const contract = {
   } satisfies Keys<MetaPreview>,
   Person: { character: true, name: true, photo: true } satisfies Keys<Person>,
   RankedStream: { addon: true, label: true, quality: true, score: true, stream: true } satisfies Keys<RankedStream>,
-  Stream: { behaviorHints: true, description: true, externalUrl: true, name: true, title: true, url: true, ytId: true } satisfies Keys<Stream>,
+  "Readiness.ready": { state: true, ms: true } satisfies Keys<Extract<Readiness, { state: "ready" }>>,
+  "Readiness.notReady": { state: true, reason: true } satisfies Keys<Extract<Readiness, { state: "notReady" }>>,
+  "Readiness.unchecked": { state: true } satisfies Keys<Extract<Readiness, { state: "unchecked" }>>,
+  Stream: {
+    behaviorHints: true,
+    description: true,
+    externalUrl: true,
+    fileIdx: true,
+    infoHash: true,
+    name: true,
+    sources: true,
+    title: true,
+    url: true,
+    ytId: true,
+  } satisfies Keys<Stream>,
   StreamQuality: {
     codec: true,
     direct: true,
@@ -129,6 +146,7 @@ export const contract = {
   Untitled: { id: true, type: true } satisfies Keys<TitleRef>,
   // contract/app.json (src-tauri)
   CacheInfo: { bytes: true, path: true } satisfies Keys<CacheInfo>,
+  Imported: { library: true, progress: true } satisfies Keys<Imported>,
   CmdError: { code: true, message: true } satisfies Keys<CommandError>,
   Cue: { endMs: true, h: true, sheet: true, startMs: true, w: true, x: true, y: true } satisfies Keys<SeekCue>,
   Download: {
@@ -154,6 +172,7 @@ export const contract = {
   InstalledAddon: { manifest: true, manifestUrl: true } satisfies Keys<InstalledAddon>,
   LocalChanges: { library: true, links: true, progress: true, pulledAt: true } satisfies Keys<LocalChanges>,
   "Playable.external": { kind: true, url: true } satisfies Keys<Extract<Playable, { kind: "external" }>>,
+  "Playable.torrent": { kind: true } satisfies Keys<Extract<Playable, { kind: "torrent" }>>,
   "Playable.unsupported": { kind: true, reason: true } satisfies Keys<Extract<Playable, { kind: "unsupported" }>>,
   "Playable.url": { kind: true, url: true } satisfies Keys<Extract<Playable, { kind: "url" }>>,
   PreviewTrack: { cues: true, sourceDurationMs: true } satisfies Keys<SeekTrack>,
@@ -242,6 +261,7 @@ export const contract = {
     raise: true,
     size: true,
   } satisfies Keys<SubtitleStyle>,
+  TorrentLink: { size: true, url: true } satisfies Keys<TorrentLink>,
 };
 
 /** Fields Rust sends that the TS types leave out on purpose, by Rust type. */

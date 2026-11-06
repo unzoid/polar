@@ -1,5 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AnimeCard, AnimeLandscapeCard, useAnimeHandlers, useOpenAnime } from "../components/anime/AnimeCard";
 import { Dropdown } from "../components/Dropdown";
 import { Calendar, Close, Filters, Grid, Play } from "../components/icons";
@@ -18,6 +18,9 @@ import {
   useAiringToday,
   useAnimeBrowse,
   useAnimeGenre,
+  useAniListBusy,
+  rowPriority,
+  reprioritiseAniList,
   useAnimeHome,
   type AiringSlot,
   type AnimeCard as Card,
@@ -32,16 +35,16 @@ import {
   aniZipQuery,
   countdown,
   FORMAT_LABEL,
-  oneFranchiseEach,
   SEASON_LABEL,
   STATUS_LABEL,
   untilAiring,
+  useCardsShown,
   useAnimeTitle,
   useShelfVisible,
 } from "../lib/anime";
-import { useNearViewport } from "../lib/ui";
+import { useViewportPlace } from "../lib/ui";
 import { usePrefs } from "../lib/settings";
-import { useRouter } from "../lib/router";
+import { useRouter, type Route } from "../lib/router";
 import type { MetaPreview } from "../lib/types";
 import { HeroCarousel } from "./Home";
 import { Button } from "../components/ui/Button";
@@ -63,10 +66,12 @@ export function Anime() {
   const hasHero = visible("hero");
   const hero = useAnimeHero(hasHero ? data?.trending : undefined);
   const today = useAiringToday(visible("today"));
+  const todayNote = useWaitNote(!today.slots);
   const now = seasonOf();
   const next = nextSeason(now);
   const [index, setIndex] = useState(0);
   const handlers = useAnimeHandlers();
+  const { navigate } = useRouter();
 
   if (isError && !data) {
     return (
@@ -80,13 +85,30 @@ export function Anime() {
 
   // The carousel's shows don't repeat on the shelf they came from.
   const featured = new Set(hero.cards.map((a) => a.id));
-  const shelves: { id: AnimeShelfId; title: string; shape: Shape; items?: Card[]; label?: (a: Card) => string | undefined }[] = [
-    { id: "season", title: `Airing This ${SEASON_LABEL[now.season]}`, shape: "poster", items: data?.season },
-    { id: "trending", title: "Trending Now", shape: "poster", items: data?.trending.filter((a) => !featured.has(a.id)) },
-    { id: "upcoming", title: `Coming in ${SEASON_LABEL[next.season]} ${next.year}`, shape: "poster", items: data?.upcoming, label: upcomingLabel },
-    { id: "top", title: "Highest Rated", shape: "landscape", items: data?.top },
-    { id: "popular", title: "Most Popular", shape: "poster", items: data?.popular },
-    { id: "movies", title: "Movies", shape: "landscape", items: data?.movies },
+  // Each heading opens the grid with the filters its shelf asks AniList for (#48).
+  const browse = (title: string, filters: Partial<BrowseFilters>): Route => ({ name: "anime-browse", title, ...filters });
+  const seasonTitle = `Airing This ${SEASON_LABEL[now.season]}`;
+  const upcomingTitle = `Coming in ${SEASON_LABEL[next.season]} ${next.year}`;
+  const shelves: { id: AnimeShelfId; title: string; shape: Shape; items?: Card[]; label?: (a: Card) => string | undefined; to: Route }[] = [
+    { id: "season", title: seasonTitle, shape: "poster", items: data?.season, to: browse(seasonTitle, { ...now, sort: "POPULARITY_DESC" }) },
+    {
+      id: "trending",
+      title: "Trending Now",
+      shape: "poster",
+      items: data?.trending.filter((a) => !featured.has(a.id)),
+      to: browse("Trending Now", { sort: "TRENDING_DESC" }),
+    },
+    {
+      id: "upcoming",
+      title: upcomingTitle,
+      shape: "poster",
+      items: data?.upcoming,
+      label: upcomingLabel,
+      to: browse(upcomingTitle, { ...next, sort: "POPULARITY_DESC" }),
+    },
+    { id: "top", title: "Highest Rated", shape: "landscape", items: data?.top, to: browse("Highest Rated", { sort: "SCORE_DESC" }) },
+    { id: "popular", title: "Most Popular", shape: "poster", items: data?.popular, to: browse("Most Popular", { sort: "POPULARITY_DESC" }) },
+    { id: "movies", title: "Movies", shape: "landscape", items: data?.movies, to: browse("Anime Movies", { format: "MOVIE", sort: "POPULARITY_DESC" }) },
   ];
   const on = shelves.filter((s) => visible(s.id));
   // A day with nothing on it (or an error) leaves the shelf out rather than showing a stub.
@@ -99,7 +121,9 @@ export function Anime() {
     <Shelf
       key="today"
       title="Airing Today"
+      onOpen={() => navigate({ name: "anime-schedule" })}
       shape="landscape"
+      action={todayNote}
       items={airing && forShape(airing, "landscape")}
       skeletons={6}
       card={(m) => {
@@ -129,7 +153,7 @@ export function Anime() {
       )}
       <AnimeNav />
       <div className="rows home-rows">
-        {on.map((s, i) => [i === todayAt && todayRow, <AnimeShelf key={s.id} title={s.title} shape={s.shape} items={s.items} label={s.label} />])}
+        {on.map((s, i) => [i === todayAt && todayRow, <AnimeShelf key={s.id} title={s.title} shape={s.shape} items={s.items} label={s.label} onOpen={() => navigate(s.to)} />])}
         {todayAt === on.length && todayRow}
         {genres && ANIME_GENRES.map((g, i) => <GenreShelf key={g} genre={g} shape={i % 3 === 0 ? "landscape" : "poster"} />)}
       </div>
@@ -232,26 +256,53 @@ function AnimeShelf({
   items,
   label,
   action,
+  onOpen,
 }: {
   title: string;
   shape: Shape;
   items?: Card[];
   label?: (a: Card) => string | undefined;
   action?: ReactNode;
+  onOpen?: () => void;
 }) {
   const C = shape === "landscape" ? AnimeLandscapeCard : AnimeCard;
+  const note = useWaitNote(!items);
   return (
-    <Shelf title={title} shape={shape} action={action} items={items && forShape(items, shape)} card={(a) => <C key={a.id} item={a} label={label?.(a)} />} />
+    <Shelf
+      title={title}
+      onOpen={onOpen}
+      shape={shape}
+      action={note ?? action}
+      items={items && forShape(items, shape)}
+      card={(a) => <C key={a.id} item={a} label={label?.(a)} />}
+    />
   );
 }
 
-/** Genre shelves below the fold only ask AniList once they're close. */
+/** A shelf still waiting its turn behind AniList's limit says so, rather than showing placeholders for a minute (#109). */
+function useWaitNote(loading: boolean) {
+  const busy = useAniListBusy();
+  return loading && busy ? <span className="row-note t-caption">AniList is busy, loading…</span> : undefined;
+}
+
+/**
+ * Genre shelves below the fold only ask AniList once they're close; while waiting their turn, one on
+ * screen goes before one just below it, and one scrolled far away waits behind both (#109).
+ */
 function GenreShelf({ genre, shape, action }: { genre: string; shape: Shape; action?: ReactNode }) {
-  const [ref, near] = useNearViewport<HTMLDivElement>();
-  const { data } = useAnimeGenre(genre, near);
+  const [ref, near, place] = useViewportPlace<HTMLDivElement>(reprioritiseAniList);
+  const priority = useCallback(() => rowPriority(place.current), [place]);
+  const { data } = useAnimeGenre(genre, near, priority);
+  const { navigate } = useRouter();
   return (
     <div ref={ref}>
-      <AnimeShelf title={genre} shape={shape} items={data} action={action} />
+      <AnimeShelf
+        title={genre}
+        shape={shape}
+        items={data}
+        action={action}
+        onOpen={() => navigate({ name: "anime-browse", genre, sort: "TRENDING_DESC" })}
+      />
     </div>
   );
 }
@@ -278,9 +329,10 @@ export const AnimeSchedule = () => (
 export function AnimeBrowse() {
   const { current } = useRouter();
   const from = current.name === "anime-browse" ? current : undefined;
+  const { name: _, title, ...filters } = from ?? { name: "anime-browse" };
   return (
-    <SubPage title={from?.genre ?? from?.tag ?? "Browse Anime"}>
-      <BrowseView genre={from?.genre} tag={from?.tag} />
+    <SubPage title={title ?? from?.genre ?? from?.tag ?? "Browse Anime"}>
+      <BrowseView from={filters} />
     </SubPage>
   );
 }
@@ -390,9 +442,10 @@ function FilterField({ label, children }: { label: string; children: ReactNode }
 
 const NO_FILTERS = { genre: "", tag: "", season: "", year: 0, format: "", status: "" } as const;
 
-function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) {
+/** `from`: the filters it opens with (a genre chip, a shelf's heading). */
+function BrowseView({ from }: { from: Partial<BrowseFilters> }) {
   const [text, setText] = useState("");
-  const [f, setF] = useState<BrowseFilters>({ ...NO_FILTERS, search: "", genre, tag, sort: "POPULARITY_DESC" });
+  const [f, setF] = useState<BrowseFilters>(() => ({ ...NO_FILTERS, search: "", sort: "POPULARITY_DESC", ...from }));
   useEffect(() => {
     const t = window.setTimeout(() => setF((f) => ({ ...f, search: text.trim() })), 300);
     return () => window.clearTimeout(t);
@@ -404,7 +457,8 @@ function BrowseView({ genre = "", tag = "" }: { genre?: string; tag?: string }) 
   const years = Array.from({ length: thisYear + 2 - 1970 }, (_, i) => thisYear + 1 - i);
   const seen = new Set<number>();
   const listed = (q.data?.pages.flatMap((p) => p.media) ?? []).filter((m) => !seen.has(m.id) && seen.add(m.id));
-  const items = oneFranchiseEach(listed);
+  const shown = useCardsShown();
+  const items = shown(listed);
   const [panel, setPanel] = useState(false);
   // What's narrowing the list, each with a way to take it off again.
   type Active = { label: string; clear: Partial<BrowseFilters> };

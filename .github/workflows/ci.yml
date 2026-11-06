@@ -103,8 +103,7 @@ jobs:
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci-apt.sh --no-install-recommends \
             libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev \
             librsvg2-dev libxdo-dev libssl-dev libudev-dev
       # Debug builds (tests, clippy) don't embed the frontend, so no `dist` is
@@ -309,8 +308,7 @@ jobs:
       - name: Build libmpv
         if: steps.libmpv.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y autoconf pkgconf libtool ninja-build gperf nasm
+          scripts/ci-apt.sh autoconf pkgconf libtool ninja-build gperf nasm
           pipx install meson
           scripts/android-mpv.sh "$RUNNER_TEMP/libmpv" arm64 x86_64
       - name: Put libmpv in the app

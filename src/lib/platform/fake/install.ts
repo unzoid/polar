@@ -47,6 +47,7 @@ const commands: Record<string, (a: Args) => unknown> = {
     fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
   trailer: () => null,
   addons_list: () => fx.addons,
+  addons_bundled: () => [],
   library_list: () => library,
   library_toggle: (a) => {
     const item = a.item as MetaPreview;
@@ -58,6 +59,13 @@ const commands: Record<string, (a: Args) => unknown> = {
   progress_for: (a) => progress.filter((p) => p.metaId === a.metaId),
   progress_save: (a) => void progress.unshift(a.progress as Progress),
   progress_save_many: () => undefined,
+  library_import: (a) => {
+    const { library: items, progress: rows } = a as { library: LibraryItem[]; progress: Progress[] };
+    const fresh = items.filter((i) => !library.some((l) => l.id === i.id));
+    library.unshift(...fresh);
+    progress.unshift(...rows);
+    return { library: fresh.length, progress: rows.length };
+  },
   continue_watching: () => progress,
   watch_history: () => progress,
   anime_links: () => [],
@@ -76,8 +84,15 @@ const commands: Record<string, (a: Args) => unknown> = {
   download_reveal: () => undefined,
   controllers_list: () => [],
   mpv_available: () => false,
+  // Discord: what the player sends is kept for browser tests to read.
+  discord_available: () => true,
+  discord_presence: (a) => void ((window as { __discord?: unknown[] }).__discord ??= []).push(a.activity),
   resolve_stream: (a) => ({ kind: "url", url: (a.stream as { url: string }).url }),
+  torrent_open: () => Promise.reject({ code: "unsupported", message: "Torrent sources play in the desktop app." }),
+  torrent_close: () => undefined,
   stream_probe: (a) => a.url,
+  // One source a placeholder, the rest quick (#21).
+  stream_ready: (a) => (String(a.url).endsWith("/1.mp4") ? { state: "notReady", reason: "Not ready at the source" } : { state: "ready", ms: 400 }),
   space_untitled: () => [],
   sync_changes: () => ({ library: [], progress: [], links: [], cursor: 0, pulledAt: null }),
   // Window, app and plugin calls: answered with nothing.

@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use polar_addon::probe::{self, ProbeEvent};
+use polar_addon::probe::{self, ProbeEvent, Readiness};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
@@ -46,9 +46,20 @@ pub async fn stream_probe(
     probe_id: Option<u32>,
     headers: Option<HashMap<String, String>>,
 ) -> Result<String, CmdError> {
-    if !polar_player::allow::is_web_url(&url) {
+    // The torrent engine's own link needs no check.
+    if !polar_player::allow::is_web_url(&url) || crate::torrent::owns(&app, &url) {
         return Ok(url);
     }
     let headers = polar_player::headers::playback_headers(&headers.unwrap_or_default());
     prepare(&app, &url, headers, probe_id).await
+}
+
+/// Whether a source's link would start now (#21): one look ahead of time, for the source lists.
+/// The same first request pressing Play makes; no retries, a short deadline.
+#[tauri::command]
+pub async fn stream_ready(url: String, headers: Option<HashMap<String, String>>) -> Readiness {
+    if !polar_player::allow::is_web_url(&url) {
+        return Readiness::Unchecked;
+    }
+    probe::readiness(&url, polar_player::headers::playback_headers(&headers.unwrap_or_default())).await
 }

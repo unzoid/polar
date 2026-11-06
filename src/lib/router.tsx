@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AnimeCard } from "./anime/anilist";
+import type { AnimeCard, BrowseFilters } from "./anime/anilist";
 import type { ContentType, MetaPreview, Stream } from "./types";
 
 export type TabRoute =
   | { name: "home" }
-  | { name: "discover"; type: ContentType }
+  /** Movies or Series; from a Home shelf's heading, opened at that shelf's catalog and genre (#48). */
+  | { name: "discover"; type: ContentType; catalog?: string; genre?: string }
   | { name: "anime" }
   | { name: "library" }
   | { name: "calendar" }
@@ -13,11 +14,13 @@ export type TabRoute =
 
 export type Route =
   | TabRoute
-  | { name: "detail"; type: ContentType; id: string; preview?: MetaPreview }
+  /** `entry`: TV mode with seasons as separate shows (#22), the AniList entry whose episodes the page shows. */
+  | { name: "detail"; type: ContentType; id: string; preview?: MetaPreview; entry?: number }
   /** An anime's own page, by AniList id. */
   | { name: "anime-detail"; id: number; preview?: AnimeCard }
   | { name: "anime-schedule" }
-  | { name: "anime-browse"; genre?: string; tag?: string }
+  /** The anime grid; from a shelf's heading (#48), with that shelf's filters and its title. */
+  | ({ name: "anime-browse"; title?: string } & Partial<Pick<BrowseFilters, "genre" | "tag" | "season" | "year" | "format" | "sort">>)
   /** One of Library's collections in full; `fresh`: a playlist just made, its name selected to type over. */
   | { name: "library-collection"; view: "saved" | "watched" | "playlists" | "downloads" }
   | { name: "playlist"; id: string; fresh?: boolean }

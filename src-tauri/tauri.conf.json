@@ -24,7 +24,7 @@
     "security": {
       "csp": {
         "default-src": "'self'",
-        "script-src": "'self'",
+        "script-src": "'self' https://challenges.cloudflare.com",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob: https: http:",
         "media-src": "'self' data: blob: https: http:",
@@ -34,7 +34,7 @@
         "object-src": "'none'",
         "base-uri": "'self'",
         "form-action": "'none'",
-        "frame-src": "https://www.youtube-nocookie.com https://www.youtube.com"
+        "frame-src": "https://www.youtube-nocookie.com https://www.youtube.com https://challenges.cloudflare.com"
       }
     },
     "macOSPrivateApi": true

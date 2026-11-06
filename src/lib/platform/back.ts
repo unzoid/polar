@@ -16,5 +16,20 @@ export async function onSystemBack(handler: () => void): Promise<Unlisten> {
   return () => void listener.unregister();
 }
 
-/** Close the app the way Back at the root does on Android (the activity finishes with the system transition). */
-export const leaveApp = () => exit(0);
+type LeaveBridge = { polarDevice?: { leave?: () => void } };
+
+/**
+ * Leave the app the way Back at the root does on Android: the activity goes to the background with the
+ * system's transition (`polarDevice.leave` from gen/android MainActivity.kt, what Android 12 and later
+ * do on their own), and the app is there as it was when it's opened again. Ending the process instead
+ * (`exit`, still the way where the bridge is missing) ran its exit handlers while the web view's render
+ * threads were still drawing, and crashed it.
+ */
+export function leaveApp(scope: LeaveBridge = globalThis as LeaveBridge, quit: () => Promise<void> = () => exit(0)): Promise<void> {
+  const device = scope.polarDevice;
+  if (typeof device?.leave === "function") {
+    device.leave();
+    return Promise.resolve();
+  }
+  return quit();
+}

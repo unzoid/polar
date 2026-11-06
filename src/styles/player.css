@@ -412,6 +412,10 @@
   align-items: center;
   padding-block: 0.5rem;
 }
+/* A source checked ahead of time and not ready (#21): dimmed, the detail line says why. */
+.options-item[data-ready="no"] .options-text {
+  opacity: 0.5;
+}
 .options-item:disabled {
   opacity: 0.4;
 }
@@ -696,6 +700,19 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.625rem;
+}
+/* Playing on an AirPlay receiver: the show's art over mpv's paused picture; the controls stay above. */
+.player-casting {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+  overflow: hidden;
+  background: #000;
+}
+.player-casting-hint {
+  color: var(--text-2);
 }
 .player-notice {
   position: absolute;

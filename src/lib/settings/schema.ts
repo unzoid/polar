@@ -113,6 +113,17 @@ export const SETTINGS: SettingDef[] = [
   { id: "profiles", page: "account", title: "Profiles", keywords: "switch who's watching" },
   { id: "manageProfiles", page: "account", title: "Manage profiles", keywords: "edit add remove avatar" },
   { id: "secrets", page: "account", title: "API keys and addons", keywords: "sync encrypt encrypted passphrase keys addons secret" },
+  {
+    id: "shareAddonsAndKeys",
+    page: "account",
+    title: "Share add-ons and keys between profiles on this device",
+    caption: "On: a profile new to this device starts with the add-ons and API keys already here. Off: it starts with its own from your account, or none.",
+    keywords: "profiles addons api keys device shared separate per profile",
+    bind: p("shareAddonsAndKeys"),
+    control: toggle,
+  },
+  { id: "copySetup", page: "account", title: "Add-ons and Keys", keywords: "copy addons api keys profile guest device start" },
+  { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback
@@ -232,6 +243,19 @@ export const SETTINGS: SettingDef[] = [
     keywords: "minimise background",
     bind: p("pauseOnMinimize"),
     control: toggle,
+  },
+  {
+    id: "discordPresence",
+    page: "playback",
+    title: "Show on Discord",
+    caption: "While something plays, on your Discord profile. Discord needs to be running on this computer.",
+    keywords: "discord rich presence status activity profile privacy",
+    bind: p("discordPresence"),
+    control: choice([
+      { value: "off", label: "Off" },
+      { value: "app", label: "That you're watching" },
+      { value: "title", label: "What you're watching" },
+    ]),
   },
   { id: "rememberSpeed", page: "playback", title: "Remember playback speed", keywords: "rate faster slower" },
   {
@@ -372,6 +396,33 @@ export const SETTINGS: SettingDef[] = [
     tv: "Filters Hide Other Sources",
   },
   { id: "sourceAutoTags", page: "sources", title: "Turn On When Available", keywords: "dolby vision hdr remux atmos tags filters automatic" },
+  {
+    id: "torrentCacheGb",
+    page: "sources",
+    title: "Torrent cache limit",
+    caption: "Most space torrent sources may use on this device. A larger file won't play.",
+    keywords: "torrent cache disk space size limit",
+    bind: p("torrentCacheGb"),
+    control: { kind: "number", min: 0, max: 200, step: 5, unit: "GB", zero: "No limit", tvStep: 10 },
+  },
+  {
+    id: "torrentSpeedMbps",
+    page: "sources",
+    title: "Torrent speed limit",
+    caption: "Caps download and upload while a torrent source plays",
+    keywords: "torrent bandwidth speed limit download upload mbps",
+    bind: p("torrentSpeedMbps"),
+    control: { kind: "number", min: 0, max: 1000, step: 5, unit: "Mbit/s", zero: "No limit", tvStep: 10 },
+  },
+  {
+    id: "torrentKeepSharing",
+    page: "sources",
+    title: "Keep sharing after playback",
+    caption: "Off: a torrent stops and its files are deleted as soon as you close the player. On: it keeps uploading to others until you quit Polarity.",
+    keywords: "torrent seed share upload after playback",
+    bind: p("torrentKeepSharing"),
+    control: toggle,
+  },
 
   // Subtitles & Audio
   {
@@ -718,6 +769,16 @@ export const SETTINGS: SettingDef[] = [
     tv: "Airing Countdowns",
   },
   {
+    id: "animeSeparateEntries",
+    page: "anime",
+    title: "Seasons as separate shows",
+    caption: "Each season, part and film gets its own card and page. Your library and progress stay as they are",
+    keywords: "anime franchise seasons split separate entries group ungroup cours parts movies",
+    bind: p("animeSeparateEntries"),
+    control: toggle,
+    tv: "Seasons as Separate Shows",
+  },
+  {
     id: "animeScheduleAll",
     page: "anime",
     title: "List every show",
@@ -1005,7 +1066,7 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "releaseNotes", page: "about", title: "Release notes", keywords: "changelog what's new" },
   { id: "credits", page: "about", title: "Data sources", keywords: "credits attribution tmdb anilist thetvdb licence" },
-  { id: "animeCache", page: "about", title: "Anime data", keywords: "cache clear filler recap anime-lists ids storage disk" },
+  { id: "animeCache", page: "about", title: "Anime data", keywords: "cache clear filler recap anime-lists ids storage disk anilist shelves" },
 ];
 
 const BY_ID = new Map(SETTINGS.map((d) => [d.id, d]));

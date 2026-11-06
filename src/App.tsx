@@ -27,6 +27,7 @@ import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { StoreProblemToast } from "./components/StoreProblemToast";
+import { AccountFullToast } from "./components/AccountFullToast";
 import { Skeleton } from "./components/ui/Skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { titlePageQuery } from "./lib/anime";
@@ -47,7 +48,7 @@ function Screen({ route }: { route: Route }) {
     case "home":
       return <Home />;
     case "discover":
-      return <Discover type={route.type} />;
+      return <Discover type={route.type} catalog={route.catalog} genre={route.genre} />;
     case "library":
       return <Library />;
     case "library-collection":
@@ -298,7 +299,7 @@ function DesktopApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [playing, back]);
 
-  // Android's back button and gesture: Escape's Back, then Home, then the app closes.
+  // Android's back button and gesture: Escape's Back, then Home, then the app goes to the background.
   useSystemBack(() => {
     const open = !!playing || isSettingsOpen() || dismissDepth() > 0;
     const action = systemBackAction({ open, pushed: stack.length - 1, atHome: rootTab(stack).name === "home" });
@@ -341,6 +342,7 @@ function DesktopApp() {
       <LazySettingsOverlay />
       {/* After Settings: it reports changes made there too, so it must never be under it or inert with the page. */}
       <StoreProblemToast tv={false} />
+      <AccountFullToast tv={false} />
       {!playing && <CardMenuHost />}
       <TrailerHost />
     </div>

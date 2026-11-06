@@ -1,0 +1,60 @@
+name: Slow, laggy or heavy
+description: Scrolling stutters, pages load slowly, the app uses a lot of CPU, memory or battery, or starts slowly.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What feels slow
+      description: Where in the app, and what you were doing. "Scrolling the Movies grid", "opening a title page", "the Anime page's rows".
+    validations:
+      required: true
+  - type: dropdown
+    id: always
+    attributes:
+      label: How often
+      options:
+        - Always
+        - Sometimes
+        - Only after the app has been open a while
+        - Only right after starting the app
+  - type: textarea
+    id: numbers
+    attributes:
+      label: What the computer or device shows
+      description: CPU, GPU and memory from Task Manager or Activity Monitor while it happens, if you can. A screenshot is fine.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where you saw it
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android phone or tablet
+        - Android TV / Google TV / Fire TV
+    validations:
+      required: true
+  - type: checkboxes
+    id: only
+    attributes:
+      label: Only on these systems?
+      description: Tick it only if this is specific to the systems picked above (it doesn't happen on others, or it's about something only they have). The issue is then labelled with them.
+      options:
+        - label: It only happens on the systems I picked.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: The computer or device, roughly, and the screen size and scaling. "Laptop, 1080p at 125%", "Fire TV Stick 4K".
+  - type: input
+    id: version
+    attributes:
+      label: Polarity version
+      description: Settings → About.
+      placeholder: "0.17.0"
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screen recording or other details

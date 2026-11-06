@@ -225,6 +225,14 @@ pub struct Stream {
     pub yt_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub external_url: Option<String>,
+    /// A torrent: its info hash, the file to play (`fileIdx`, 0-based) and
+    /// `sources` (`tracker:<url>`, `dht:<hash>`). Played by `polar_torrent`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub info_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_idx: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sources: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

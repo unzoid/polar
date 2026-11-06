@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type Focus
 import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
 import { LogoOrName, ProgressBar, useCardArt } from "../components/title/Card";
+import { useEntryShown, type EntryAt } from "../lib/anime";
 import { episodeCode, formatRemaining } from "../lib/format";
 import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/net";
 import { useRouter } from "../lib/router";
@@ -21,13 +22,14 @@ const INTENT_MS = 450;
  * the stage above shows the title, and Enter / A opens it.
  */
 export function TvCard({
-  item,
+  item: stored,
   shape,
   artFallbacks,
   progress,
   kicker,
   chip,
   entry,
+  watching,
   onOpen,
   localOnly,
   onFocusChange,
@@ -42,12 +44,15 @@ export function TvCard({
   chip?: string;
   /** The watch progress this card stands for, if it's one video (Continue Watching). */
   entry?: Progress;
+  /** The episode being watched (`entry`'s by default): with seasons as separate shows, an anime shows its entry (#22). */
+  watching?: string;
   onOpen?: () => void;
   /** Not (yet) one of the app's titles, as with anime from AniList: no page to fetch ahead, no options menu. */
   localOnly?: boolean;
   onFocusChange?: (focused: boolean) => void;
 }) {
   const { navigate } = useRouter();
+  const { item, entry: shownEntry } = useEntryShown(stored, watching ?? entry?.videoId);
   const stage = useStage();
   const seedStage = useStageSeed();
   const el = useRef<HTMLButtonElement>(null);
@@ -63,7 +68,8 @@ export function TvCard({
   // Art that won't load falls back to the title, not an empty frame; better art arriving gets a fresh try.
   const preferred = shape === "poster" ? (item.poster ?? item.background) : (item.background ?? item.poster);
   const { shown: art, onError: onArtError } = useCardArt(preferred);
-  const open = onOpen ?? (() => navigate({ name: "detail", type: item.type, id: item.id, preview: item }));
+  // An anime shown by its entry opens that entry (TvAnimeDetail takes it on to the title's page with just its episodes).
+  const open = onOpen ?? (() => navigate(shownEntry ? { name: "anime-detail", id: shownEntry.anilist } : { name: "detail", type: item.type, id: item.id, preview: item }));
 
   return (
     <button
@@ -85,13 +91,13 @@ export function TvCard({
       onKeyDown={(e) => {
         if (localOnly || !isMenuKey(e)) return;
         e.preventDefault();
-        openCardMenu({ item, entry, anchor: e.currentTarget });
+        openCardMenu({ item: stored, entry, anchor: e.currentTarget });
       }}
       onContextMenu={(e) => {
         e.preventDefault();
         if (localOnly) return;
         e.currentTarget.focus({ preventScroll: true });
-        openCardMenu({ item, entry, anchor: e.currentTarget });
+        openCardMenu({ item: stored, entry, anchor: e.currentTarget });
       }}
     >
       <span className="tv-card-frame">
@@ -116,10 +122,15 @@ export function TvCard({
 }
 
 /** One horizontal shelf. Its focused card stays pinned to the left edge as it scrolls. */
-export function TvRail({ title, children }: { title?: string; children: ReactNode }) {
+export function TvRail({ title, note, children }: { title?: string; note?: string; children: ReactNode }) {
   return (
     <section className="tv-rail" data-nav-row data-nav-memory>
-      {title && <h2 className="tv-rail-title">{title}</h2>}
+      {title && (
+        <h2 className="tv-rail-title">
+          {title}
+          {note && <span className="tv-rail-note"> · {note}</span>}
+        </h2>
+      )}
       <div className="tv-rail-track" data-nav-rail>
         {children}
       </div>
@@ -131,7 +142,7 @@ export function TvRail({ title, children }: { title?: string; children: ReactNod
  * A shelf still loading. Its first card can take focus, so moving down stops here instead of
  * jumping over it (test report 1, item 20); when the cards arrive, focus moves onto them.
  */
-export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; shape: Shape; count?: number }) {
+export function TvSkeletonRail({ title, shape, count = 8, note }: { title?: string; shape: Shape; count?: number; note?: string }) {
   const first = useRef<HTMLSpanElement>(null);
   useLayoutEffect(
     () => () => {
@@ -141,7 +152,7 @@ export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; sh
     [],
   );
   return (
-    <TvRail title={title}>
+    <TvRail title={title} note={note}>
       {Array.from({ length: count }, (_, i) =>
         i === 0 ? (
           <span key={i} ref={first} className="tv-card tv-card-skeleton" data-shape={shape} tabIndex={0} role="img" aria-label="Loading" data-nav-loading>
@@ -157,13 +168,14 @@ export function TvSkeletonRail({ title, shape, count = 8 }: { title?: string; sh
   );
 }
 
-export function TvItemsRail({ title, items, shape }: { title: string; items?: MetaPreview[]; shape: Shape }) {
+/** `watching`: title id → the episode last watched, for saved anime shown by their entry (#22). */
+export function TvItemsRail({ title, items, shape, watching }: { title: string; items?: MetaPreview[]; shape: Shape; watching?: ReadonlyMap<string, string> }) {
   if (!items) return <TvSkeletonRail title={title} shape={shape} />;
   if (!items.length) return null;
   return (
     <TvRail title={title}>
       {items.map((item) => (
-        <TvCard key={item.id} item={item} shape={shape} />
+        <TvCard key={item.id} item={item} shape={shape} watching={watching?.get(item.id)} />
       ))}
     </TvRail>
   );
@@ -192,23 +204,31 @@ export function TvShelfRail({ shelf, enabled, exclude }: { shelf: Shelf; enabled
 /** Pick up where you left off: straight into the player, no detour. */
 export function TvContinueRail() {
   const { data } = useContinueWatching();
-  const { navigate } = useRouter();
   if (!data?.length) return null;
   return (
     <TvRail title="Continue Watching">
       {data.map((p) => (
-        <TvCard
-          key={p.videoId}
-          item={continueItem(p)}
-          shape="landscape"
-          progress={p.duration ? p.position / p.duration : 0}
-          kicker={continueKicker(p)}
-          chip={continueChip(p)}
-          entry={p}
-          onOpen={() => navigate({ name: "player", type: p.type, metaId: p.metaId, videoId: p.videoId, stream: p.stream })}
-        />
+        <TvContinueCard key={p.videoId} p={p} />
       ))}
     </TvRail>
+  );
+}
+
+/** With seasons as separate shows, an anime's episode goes by its number in its entry (#22). */
+function TvContinueCard({ p }: { p: Progress }) {
+  const { navigate } = useRouter();
+  const stored = useMemo(() => continueItem(p), [p]);
+  const { entry } = useEntryShown(stored, p.videoId);
+  return (
+    <TvCard
+      item={stored}
+      shape="landscape"
+      progress={p.duration ? p.position / p.duration : 0}
+      kicker={continueKicker(p, entry)}
+      chip={continueChip(p, entry)}
+      entry={p}
+      onOpen={() => navigate({ name: "player", type: p.type, metaId: p.metaId, videoId: p.videoId, stream: p.stream })}
+    />
   );
 }
 
@@ -220,15 +240,16 @@ const continueItem = (p: Progress): MetaPreview => ({
   poster: p.poster,
 });
 
+const episodeOf = (p: Progress, entry?: EntryAt) => (entry ? `Episode ${entry.number}` : p.season != null ? episodeCode(p.season, p.episode) : null);
+
 /** The short form for the card itself: episode code (shows only) and time left. */
-function continueChip(p: Progress) {
-  return [p.season != null ? episodeCode(p.season, p.episode) : null, formatRemaining(p.position, p.duration)]
-    .filter(Boolean)
-    .join(" · ");
+function continueChip(p: Progress, entry?: EntryAt) {
+  return [episodeOf(p, entry), formatRemaining(p.position, p.duration)].filter(Boolean).join(" · ");
 }
 
-function continueKicker(p: Progress) {
-  const where = p.season != null ? `${episodeCode(p.season, p.episode)}${p.episodeTitle ? ` · ${p.episodeTitle}` : ""}` : null;
+function continueKicker(p: Progress, entry?: EntryAt) {
+  const episode = episodeOf(p, entry);
+  const where = episode ? `${episode}${p.episodeTitle ? ` · ${p.episodeTitle}` : ""}` : null;
   return [where, formatRemaining(p.position, p.duration)].filter(Boolean).join(" · ");
 }
 

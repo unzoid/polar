@@ -80,7 +80,7 @@ export function TitleActions({
       <IconButton variant="glass" disabled={!request} onClick={() => request && picker.choose(request)} label="Choose source" title="Choose source">
         <Sources size={19} />
       </IconButton>
-      {item && (download || downloadVideo) && <DownloadButton key={downloadVideo?.id} item={item} video={downloadVideo} />}
+      {item && (download || downloadVideo) && <DownloadButton key={downloadVideo?.id} item={item} video={downloadVideo} labelled />}
       {children}
     </div>
   );

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Captions,
+  Cast,
   Close,
   Episodes,
   ExitFullscreen,
@@ -27,13 +28,16 @@ import {
   autoplayStreak,
   countAutoplay,
   requestHeaders,
+  READY_CHECKS,
+  readinessNote,
   resetAutoplay,
   sliderAmplitude,
   sourceRow,
+  useReadiness,
   useResetAutoplayOnInput,
   useSourceFilters,
 } from "../lib/playback";
-import { episodeState, isLocalFile, nextVideo, progressMap, seasonsOf, watchedFraction } from "../lib/library";
+import { downloadedStream, episodeState, isLocalFile, nextVideo, progressMap, seasonsOf, useDownloads, watchedFraction } from "../lib/library";
 import { WindowControls } from "../components/WindowControls";
 import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
@@ -64,6 +68,7 @@ import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
 import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
+import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
@@ -75,6 +80,7 @@ import { useMediaTime } from "../components/player/useMediaTime";
 import { usePlayerChrome } from "../components/player/usePlayerChrome";
 import { usePlayerKeyboard } from "../components/player/usePlayerKeyboard";
 import { useProgressSaver } from "../components/player/useProgressSaver";
+import { useAirPlay } from "../components/player/useAirPlay";
 
 const win = appWindow;
 /** In a watch party, how long a source gets to start before the next one is tried. */
@@ -112,7 +118,6 @@ export function Player({
   const engine: "mpv" | "html" | null = engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
   const mpv = useMemo(() => new MpvMedia(), []);
   // Watch party: signed-in profiles only. Joining the room's video, look for the file it's on.
-  const party = useParty();
   const { profile } = useAccount();
   const canParty = partyAvailable() && !!profile;
   const [roomHint] = useState(() => {
@@ -127,18 +132,39 @@ export function Player({
     else if (engine === "html")
       logStep("Player: built-in (mpv isn't installed, so some files may not play: AC3/DTS audio, HEVC where the system can't decode it)", "info", "player");
   }, [engine, logStep]);
-  const source = useSource(type, metaId, videoId, stream, roomHint, logStep);
+  const startedRef = useRef(false);
+  const source = useSource(type, metaId, videoId, stream, roomHint, logStep, () => startedRef.current);
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
-  const media: MediaLike | null = engine === "mpv" ? mpv : videoEl;
+  /** What plays in the app; `media` is what the controls drive, an AirPlay receiver's element while casting with mpv. */
+  const baseMedia: MediaLike | null = engine === "mpv" ? mpv : videoEl;
+  const baseRef = useRef<MediaLike | null>(null);
+  baseRef.current = baseMedia;
   const videoRef = useRef<MediaLike | null>(null);
-  videoRef.current = media;
   const [paused, setPaused] = useState(true);
   const [buffering, setBuffering] = useState(true);
   // Until the first frame actually plays, the loading screen stays up.
   const [started, setStarted] = useState(false);
-  const startedRef = useRef(false);
   startedRef.current = started;
+  // Watch party state, needed this early by AirPlay (never both at once).
+  const party = useParty();
+
+  // --- Progress -------------------------------------------------------------
+  // Before AirPlay: leaving the player saves the receiver's position before the cast ends.
+  const current = meta?.videos.find((v) => v.id === videoId);
+  const { save, saveIfDue } = useProgressSaver({ media: videoRef, meta, type, metaId, videoId, current, state: source.state });
+
+  // --- AirPlay (#19) ----------------------------------------------------------
+  const playingUrl = source.state.status === "ready" && started ? source.state : undefined;
+  const airplay = useAirPlay({
+    media: baseMedia,
+    video: engine === "html" ? videoEl : null,
+    url: playingUrl?.url,
+    headers: playingUrl ? requestHeaders(playingUrl.stream) : null,
+    enabled: !party,
+  });
+  const media: MediaLike | null = airplay.media ?? baseMedia;
+  videoRef.current = media;
   /** Why the link check turned the built-in player's source down (mpv reports its own). */
   const linkError = useRef<string | null>(null);
   const [volume, setVolume] = useState(savedVolume);
@@ -218,7 +244,6 @@ export function Player({
   const chromeAtPress = useRef(false);
 
   // --- Current / next episode ---------------------------------------------
-  const current = meta?.videos.find((v) => v.id === videoId);
   const { animeSkipFiller } = usePrefs();
   // With "Skip filler" on, the next episode that isn't filler; `skipped` says how many were passed over.
   const { next, skipped } = useMemo(() => {
@@ -242,9 +267,6 @@ export function Player({
     const v = videoRef.current;
     if (!party && profile && v) startParty({ ...partyMedia, hint }, v.currentTime, v.paused, profile);
   };
-
-  // --- Progress -------------------------------------------------------------
-  const { save, saveIfDue } = useProgressSaver({ media: videoRef, meta, type, metaId, videoId, current, state: source.state });
 
   // --- mpv lifecycle ----------------------------------------------------------
   useEffect(() => {
@@ -284,7 +306,8 @@ export function Player({
   };
   const resumed = useRef(false);
   useEffect(() => {
-    const v = videoRef.current;
+    // Always the app's own player: handing over to AirPlay and back isn't a new source.
+    const v = baseRef.current;
     if (!v || source.state.status !== "ready") return;
     resumed.current = false;
     setError(null);
@@ -325,7 +348,12 @@ export function Player({
       };
     }
     // Volume is applied by its own effect; only a new source reloads.
-  }, [source.state, media]);
+  }, [source.state, baseMedia]);
+
+  // Handing over to AirPlay or back: the controls show the new element's state at once.
+  useEffect(() => {
+    if (media) setPaused(media.paused);
+  }, [media]);
 
   // mpv's own steps (link check, opening, buffering) go to the log until the picture starts.
   useEffect(() => {
@@ -380,7 +408,8 @@ export function Player({
   }, [settings, tv]);
 
   // Settings → Playback → "Pause when minimized".
-  const { pauseOnMinimize } = usePrefs();
+  const { pauseOnMinimize, discordPresence } = usePrefs();
+  useDiscordPresence(media, meta, videoId, discordPresence);
   useEffect(() => {
     if (!pauseOnMinimize) return;
     const unlisten = win.onResized(() => {
@@ -559,27 +588,50 @@ export function Player({
 
   const rankedStreams = useMemo(() => streams.data?.streams ?? [], [streams.data]);
   const currentKey = source.state.status === "ready" ? streamKey(source.state) : undefined;
+  // A finished download of this video is listed first (#23): back to it after trying another source.
+  const { data: downloads } = useDownloads();
+  const downloaded = useMemo(() => downloadedStream(downloads, videoId), [downloads, videoId]);
   // Filter (add-on, resolution, language, size, tags) and sort, as on the
   // title page. Ids stay the index into the ranked list, so selection works
   // regardless of the view. Kept for this show while the player stays open,
   // through picking a source or moving to another episode (each rebuilds it).
   const sourceFilters = useSourceFilters(streams.data?.streams, settings, metaId);
   const hiddenSources = streams.data?.hidden ?? 0;
+  // The first few sources get a look ahead of time while the panel is open (#21).
+  const readiness = useReadiness(
+    sourceFilters.view.slice(0, Math.min(sourceFilters.matched, READY_CHECKS)).map(({ r }) => r),
+    options === "sources",
+  );
   const sourceItems = useMemo<OptionItem[]>(() => {
     const rank = new Map(rankedStreams.map((r, i) => [r, i]));
     return sourceFilters.view.map(({ r, match }, n) => {
       const row = sourceRow(r);
+      const ready = readiness.get(streamKey(r));
+      const note = ready && readinessNote(ready);
       return {
         id: String(rank.get(r) ?? -1),
         label: n === 0 && match && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
         // Filters that only order the list: what doesn't match follows under its own heading.
         heading: n === sourceFilters.matched && !match ? "Other sources" : undefined,
-        detail: [row.size, row.detail].filter(Boolean).join(" · "),
+        detail: [note?.short, row.size, row.detail].filter(Boolean).join(" · "),
         badge: r.quality.lowQualitySource ? { text: "CAM", tone: "bad" as const } : undefined,
+        ready: ready?.state === "ready" ? "yes" : ready?.state === "notReady" ? "no" : undefined,
+        note: note?.long,
       };
       });
-  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.sort]);
+  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.sort, readiness]);
+  const sourceOptions = useMemo<OptionItem[]>(
+    () =>
+      downloaded
+        ? [
+            { id: DOWNLOADED, label: "Downloaded copy", detail: [downloaded.title, "On this device"].filter(Boolean).join(" · "), badge: { text: "Downloaded", tone: "good" } },
+            ...sourceItems,
+          ]
+        : sourceItems,
+    [downloaded, sourceItems],
+  );
   const currentSourceIndex = useMemo(() => rankedStreams.findIndex((r) => streamKey(r) === currentKey), [rankedStreams, currentKey]);
+  const currentSource = downloaded && currentKey === downloaded.url ? DOWNLOADED : currentSourceIndex >= 0 ? String(currentSourceIndex) : undefined;
 
   // --- Keyboard: instant, never animated -------------------------------------
   // A panel opened from a key (or a pad button) is there at once; a click keeps the frosted materialize.
@@ -767,6 +819,19 @@ export function Player({
         )}
       </AnimatePresence>
 
+      {airplay.casting && (
+        <div className="player-casting">
+          {meta?.background && <Img className="player-status-bg" src={meta.background} alt="" />}
+          <div className="player-status-content">
+            <Cast size={40} />
+            <p className="t-title2">Playing on AirPlay</p>
+            <p className="t-callout player-casting-hint">To watch here again, choose this computer in the AirPlay list.</p>
+            <Button variant="glass" onClick={airplay.pick}>
+              AirPlay
+            </Button>
+          </div>
+        </div>
+      )}
       {notice && <div className="player-notice t-callout">{notice}</div>}
       {party && ready && started && <PartyHold party={party} videoId={videoId} />}
       {party && <PartyNotes party={party} />}
@@ -800,6 +865,11 @@ export function Player({
               style={{ "--value": `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
             />
           </div>
+          {airplay.available && (
+            <IconButton variant="player" onClick={airplay.pick} label="AirPlay" title="AirPlay" aria-pressed={airplay.casting}>
+              <Cast size={22} />
+            </IconButton>
+          )}
           {!tv && (
             <IconButton variant="player" onClick={() => void toggleFullscreen()} label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
               {fullscreen ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
@@ -849,7 +919,7 @@ export function Player({
           )}
           <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={() => setOptions("tracks")} />
           <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />
-          {canParty && (
+          {canParty && !airplay.casting && (
             <ActionButton
               icon={<WatchParty size={22} />}
               label={party ? `Watch Party (${party.members.length})` : "Watch Party"}
@@ -1032,8 +1102,8 @@ export function Player({
                 />
               </div>
             ),
-            value: currentSourceIndex >= 0 ? String(currentSourceIndex) : undefined,
-            options: sourceItems,
+            value: currentSource,
+            options: sourceOptions,
             empty: streams.isLoading
               ? "Finding sources…"
               : streams.isError
@@ -1044,8 +1114,10 @@ export function Player({
                     ? `All ${hiddenSources} sources are hidden by your filters in Settings → Sources.`
                     : "No sources found.",
             onSelect: (id) => {
+              if (id === currentSource) return;
+              if (id === DOWNLOADED) return downloaded && playVideo(videoId, downloaded);
               const pick = rankedStreams[Number(id)];
-              if (pick && Number(id) !== currentSourceIndex) playVideo(videoId, pick.stream);
+              if (pick) playVideo(videoId, pick.stream);
             },
           },
         ]}
@@ -1053,6 +1125,9 @@ export function Player({
     </div>
   );
 }
+
+/** The Sources row of this video's finished download (#23); the others are indexes into the ranked list. */
+const DOWNLOADED = "downloaded";
 
 function ActionButton({
   icon,
