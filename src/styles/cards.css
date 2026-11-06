@@ -890,6 +890,79 @@
 :root[data-form="phone"] .hero-steps {
   display: none;
 }
+/* A phone's featured card, as Netflix's: the art with the title treatment centred low on it,
+   the kind and genres under it, and two equal buttons across the bottom (Watch Now | Save).
+   The synopsis waits on the title's page; on a card this size it covered the picture. */
+:root[data-form="phone"] .hero {
+  padding-top: calc(var(--nav-h) + 0.25rem);
+}
+:root[data-form="phone"] .hero-card {
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.14),
+    0 24px 48px -24px rgb(0 0 0 / 0.9);
+}
+:root[data-form="phone"] .hero-scrim {
+  background: linear-gradient(to top, rgb(0 0 0 / 0.85) 0%, rgb(0 0 0 / 0.45) 30%, transparent 55%);
+}
+:root[data-form="phone"] :is(.hero-content, .home .hero-content) {
+  left: 1rem;
+  right: 1rem;
+  bottom: 2.25rem;
+  width: auto;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+:root[data-form="phone"] :is(.hero-logo, .home .hero-logo) {
+  max-width: 82%;
+  max-height: 96px;
+  margin-bottom: 0.25rem;
+  object-position: center bottom;
+}
+:root[data-form="phone"] .hero-title {
+  text-align: center;
+}
+:root[data-form="phone"] :is(.hero-kind, .home .hero-kind) {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+:root[data-form="phone"] .hero-description {
+  display: none;
+}
+:root[data-form="phone"] .hero-actions {
+  align-self: stretch;
+  gap: 0.625rem;
+  margin-top: 0.5rem;
+}
+:root[data-form="phone"] :is(.hero-actions, .home .hero-actions) .btn {
+  flex: 1 1 0;
+  justify-content: center;
+  height: 44px;
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  font-size: var(--fs-base);
+  font-weight: 650;
+}
+:root[data-form="phone"] :is(.hero-actions, .home .hero-actions) .btn svg {
+  width: 20px;
+  height: 20px;
+}
+:root[data-form="phone"] .hero-pager {
+  bottom: 0.625rem;
+}
+:root[data-form="phone"] .hero-dots {
+  padding: 3px 4px;
+  background: none;
+  backdrop-filter: none;
+}
+:root[data-form="phone"] .hero-dot {
+  width: 6px;
+  height: 6px;
+}
+:root[data-form="phone"] .hero-dot[aria-selected="true"] {
+  width: 18px;
+}
 
 @media (prefers-reduced-motion: reduce) {
   /* Keep the shadow/opacity feedback, drop the movement. */

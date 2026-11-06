@@ -472,6 +472,9 @@
 :root[data-form="phone"] .discover-controls > * {
   flex: none;
 }
+:root[data-form="phone"] .discover-controls::-webkit-scrollbar {
+  display: none;
+}
 /* Touch: the bar's icons grow to a finger's size. */
 :root[data-touch="true"] .navbar-icon {
   min-width: var(--hit);

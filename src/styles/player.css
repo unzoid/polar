@@ -17,6 +17,10 @@
   object-fit: contain;
   background: #000;
 }
+/* A phone's Fill: the picture covers the screen, its edges cropped (mpv does it with panscan). */
+.player[data-fill="true"] .player-video {
+  object-fit: cover;
+}
 
 /* --- Chrome fades as one unit. Shown by keyboard → no transition at all.
    Note: nothing over the video uses backdrop-filter — a blur over a playing
@@ -150,6 +154,16 @@
 }
 .player[data-instant="true"] .player-center {
   transition: none;
+}
+/* On a touch screen the bars' tall gradients reach over the centre glyphs (on a phone held
+   sideways they cover most of them) and, coming later at the same level, took their taps (#146).
+   The bars themselves let taps through to what's under them; their controls still take them.
+   A window keeps the top bar whole: it's the drag region there. */
+:root[data-touch="true"] :is(.player-top, .player-bottom) {
+  pointer-events: none;
+}
+:root[data-touch="true"] .player:not([data-chrome="false"]) :is(.player-top, .player-bottom) > :not(.player-heading) {
+  pointer-events: auto;
 }
 
 /* --- Bottom */

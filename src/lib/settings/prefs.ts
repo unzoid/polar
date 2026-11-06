@@ -63,6 +63,8 @@ export interface Prefs {
   autocropLookahead: boolean;
   /** mpv, with autocrop, Windows and Linux: our detector reads every frame (macOS always does). */
   autocropEveryFrame: boolean;
+  /** Phones and tablets: the picture fills the screen, its edges cropped, instead of fitting inside it (#149). */
+  videoFill: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
   /** Torrent sources: most GB their cache on this device may hold; 0 = no limit. */
@@ -138,6 +140,7 @@ const DEFAULTS: Prefs = {
   autocrop: false,
   autocropLookahead: true,
   autocropEveryFrame: false,
+  videoFill: false,
   buffer: "normal",
   torrentCacheGb: 20,
   torrentSpeedMbps: 0,

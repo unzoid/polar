@@ -1,8 +1,10 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
-import { Close, Reset, SignOut } from "./icons";
+import { ChevronLeft, ChevronRight, Close, Reset, SignOut } from "./icons";
 import { iconButtonClass } from "./ui/Button";
+import { useFormFactor } from "../lib/ui";
+import { tvModeAvailable } from "../tv/tvMode";
 import { SearchField } from "./ui/SearchField";
 import { useAccount } from "../lib/account";
 import { closeSettings, type PageId, prefsCustomized, resetPrefs, searchSettings, type SettingEntry, usePrefs, useSettingsOverlay } from "../lib/settings";
@@ -16,6 +18,9 @@ const GROUPS: { heading?: string; pages: PageId[] }[] = [
   { heading: "Sources", pages: ["sources", "marketplace", "addons", "services"] },
   { heading: "System", pages: ["advanced", "about"] },
 ];
+
+/** Settings for TV mode, left out of search where there is none (tvMode.ts). */
+const TV_ONLY = new Set(["tvMode", "showTvButton"]);
 
 /** Where a search result's row can be on its page. */
 const ROW_LABELS = ".settings-row-title, .settings-group-title, .sub-setting-label, .shortcut-label";
@@ -48,11 +53,17 @@ export function SettingsOverlay() {
   const [query, setQuery] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
+  // A phone has no room for the sidebar beside a page: it shows one or the other, the list of
+  // sections first, as a phone's own Settings app does. Back (or Escape) goes from a page to the list.
+  const phone = useFormFactor().form === "phone";
+  const [view, setView] = useState<"list" | "page">("list");
 
   // Each opening lands on the requested page (or where it was left), search cleared.
   useEffect(() => {
     if (!open) return;
-    if (requested && pages.some((p) => p.id === requested)) setPage(requested);
+    const asked = !!requested && pages.some((p) => p.id === requested);
+    if (asked) setPage(requested);
+    setView(asked ? "page" : "list");
     setQuery("");
   }, [open, requested]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -64,7 +75,10 @@ export function SettingsOverlay() {
   const pageOf = (id: PageId) => pages.find((p) => p.id === id) ?? pages[0];
   const searching = query.trim() !== "";
   const results = useMemo(
-    () => searchSettings(query, (id) => pageOf(id).label, new Set(pages.map((p) => p.id))),
+    () =>
+      searchSettings(query, (id) => pageOf(id).label, new Set(pages.map((p) => p.id))).filter(
+        (entry) => tvModeAvailable || !TV_ONLY.has(entry.id),
+      ),
     [query, pages], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const [selected, setSelected] = useState(0);
@@ -87,6 +101,7 @@ export function SettingsOverlay() {
 
   const go = (id: PageId) => {
     setPage(id);
+    setView("page");
     setQuery("");
   };
 
@@ -96,11 +111,19 @@ export function SettingsOverlay() {
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => !o && closeSettings()}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(o, details) => {
+        if (o) return;
+        if (phone && view === "page" && details.reason === "escape-key") return setView("list");
+        closeSettings();
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Backdrop className="t3s-backdrop" />
         <Dialog.Popup
           className="t3s"
+          data-view={phone ? view : undefined}
           aria-label="Settings"
           onKeyDown={(e) => {
             const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
@@ -111,6 +134,14 @@ export function SettingsOverlay() {
           }}
         >
           <nav className="t3s-sidebar" aria-label="Settings sections">
+            {phone && (
+              <div className="t3s-list-head">
+                <h2 className="t3s-list-title">Settings</h2>
+                <Dialog.Close className={iconButtonClass("settings")} aria-label="Close settings">
+                  <Close size={18} strokeWidth={2.2} />
+                </Dialog.Close>
+              </div>
+            )}
             <SearchField
               ref={searchInput}
               look="plain"
@@ -173,7 +204,7 @@ export function SettingsOverlay() {
                     <div className="t3s-group" role="group" aria-label={g.heading} key={g.heading ?? i}>
                       {g.heading && <h3 className="t3s-group-heading">{g.heading}</h3>}
                       {items.map((p) => (
-                        <NavItem key={p.id} page={p} active={p.id === page} onClick={() => go(p.id)} />
+                        <NavItem key={p.id} page={p} active={!phone && p.id === page} chevron={phone} onClick={() => go(p.id)} />
                       ))}
                     </div>
                   );
@@ -200,6 +231,11 @@ export function SettingsOverlay() {
 
           <div className="t3s-main">
             <header className="t3s-header">
+              {phone && (
+                <button className={iconButtonClass("settings", "t3s-back")} aria-label="All settings" onClick={() => setView("list")}>
+                  <ChevronLeft size={20} strokeWidth={2.2} />
+                </button>
+              )}
               <Dialog.Title className="t3s-crumbs">
                 <span className="t3s-crumb-root">Settings</span>
                 <span className="t3s-crumb-sep" aria-hidden>
@@ -238,16 +274,20 @@ export function SettingsOverlay() {
 function NavItem({
   page,
   active,
+  chevron,
   onClick,
 }: {
   page: (typeof PAGES)[number];
   active: boolean;
+  /** A phone's list: each section opens a page of its own. */
+  chevron?: boolean;
   onClick: () => void;
 }) {
   return (
     <button className="t3s-nav-item" data-active={active} aria-current={active ? "page" : undefined} onClick={onClick}>
       <page.icon size={16} strokeWidth={2} />
       <span>{page.label}</span>
+      {chevron && <ChevronRight size={18} className="t3s-nav-chevron" aria-hidden />}
     </button>
   );
 }

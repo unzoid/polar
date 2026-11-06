@@ -1,6 +1,6 @@
 import { LayoutList, LayoutRow, Volume, VolumeMuted } from "../components/icons";
 import { NameList } from "../components/title/NameList";
-import { useFoldSnap } from "../lib/ui";
+import { useFoldSnap, useFormFactor } from "../lib/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
 import { cardMenu } from "../components/CardMenu";
@@ -52,25 +52,33 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
 
   const scroller = useRef<HTMLDivElement>(null);
   useFoldSnap(scroller, !!shown);
+  // A phone's page scrolls as one: the art sits at its top and leaves with it (detail.css), instead
+  // of staying behind the page as on a big screen.
+  const phone = useFormFactor().form === "phone";
 
   if (isError && !shown) return <EmptyState>Couldn't load this title: {errorMessage(error)}</EmptyState>;
   if (!shown) return <Skeleton className="detail-loading" />;
 
+  const art = (
+    <div className="detail-bg" aria-hidden>
+      <Img src={shown.background} alt="" loading="eager" className="detail-bg-sharp" />
+      {trailer.node}
+      {/* No backdrop (or it fails): the poster, blurred, rather than plain black. */}
+      <Img src={shown.background} fallbacks={[shown.poster]} alt="" loading="eager" className="detail-bg-blur" />
+      <div className="detail-bg-scrim" />
+    </div>
+  );
+
   return (
     <div className="detail" ref={root} data-trailer={trailer.visible} data-type={type}>
-      <div className="detail-bg" aria-hidden>
-        <Img src={shown.background} alt="" loading="eager" className="detail-bg-sharp" />
-        {trailer.node}
-        {/* No backdrop (or it fails): the poster, blurred, rather than plain black. */}
-        <Img src={shown.background} fallbacks={[shown.poster]} alt="" loading="eager" className="detail-bg-blur" />
-        <div className="detail-bg-scrim" />
-      </div>
+      {!phone && art}
       <div
         className="scroll detail-scroll"
         ref={scroller}
         onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
       >
-        <DetailHero item={shown} meta={meta} onSheet={onSheet} trailer={trailer} />
+        {phone && art}
+        <DetailHero item={shown} meta={meta} onSheet={onSheet} trailer={trailer} phone={phone} />
         {type === "series" && meta && <SeriesBody meta={meta} onSheet={onSheet} />}
         {type === "movie" && meta && (
           <section className="about">
@@ -90,11 +98,13 @@ function DetailHero({
   meta,
   onSheet,
   trailer,
+  phone,
 }: {
   item: MetaPreview;
   meta?: Meta;
   onSheet: (open: boolean) => void;
   trailer: { visible: boolean; muted: boolean; toggleMute: () => void };
+  phone: boolean;
 }) {
   const picker = useSourcePicker(onSheet);
 
@@ -139,7 +149,8 @@ function DetailHero({
           download={item.type === "movie"}
           downloadVideo={isSeries && next?.video && isReleased(next.video) ? next.video : undefined}
         >
-          {isSeries && meta && <BatchDownload item={meta} videos={downloadableEpisodes(meta.videos)} />}
+          {/* A phone downloads a whole season from the season bar below; here it was a second wide pill. */}
+          {isSeries && meta && !phone && <BatchDownload item={meta} videos={downloadableEpisodes(meta.videos)} />}
           {trailer.visible && (
             <IconButton
               variant="glass"

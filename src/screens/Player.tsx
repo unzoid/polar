@@ -18,7 +18,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { appWindow, isMac } from "../lib/platform";
+import { appWindow, isDesktop, isMac } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -55,7 +55,7 @@ import {
 } from "../components/player/SubtitleSettings";
 import { MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
-import { usePrefs, withShortcut } from "../lib/settings";
+import { getPrefs, setPrefs, usePrefs, withShortcut } from "../lib/settings";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
 import { episodeCode, formatDate, formatRemaining, formatTime, seasonLabel } from "../lib/format";
@@ -529,6 +529,16 @@ export function Player({
     onAutoSkipped,
   });
 
+  // A phone or tablet has no window to make fullscreen: its button fits the picture inside the
+  // screen or fills the screen with it, cropping the edges (#148, #149). Autocrop (Settings →
+  // Advanced) still takes the black bars off a fitted picture.
+  const { videoFill } = usePrefs();
+  const fill = !isDesktop && videoFill;
+  useEffect(() => {
+    if (engine === "mpv" && !isDesktop) void mpv.set("panscan", fill ? 1 : 0);
+  }, [engine, mpv, fill]);
+  const toggleFill = useCallback(() => setPrefs({ videoFill: !getPrefs().videoFill }), []);
+
   const toggleFullscreen = useCallback(async () => {
     if (tv) return;
     const next = !(await win.isFullscreen());
@@ -753,6 +763,7 @@ export function Player({
     <div
       className="player"
       data-engine={engine ?? undefined}
+      data-fill={fill || undefined}
       data-buffering={buffering && ready}
       data-chrome={chromeVisible}
       data-instant={chrome.instant}
@@ -787,6 +798,7 @@ export function Player({
             seekBy((x < third ? -1 : 1) * seekStep);
             return poke(true);
           }
+          if (!isDesktop) return toggleFill();
           void toggleFullscreen();
         }}
         onWheel={(e) => {
@@ -870,9 +882,14 @@ export function Player({
               <Cast size={22} />
             </IconButton>
           )}
-          {!tv && (
+          {!tv && isDesktop && (
             <IconButton variant="player" onClick={() => void toggleFullscreen()} label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
               {fullscreen ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
+            </IconButton>
+          )}
+          {!tv && !isDesktop && (
+            <IconButton variant="player" onClick={toggleFill} label={fill ? "Fit to screen" : "Fill screen"} aria-pressed={fill}>
+              {fill ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
             </IconButton>
           )}
         </div>

@@ -749,6 +749,127 @@
   padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
+/* Phone: one column, as a phone's own Settings app. First the sections as a list (search on top,
+   each a full-width row with its label), then the section tapped as a page with a Back arrow
+   (SettingsOverlay.tsx `view`). Undoes the icon rail the narrow-window rules above make. */
+:root[data-form="phone"] .t3s {
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--t3-bg);
+}
+:root[data-form="phone"] .t3s[data-view="list"] .t3s-main,
+:root[data-form="phone"] .t3s[data-view="page"] .t3s-sidebar {
+  display: none;
+}
+:root[data-form="phone"] .t3s-sidebar {
+  gap: 0.75rem;
+  padding: 0 1rem 1.5rem;
+  border-right: 0;
+  background: var(--t3-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-form="phone"] .t3s-list-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+  margin: 0 -1rem;
+  padding: 0 0.5rem 0 1rem;
+  background: var(--t3-bg);
+}
+:root[data-form="phone"] .t3s-list-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+:root[data-form="phone"] .t3s-search {
+  display: flex;
+  height: 2.75rem;
+  background: var(--t3-card);
+}
+:root[data-form="phone"] .t3s-search .search-field-kbd {
+  display: none;
+}
+:root[data-form="phone"] .t3s-groups {
+  gap: 1.5rem;
+}
+/* Each group is one rounded card of rows, hairlines between them. */
+:root[data-form="phone"] .t3s-group {
+  gap: 0;
+}
+:root[data-form="phone"] .t3s-group-heading {
+  display: block;
+  padding: 0 0.25rem 0.5rem;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+:root[data-form="phone"] .t3s-group > .t3s-nav-item {
+  justify-content: flex-start;
+  height: 52px;
+  padding: 0 0.875rem 0 1rem;
+  border-radius: 0;
+  background: var(--t3-card);
+  color: var(--t3-fg);
+  box-shadow: inset 0 -1px 0 var(--t3-border);
+}
+:root[data-form="phone"] .t3s-group > .t3s-nav-item:first-of-type {
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}
+:root[data-form="phone"] .t3s-group > .t3s-nav-item:last-child {
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+  box-shadow: none;
+}
+:root[data-form="phone"] .t3s-nav-item > span {
+  display: block;
+  flex: 1;
+}
+:root[data-form="phone"] .t3s-nav-item > svg {
+  color: var(--t3-fg);
+}
+:root[data-form="phone"] .t3s-nav-item > .t3s-nav-chevron {
+  width: 18px;
+  height: 18px;
+  color: var(--t3-muted-fg);
+}
+:root[data-form="phone"] .t3s-nav-item:active {
+  background: var(--t3-selected);
+}
+:root[data-form="phone"] .t3s-sidebar-foot .t3s-nav-item {
+  justify-content: flex-start;
+  height: 52px;
+  padding: 0 1rem;
+  border-radius: 14px;
+  background: var(--t3-card);
+  color: var(--t3-fg);
+}
+:root[data-form="phone"] .t3s-sidebar-foot .t3s-nav-item > span {
+  display: block;
+}
+:root[data-form="phone"] .t3s-results {
+  gap: 0.25rem;
+}
+:root[data-form="phone"] .t3s-header {
+  gap: 0.25rem;
+  height: 56px;
+  padding: 0 0.5rem;
+  border-bottom: 0;
+}
+:root[data-form="phone"] .t3s-crumbs {
+  flex: 1;
+  font-size: 1.125rem;
+  font-weight: 650;
+}
+:root[data-form="phone"] .t3s-page {
+  padding-top: 0.5rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .t3s .switch::after {
     transition: none;
