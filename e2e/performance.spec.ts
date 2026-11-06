@@ -111,7 +111,10 @@ test("Home stays light while it sits still and while it scrolls (#134)", async (
 
   // Scrolling back up the loaded page: each frame's main-thread part stays small. In units of this machine's
   // speed (layoutUnit), not milliseconds: on a shared CI runner the same page took 16.4 ms where it takes
-  // 9.5 here. The median is about 3 units now and 8-10 before #134, also with the CPU throttled 2x.
+  // 9.5 here. The median is about 3 units now and 8-10 before #134, also with the CPU throttled 2x. A frame
+  // has a part that doesn't scale with layout speed: where a runner lays out fast (a unit under 2 ms), the
+  // same 9-10 ms frame came to more than 5 units, so the budget never goes under 15 ms (#134's frames were
+  // three times today's).
   await app.mouse.move(720, 500);
   const scrolling = await mainThread(cdp, async () => {
     for (let i = 0; i < 40; i++) {
@@ -120,5 +123,6 @@ test("Home stays light while it sits still and while it scrolls (#134)", async (
     }
   });
   const unit = await layoutUnit(app);
-  expect.soft(scrolling.medianFrame / unit, `median frame ${scrolling.medianFrame} ms, layout unit ${unit} ms`).toBeLessThan(5);
+  const budget = Math.max(5 * unit, 15);
+  expect.soft(scrolling.medianFrame, `median frame ${scrolling.medianFrame} ms, layout unit ${unit} ms, budget ${budget} ms`).toBeLessThan(budget);
 });

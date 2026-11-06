@@ -643,7 +643,7 @@ test("the player's episode rail reaches every episode by wheel and paddles, and 
   await expect(rail).toBeVisible();
 });
 
-test("the player's episode rail pages with Home's shelf paddles: blurred edge, shown on hover or keyboard focus, gone at the ends (#250)", async ({ app }) => {
+test("the player's episode rail pages with Home's shelf paddles: blurred edge, shown on hover or keyboard focus, gone at the ends (#250)", async ({ app, browserName }) => {
   // What makes a paddle look and act as it does, read from the next one in `viewport` while `shown` or not.
   const look = (viewport: Locator) =>
     viewport.locator(".row-paddle[data-dir=next]").evaluate((b) => {
@@ -679,7 +679,8 @@ test("the player's episode rail pages with Home's shelf paddles: blurred edge, s
   await rail.locator(".episode-rail").hover();
   await expect.poll(async () => (await look(rail)).shown).toBe("1");
   expect(await look(rail)).toEqual(home);
-  expect(home.blur.every((b) => b.startsWith("blur("))).toBe(true);
+  // WebKit runs with every backdrop-filter removed (fixtures.ts), so only Chromium has a blur to see.
+  if (browserName !== "webkit") expect(home.blur.every((b) => b.startsWith("blur("))).toBe(true);
 
   // Not pointed at and no keyboard focus: hidden, and not blurring (#134).
   await app.locator(".episode-rail-card[aria-current] .episode-rail-main").evaluate((b) => (b as HTMLElement).blur());
