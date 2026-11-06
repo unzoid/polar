@@ -225,6 +225,7 @@ pub fn run() {
             commands::progress_for,
             commands::progress_save,
             commands::progress_save_many,
+            commands::library_import,
             commands::continue_watching,
             commands::watch_history,
             commands::link_anime,

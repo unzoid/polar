@@ -141,6 +141,12 @@ export interface SearchResults {
 }
 
 /** The anime cache folder (fillers.json, anime-list-mini.json) and the size of its files. */
+/** What `library_import` added: library items and progress entries. */
+export interface Imported {
+  library: number;
+  progress: number;
+}
+
 export interface CacheInfo {
   path: string;
   bytes: number;

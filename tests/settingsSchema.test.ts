@@ -36,6 +36,7 @@ describe("settings schema", () => {
       ...pages,
       "src/components/Marketplace.tsx",
       "src/components/ShortcutSettings.tsx",
+      "src/components/settings/StremioImport.tsx",
       "src/components/player/SubtitleSettings.tsx",
       "src/lib/catalog/marketplace.ts",
     ];
