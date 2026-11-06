@@ -128,9 +128,7 @@ fn judge(result: Result<String, String>, events: &[ProbeEvent], ms: u64) -> Read
         (Ok(_), Some(ProbeEvent::Skipped { .. })) | (Ok(_), None) => Readiness::Unchecked,
         (Ok(_), Some(ProbeEvent::Unreachable { .. })) => not_ready("Didn't answer"),
         (Ok(_), _) => match response {
-            Some((_, Some(t))) if is_page(t) => {
-                not_ready("Answered with a page, not a video")
-            }
+            Some((_, Some(t))) if is_page(t) => not_ready("Answered with a page, not a video"),
             Some(_) => Readiness::Ready { ms },
             None => Readiness::Unchecked,
         },
@@ -604,7 +602,9 @@ mod tests {
                 ),
                 "/page" => answer("200 OK", &[("Content-Type", "text/html; charset=utf-8"), ("Content-Length", "0")]),
                 // Stream manifests are text, XML included, and play.
-                "/live.m3u8" => answer("200 OK", &[("Content-Type", "application/vnd.apple.mpegurl"), ("Content-Length", "0")]),
+                "/live.m3u8" => {
+                    answer("200 OK", &[("Content-Type", "application/vnd.apple.mpegurl"), ("Content-Length", "0")])
+                }
                 "/film.mpd" => answer("200 OK", &[("Content-Type", "application/dash+xml"), ("Content-Length", "0")]),
                 "/busy" => answer("503 Service Unavailable", &[]),
                 _ => answer("404 Not Found", &[]),
