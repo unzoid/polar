@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { onFirstPlainSync } from "../lib/account";
+import { usePartySurface } from "../lib/party";
 import { usePresence } from "../lib/ui";
 import { Close } from "./icons";
 import { showWhereStored } from "./settings/secretsNote";
@@ -10,17 +11,19 @@ import { Toast } from "./ui/Toast";
 /**
  * Once per profile on a device (#195): the first sync took this device's API keys or keyed add-on
  * links to the account without a passphrase, so the server can read them. Stays until dismissed,
- * except on TV, where nothing is typed and it goes after a while.
+ * except on TV, where nothing is typed and it goes after a while. Waits while a watch party
+ * dialog or panel is up, rather than covering it (#247).
  */
 export function SecretsSyncToast({ tv }: { tv: boolean }) {
   const [space, setSpace] = useState<string | null>(null);
   useEffect(() => onFirstPlainSync(setSpace), []);
+  const waiting = !!usePartySurface();
   useEffect(() => {
-    if (!space || !tv) return;
+    if (!space || !tv || waiting) return;
     const t = setTimeout(() => setSpace(null), SAVE_FAILURE_MS);
     return () => clearTimeout(t);
-  }, [space, tv]);
-  const { shown, leaving } = usePresence(space, TOAST_OUT_MS);
+  }, [space, tv, waiting]);
+  const { shown, leaving } = usePresence(waiting ? null : space, TOAST_OUT_MS);
   if (!shown) return null;
   const actions = (
     <>

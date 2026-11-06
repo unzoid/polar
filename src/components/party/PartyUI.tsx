@@ -156,8 +156,8 @@ export function LinkForm({ me, onDone }: { me: Me; onDone?: () => void }) {
   );
 }
 
-/** In a party: the code to share, and leaving (unless the menu has its own Leave). */
-export function PartyInvite({ party, leave = true }: { party: PartyState; leave?: boolean }) {
+/** In a party: the code to share, and leaving (unless the menu has its own Leave); `autoFocus` focuses sharing it. */
+export function PartyInvite({ party, leave = true, autoFocus }: { party: PartyState; leave?: boolean; autoFocus?: boolean }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -192,12 +192,13 @@ export function PartyInvite({ party, leave = true }: { party: PartyState; leave?
           // iOS: the share sheet, which copies too.
           <Button
             variant={leave ? "primary" : "glass"}
+            autoFocus={autoFocus}
             onClick={(e) => void shareNatively({ text: invite, anchor: anchorOf(e.currentTarget) }).catch(warnFailed("share sheet"))}
           >
             Share Invite
           </Button>
         ) : (
-          <Button variant={leave ? "primary" : "glass"} className="party-copy" onClick={copy} data-copied={copied}>
+          <Button variant={leave ? "primary" : "glass"} className="party-copy" onClick={copy} data-copied={copied} autoFocus={autoFocus}>
             <span className="party-copy-label" data-shown={!copied}>
               Copy Invite
             </span>

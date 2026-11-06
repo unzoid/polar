@@ -48,3 +48,12 @@ export const card = (page: Page, name: string) => page.getByRole("button", { nam
 
 /** The player's clock (remaining time by default), as text. */
 export const clock = (page: Page) => page.locator(".player-remaining").textContent();
+
+/**
+ * The watch party's dialogs and panels on screen (#247): the join dialog, a link to confirm, "Watch party over",
+ * the party menu (top bar popover, TV panel) and the player's Watch Party panel. Never more than one.
+ */
+export const partySurfaces = (page: Page) =>
+  page
+    .locator(".party-dialog, .party-link-confirm, .party-popover, .tv-party, .tv-join, .options-overlay[data-open=true]:has(.party-pane, .party-pane-stack)")
+    .filter({ visible: true });
