@@ -219,6 +219,38 @@ test("settings change and stay changed", async ({ app }) => {
   await expect(settings).toHaveCount(0);
 });
 
+test("a source list marks its first links ready or not ready, checked ahead of time (#21)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Choose source", exact: true }).click();
+  // The fake shell answers every link as ready in 0.4 s except one placeholder.
+  const ready = app.locator('.stream-row[data-ready="yes"]');
+  const notReady = app.locator('.stream-row[data-ready="no"]');
+  await expect(ready.first()).toContainText("Ready · starts in 0.4 s");
+  await expect(ready.first().locator(".stream-lead svg")).toBeVisible();
+  await expect(ready.first()).toHaveAttribute("title", /^Ready to play: this link answered with the video in 0\.4 s/);
+  await expect(ready).toHaveCount(3);
+  await expect(notReady).toHaveCount(1);
+  await expect(notReady).toContainText("Not ready at the source");
+  expect(await notReady.locator(".stream-text").evaluate((e) => getComputedStyle(e).opacity)).toBe("0.5");
+  // Only the first few are checked: the last source stays as it was.
+  await expect(app.locator(".stream-row").last()).not.toHaveAttribute("data-ready");
+});
+
+test("the player's Sources panel marks the same links (#21)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Sources", exact: true }).click();
+  const sources = app.getByRole("radiogroup", { name: "Sources" });
+  // The source playing keeps its check; the next ones are marked.
+  await expect(sources.locator('[data-ready="yes"]')).toHaveCount(3);
+  await expect(sources.locator('[data-ready="no"]')).toContainText("Not ready at the source");
+  await expect(sources.locator('[data-ready="yes"]').nth(1).locator(".options-check svg")).toBeVisible();
+  await expect(sources.locator('[data-ready="yes"]').nth(1)).toContainText("Ready · starts in 0.4 s");
+});
+
 test("while a downloaded episode plays, its copy is the first source and picking it goes back to the file (#23)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();

@@ -412,6 +412,10 @@
   align-items: center;
   padding-block: 0.5rem;
 }
+/* A source checked ahead of time and not ready (#21): dimmed, the detail line says why. */
+.options-item[data-ready="no"] .options-text {
+  opacity: 0.5;
+}
 .options-item:disabled {
   opacity: 0.4;
 }

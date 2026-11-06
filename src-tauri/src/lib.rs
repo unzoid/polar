@@ -262,6 +262,7 @@ pub fn run() {
             player::mpv_available,
             player::mpv_load,
             streamcheck::stream_probe,
+            streamcheck::stream_ready,
             discord::discord_available,
             discord::discord_presence,
             player::mpv_command,

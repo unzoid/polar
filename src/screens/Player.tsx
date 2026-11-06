@@ -27,9 +27,12 @@ import {
   autoplayStreak,
   countAutoplay,
   requestHeaders,
+  READY_CHECKS,
+  readinessNote,
   resetAutoplay,
   sliderAmplitude,
   sourceRow,
+  useReadiness,
   useResetAutoplayOnInput,
   useSourceFilters,
 } from "../lib/playback";
@@ -570,20 +573,29 @@ export function Player({
   // through picking a source or moving to another episode (each rebuilds it).
   const sourceFilters = useSourceFilters(streams.data?.streams, settings, metaId);
   const hiddenSources = streams.data?.hidden ?? 0;
+  // The first few sources get a look ahead of time while the panel is open (#21).
+  const readiness = useReadiness(
+    sourceFilters.view.slice(0, Math.min(sourceFilters.matched, READY_CHECKS)).map(({ r }) => r),
+    options === "sources",
+  );
   const sourceItems = useMemo<OptionItem[]>(() => {
     const rank = new Map(rankedStreams.map((r, i) => [r, i]));
     return sourceFilters.view.map(({ r, match }, n) => {
       const row = sourceRow(r);
+      const ready = readiness.get(streamKey(r));
+      const note = ready && readinessNote(ready);
       return {
         id: String(rank.get(r) ?? -1),
         label: n === 0 && match && sourceFilters.sort === "best" ? `${row.title} · Best Match` : row.title,
         // Filters that only order the list: what doesn't match follows under its own heading.
         heading: n === sourceFilters.matched && !match ? "Other sources" : undefined,
-        detail: [row.size, row.detail].filter(Boolean).join(" · "),
+        detail: [note?.short, row.size, row.detail].filter(Boolean).join(" · "),
         badge: r.quality.lowQualitySource ? { text: "CAM", tone: "bad" as const } : undefined,
+        ready: ready?.state === "ready" ? "yes" : ready?.state === "notReady" ? "no" : undefined,
+        note: note?.long,
       };
       });
-  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.sort]);
+  }, [rankedStreams, sourceFilters.view, sourceFilters.matched, sourceFilters.sort, readiness]);
   const sourceOptions = useMemo<OptionItem[]>(
     () =>
       downloaded
