@@ -691,6 +691,18 @@ on the fake backend. AniList can't be reached here, so with the setting on, chec
 - TV mode: the same cards; a card opens the show's page with only that season's episodes.
 - Switching the setting off and on loses no progress or library items.
 
+## Anime no mapping knows yet (#189)
+
+Checked here: unit tests (`tests/animeTitleLink.test.ts`: an invented show only its synonym finds, one the
+catalogs have no dated episodes for, the id lists, a stored pick, wrong years and names, failed searches) and
+component tests (`tests/dom/animeSeriesPick.test.tsx`). Not run against AniList, ani.zip or a real catalog
+(none reachable here). To check:
+- Open a TV anime from the current season that ani.zip and the id lists don't map yet (its page used to say
+  "Not linked to any sources yet" while Search found it under Series). It now plays from that series.
+- Find one that still isn't linked (or open one and pick the wrong series): "Choose the series" opens a search
+  with its name; pick the series; the page plays from it. Restart, and open it on a second signed-in device:
+  the same series. "Wrong series?" changes it back.
+
 ## Watching a link together (#136)
 
 Checked here: unit tests (`tests/partyLinks.test.ts`: which links pass, their ids, the room's message
