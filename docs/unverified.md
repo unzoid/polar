@@ -139,6 +139,12 @@ view shares its libmpv loading and frame reading with it (`src/apple/libmpv.h`),
 that part. CI job `ios` builds libmpv and FFmpeg with `scripts/ios-mpv.sh` (LGPL, pinned versions, cached
 after the first run), generates the Xcode project, builds an unsigned IPA (`ios-unsigned-ipa`) and keeps
 `ios-mpv-sources` next to it.
+Checked in CI (job "iOS build (unsigned)", about 16 minutes from an empty cache): the Objective-C and the
+script compile, and the IPA (37 MB unpacked) holds the nine frameworks in `Payload/Polarity.app/Frameworks`
+(Libmpv, Libavcodec, Libavfilter, Libavformat, Libavutil, Libswresample, Libswscale, Libplacebo,
+Libfribidi) and the licence texts under `assets/licenses/mpv` (FFmpeg's LGPL-2.1, libass, FreeType,
+HarfBuzz, libplacebo, …); `ios-mpv-sources` is 45 MB. The app has never been started, on a device or in the
+simulator.
 What to look for on an iPhone and an iPad, with the IPA signed for testing (any developer account, or a
 sideloading tool): the app starts with its own icon; the phone layout on an iPhone, the tablet layout on an
 iPad, in both orientations, clear of the notch and the home indicator; the loading screen says "Player: mpv";
