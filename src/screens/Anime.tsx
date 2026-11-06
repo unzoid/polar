@@ -218,7 +218,7 @@ function AnimeHeroContent({ card, item }: { card: Card; item: MetaPreview }) {
   const next = animeCardCountdown ? card.nextAiringEpisode : undefined;
   return (
     <div className="hero-content">
-      <TitleHeading name={item.name} logo={item.logo} look="hero" />
+      <TitleHeading name={item.name} logo={item.logo} backdrop={item.background} look="hero" />
       <p className="hero-kind t-callout tabular">
         {joinFacts([card.format && FORMAT_LABEL[card.format], ...(card.genres ?? []).slice(0, 2), next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`])}
       </p>

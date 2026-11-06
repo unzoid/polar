@@ -231,11 +231,19 @@ input {
 .img-fade[data-loaded="true"] {
   opacity: 1;
 }
-/* A black title logo (TitleLogo) would vanish on dark art: draw it as a white
-   silhouette, keeping the soft shadow the logos carry. Element + attribute
-   outranks each logo class's own filter. */
-img[data-logo-tone="dark"] {
+/* A title logo that doesn't read on the art behind it (TitleLogo, #215): one
+   dark ink becomes a white silhouette, keeping the soft shadow the logos carry;
+   a multicolour or detailed one keeps its artwork over a soft halo, light behind
+   a dark logo and dark behind a light one. Element + attribute outranks each
+   logo class's own filter. */
+img[data-logo-look="silhouette"] {
   filter: brightness(0) invert(1) drop-shadow(0 2px 18px var(--scrim-1));
+}
+img[data-logo-look="halo-light"] {
+  filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.85)) drop-shadow(0 0 8px rgb(255 255 255 / 0.55));
+}
+img[data-logo-look="halo-dark"] {
+  filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.7)) drop-shadow(0 0 12px rgb(0 0 0 / 0.6));
 }
 
 @media (prefers-reduced-motion: reduce) {

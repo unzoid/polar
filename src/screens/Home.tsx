@@ -278,7 +278,7 @@ function HeroContent({ item }: { item: MetaPreview }) {
 
   return (
     <div className="hero-content">
-      <TitleHeading name={item.name} logo={item.logo} look="hero" />
+      <TitleHeading name={item.name} logo={item.logo} logos={item.logos} backdrop={item.background} look="hero" />
       <p className="hero-kind t-callout">{joinFacts(kindFacts(item))}</p>
       <p className="hero-description t-body">{item.description}</p>
       <div className="hero-actions">

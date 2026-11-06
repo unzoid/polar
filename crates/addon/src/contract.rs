@@ -37,6 +37,7 @@ fn preview() -> MetaPreview {
         poster: s("p"),
         background: s("b"),
         logo: s("l"),
+        logos: vec!["l".into()],
         description: s("d"),
         release_info: s("2024"),
         imdb_rating: s("7.5"),

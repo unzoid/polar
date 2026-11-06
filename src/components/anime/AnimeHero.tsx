@@ -33,6 +33,7 @@ export function AnimeHero({
   item,
   anime,
   logo,
+  backdrop,
   name,
   onImdb,
   trailer,
@@ -41,6 +42,8 @@ export function AnimeHero({
   anime?: Anime;
   /** The franchise's logo (`franchiseArt`), the same on every season tab: this entry's name shows under it. */
   logo?: string;
+  /** The page's backdrop, which the logo is measured against (#215). */
+  backdrop?: string;
   name: string;
   /** The id it plays from: undefined until known, null when there's none (the page's backdrop trailer is that title's). */
   onImdb?: (id: string | null | undefined) => void;
@@ -78,7 +81,7 @@ export function AnimeHero({
   return (
     <section className="detail-hero anime-hero">
       <div className="detail-hero-main">
-        <TitleHeading name={name} logo={logo} look="detail" />
+        <TitleHeading name={name} logo={logo} backdrop={backdrop} look="detail" />
         {subtitle && <p className="anime-native t-callout">{subtitle}</p>}
         <p className="detail-facts anime-meta-line t-callout tabular">
           {score && (
