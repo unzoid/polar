@@ -34,6 +34,35 @@ async function mainThread(cdp: CDPSession, run: () => Promise<void>) {
   return { busy: busy / 1000 / ms, medianFrame: frames[Math.floor(frames.length / 2)] ?? 0 };
 }
 
+/**
+ * How long this machine takes to lay out a fixed block of a few thousand elements (ms): the same kind of
+ * main-thread work a frame does. A slower runner takes longer for both, so per-frame budgets are set in
+ * multiples of this instead of in milliseconds.
+ */
+async function layoutUnit(app: Page) {
+  return app.evaluate(() => {
+    const box = document.createElement("div");
+    box.style.cssText = "position:fixed;left:0;top:0;width:600px;visibility:hidden;contain:strict;height:400px";
+    for (let i = 0; i < 3000; i++) {
+      const s = document.createElement("span");
+      s.textContent = `Calibration ${i}`;
+      s.style.cssText = "display:inline-block;padding:2px 4px;margin:1px";
+      box.append(s);
+    }
+    document.body.append(box);
+    const runs: number[] = [];
+    for (let r = 0; r < 9; r++) {
+      const t = performance.now();
+      box.style.width = `${600 + (r % 2) * 7}px`;
+      void box.scrollHeight; // lay it out now
+      runs.push(performance.now() - t);
+    }
+    box.remove();
+    runs.sort((a, b) => a - b);
+    return runs[Math.floor(runs.length / 2)];
+  });
+}
+
 async function layerCount(app: Page, cdp: CDPSession) {
   let layers = 0;
   const seen = new Promise<void>((resolve) =>
@@ -80,7 +109,9 @@ test("Home stays light while it sits still and while it scrolls (#134)", async (
   await app.waitForTimeout(1500);
   expect.soft(await layerCount(app, cdp)).toBeLessThan(150);
 
-  // Scrolling back up the loaded page: each frame's main-thread part stays within a frame.
+  // Scrolling back up the loaded page: each frame's main-thread part stays small. In units of this machine's
+  // speed (layoutUnit), not milliseconds: on a shared CI runner the same page took 16.4 ms where it takes
+  // 9.5 here. The median is about 3 units now and 8-10 before #134, also with the CPU throttled 2x.
   await app.mouse.move(720, 500);
   const scrolling = await mainThread(cdp, async () => {
     for (let i = 0; i < 40; i++) {
@@ -88,5 +119,6 @@ test("Home stays light while it sits still and while it scrolls (#134)", async (
       await app.waitForTimeout(30);
     }
   });
-  expect.soft(scrolling.medianFrame).toBeLessThan(16);
+  const unit = await layoutUnit(app);
+  expect.soft(scrolling.medianFrame / unit, `median frame ${scrolling.medianFrame} ms, layout unit ${unit} ms`).toBeLessThan(5);
 });
