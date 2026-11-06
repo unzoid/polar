@@ -104,15 +104,16 @@ export function OptionsOverlay({
       const list = el.closest<HTMLElement>(".options-list");
       if (list) list.scrollTop = el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2;
     });
-    // Nothing chosen yet: the layer itself, so Tab and the arrows start inside it.
-    (root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? root.current)?.focus({ preventScroll: true });
+    // The episode rail starts from the one playing (#226). Nothing chosen yet: the layer itself, so Tab and the arrows start inside it.
+    const chosen = root.current?.querySelector<HTMLElement>('.episode-rail [aria-current="true"] > .episode-rail-main') ?? root.current?.querySelector<HTMLElement>('[aria-checked="true"]');
+    (chosen ?? root.current)?.focus({ preventScroll: true });
   }, [open, mounted]);
 
   useEffect(() => {
     if (!open || !mounted) return;
     const onKey = (e: KeyboardEvent) => {
       // An open dropdown inside the overlay handles its own keys.
-      if (document.querySelector(".select-popup, .srcf-popover")) return;
+      if (document.querySelector(OPEN_POPUP)) return;
       // A slider (the source list's size range) takes the arrows for itself.
       if ((e.target as HTMLElement | null)?.closest?.('[role="slider"], input[type="range"]')) return;
       // A text field (the party code) keeps its caret keys.
@@ -144,7 +145,7 @@ export function OptionsOverlay({
         press.current = null;
         if (e.button !== 0 || !missesPanel(e)) return;
         // A dropdown open in the panel closes on this click by itself: the panel stays.
-        if (document.querySelector(".select-popup, .srcf-popover")) return;
+        if (document.querySelector(OPEN_POPUP)) return;
         press.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
       }}
       onPointerUp={(e) => {
@@ -192,6 +193,8 @@ export function OptionsOverlay({
   );
 }
 
+/** A dropdown or popover open over the panel. Closed ones can stay in the page (marked data-closed): they don't count (#226). */
+const OPEN_POPUP = ".select-popup:not([data-closed]), .srcf-popover:not([data-closed])";
 /** Past the panel's content, a click still counts as a miss for this far (px); a finger gets more room. */
 const MISS_MARGIN = { mouse: 24, touch: 40 };
 /** A press that travels further than this (px) is a drag or a scroll, not a click. */
@@ -271,6 +274,25 @@ function moveFocus(root: HTMLElement | null, key: string) {
   const hi = head.indexOf(active as HTMLElement);
   const horizontal = key === "ArrowLeft" || key === "ArrowRight";
   const step = key === "ArrowDown" || key === "ArrowRight" ? 1 : -1;
+
+  // The episode rail (#226): left/right card by card, down to a card's Download and back, up to the
+  // head; down from the head (or left/right from elsewhere) lands on the first card in view. EpisodeRail scrolls the focused card in.
+  const rail = column.querySelector<HTMLElement>(".episode-rail");
+  if (rail) {
+    const mains = [...rail.querySelectorAll<HTMLElement>(".episode-rail-main:not(:disabled)")];
+    const card = active?.closest<HTMLElement>(".episode-rail-card");
+    if (card && rail.contains(card)) {
+      const main = card.querySelector<HTMLElement>(".episode-rail-main");
+      if (horizontal) return mains[mains.indexOf(main!) + step]?.focus({ preventScroll: true });
+      if (active !== main) return key === "ArrowUp" ? main?.focus({ preventScroll: true }) : undefined;
+      if (key === "ArrowDown") return card.querySelector<HTMLElement>(".episode-rail-download")?.focus({ preventScroll: true });
+      return head[0]?.focus();
+    }
+    if (key === "ArrowDown" || (horizontal && hi < 0)) {
+      const inView = mains.find((m) => m.closest<HTMLElement>(".episode-rail-card")!.offsetLeft >= rail.scrollLeft - 1) ?? mains[0];
+      return inView?.focus({ preventScroll: true });
+    }
+  }
 
   if (hi >= 0) {
     // TV's filter chips come in rows (re-test 7): left/right along a row, up/down between rows,

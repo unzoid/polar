@@ -14,10 +14,9 @@ import {
   useAnimeTitle,
   useEpisodeFlags,
 } from "../../lib/anime";
-import { setPrefs, usePrefs } from "../../lib/settings";
-import { useSettings } from "../../lib/net";
+import { setPrefs, useEpisodeLayout, usePrefs } from "../../lib/settings";
 import type { PlayRequest } from "../../lib/playback";
-import type { EpisodeLayout, Video } from "../../lib/types";
+import type { Video } from "../../lib/types";
 import { Dropdown } from "../Dropdown";
 import { LayoutList, LayoutRow } from "../icons";
 import { Segmented } from "../Segmented";
@@ -50,19 +49,14 @@ const SEARCH_FROM = 40;
 export function AnimeEpisodes({
   anime,
   franchise,
-  layoutChoice,
-  onLayout,
 }: {
   anime: Anime;
   franchise?: Franchise;
-  layoutChoice?: EpisodeLayout;
-  onLayout: (l: EpisodeLayout) => void;
 }) {
   const pb = useAnimePlayback(anime);
   const prefs = usePrefs();
   const { data: flags } = useEpisodeFlags(pb.malId, [anime.title.english, anime.title.romaji]);
-  const { data: settings } = useSettings();
-  const layout = layoutChoice ?? settings?.episodeLayout ?? "row";
+  const [layout, setLayout] = useEpisodeLayout();
   const sources = useSourcePicker();
   useFranchiseStills(franchise ? franchise.seasons.map((s) => s.card.id) : [anime.id], pb.metaId, pb.meta?.videos);
 
@@ -190,7 +184,7 @@ export function AnimeEpisodes({
       <Segmented
         label="Episode layout"
         value={layout}
-        onChange={onLayout}
+        onChange={setLayout}
         options={[
           { id: "row", label: "Row", icon: <LayoutRow size={18} /> },
           { id: "list", label: "List", icon: <LayoutList size={18} /> },

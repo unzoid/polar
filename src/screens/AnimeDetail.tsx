@@ -24,7 +24,6 @@ import {
 import { useMeta } from "../lib/net";
 import { usePrefs } from "../lib/settings";
 import { useFoldSnap, useFormFactor } from "../lib/ui";
-import type { EpisodeLayout } from "../lib/types";
 
 /**
  * An anime's page, built from AniList with ani.zip filling in episode titles,
@@ -140,11 +139,9 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
 function Body({ anime, franchise, switching }: { anime: Anime; franchise?: Franchise; switching: boolean }) {
   const isMovie = anime.format === "MOVIE";
   const hasRelated = anime.relations.edges.length > 0 || anime.recommendations.nodes.some((n) => !!n.mediaRecommendation);
-  // This page's choice, kept across seasons; until you pick one, the default from Settings → Browsing.
-  const [layout, setLayout] = useState<EpisodeLayout | undefined>();
   return (
     <div className="anime-body" data-switching={switching || undefined}>
-      {!isMovie && <AnimeEpisodes key={anime.id} anime={anime} franchise={franchise} layoutChoice={layout} onLayout={setLayout} />}
+      {!isMovie && <AnimeEpisodes key={anime.id} anime={anime} franchise={franchise} />}
       {/* A film in a franchise: the season tabs alone, to get back to the series. */}
       {isMovie && franchise && (
         <section className="seasons">

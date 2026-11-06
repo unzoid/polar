@@ -75,3 +75,34 @@ test("in the player's Sources, up and down move between the rows of filter chips
   await press(app, "ArrowUp");
   expect(await row()).toBe("Quality");
 });
+
+test("in the player, the remote walks the episode rail to the season's last episode (#226)", async ({ app }) => {
+  await press(app, "ArrowDown", "ArrowRight", "ArrowRight", "Enter");
+  await expect(focused(app)).toHaveAccessibleName("Play First Episode");
+  await press(app, "Enter");
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Episodes", exact: true }).click();
+  const rail = app.locator(".episode-rail");
+  await expect(rail.locator('[aria-current="true"] > .episode-rail-main')).toBeFocused();
+  const count = await rail.locator(".episode-rail-card").count();
+  expect(count).toBeGreaterThan(5);
+  for (let i = 1; i < count; i++) await press(app, "ArrowRight");
+  await expect(rail.locator(".episode-rail-main").last()).toBeFocused();
+  await expect
+    .poll(() =>
+      rail.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const c = el.lastElementChild!.getBoundingClientRect();
+        return c.left >= r.left - 1 && c.right <= r.right + 1;
+      }),
+    )
+    .toBe(true);
+  // Up reaches the head: the season, then along it to the row/list switch.
+  await press(app, "ArrowUp");
+  await expect(focused(app)).toHaveClass(/select-trigger/);
+  await press(app, "ArrowRight", "ArrowRight");
+  await expect(focused(app)).toHaveAccessibleName("List");
+  await press(app, "Enter");
+  await expect(rail).toHaveCount(0);
+  await expect(app.getByRole("radiogroup", { name: "Episodes" })).toBeVisible();
+});
