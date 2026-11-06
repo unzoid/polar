@@ -255,6 +255,11 @@ doesn't show within 0.6 s, or before iOS 17.4, an action sheet comes instead. On
 16. The profile avatar (top bar): a menu with the other profiles, Manage Profiles, Join Watch Party, Calendar
     (while it isn't a tab), Settings, Account and Sign Out (Sign In for a guest), each doing what it says.
 17. VoiceOver reads the menus; the invisible button itself isn't announced.
+18. In the player, Speed: a menu over the button with the speeds, the current one ticked; picking one changes
+    the speed and the controls stay up while the menu is open. Subtitles & Audio: Audio and Subtitles as
+    submenus with the playing tracks ticked, and Subtitle Settings, which opens the full-screen picker with
+    the subtitle settings and the preview. Picking a track switches to it. Sources and Episodes keep the
+    full-screen picker.
 
 ## macOS release: sources of the bundled libraries
 
