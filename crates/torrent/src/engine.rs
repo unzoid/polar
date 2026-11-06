@@ -11,7 +11,7 @@ use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -29,6 +29,8 @@ use crate::serve::{Files, OpenFuture, Opened as Served, Server};
 
 /// How long to wait for peers to send the torrent's file list.
 const METADATA_TIMEOUT: Duration = Duration::from_secs(60);
+/// An open overtaken by a close or another open.
+const CLOSED: &str = "Playback closed before the torrent was ready.";
 /// File types a player can open, for picking a file when the add-on names none.
 const VIDEO_EXTS: &[&str] = &["mkv", "mp4", "m4v", "webm", "avi", "mov", "ts", "m2ts", "wmv", "mpg", "mpeg"];
 
@@ -130,6 +132,9 @@ pub struct Engine {
     server: Server,
     files: Arc<Registry>,
     state: Mutex<State>,
+    /// Bumped by every open and close: an open still waiting for peers when
+    /// the player closes (or another open starts) sees it and gives up.
+    generation: AtomicU64,
     dir: PathBuf,
     options: Options,
 }
@@ -161,7 +166,7 @@ impl Engine {
         .map_err(|e| format!("couldn't start: {e:#}"))?;
         let files = Arc::new(Registry::default());
         let server = Server::start(files.clone()).await.map_err(|e| format!("couldn't serve the stream: {e}"))?;
-        Ok(Engine { session, server, files, state: Mutex::default(), dir, options })
+        Ok(Engine { session, server, files, state: Mutex::default(), generation: AtomicU64::new(0), dir, options })
     }
 
     /// Whether `url` is a link this engine handed out.
@@ -179,6 +184,8 @@ impl Engine {
     pub async fn open(&self, request: &Request, limits: Limits, on_step: OnStep) -> Result<Opened, String> {
         let hash = magnet::info_hash(&request.info_hash).ok_or("This source's torrent id isn't valid.")?;
         self.close(limits).await;
+        let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let stale = || self.generation.load(Ordering::SeqCst) != generation;
         self.session.ratelimits.set_download_bps(limits.rate_bps);
         self.session.ratelimits.set_upload_bps(limits.rate_bps);
 
@@ -195,6 +202,9 @@ impl Engine {
             None => {
                 // The file list first, so only the chosen file is ever fetched.
                 let listed = self.list(&hash, &trackers).await?;
+                if stale() {
+                    return Err(CLOSED.into());
+                }
                 let files: Vec<(PathBuf, u64)> =
                     listed.info.iter_file_details().map(|f| (f.filename.to_pathbuf(), f.len)).collect();
                 let file = match request.file_idx {
@@ -229,6 +239,10 @@ impl Engine {
             }
         };
 
+        if stale() {
+            self.remove(&torrent).await;
+            return Err(CLOSED.into());
+        }
         let done = Arc::new(AtomicBool::new(false));
         let id = {
             let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
@@ -246,6 +260,7 @@ impl Engine {
     /// End playback: the torrent stops and its files go, unless
     /// `limits.keep_sharing`. Nothing happens when nothing plays.
     pub async fn close(&self, limits: Limits) {
+        self.generation.fetch_add(1, Ordering::SeqCst);
         let Some((id, active)) = self.state.lock().unwrap_or_else(PoisonError::into_inner).playing.take() else {
             return;
         };

@@ -26,10 +26,12 @@ import type {
   SyncLibraryItem,
   TitleDisplay,
   TitleRef,
+  TorrentLink,
 } from "./types";
 import { settingsChanged } from "./settings/changes";
 import type { AnimeLink } from "./library/identity";
 import type { DiscordActivity } from "./playback/discordPresence";
+import type { TorrentLimits } from "./playback/torrent";
 
 /** A native command; a change it couldn't save is reported app-wide (errors.ts onSaveFailure) and still rejects. */
 const call = <T = unknown>(command: string, args?: Record<string, unknown>) =>
@@ -61,6 +63,10 @@ export const api = {
   streams: (type: ContentType, videoId: string) =>
     call<StreamsResult>("streams", { ty: type, videoId, altIds: playContext.altIds(videoId) ?? null }),
   resolveStream: (stream: Stream) => call<Playable>("resolve_stream", { stream }),
+  /** Start playing a torrent source (replacing the one playing); its steps arrive as `player://torrent` with `stepId`. */
+  torrentOpen: (stream: Stream, limits: TorrentLimits, stepId: number) => call<TorrentLink>("torrent_open", { stream, limits, stepId }),
+  /** The player closed: stop the torrent and delete its files, unless the user keeps sharing. */
+  torrentClose: (limits: TorrentLimits) => call<void>("torrent_close", { limits }),
   /** The link check mpv_load runs, for the built-in player: the URL to open, or why it won't play. */
   streamProbe: (url: string, probeId: number, headers: Record<string, string> | null = null) =>
     call<string>("stream_probe", { url, probeId, headers }),

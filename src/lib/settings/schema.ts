@@ -396,6 +396,33 @@ export const SETTINGS: SettingDef[] = [
     tv: "Filters Hide Other Sources",
   },
   { id: "sourceAutoTags", page: "sources", title: "Turn On When Available", keywords: "dolby vision hdr remux atmos tags filters automatic" },
+  {
+    id: "torrentCacheGb",
+    page: "sources",
+    title: "Torrent cache limit",
+    caption: "Most space torrent sources may use on this device. A larger file won't play.",
+    keywords: "torrent cache disk space size limit",
+    bind: p("torrentCacheGb"),
+    control: { kind: "number", min: 0, max: 200, step: 5, unit: "GB", zero: "No limit", tvStep: 10 },
+  },
+  {
+    id: "torrentSpeedMbps",
+    page: "sources",
+    title: "Torrent speed limit",
+    caption: "Caps download and upload while a torrent source plays",
+    keywords: "torrent bandwidth speed limit download upload mbps",
+    bind: p("torrentSpeedMbps"),
+    control: { kind: "number", min: 0, max: 1000, step: 5, unit: "Mbit/s", zero: "No limit", tvStep: 10 },
+  },
+  {
+    id: "torrentKeepSharing",
+    page: "sources",
+    title: "Keep sharing after playback",
+    caption: "Off: a torrent stops and its files are deleted as soon as you close the player. On: it keeps uploading to others until you quit Polarity.",
+    keywords: "torrent seed share upload after playback",
+    bind: p("torrentKeepSharing"),
+    control: toggle,
+  },
 
   // Subtitles & Audio
   {

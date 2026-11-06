@@ -402,7 +402,7 @@ impl StreamFilter {
 }
 
 /// Rank streams from many addons, best first. Duplicates (same URL, or the same
-/// add-on, name and title) collapse to the highest scoring copy. Streams with nothing playable (no URL and no
+/// add-on, name and title) collapse to the highest scoring copy. Streams with nothing playable (no URL, torrent or
 /// YouTube id) are dropped.
 pub fn rank_streams(streams: impl IntoIterator<Item = (String, Stream)>) -> Vec<RankedStream> {
     rank_streams_filtered(streams, &StreamFilter::default()).0
@@ -416,7 +416,7 @@ pub fn rank_streams_filtered(
 ) -> (Vec<RankedStream>, usize) {
     let mut ranked: Vec<RankedStream> = streams
         .into_iter()
-        .filter(|(_, s)| s.url.is_some() || s.yt_id.is_some())
+        .filter(|(_, s)| s.url.is_some() || s.info_hash.is_some() || s.yt_id.is_some())
         .map(|(addon, stream)| {
             let quality = parse_quality(&stream);
             RankedStream { score: score(&quality), label: label(&quality), quality, addon, stream }
@@ -425,9 +425,11 @@ pub fn rank_streams_filtered(
     ranked.sort_by(|a, b| b.score.total_cmp(&a.score));
 
     let mut seen = std::collections::HashSet::new();
-    ranked.retain(|r| {
-        let Some(url) = &r.stream.url else { return true };
-        seen.insert(url.clone())
+    ranked.retain(|r| match (&r.stream.url, &r.stream.info_hash) {
+        (Some(url), _) => seen.insert(url.clone()),
+        // The same file of the same torrent, from any add-on.
+        (None, Some(hash)) => seen.insert(format!("{}#{}", hash.to_ascii_lowercase(), r.stream.file_idx.unwrap_or(0))),
+        _ => true,
     });
     // The same file from the same add-on under another link (asked by two ids for one episode):
     // its row would read the same twice. Only rows that say what the file is (a title) count.
@@ -473,6 +475,32 @@ mod tests {
         let urls: Vec<_> = ranked.iter().filter_map(|r| r.stream.url.as_deref()).collect();
         assert_eq!(urls.len(), 3, "{urls:?}");
         assert!(urls.contains(&"https://example.org/b") && urls.contains(&"https://example.com/third"));
+    }
+
+    #[test]
+    fn torrent_streams_are_kept_once_per_file_and_below_direct_links() {
+        let torrent = |idx: Option<u32>, title: &str| Stream {
+            name: Some("Addon\n1080p".into()),
+            title: Some(title.into()),
+            info_hash: Some("0123456789ABCDEF0123456789abcdef01234567".into()),
+            file_idx: idx,
+            ..Default::default()
+        };
+        let ranked = rank_streams([
+            ("a".into(), torrent(Some(1), "Show.S01E01.1080p.WEB")),
+            (
+                "b".into(),
+                Stream {
+                    info_hash: Some("0123456789abcdef0123456789abcdef01234567".into()),
+                    ..torrent(Some(1), "Other")
+                },
+            ),
+            ("a".into(), torrent(Some(2), "Show.S01E02.1080p.WEB")),
+            ("a".into(), stream("Addon\n1080p", "Show.S01E01.1080p.WEB.direct")),
+        ]);
+        assert_eq!(ranked.len(), 3);
+        assert!(ranked[0].quality.direct && ranked[0].stream.url.is_some());
+        assert!(ranked[1..].iter().all(|r| !r.quality.direct && r.stream.info_hash.is_some()));
     }
 
     #[test]

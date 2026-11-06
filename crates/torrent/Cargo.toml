@@ -15,3 +15,8 @@ tracing.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[target.'cfg(all(windows, target_arch = "x86_64"))'.dependencies]
+# rustls' crypto (aws-lc) assembles its x86-64 code with NASM, which Windows build machines lack: use the
+# objects aws-lc ships prebuilt instead.
+aws-lc-sys = { version = "0.47", features = ["prebuilt-nasm"] }

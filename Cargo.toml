@@ -13,6 +13,7 @@ polar-anime = { path = "crates/anime" }
 polar-index = { path = "crates/index" }
 polar-library = { path = "crates/library" }
 polar-player = { path = "crates/player" }
+polar-torrent = { path = "crates/torrent" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "gzip", "rustls-tls", "charset", "http2", "macos-system-configuration"] }

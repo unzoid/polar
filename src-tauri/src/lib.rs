@@ -15,6 +15,7 @@ mod seekr;
 mod store;
 mod streamcheck;
 mod sync;
+mod torrent;
 mod trailers;
 
 use std::sync::{Arc, Mutex, RwLock};
@@ -206,8 +207,10 @@ pub fn run() {
                 introdb: introdb::IntroDb::default(),
                 ratings: ratings::RatingsClient::default(),
                 fillers: polar_anime::Fillers::new(cache.clone()),
-                anime_lists: polar_anime::AnimeLists::new(cache),
+                anime_lists: polar_anime::AnimeLists::new(cache.clone()),
             });
+            #[cfg(desktop)]
+            torrent::manage(app.handle(), cache);
             app.manage(controllers::Controllers::default());
             controllers::watch(app.handle().clone());
             let handle = app.handle().clone();
@@ -224,6 +227,8 @@ pub fn run() {
             commands::meta,
             commands::streams,
             commands::resolve_stream,
+            torrent::torrent_open,
+            torrent::torrent_close,
             commands::subtitles,
             commands::subtitle_vtt,
             commands::seek_previews,
@@ -287,11 +292,12 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building polar")
         .run(|app, event| {
-            // Never leave an orphaned mpv behind, nor a change unwritten.
+            // Never leave an orphaned mpv behind, nor a change unwritten, nor a torrent cache.
             if let tauri::RunEvent::Exit = event {
                 let state = app.state::<AppState>();
                 state.mpv.kill();
                 state.saver.flush();
+                torrent::shutdown(app);
             }
         });
 }

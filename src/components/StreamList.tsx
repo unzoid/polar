@@ -168,6 +168,7 @@ function StreamRow({
             </span>
           ))}
           {s.quality.lowQualitySource && <span className="badge badge-bad">CAM</span>}
+          {s.stream.infoHash && <span className="badge">Torrent</span>}
         </span>
         <span className="stream-sub t-caption">
           {current ? "Playing · " : note ? `${note.short} · ` : ""}
@@ -181,5 +182,5 @@ function StreamRow({
 
 export function streamKey(s: RankedStream | { stream: RankedStream["stream"] }) {
   const st = s.stream;
-  return st.url ?? st.ytId ?? "";
+  return st.url ?? (st.infoHash ? `${st.infoHash.toLowerCase()}#${st.fileIdx ?? 0}` : st.ytId) ?? "";
 }

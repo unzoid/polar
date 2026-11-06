@@ -46,7 +46,8 @@ pub async fn stream_probe(
     probe_id: Option<u32>,
     headers: Option<HashMap<String, String>>,
 ) -> Result<String, CmdError> {
-    if !polar_player::allow::is_web_url(&url) {
+    // The torrent engine's own link needs no check.
+    if !polar_player::allow::is_web_url(&url) || crate::torrent::owns(&app, &url) {
         return Ok(url);
     }
     let headers = polar_player::headers::playback_headers(&headers.unwrap_or_default());

@@ -460,6 +460,9 @@ pub async fn download_start(downloads: Shared<'_>, req: DownloadRequest) -> Resu
         Playable::External { .. } => {
             return Err(CmdError::Unsupported("This source plays in a browser and can't be downloaded.".into()))
         }
+        Playable::Torrent {} => {
+            return Err(CmdError::Unsupported("Torrent sources play in the player but can't be downloaded yet.".into()))
+        }
         Playable::Unsupported { reason } => return Err(CmdError::Unsupported(reason)),
     };
     // Starting again replaces whatever was there (a failed or expired one).

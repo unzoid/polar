@@ -14,12 +14,13 @@ src/lib/platform                         the only front-end code that knows it r
 src-tauri/src                            the native shell: commands, player, downloads, store, controllers
 crates/addon, anime, index, library,     the core: add-on protocol, anime ids and filler, search/metadata, library and sync,
   player                                 the player's rules (mpv allow-lists, picture/sound presets, autocrop)
+  torrent                                the torrent engine for add-on torrent streams (librqbit), served on loopback
 ```
 
 Rules:
 
 - **The core crates hold no platform code.** They build and test on any system with
-  `cargo test -p polar-addon -p polar-library -p polar-anime -p polar-index -p polar-player`. Their only
+  `cargo test -p polar-addon -p polar-library -p polar-anime -p polar-index -p polar-player -p polar-torrent`. Their only
   `cfg` outside tests is `#[cfg(unix)]` in `crates/library/src/saver.rs`, which makes
   `polarity.json` owner-only (0600) where the system has Unix permissions; elsewhere it does
   nothing. Paths come in from the shell (`app_data_dir`, `app_cache_dir`), never from the
@@ -119,6 +120,7 @@ read, not run, here.
 | Episode shelf, Next Episode | `components/title/EpisodeShelf.tsx`, player Episodes panel and Up Next card (`Player.tsx`) | `library/episodes.ts`, `playback/autoplay.ts` | `crates/addon/src/numbering.rs` |
 | Skip intros and recaps, skip filler | `components/player/SkipSegments.tsx` | `anime/aniskip.ts`, `anime/playContext.ts` (`isFiller`), `anime/episodeFlags.ts` | `introdb.rs`, `crates/anime/src/fillers.rs` |
 | Subtitle, sound and picture settings mid-video | `components/player/SubtitleSettings.tsx`, `useMpvTune.ts`, Settings → Playback/Subtitles | `settings/schema.ts` | `player/commands.rs` (`mpv_tune`), `crates/player/src/tune.rs` |
+| Torrent sources (desktop) | `components/player/useSource.ts` (`torrentOpen`, `torrentClose`), Settings → Sources → Torrent Sources | `playback/torrent.ts` (limits, step lines) | `torrent.rs` (`torrent_open`, `torrent_close`; the engine starts on first use, cache in `app_cache_dir/torrent-cache`), `crates/torrent` |
 | Source filters, stream check | `components/SourceFilters.tsx`, `components/player/PlayerStatus.tsx` (start-up steps) | `playback/sources.ts`, `playback/startLog.ts` | `streamcheck.rs`, `crates/addon/src/probe.rs` |
 | Resume | `components/player/useProgressSaver.ts`, `Player.tsx` (`resumePoint`) | `library/episodeState.ts` | `commands.rs` (`progress_save`, `progress_for`), `store.rs` |
 | Watchlist, history, playlists | `screens/Library.tsx` (routes `library-collection`, `playlist`), `components/title/LibraryButton.tsx`, `PlaylistChecklist.tsx` | `library/playlists.ts`, `library/watched.ts`, `library/titleActions.ts` | `store.rs`, `crates/library` |

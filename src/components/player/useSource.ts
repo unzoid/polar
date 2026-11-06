@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { useProgress, useSettings, useStreams } from "../../lib/net";
-import { autoPickOrder, describeStream } from "../../lib/playback";
+import { autoPickOrder, describeStream, describeTorrent, torrentLimits, type TorrentStep } from "../../lib/playback";
+import { on } from "../../lib/platform";
+import { getPrefs } from "../../lib/settings";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
 import { sameFile, type StreamHint } from "../../lib/party";
 import { errorMessage } from "../../lib/errors";
@@ -19,6 +21,8 @@ interface Candidate {
   addon?: string;
 }
 
+let torrentSteps = 0;
+
 /**
  * Decides what to play, with no user decision required:
  *   1. the stream explicitly picked in the source sheet, else
@@ -28,8 +32,19 @@ interface Candidate {
  * The decision is frozen once made — saving progress mid-playback must never
  * re-trigger source selection. `next()` falls through after a playback error.
  * Each decision and attempt is written to `log` (the loading screen's steps).
+ * A torrent source is opened by the backend's engine, whose steps are logged
+ * too (peer counts until `started()` says the picture is up), and closed when
+ * the player goes or falls through to the next source.
  */
-export function useSource(type: ContentType, metaId: string, videoId: string, picked: Stream | undefined, prefer: StreamHint | undefined, log: LogStep) {
+export function useSource(
+  type: ContentType,
+  metaId: string,
+  videoId: string,
+  picked: Stream | undefined,
+  prefer: StreamHint | undefined,
+  log: LogStep,
+  started: () => boolean = () => false,
+) {
   const progress = useProgress(metaId);
   const [saved, setSaved] = useState<Progress | null | undefined>(undefined);
   useEffect(() => {
@@ -88,6 +103,8 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
 
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<SourceState>({ status: "searching" });
+  const startedNow = useRef(started);
+  startedNow.current = started;
 
   useEffect(() => {
     if (!candidates) return;
@@ -107,19 +124,39 @@ export function useSource(type: ContentType, metaId: string, videoId: string, pi
       log(reason, "fail", "link");
       setState({ status: "failed", reason });
     };
+    let unlisten: Promise<() => void> | undefined;
+    let torrent = false;
+    const openTorrent = () => {
+      const stepId = ++torrentSteps;
+      unlisten = on<{ id: number; step: TorrentStep }>("player://torrent", (e) => {
+        if (cancelled || e.id !== stepId || (e.step.kind === "peers" && startedNow.current())) return;
+        const { text, tone, stage, key } = describeTorrent(e.step);
+        log(text, tone, stage, key);
+      });
+      torrent = true;
+      return api.torrentOpen(candidate.stream, torrentLimits(getPrefs()), stepId).then((t) => t.url);
+    };
     api
       .resolveStream(candidate.stream)
-      .then((p: Playable) => {
+      .then(async (p: Playable) => {
         if (cancelled) return;
         if (p.kind === "url") {
           log(`Link: ${describeStream(candidate.stream, p.url)}`, "info", "link");
           setState({ status: "ready", url: p.url, ...candidate });
+        } else if (p.kind === "torrent") {
+          log(`Link: ${describeStream(candidate.stream)}`, "info", "link");
+          const url = await openTorrent();
+          if (!cancelled) setState({ status: "ready", url, ...candidate });
         } else if (p.kind === "unsupported") fail(p.reason);
         else fail("This source opens outside the player.");
       })
       .catch((e) => !cancelled && fail(errorMessage(e)));
     return () => {
       cancelled = true;
+      void unlisten?.then((f) => f());
+      // The player closed or moved on to another source: this torrent stops (and its files go) unless the
+      // user keeps sharing. One still opening gives up when it sees the close.
+      if (torrent) void api.torrentClose(torrentLimits(getPrefs())).catch(() => {});
     };
   }, [candidates, attempt, log]);
 

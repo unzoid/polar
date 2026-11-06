@@ -93,6 +93,10 @@ export interface Stream {
   url?: string;
   ytId?: string;
   externalUrl?: string;
+  /** A torrent: its info hash, the file to play (0-based) and `sources` (`tracker:<url>`, `dht:<hash>`). */
+  infoHash?: string;
+  fileIdx?: number;
+  sources?: string[];
   name?: string;
   title?: string;
   description?: string;
@@ -147,6 +151,12 @@ export interface Imported {
   progress: number;
 }
 
+/** A torrent being played: the loopback link the player opens, and the file's size. */
+export interface TorrentLink {
+  url: string;
+  size: number;
+}
+
 export interface CacheInfo {
   path: string;
   bytes: number;
@@ -154,6 +164,8 @@ export interface CacheInfo {
 
 export type Playable =
   | { kind: "url"; url: string }
+  /** Opened with `api.torrentOpen`. */
+  | { kind: "torrent" }
   | { kind: "external"; url: string }
   | { kind: "unsupported"; reason: string };
 

@@ -3939,6 +3939,7 @@ dependencies = [
  "polar-index",
  "polar-library",
  "polar-player",
+ "polar-torrent",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -4016,6 +4017,7 @@ dependencies = [
 name = "polar-torrent"
 version = "0.17.0"
 dependencies = [
+ "aws-lc-sys",
  "bytes",
  "getrandom 0.3.4",
  "librqbit",

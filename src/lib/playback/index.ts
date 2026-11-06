@@ -10,6 +10,7 @@ export * from "./readiness";
 export * from "./sources";
 export * from "./startLog";
 export * from "./titlePlayback";
+export * from "./torrent";
 export * from "./trailers";
 export * from "./useTitlePlayback";
 export * from "./volume";

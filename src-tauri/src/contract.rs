@@ -80,8 +80,10 @@ fn field_names_match_contract() {
     );
     add("LocalChanges", keys(&LocalChanges { changes: Changes::default(), pulled_at: s("2026-01-01") }));
     add("StreamsResult", keys(&StreamsResult { streams: vec![], failed: vec![], hidden: 0 }));
+    add("TorrentLink", keys(&crate::torrent::TorrentLink { url: "http://127.0.0.1:1/t/1/video.mkv".into(), size: 1 }));
     add("Playable.url", keys(&Playable::Url { url: "https://a.io".into() }));
     add("Playable.external", keys(&Playable::External { url: "https://a.io".into() }));
+    add("Playable.torrent", keys(&Playable::Torrent {}));
     add("Playable.unsupported", keys(&Playable::Unsupported { reason: "r".into() }));
     add(
         "SubtitleOption",

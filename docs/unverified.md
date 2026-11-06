@@ -487,6 +487,28 @@ against a real project.
     second (no MB written), CPU against autocrop off; a change lands within a frame or two of its cut; nothing
     hangs when playback stops or the window hides mid-read; hardware decoding stays zero-copy.
 
+## Torrent sources (#47)
+
+- Checked here: `crates/torrent`'s loopback test (a second session shares a made-up file; the engine fetches it
+  with no DHT or trackers, serves it with ranges, seeks, closes, keeps it when sharing, refuses a file over the
+  cache limit and a file index the torrent lacks); the step lines and limits in `tests/torrentSteps.test.ts`;
+  the app side type-checks for Linux and Windows. Not run here: a real swarm, mpv or `<video>` playing the
+  loopback link, the DHT from a home network.
+- To check on Windows, macOS and Linux, with a stream add-on of your own that returns torrent streams of a file
+  you're entitled to watch (an open film):
+  - The loading screen shows "Looking for peers", "File list from peers … file N of M (.mkv, size)", then a
+    peer line that updates in place, then mpv's buffering lines; it starts within a few seconds of the first
+    peers. Seeking far ahead resumes after a short wait (those pieces are fetched first). Copy details shows no
+    file name, hash or link beyond "this computer".
+  - Settings → Sources → Torrent Sources: a speed limit of 5 Mbit/s holds the download near 600 KB/s (Task
+    Manager / Activity Monitor); a cache limit smaller than the file refuses it with a message naming both sizes.
+  - Close the player: `torrent-cache` in the app's cache folder (Windows `%LOCALAPPDATA%\app.getpolar.desktop`,
+    macOS `~/Library/Caches/app.getpolar.desktop`, Linux `~/.cache/app.getpolar.desktop`) is empty again within
+    a second or two, and upload stops. With "Keep sharing after playback" on, it stays and keeps uploading until
+    Polarity quits; the next start finds the folder empty.
+  - No firewall prompt appears (the engine doesn't listen; it connects out).
+  - Phones: a torrent source says it plays on the desktop app for now.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The

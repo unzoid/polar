@@ -56,10 +56,12 @@ pub async fn mpv_load(
     if !is_web_url(&url) && !downloaded {
         return Err(CmdError::Unsupported("only http(s) streams and downloads can be played".into()));
     }
+    // Ours as they are: a download, or the torrent engine's loopback link.
+    let local = downloaded || crate::torrent::owns(&app, &url);
     // A link that's not ready yet, or a placeholder clip in place of the video.
     let headers =
-        if downloaded { Vec::new() } else { polar_player::headers::playback_headers(&headers.unwrap_or_default()) };
-    let url = if downloaded { url } else { crate::streamcheck::prepare(&app, &url, headers.clone(), probe_id).await? };
+        if local { Vec::new() } else { polar_player::headers::playback_headers(&headers.unwrap_or_default()) };
+    let url = if local { url } else { crate::streamcheck::prepare(&app, &url, headers.clone(), probe_id).await? };
     state.mpv.touch();
     state.mpv.ensure(&app, &window).await.map_err(CmdError::Player)?;
     let mut options = String::new();
