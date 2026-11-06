@@ -685,3 +685,12 @@ against a real project.
   is gone; start a download of a source that plays in a browser ("can't be downloaded"); play a source that answers
   404 (the loading screen says `Failed at the source's server`) and, with mpv missing from its folder, any source
   (`Failed at the player`). Signed in with 5 profiles, adding a sixth says "An account can have up to 5 profiles."
+- Add-ons and API keys per profile on a device (#80; `startProfile`, `setupSources`, `copySetup` in
+  `lib/account/settingsSync.ts`, tested with the mocked store). Settings → Account → Sync → "Share add-ons and keys
+  between profiles on this device": on for installs from before this version (prefs or an account's settings
+  already stored), off for new ones. Off, a profile this device has never synced starts without the add-ons and
+  keys in the store (only the app's own subtitles add-on stays), takes its account's own on the first sync round,
+  and sends nobody else's up; while it has none, Settings → Account offers "From Guest on this device" and the
+  account's other profiles synced here. Not run signed in. To check, with sharing off: as a guest add a TMDB key
+  and an add-on; sign in to a new account: no key, no add-on, and the offer lists Guest; copy: both there; sign
+  out: the guest's set as it was; sign in to a second account: it never sees the first account's set.
