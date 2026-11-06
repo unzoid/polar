@@ -75,6 +75,13 @@ export function OptionsOverlay({
   foreground?: ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  /** A press that may become a click outside the panel. */
+  const press = useRef<{ id: number; x: number; y: number } | null>(null);
+  const missesPanel = (e: { target: EventTarget; clientX: number; clientY: number; pointerType: string }) => {
+    if ((e.target as Element).closest?.(".options-close, .select-popup, .srcf-popover")) return false;
+    const rects = [...(root.current?.querySelectorAll(".options-column") ?? [])].map((el) => el.getBoundingClientRect());
+    return outsidePanel(e.clientX, e.clientY, rects, e.pointerType === "touch" ? MISS_MARGIN.touch : MISS_MARGIN.mouse);
+  };
   // Stay mounted through the exit transition.
   const [mounted, setMounted] = useState(open);
   useEffect(() => {
@@ -132,12 +139,21 @@ export function OptionsOverlay({
       aria-modal
       tabIndex={-1}
       data-layer=""
-      // Anywhere on the blur closes; only the columns themselves (and popups opened from them) don't.
+      // A click clearly outside the panel closes it; one that just misses a control does nothing (#202).
       onPointerDown={(e) => {
-        if (e.button !== 0) return;
-        if ((e.target as Element).closest?.(".options-column, .select-popup, .srcf-popover, .options-close")) return;
-        onClose();
+        press.current = null;
+        if (e.button !== 0 || !missesPanel(e)) return;
+        // A dropdown open in the panel closes on this click by itself: the panel stays.
+        if (document.querySelector(".select-popup, .srcf-popover")) return;
+        press.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
       }}
+      onPointerUp={(e) => {
+        const p = press.current;
+        press.current = null;
+        // Released where it was pressed (not a drag or a scroll), and still clearly outside.
+        if (p?.id === e.pointerId && Math.hypot(e.clientX - p.x, e.clientY - p.y) <= CLICK_SLOP && missesPanel(e)) onClose();
+      }}
+      onPointerCancel={() => (press.current = null)}
     >
       <VideoBackdrop media={media} />
       <div className="options-shade" aria-hidden />
@@ -174,6 +190,25 @@ export function OptionsOverlay({
       {foreground}
     </div>
   );
+}
+
+/** Past the panel's content, a click still counts as a miss for this far (px); a finger gets more room. */
+const MISS_MARGIN = { mouse: 24, touch: 40 };
+/** A press that travels further than this (px) is a drag or a scroll, not a click. */
+const CLICK_SLOP = 10;
+
+/**
+ * Whether (x, y) is clearly outside the panel: past the box around all its
+ * columns (their gaps and the space beside a short one included) by more than
+ * `margin`.
+ */
+export function outsidePanel(x: number, y: number, rects: readonly Pick<DOMRect, "left" | "top" | "right" | "bottom">[], margin: number) {
+  if (!rects.length) return true;
+  const left = Math.min(...rects.map((r) => r.left)) - margin;
+  const top = Math.min(...rects.map((r) => r.top)) - margin;
+  const right = Math.max(...rects.map((r) => r.right)) + margin;
+  const bottom = Math.max(...rects.map((r) => r.bottom)) + margin;
+  return x < left || x > right || y < top || y > bottom;
 }
 
 function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: boolean; onSelect: (id: string) => void }) {
