@@ -310,3 +310,62 @@ test("the party log gives the round trip in whole ms", () => {
   const { ms } = party(2);
   expect(ms[1].room.partyLog()).toMatch(/round trip \d+ ms/);
 });
+
+test("a seek while paused reaches every member at once, paused at the new position", () => {
+  const { sim, ms } = party(3);
+  ms[0].media!.pause();
+  sim.run(3000);
+  for (const [who, by] of [
+    [1, 300],
+    [0, 900],
+    [2, 1.5],
+  ] as const) {
+    const m = ms[who].media!;
+    const to = by < 10 ? m.currentTime + by : by;
+    m.currentTime = to;
+    sim.run(3000);
+    for (const o of ms) {
+      const p = o.room.getParty()!.playback!;
+      expect(p.paused).toBe(true);
+      expect(p.position).toBeCloseTo(to, 1);
+      expect(o.media!.paused).toBe(true);
+      expect(Math.abs(o.media!.currentTime - to)).toBeLessThan(0.2);
+    }
+  }
+});
+
+test("seeking step by step while paused sends one update, once the steps settle", () => {
+  const { sim, ms } = party(2);
+  ms[0].media!.pause();
+  sim.run(3000);
+  const v = ms[0].room.getParty()!.playback!.v;
+  const m = ms[1].media!;
+  const from = m.currentTime;
+  // A held arrow key: a step every 100 ms.
+  for (let i = 0; i < 8; i++) {
+    m.currentTime = m.currentTime + 1;
+    sim.run(100);
+  }
+  sim.run(3000);
+  for (const o of ms) {
+    const p = o.room.getParty()!.playback!;
+    expect(p.v).toBe(v + 1);
+    expect(p.position).toBeCloseTo(from + 8, 1);
+    expect(o.media!.paused).toBe(true);
+  }
+});
+
+test("where only the host controls playback, a member's seek while paused goes back to the room's frame", () => {
+  const { sim, ms } = party(2);
+  ms[0].room.setRules({ control: "host" });
+  ms[0].media!.pause();
+  sim.run(3000);
+  const before = timeline(ms[0]);
+  const at = ms[0].room.getParty()!.playback!.position;
+  ms[1].media!.currentTime = at + 120;
+  sim.run(3000);
+  for (const o of ms) {
+    expect(timeline(o)).toEqual(before);
+    expect(Math.abs(o.media!.currentTime - at)).toBeLessThan(0.2);
+  }
+});
