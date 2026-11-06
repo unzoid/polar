@@ -131,7 +131,7 @@ read, not run, here.
 | Downloads | `components/DownloadButton.tsx`, Library → Downloads | `library/downloads.ts` | `downloads.rs` |
 | Right-click menu on cards | `components/CardMenu.tsx`; TV `tv/TvCardMenu.tsx` | `library/titleActions.ts` | — |
 | Accounts and profiles, synced | `screens/account/*` (own chunks), `components/ProfileMenu.tsx`, `Avatar.tsx` | `account/*` (`supabase.ts`, `sync.ts`, `settingsSync.ts`, `progressCodec.ts`) | `crates/library/src/sync.rs`, `supabase/migrations` (`docs/supabase-storage.md`) |
-| Watch parties | `components/party/*`, `components/player/usePartySync.ts` + `partyFollower.ts`; TV `tv/TvJoinParty.tsx` | `party/room.ts` (one room, clock and server injected; tests/partySync.test.ts runs two), `party/party.ts`, `party/messages.ts` | Supabase Realtime (no server of ours) |
+| Watch parties | `components/party/*` (`PartyMenu.tsx`: the party menu), `components/player/usePartySync.ts` + `partyFollower.ts`; TV `tv/TvJoinParty.tsx`, `tv/TvPartyMenu.tsx` | `party/room.ts` (one room, clock and server injected; tests/partySim.ts simulates members for tests/partySync.test.ts and tests/partyMenu.test.ts), `party/party.ts`, `party/messages.ts` | Supabase Realtime (no server of ours) |
 | TV mode, controller and remote | `src/tv` (own chunk) | `settings/keybinds.ts`, `ui/dismiss.ts` | `controllers.rs` |
 
 ## 7. How sync flows

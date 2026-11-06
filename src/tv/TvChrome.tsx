@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
 import { Close, Desktop, Power, Profile, Search, Settings, Tv, Users, WatchParty } from "../components/icons";
-import { partyAvailable, setJoinPartyOpen } from "../lib/party";
+import { partyAvailable, setJoinPartyOpen, setPartyMenuOpen, useParty } from "../lib/party";
 import { useAccount } from "../lib/account";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { shortcutText, usePrefs } from "../lib/settings";
@@ -103,6 +103,7 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref);
   useBack(true, onClose);
+  const party = useParty();
   const me = account.profile;
   const others = me ? account.profiles.filter((p) => p.id !== me.id) : [];
   const hasAccountItems = account.enabled && (others.length > 0 || account.status === "ready" || account.status === "guest");
@@ -137,11 +138,13 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
               className="tv-menu-item"
               onClick={() => {
                 onClose();
-                setJoinPartyOpen(true);
+                // In a party: its menu (#156); otherwise joining one.
+                if (party && !party.knocking) setPartyMenuOpen(true);
+                else setJoinPartyOpen(true);
               }}
             >
               <WatchParty size={28} />
-              Join Watch Party
+              {party && !party.knocking ? `Watch Party (${party.members.length})` : "Join Watch Party"}
             </button>
           )}
           {account.enabled && account.status === "guest" && (

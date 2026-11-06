@@ -937,3 +937,22 @@ To check on Windows (WebView2), and on Linux and macOS:
   answers `X-RateLimit-Limit: 30`, and then each row is one request. Open a card while rows are still loading: its
   page doesn't wait behind them. After a 429, loading shelves say "AniList is busy, loading…". Quit and start again:
   the Anime page draws its rows at once. Settings → About → Cache → Clear empties them.
+- Watch party menu (#156; `components/party/PartyMenu.tsx`, the host's rules in `lib/party/room.ts`). Tested on
+  simulated members (tests/partyMenu.test.ts): remove, make host, lock, approve joins, host-only control, wait
+  for everyone, end party, the host leaving, Disconnected, "behind", mute; the menu itself in tests/dom. Not run
+  against a real room or on TV. There's no server of our own: the rules hold because every member's app keeps
+  them, and a member removed keeps a code it can join again with as someone new unless the party is locked.
+  To check, with three signed-in devices (A starts, B and C join):
+  1. On A away from the player, click the faces in the top bar: what's playing, the members with their status,
+     the code, Go to the Current Stream (opens the player in step), Mute party sounds, Leave Party, and the
+     host controls. Leave B's player: A shows B as Away; pull B's network: Disconnected, then gone.
+  2. A turns on Approve joins; C joins: C's dialog says it's waiting, A's faces get a dot, A lets C in.
+     Again with Decline: C is told the host didn't let it in.
+  3. A turns on Lock party: a new join is told the party is locked; unlocking lets it in.
+  4. A turns on Only I control playback: B's pause, seek or next episode doesn't change the room (B gets a note,
+     its player goes back); A's do.
+  5. A makes B host: within a couple of seconds both show B as Host and only B has the host controls.
+     B removes C: C sees "The host removed you from the watch party." B ends the party: A sees it ended.
+  6. B hosts and leaves: the next member becomes host and everyone gets a note.
+  7. TV mode: the menu (side menu → Watch Party) works with the remote; the player's Watch Party panel has the
+     same parts.

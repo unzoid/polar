@@ -13,7 +13,9 @@ import { WindowControls } from "./WindowControls";
 import { ProfileMenu } from "./ProfileMenu";
 import { UpdatePill } from "./Updates";
 import { useParty } from "../lib/party";
-import { PartyBadge } from "./party/PartyUI";
+import { PartyFaces, partyBadgeLabel } from "./party/PartyUI";
+import { PartyMenu } from "./party/PartyMenu";
+import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
 import { Chip } from "./ui/Chip";
 import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "./ui/Menu";
 import { useNativeTabs } from "./NativeTabs";
@@ -98,13 +100,21 @@ export function NavBar() {
   );
 }
 
-/** Still in a watch party while browsing: who's in it, and the way back to what the room is watching. */
+/** In a watch party while browsing: who's in it; opens the party menu (#156). */
 function NavParty() {
   const party = useParty();
-  const { navigate } = useRouter();
-  const m = party?.playback?.media;
-  if (!party || !m) return null;
-  return <PartyBadge party={party} onOpen={() => navigate({ name: "player", type: m.type, metaId: m.metaId, videoId: m.videoId })} />;
+  const [open, setOpen] = useState(false);
+  if (!party || !party.playback || party.knocking) return null;
+  return (
+    <PopoverRoot open={open} onOpenChange={setOpen}>
+      <PopoverTrigger className="party-badge pressable" aria-label={partyBadgeLabel(party)} title="Watch party" data-status={party.status}>
+        <PartyFaces party={party} />
+      </PopoverTrigger>
+      <PopoverPopup sideOffset={8} align="end" collisionPadding={12} className="party-popover" aria-label="Watch party">
+        <PartyMenu party={party} onClose={() => setOpen(false)} />
+      </PopoverPopup>
+    </PopoverRoot>
+  );
 }
 
 /**
