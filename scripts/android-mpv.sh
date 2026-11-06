@@ -111,8 +111,10 @@ for arch in "${archs[@]}"; do
 	for lib in prefix/"$arch"/lib/*.so; do
 		cp -L "$lib" "$libs/"
 	done
-	# Shared C++ runtime, when something links it.
-	if "$readelf" -d "$libs"/*.so | grep -q 'NEEDED.*\[libc++_shared.so\]'; then
+	# The NDK's shared C++ runtime, when something links it. (Not `readelf | grep -q`: grep quits at
+	# the first match, readelf dies of SIGPIPE, and pipefail turns the match into a failure.)
+	needed=$("$readelf" -d "$libs"/*.so)
+	if [[ $needed == *"[libc++_shared.so]"* ]]; then
 		cp "$(echo "$ndk"/toolchains/llvm/prebuilt/*/sysroot/usr/lib/"$triple"/libc++_shared.so)" "$libs/"
 	fi
 	missing=0
@@ -133,11 +135,17 @@ cp deps/mpv/LICENSE.GPL "$licenses/LICENSE.GPL.txt"
 cp deps/mpv/Copyright "$licenses/COPYRIGHT.txt"
 cp deps/ffmpeg/COPYING.GPLv3 "$licenses/FFmpeg-COPYING.GPLv3.txt"
 cp deps/ffmpeg/LICENSE.md "$licenses/FFmpeg-LICENSE.md"
+cxx=$(ls "$out"/jniLibs/*/libc++_shared.so 2>/dev/null || true)
+[ -z "$cxx" ] || cp "$ndk/NOTICE.toolchain" "$licenses/libc++-NOTICE.txt"
 {
 	echo "This app carries libmpv and FFmpeg (GPL), built for Android from the sources in"
 	echo "polarity-android-mpv-sources.tar.xz, published with each release of the app."
 	echo
 	sed -n '/^Libraries/,/^$/p' "$work/SOURCES.txt"
+	if [ -n "$cxx" ]; then
+		echo "libc++_shared.so: LLVM's C++ runtime from Android NDK $v_ndk ($v_ndk_n), which libmpv"
+		echo "and its libraries link; Apache-2.0 WITH LLVM-exception, notices in libc++-NOTICE.txt."
+	fi
 } >"$licenses/BUNDLED.txt"
 
 mkdir -p "$app"
