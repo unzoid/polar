@@ -250,6 +250,13 @@ pub fn addons_list(state: State<'_, AppState>) -> Vec<InstalledAddon> {
     installed(&state)
 }
 
+/// The manifest URLs of the add-ons the app installs itself: a profile new to this device keeps
+/// them when it starts without anyone else's add-ons (#80).
+#[tauri::command]
+pub fn addons_bundled() -> Vec<String> {
+    crate::BUNDLED_ADDONS.iter().map(|u| u.to_string()).collect()
+}
+
 #[tauri::command]
 pub async fn addon_install(state: State<'_, AppState>, url: String) -> Result<InstalledAddon> {
     let url = url.trim().replace("stremio://", "https://");

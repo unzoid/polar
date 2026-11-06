@@ -9,6 +9,8 @@ import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
 import { StremioImport } from "../../components/settings/StremioImport";
+import { CopySetup } from "../../components/settings/CopySetup";
+import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AccountPage() {
   const account = useAccount();
@@ -31,7 +33,7 @@ export function AccountPage() {
 
   return (
     <>
-      <Card footer="Your library, where you are in each title, playlists, settings and shortcuts sync automatically. API keys, addons, volume and TV mode stay on this device.">
+      <Card footer="Your library, where you are in each title, playlists, settings, shortcuts, API keys and add-ons sync automatically. Volume and TV mode stay on this device.">
         <ActionRow title="Email" caption={account.user?.email} label="Sign Out" onClick={() => void account.signOut()} />
       </Card>
 
@@ -47,6 +49,7 @@ export function AccountPage() {
 
       <Card title="Sync">
         {account.profile && <SecretsRow profileId={account.profile.id} {...expand("secrets")} />}
+        <SettingRow id="shareAddonsAndKeys" />
         {settingsProblem === "too_large" && (
           <p className="settings-error">This profile's settings are too large to sync. Add-on links take the most room: remove some to sync again.</p>
         )}
@@ -56,6 +59,8 @@ export function AccountPage() {
           </p>
         )}
       </Card>
+
+      <CopySetup />
 
       <StremioImport />
 

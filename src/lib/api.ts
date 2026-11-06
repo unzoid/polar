@@ -29,6 +29,7 @@ import type {
 } from "./types";
 import { settingsChanged } from "./settings/changes";
 import type { AnimeLink } from "./library/identity";
+import type { DiscordActivity } from "./playback/discordPresence";
 
 /** A native command; a change it couldn't save is reported app-wide (errors.ts onSaveFailure) and still rejects. */
 const call = <T = unknown>(command: string, args?: Record<string, unknown>) =>
@@ -76,6 +77,8 @@ export const api = {
   ratings: (type: ContentType, id: string) => call<ExternalRatings>("ratings", { ty: type, id }),
 
   addons: () => call<InstalledAddon[]>("addons_list"),
+  /** The add-ons the app installs itself, by manifest URL. */
+  bundledAddons: () => call<string[]>("addons_bundled"),
   installAddon: (url: string) => call<InstalledAddon>("addon_install", { url }).then(changed),
   removeAddon: (id: string) => call<void>("addon_remove", { id }).then(changed),
 
@@ -121,6 +124,10 @@ export const api = {
   resetSettings: () => call<Settings>("settings_reset").then(changed),
 
   mpvAvailable: () => call<boolean>("mpv_available"),
+  /** Whether this build can show what plays on Discord (desktop, built with a Discord application). */
+  discordAvailable: () => call<boolean>("discord_available").catch(() => false),
+  /** Shows what plays on the user's Discord profile, or clears it (null); nothing happens without Discord. */
+  discordPresence: (activity: DiscordActivity | null) => call<void>("discord_presence", { activity }).catch(() => {}),
   /** Why saved data couldn't be read at start-up; `null` when it could. */
   storeProblem: () => call<string | null>("store_problem"),
 };

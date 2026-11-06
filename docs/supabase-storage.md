@@ -195,7 +195,7 @@ cascades through `profiles`. Pulls (`profile_id = $1 and synced_at > $2`) walk t
 A pulled title arrives with an id, a kind and times only. After each sync round the device looks up
 every title it has no name for (`src/lib/account/titleDisplay.ts`: newest first, four at a time,
 through `api.meta`, the call the title page makes) and keeps the name and pictures in its own store
-(`polar.json`, commands `space_untitled` / `space_fill_display`, `crates/library/src/display.rs`),
+(`polarity.json`, commands `space_untitled` / `space_fill_display`, `crates/library/src/display.rs`),
 so each title is looked up once per device. Filling moves no times, so nothing is pushed back.
 Pictures the lookup didn't give are built from the id where the source has a fixed pattern:
 
@@ -234,6 +234,13 @@ setting (#89, §2.1 option D by default, C with a passphrase):
   the others' keys; it keeps its own keys and add-ons and Settings → Account asks for the passphrase.
 - A profile's first round on a device takes the account's keys but keeps a key the account lacks,
   and no add-on is taken away (`firstDoc`).
+- **Per profile on a device** (#80): each profile's keys and add-ons are its own copy on the device,
+  put back when it's entered; the guest's are kept aside and put back at sign-out. Unless Settings →
+  Account shares add-ons and keys between profiles on the device (on for installs from before #80,
+  off for new ones), a profile the device has never synced starts with none of those in the store,
+  only the app's own add-ons (`startProfile`), so its first round sends nobody else's to its account.
+  While it has none, Settings → Account offers to copy the guest's set or one of the account's other
+  profiles' sets kept on the device (`copySetup`); copies sync like any change.
 - Versions from before #89 drop the `secrets` field when they write the document (the next newer
   device puts it back from its own copy) and pass `sealed` on as it came. A passphrase typed in such
   a version while the option was off is forgotten on update (nothing was sealed with it).
@@ -302,3 +309,82 @@ Left for the app: pulls ordered by `(synced_at, key)` (M8).
 size), part 2 after (same counts, every progress row decodes to one entry, no keys or add-on links
 left in settings, old tables and `user_id` gone, RLS on, database size). Part 3 and the two-device
 checks are in `docs/unverified.md` ("Compact account storage").
+
+## 8. Account limits (#110)
+
+`supabase/migrations/20261107000000_account_limits.sql` gives every table an account can write a cap
+per row and a cap on rows, so one account (or a script signing up many) can only take so much of
+the project's 500 MB. The caps leave room for a real household: the heavy test profile of §2 has
+2,000 titles.
+
+| Table | Per row | Rows | Worst case per account |
+| --- | --- | --- | --- |
+| `profiles` | name 1-40 characters, avatar an id (`[a-z0-9-]`, up to 32) | 5 an account | ~1 KiB |
+| `library` | `meta_id` up to 200 bytes | 5,000 a profile, 10,000 an account | 10,000 × 764 B = 7.3 MiB |
+| `progress` | `meta_id` up to 200 bytes; one entry, up to 512 bytes (32 KB with every episode kept) | 5,000 a profile, 10,000 an account | 10,000 × 1.27 KiB = 12.4 MiB |
+| `anime_links` | ids and the canonical id's format | 5,000 a profile | 25,000 × 146 B = 3.5 MiB |
+| `playlists` | name 1-60 characters, items 8 KB; a removed one keeps no items | 100 live, 1,000 with removed ones, a profile | 5 × 1.2 MiB = 5.9 MiB |
+| `profile_settings` | 16 KB, a JSON object | 1 a profile | 5 × 16 KiB = 0.1 MiB |
+| **Total** | | | **about 29 MiB** |
+
+Sizes are `pg_total_relation_size` (rows, TOAST and indexes) measured in PGlite with every row at
+its largest and ids that don't compress; a real account is far smaller (the heavy profile: 0.66 MiB).
+With supabase/optional/per_episode_progress.sql in, a progress row may hold up to 32 KB, so the
+worst case of `progress` grows to about 10,000 × 33 KiB = 320 MiB an account: keep that in mind
+before turning it on for a project anyone can sign up to.
+
+How the caps work:
+
+- One statement trigger per table counts after each insert (a push of 500 rows counts once). A
+  push past a cap is refused as a whole with `library_limit`, `progress_limit`,
+  `anime_links_limit` or `playlist_limit`; updates of rows already there always go through.
+- At the cap, removals changed more than 90 days ago (library tombstones, removed playlists) are
+  deleted first to make room: by then every device has seen them.
+- Values: ids without control characters, times not negative (and, as before, not past now + 5 min:
+  `added_at` is clamped like `updated_at`), the settings document an object. These checks are
+  `not valid`, so the migration never fails on rows already stored: run
+  `supabase/checks/account_limits.sql` once afterwards to list rows that don't pass and validate
+  the checks.
+- In the app (`sync.ts`, `AccountFullToast`): a kind that's full stays on the device and is tried
+  again each round, everything else goes on syncing, and a toast says which part is full, once a
+  session per kind. Before a push the app leaves out what the server would refuse anyway (an id
+  it can't take, an entry past 512 bytes); those titles stay on the device.
+
+### 8.1 CAPTCHA on sign-in
+
+Supabase Auth can require a CAPTCHA on the request that sends the sign-in code. The app shows
+Cloudflare Turnstile only when the server asks for it (`captcha_failed`), so nothing changes
+until it's turned on. To turn it on:
+
+1. In Cloudflare's dashboard, Turnstile → Add widget: mode Managed; hostnames `tauri.localhost`
+   (Windows, Android) and `localhost` (macOS, Linux, iOS, where the app's pages come from
+   `tauri://localhost`). Note the site key and the secret key.
+2. Build the app with the site key: `VITE_CAPTCHA_SITE_KEY=<site key>` in `.env` (see
+   `.env.example`), and ship that version. The site key is public; the secret key never goes in
+   the app.
+3. Check sign-in with the check showing on each platform (docs/unverified.md, "CAPTCHA").
+4. Only then, in Supabase: Project Settings → Authentication → Bot and Abuse Protection (the name
+   Supabase's docs give; newer dashboards may call it Attack Protection) → Enable CAPTCHA protection,
+   provider Turnstile, paste the secret key, save. From then on, versions built without the site
+   key can't sign in new sessions (they say the server asks for a check they can't show; older
+   versions show Supabase's error).
+
+### 8.2 Auth rate limits
+
+Authentication → Rate Limits in the Supabase dashboard. Values to start from:
+
+- Emails sent: the built-in mailer allows only a few an hour for the whole project; with your own
+  SMTP server set up (Authentication → Emails → SMTP), 30 an hour is plenty for sign-in codes.
+- Sign-ups and sign-ins: 10 per 5 minutes per IP address.
+- Token verifications (entering the code): 30 per 5 minutes per IP address.
+- Keep "Allow new users to sign up" on (signing in creates the account) and the code expiry at an
+  hour or less (Authentication → Providers → Email).
+
+### 8.3 Admin scripts
+
+In the dashboard's SQL editor, as the owner:
+
+- `supabase/admin/account_usage.sql` (read-only): the 50 largest accounts with their bytes and rows
+  per table, sign-ups per day for 30 days (a burst can be a script), and the size of each table.
+- `supabase/admin/delete_account.sql`: deletes one account (put its id in first), as a whole or
+  only its profiles and their rows (`keep_sign_in`). It can't be undone.

@@ -685,3 +685,34 @@ against a real project.
   is gone; start a download of a source that plays in a browser ("can't be downloaded"); play a source that answers
   404 (the loading screen says `Failed at the source's server`) and, with mpv missing from its folder, any source
   (`Failed at the player`). Signed in with 5 profiles, adding a sixth says "An account can have up to 5 profiles."
+- Account limits (#110; supabase/migrations/20261107000000_account_limits.sql, tested in PGlite:
+  tests/sql/accountLimits.test.ts). Not run on a real project. To check on a copy (docs/supabase-storage.md
+  §7, §8): apply the migration, run `supabase/checks/account_limits.sql` (every count 0, then the
+  validations go through) and `supabase/admin/account_usage.sql`; sign in and sync as usual (nothing
+  changes below the caps). The "Your account is full" toast (`AccountFullToast`) and syncing the other
+  kinds while one is full are tested in parts (spacePush, dbError), not in the running app.
+- CAPTCHA on sign-in (#110; `lib/account/captcha.ts`, `screens/account/Captcha.tsx`): never shown, since
+  no site key exists yet. Unverified: whether Turnstile's widget loads and passes in the app's web view
+  on each platform (pages come from `tauri://localhost` on macOS, Linux and iOS and
+  `http://tauri.localhost` on Windows and Android; the CSP allows `https://challenges.cloudflare.com`
+  as script and frame), and whether Supabase also asks for a CAPTCHA when the code is entered (the app
+  sends one only with the request for a code). To check, on each platform with a build carrying
+  `VITE_CAPTCHA_SITE_KEY` and CAPTCHA on in a test project: ask for a code: the check shows under the
+  button, and once passed the code is sent; enter the code: signed in. With CAPTCHA off: no check shows.
+- `polar.json` renamed `polarity.json` (#40; `polar_library::moved::take_over_or_keep`, tested on Linux): at
+  the first start of this version the file is copied to `polarity.json` (owner-only on Linux and macOS), then
+  the old one renamed `polar.json.moved`. If the copy can't be made, `polar.json` stays in use and the next start
+  tries again. The log (`polar.log`) and the `app.getpolar.desktop` folders keep their names. To check on each
+  desktop: with a library and settings from the previous version, start this one: everything is there, the app
+  data folder has `polarity.json` and `polar.json.moved` and no `polar.json`; change a setting, quit, start
+  again: still changed. An earlier version started after this one finds no `polar.json` and starts empty
+  (rename `polar.json.moved` back to go back).
+- Add-ons and API keys per profile on a device (#80; `startProfile`, `setupSources`, `copySetup` in
+  `lib/account/settingsSync.ts`, tested with the mocked store). Settings → Account → Sync → "Share add-ons and keys
+  between profiles on this device": on for installs from before this version (prefs or an account's settings
+  already stored), off for new ones. Off, a profile this device has never synced starts without the add-ons and
+  keys in the store (only the app's own subtitles add-on stays), takes its account's own on the first sync round,
+  and sends nobody else's up; while it has none, Settings → Account offers "From Guest on this device" and the
+  account's other profiles synced here. Not run signed in. To check, with sharing off: as a guest add a TMDB key
+  and an add-on; sign in to a new account: no key, no add-on, and the offer lists Guest; copy: both there; sign
+  out: the guest's set as it was; sign in to a second account: it never sees the first account's set.

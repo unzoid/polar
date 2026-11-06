@@ -113,6 +113,16 @@ export const SETTINGS: SettingDef[] = [
   { id: "profiles", page: "account", title: "Profiles", keywords: "switch who's watching" },
   { id: "manageProfiles", page: "account", title: "Manage profiles", keywords: "edit add remove avatar" },
   { id: "secrets", page: "account", title: "API keys and addons", keywords: "sync encrypt encrypted passphrase keys addons secret" },
+  {
+    id: "shareAddonsAndKeys",
+    page: "account",
+    title: "Share add-ons and keys between profiles on this device",
+    caption: "On: a profile new to this device starts with the add-ons and API keys already here. Off: it starts with its own from your account, or none.",
+    keywords: "profiles addons api keys device shared separate per profile",
+    bind: p("shareAddonsAndKeys"),
+    control: toggle,
+  },
+  { id: "copySetup", page: "account", title: "Add-ons and Keys", keywords: "copy addons api keys profile guest device start" },
   { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
@@ -233,6 +243,19 @@ export const SETTINGS: SettingDef[] = [
     keywords: "minimise background",
     bind: p("pauseOnMinimize"),
     control: toggle,
+  },
+  {
+    id: "discordPresence",
+    page: "playback",
+    title: "Show on Discord",
+    caption: "While something plays, on your Discord profile. Discord needs to be running on this computer.",
+    keywords: "discord rich presence status activity profile privacy",
+    bind: p("discordPresence"),
+    control: choice([
+      { value: "off", label: "Off" },
+      { value: "app", label: "That you're watching" },
+      { value: "title", label: "What you're watching" },
+    ]),
   },
   { id: "rememberSpeed", page: "playback", title: "Remember playback speed", keywords: "rate faster slower" },
   {

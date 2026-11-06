@@ -116,7 +116,7 @@ test("a wheel turn down a show's page lands its season tabs below the navbar's b
   expect((await tabs.boundingBox())!.y).toBe(last);
 });
 
-test("an episode's Sources and Download buttons show alike, on a dark fill, without hovering (#18)", async ({ app }) => {
+test("an episode's Sources and Download buttons show alike, quietly, only while the card is pointed at or focused (#18, #79)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();
   const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
@@ -128,12 +128,33 @@ test("an episode's Sources and Download buttons show alike, on a dark fill, with
       const alpha = Number(/rgba?\(([^)]+)\)/.exec(s.backgroundColor)?.[1].split(",")[3] ?? 1);
       return { opacity: s.opacity, alpha, color: s.color, size: b.getBoundingClientRect().width };
     });
+  // Out of the way while nothing points at the card.
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("0");
+  expect((await look(".episode-download")).opacity).toBe("0");
+
+  // Pointing at the card shows both, alike: a white glyph on a lighter fill than before, the same size.
+  await ep.hover();
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("1");
   const sources = await look(".episode-sources");
   const download = await look(".episode-download");
   expect(sources).toEqual(download);
-  expect(sources.opacity).toBe("1");
   expect(sources.color).toBe("rgb(255, 255, 255)");
-  expect(sources.alpha).toBeGreaterThanOrEqual(0.5);
+  expect(sources.alpha).toBeGreaterThanOrEqual(0.4);
+  expect(sources.alpha).toBeLessThan(0.55);
+  expect(sources.size).toBe(32);
+
+  // Keyboard focus on the card shows them too; the tap area stays 44 px.
+  await app.mouse.move(0, 0);
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("0");
+  await ep.locator(".episode-card-main").focus();
+  await app.keyboard.press("Shift+Tab");
+  await app.keyboard.press("Tab");
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("1");
+  const tap = await ep.locator(".episode-sources").evaluate((b) => {
+    const a = getComputedStyle(b, "::after");
+    return b.getBoundingClientRect().width - 2 * parseFloat(a.top);
+  });
+  expect(tap).toBe(44);
 });
 
 test("a downloaded episode offers Show in Folder and Delete as buttons, and Play takes the download (#25)", async ({ app }) => {
@@ -341,6 +362,31 @@ test("the title page's Download button names what it downloads (#26)", async ({ 
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
   await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
+});
+
+test("with Show on Discord set to the title, the player sends what plays, its pause, and clears it on close (#31)", async ({ app }) => {
+  const sent = () => app.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as ({ details: string; state?: string; end?: number } | null)[]);
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("combobox", { name: "Show on Discord" }).click();
+  await app.getByRole("option", { name: "What you're watching" }).click();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "The Glass Orchard" });
+  expect((await sent()).at(-1)?.end).toBeGreaterThan(Date.now());
+
+  await app.keyboard.press(" ");
+  await expect.poll(async () => (await sent()).at(-1)?.state).toBe("Paused");
+  await app.keyboard.press("Escape");
+  await expect(app.locator(".player")).toHaveCount(0);
+  await expect.poll(async () => (await sent()).at(-1)).toBeNull();
+  // Nothing was sent before it played.
+  expect((await sent())[0]).not.toBeNull();
 });
 
 test("a Home shelf's heading opens its browse page with the filter on, and Back returns to the same place (#48)", async ({ app }) => {

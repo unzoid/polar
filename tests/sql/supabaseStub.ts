@@ -19,7 +19,7 @@ export const migrations = () =>
 export async function supabaseDb() {
   const db = new PGlite();
   await db.exec(`create role anon; create role authenticated; create schema auth;
-create table auth.users (id uuid primary key);
+create table auth.users (id uuid primary key, email text, created_at timestamptz not null default now());
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;
 create schema realtime; create table realtime.messages (extension text); create function realtime.topic() returns text language sql as $$ select '' $$;`);

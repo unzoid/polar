@@ -21,7 +21,7 @@ Rules:
 - **The core crates hold no platform code.** They build and test on any system with
   `cargo test -p polar-addon -p polar-library -p polar-anime -p polar-index -p polar-player`. Their only
   `cfg` outside tests is `#[cfg(unix)]` in `crates/library/src/saver.rs`, which makes
-  `polar.json` owner-only (0600) where the system has Unix permissions; elsewhere it does
+  `polarity.json` owner-only (0600) where the system has Unix permissions; elsewhere it does
   nothing. Paths come in from the shell (`app_data_dir`, `app_cache_dir`), never from the
   crates themselves.
 - **Only `src/lib/platform` imports `@tauri-apps/*`.** Everything else goes through its
@@ -43,8 +43,8 @@ Rules:
 |---|---|---|---|
 | Bridge | `bridge.ts`: `call(command, args)`, `on(event, handler)`, `inShell` | `tauri::generate_handler!` in `src-tauri/src/lib.rs` | Tauri carries it everywhere; nothing differs |
 | Player | `components/player/mpvMedia.ts` (`MpvMedia`, the same shape as `<video>`), chosen in `screens/Player.tsx` by `mpv_available` | `player/` (`mod.rs`: `Mpv`, `Engine`, the IPC reader; `commands.rs`: the `mpv_*` commands; `autocrop.rs`; `ipc.rs`), `macos/mpv_view.m`, `streamcheck.rs`; what any engine follows in `crates/player` (allow-lists, `Tune`, `CropTracker`/`zoom_for`) | Windows: mpv process drawing into the window (`--wid`). macOS: libmpv in the app. Elsewhere `mpv_available` is false and the webview's `<video>` plays |
-| Storage | `lib/settings/prefs.ts` (device prefs in `localStorage`), `lib/api.ts` for the rest | `store.rs` + `polar_library::saver` (`polar.json` in the app data folder), `downloads.rs` | Tauri picks the folders (`app_data_dir`, `app_cache_dir`) per system |
-| Keys | `lib/account/secrets.ts` (sealing with the optional passphrase); `keychain.ts`: the sign-in session's storage, falling back to `localStorage` | API keys: `polar.json` (`store.rs`), owner-only on Unix. Session: `keychain.rs` over the `keyring` crate, laid out by `polar_library::keychain` (split under Windows' 2,560-byte limit) | Keychain on macOS, Credential Manager on Windows, Secret Service on Linux (none running: the web view keeps it). Phones/TV: no keychain wired yet, the web view's storage |
+| Storage | `lib/settings/prefs.ts` (device prefs in `localStorage`), `lib/api.ts` for the rest | `store.rs` + `polar_library::saver` (`polarity.json` in the app data folder), `downloads.rs` | Tauri picks the folders (`app_data_dir`, `app_cache_dir`) per system |
+| Keys | `lib/account/secrets.ts` (sealing with the optional passphrase); `keychain.ts`: the sign-in session's storage, falling back to `localStorage` | API keys: `polarity.json` (`store.rs`), owner-only on Unix. Session: `keychain.rs` over the `keyring` crate, laid out by `polar_library::keychain` (split under Windows' 2,560-byte limit) | Keychain on macOS, Credential Manager on Windows, Secret Service on Linux (none running: the web view keeps it). Phones/TV: no keychain wired yet, the web view's storage |
 | Window | `window.ts`: `AppWindow` (minimise, maximise, close, fullscreen, focus, resize, zoom) | Tauri window, `tauri.conf.json`, `tauri.macos.conf.json`, `tauri.windows.conf.json` | Windows/Linux draw our buttons (`components/WindowControls.tsx`), macOS keeps its traffic lights; on phones and TVs the window is the screen |
 | Input | keyboard and pointer in the webview; `tv/gamepad.ts` (Gamepad API + native hot-plug); `lib/settings/keybinds.ts` | `controllers.rs` (gilrs: hot-plug only) | ⌘ vs Ctrl (`device.ts` `MOD`); TV remotes send arrow keys and Back, which TV mode already uses |
 | Updates | `updates.ts`: `AppUpdates` (`canUpdate`, `version`, `check`, `relaunch`); state in `lib/updater.ts` | `tauri-plugin-updater` + `tauri-plugin-process`, desktop only (`src-tauri/Cargo.toml`, `#[cfg(desktop)]` in `lib.rs`, permissions in `capabilities/desktop.json`) | Desktop updates itself from the signed `latest.json`; app stores update phone and TV builds, so `canUpdate` is false there |
@@ -57,7 +57,7 @@ machine (see `docs/unverified.md`).
 
 | Platform | Shell | Player | Storage and keys | Window | Input | Updates | State |
 |---|---|---|---|---|---|---|---|
-| Windows | Tauri 2, WebView2 | mpv process in the window (bundled by `scripts/fetch-mpv.ts`), `<video>` without it | `polar.json` in `%APPDATA%` (Tauri's app data folder) | frameless, our buttons | keyboard, mouse, controllers (gilrs: XInput / Windows.Gaming.Input) | self-update, quiet installer | built |
+| Windows | Tauri 2, WebView2 | mpv process in the window (bundled by `scripts/fetch-mpv.ts`), `<video>` without it | `polarity.json` in `%APPDATA%` (Tauri's app data folder) | frameless, our buttons | keyboard, mouse, controllers (gilrs: XInput / Windows.Gaming.Input) | self-update, quiet installer | built |
 | macOS | Tauri 2, WKWebView | libmpv inside the app (`macos/mpv_view.m`) | app data folder, 0600 | transparent title bar, system traffic lights | keyboard (⌘), trackpad, controllers (gilrs: IOKit) | self-update | built |
 | Linux | Tauri 2, WebKitGTK | `<video>` only: mpv can't draw into a GTK window yet, so `mpv_available` is false | XDG data folder, 0600 | our buttons | keyboard, mouse, controllers (gilrs: evdev) | self-update for an AppImage install, if a release carries one | built; mpv embedding not built |
 | Android (phone, tablet) | Tauri 2 mobile, Android System WebView (`mobile_entry_point` in `lib.rs`) | libmpv inside the app, drawing into a `SurfaceView` behind the web view (`player/android.rs`, built in CI by `scripts/android-mpv.sh`); `<video>` when the APK has no libmpv | app-private storage | the whole screen | touch; the back button and gesture as Back (`lib/platform/back.ts`, `lib/ui/systemBack.ts`: open layer, page, Home, then the app closes); the web view ends at the on-screen keyboard (`MainActivity.kt`); keyboard and controllers through the WebView | Play Store / sideload; `canUpdate` false | project in `src-tauri/gen/android`, debug APK built in CI, started in an emulator nightly (`e2e/android/smoke.sh`; never run on a device yet); phone and tablet layouts built (§4) |
@@ -130,7 +130,7 @@ read, not run, here.
 
 ## 7. How sync flows
 
-1. Every change is saved on the device first (`store.rs`, `polar.json`); `sync.schedule()`
+1. Every change is saved on the device first (`store.rs`, `polarity.json`); `sync.schedule()`
    (`lib/account/sync.ts`) queues a round.
 2. A round pushes what changed here and pulls what other devices pushed. Each profile keeps a dirty set
    (`crates/library/src/space.rs` `Dirty`): local edits enter it, pulled rows never do, and a push clears each
