@@ -21,6 +21,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { requireAccountEnv } from "./accountEnv";
+import { packMacSources } from "./macSources";
 
 const REPO = "unzoid/polar";
 const root = join(import.meta.dir, "..");
@@ -83,12 +84,17 @@ if (!flags.has("--no-build")) {
 const bundle = join(root, "target", "release", "bundle");
 const dmg = join(bundle, "dmg", `Polarity_${version}_aarch64.dmg`);
 const update = join(bundle, "macos", "Polarity.app.tar.gz");
-for (const f of [dmg, update, `${update}.sig`]) {
+const formulae = join(root, "src-tauri", "vendor", "libmpv", "formulae.json");
+for (const f of [dmg, update, `${update}.sig`, formulae]) {
   if (!existsSync(f)) {
     console.error(`Missing ${f}.`);
     process.exit(1);
   }
 }
+// The exact source of mpv and every library bundled with it, attached to the release.
+const sources = join(bundle, `Polarity_${version}_aarch64_mpv-sources.tar`);
+console.log("> packing the bundled libraries' sources");
+packMacSources(formulae, sources, join(bundle, "mpv-sources"));
 const minos = (() => {
   const plist = join(bundle, "macos", "Polarity.app", "Contents", "Info.plist");
   return readFileSync(plist, "utf8").match(/LSMinimumSystemVersion<\/key>\s*<string>([^<]+)/)?.[1];
@@ -102,7 +108,7 @@ mpv is built in (no Homebrew needed).
 ### What's new
 ${notes}
 
-mpv and its libraries are bundled (GPLv2+). Their licences and source links are in \`Polarity.app/Contents/Resources/licenses/mpv\`.
+mpv and its libraries are bundled (GPLv2+). Their licences are in \`Polarity.app/Contents/Resources/licenses/mpv\`; their exact source code, with Homebrew's build recipes, is \`Polarity_${version}_aarch64_mpv-sources.tar\` below.
 `;
 const bodyPath = join(bundle, "release-body-mac.md");
 writeFileSync(bodyPath, body);
@@ -114,6 +120,6 @@ run("gh", [
   "--notes-file", bodyPath,
   "--prerelease",
   ...(flags.has("--draft") ? ["--draft"] : []),
-  dmg, update, `${update}.sig`,
+  dmg, update, `${update}.sig`, sources,
 ]);
 console.log(`\nPublished Polarity ${version} for Mac (pre-release).`);
