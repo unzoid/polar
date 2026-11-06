@@ -404,6 +404,21 @@ against a real project.
   cut frame itself, with `--video-sync=display-resample` and without. To check: play a film with bars that change
   mid-shot on the desktop build and watch the crop settle.
 
+## Autocrop pre-roll probe (docs/autocrop.md §3)
+
+- `crop::opening_points`, `crop::opening_bars`, `CropTracker::open`, the PNG reader (`polar_player::png`) and
+  the detector on RGB screenshots are tested in `crates/player`; the probe itself
+  (`src-tauri/src/player/preroll.rs`) and its wiring in `mpv_load` and the autocrop loop only type-check here
+  (no mpv binary may run on this machine). Unknown, to check on the Windows build with autocrop on:
+  - that `screenshot-to-file … video` works with `--vo=null --screenshot-sw=yes` and writes a PNG with stored
+    (uncompressed) data at `--screenshot-png-compression=0` (if not, the probe finds nothing and playback starts
+    uncropped, as before: no harm, but no gain);
+  - how many of the 8 keyframes arrive within the 1.5 s budget on a typical stream (log line
+    `autocrop pre-roll: N readings` at debug level), and that a scope film's first frame is already cropped;
+  - that the probe's mpv is gone after each load (Task Manager) and its `probe-N` folder removed;
+  - HDR: whether software screenshots of PQ video are tone-mapped enough for the HDR levels to read the bars.
+- macOS has no probe yet (libmpv in the app, no second instance): films start uncropped there, as before.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The

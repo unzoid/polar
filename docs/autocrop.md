@@ -4,8 +4,10 @@ Status, 2026-11-06: built and tested in `crates/player`: the detector and the cr
 (§2), the pre-roll's choice of opening bars (§3, `crop::opening_bars`, `CropTracker::open`),
 animated bars (§5, `CropTracker::following`), eased moves (§6, `motion::Glide`,
 `crop::CropZoom`). The desktop engine (`src-tauri/src/player/autocrop.rs`) now jumps on the cut
-and eases late changes, still with cropdetect's readings, which give no crisp edges.
-Designed here and waiting on the engine work: the pre-roll probe (§3) and the lookahead (§4).
+and eases late changes, still with cropdetect's readings, which give no crisp edges. The
+pre-roll probe (§3) is wired in the desktop engine (`src-tauri/src/player/preroll.rs`) for
+mpv as its own process (Windows), not yet for libmpv in the app (macOS); it type-checks here and is untested with a real mpv
+(docs/unverified.md). Designed here and waiting on the engine work: the lookahead (§4).
 The aim is crop changes the viewer doesn't notice: a change on a cut jumps on the cut frame,
 and ease-out is the default for the rest.
 
@@ -62,18 +64,25 @@ Sintel's dark shots reads as bar.
 
 While the stream buffers, a second, light player instance (the **probe**) opens the same link:
 
-- `--vid=1 --aid=no --sid=no --ao=null --vo=null` (libmpv: no output; frames come through
-  `screenshot-raw`), `--hr-seek=no` and `--vd-lavc-skipframe=nonkey`, so every seek lands on a
-  keyframe and only keyframes are decoded; `--hwdec=no` and a small `--demuxer-max-bytes`.
-- It seeks to 8 points spread over the first 3 minutes (skipping the first 10 s, which are often
-  logos on black) and measures one keyframe at each. Cost: about 8 keyframes and the container
+- `--aid=no --sid=no --ao=null --vo=null`, `--hr-seek=no` and `--vd-lavc-skipframe=nonkey`,
+  so every seek lands on a keyframe and only keyframes are decoded; `--hwdec=no`, `--cache=no`
+  and a small `--demuxer-max-bytes`. On the desktop it is a second mpv process driven over its
+  own IPC socket, which can't carry `screenshot-raw`'s bytes: each keyframe is written with
+  `screenshot-to-file` as a PNG at `--screenshot-png-compression=0` (stored, not compressed),
+  read by `polar_player::png` and deleted. Where libmpv runs in the app (macOS, phones),
+  `screenshot-raw` hands the frame over directly.
+- It seeks to 8 points spread over the 3 minutes from where playback starts
+  (`crop::opening_points`; from the beginning it skips the first 10 s, which are often logos
+  on black) and measures one keyframe at each with our own detector (`bars::detect`, levels by
+  the video's gamma), scaled from the screenshot's size to the video's pixels. Cost: about 8 keyframes and the container
   index, a few MB, read with range requests alongside the main buffering.
 - The bars at least 5 of the 8 agree on (within 4 px, crisp on both sides, even) are the
   opening crop, the thinnest of them (`crop::opening_bars`); fades don't vote, and anything
   less clear starts uncropped, as today. `CropTracker::open` starts the load with them, as
   bars this file has shown: picture in them un-crops on its first frame. The main player loads paused with `video-zoom`
   already set, and starts when the probe is done or after a 1.5 s budget, whichever is first,
-  so autocrop never delays the start by more than that.
+  so autocrop never delays the start by more than that. What came by then votes: with fewer
+  than 8 readings, the same 5-in-8 share of them must agree.
 - Films that change aspect (IMAX sequences) start with their dominant opening bars; §4 handles
   the changes.
 

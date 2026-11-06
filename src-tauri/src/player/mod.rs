@@ -21,11 +21,13 @@
 //! down after a few idle minutes (to give its memory back) and when the app exits.
 //!
 //! Here: [`Mpv`], the engines and the IPC reader. [`commands`] holds the
-//! `mpv_*` commands, [`autocrop`] the black-bar zoom, [`ipc`] the transport.
+//! `mpv_*` commands, [`autocrop`] the black-bar zoom, [`preroll`] its probe of
+//! the opening, [`ipc`] the transport.
 
 mod autocrop;
 mod commands;
 mod ipc;
+mod preroll;
 
 pub use commands::*;
 
@@ -158,6 +160,9 @@ pub struct Mpv {
     /// Where the reader sends autocrop's observed properties: the running
     /// task's number and channel ([`CROP_OBSERVE_BASE`]).
     crop_events: StdMutex<Option<CropSink>>,
+    /// The current load's opening crop from the pre-roll probe, for the
+    /// autocrop loop to start its tracker with.
+    opening: StdMutex<Option<preroll::Opening>>,
     /// The running mpv process, also held by its `Conn`; see [`Mpv::kill`].
     process: StdMutex<Option<Process>>,
 }
@@ -348,7 +353,7 @@ impl Mpv {
             stale.engine.kill();
         }
 
-        let pipe = ipc::endpoint();
+        let pipe = ipc::endpoint("mpv");
         let shots = shots_dir();
         let _ = std::fs::create_dir_all(&shots);
         // Compiled shaders persist here, so the first frame after an app
@@ -463,6 +468,7 @@ impl Mpv {
                 }
             }
         }
+        preroll::kill_all();
         let _ = std::fs::remove_dir_all(shots_dir());
     }
 

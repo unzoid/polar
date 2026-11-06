@@ -151,6 +151,23 @@ const COMMON_ASPECTS: &[f64] = &[1.33, 1.37, 1.43, 1.5, 1.66, 1.78, 1.85, 1.9, 2
 pub const OPENING_SAMPLES: usize = 8;
 const OPENING_AGREE: usize = 5;
 
+/// Where the pre-roll probe measures, in seconds: [`OPENING_SAMPLES`]
+/// points spread over the 3 minutes from where playback starts (`start`,
+/// 0 for the beginning, which skips the first 10 s: often logos on black),
+/// short of the end. Nothing for less than 15 s to measure or a video of
+/// unknown length (a live stream), which starts uncropped as before.
+pub fn opening_points(duration: Option<f64>, start: f64) -> Vec<f64> {
+    let Some(d) = duration.filter(|d| d.is_finite()) else {
+        return Vec::new();
+    };
+    let from = if start > 1.0 { start } else { 10.0 };
+    let to = (d - 5.0).min(from + 180.0);
+    if to - from < 15.0 {
+        return Vec::new();
+    }
+    (0..OPENING_SAMPLES).map(|i| from + (to - from) * (i as f64 + 0.5) / OPENING_SAMPLES as f64).collect()
+}
+
 /// The bars to remove from the very first frame, from our own detector's
 /// readings of keyframes spread over the opening minutes (the pre-roll
 /// probe). Per axis, bars at least 5 of 8 readings measure crisp on both
@@ -715,6 +732,21 @@ mod tests {
         z.unsent();
         assert_eq!(z.next(2, (1920, 1080), 0.0, false, 1.5), Some(0.0));
     }
+    #[test]
+    fn opening_points_spread_over_the_first_minutes() {
+        let film = opening_points(Some(5400.0), 0.0);
+        assert_eq!(film.len(), OPENING_SAMPLES);
+        assert_eq!((film[0], film[7]), (21.25, 178.75));
+        let resumed = opening_points(Some(5400.0), 3000.0);
+        assert_eq!((resumed[0], resumed[7]), (3011.25, 3168.75));
+        let short = opening_points(Some(65.0), 0.0);
+        assert!(short.iter().all(|t| (10.0..60.0).contains(t)), "{short:?}");
+        assert!(opening_points(Some(5400.0), 5390.0).is_empty(), "too near the end");
+        assert!(opening_points(Some(20.0), 0.0).is_empty());
+        assert!(opening_points(None, 0.0).is_empty());
+        assert!(opening_points(Some(f64::INFINITY), 0.0).is_empty());
+    }
+
     #[test]
     fn opening_bars_need_five_crisp_readings_of_eight() {
         let m = |rect: Rect, crisp: bool| Some(Measured { rect, crisp: [crisp, crisp, false, false] });

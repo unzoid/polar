@@ -24,6 +24,8 @@ pub enum PixelFormat {
     /// Blue, green, red and a byte of padding per pixel: mpv's
     /// `screenshot-raw` (format `bgr0`).
     Bgr0,
+    /// Red, green and blue, a byte each: a PNG screenshot ([`crate::png`]).
+    Rgb8,
 }
 
 /// One decoded frame, borrowed.
@@ -42,6 +44,7 @@ impl Frame<'_> {
         let bytes = match self.format {
             PixelFormat::Luma8 => 1,
             PixelFormat::Bgr0 => 4,
+            PixelFormat::Rgb8 => 3,
         };
         self.w > 0
             && self.h > 0
@@ -61,6 +64,10 @@ impl Frame<'_> {
                 let p = &self.data[y * self.stride + x * 4..][..3];
                 ((u32::from(p[2]) * 54 + u32::from(p[1]) * 183 + u32::from(p[0]) * 19) >> 8) as u8
             }
+            PixelFormat::Rgb8 => {
+                let p = &self.data[y * self.stride + x * 3..][..3];
+                ((u32::from(p[0]) * 54 + u32::from(p[1]) * 183 + u32::from(p[2]) * 19) >> 8) as u8
+            }
         }
     }
 }
@@ -73,6 +80,22 @@ pub struct Measured {
     /// Whether each edge is a crisp bar, `[top, bottom, left, right]`: a
     /// bar is there, and well-lit picture starts within [`CRISP_LINES`].
     pub crisp: [bool; 4],
+}
+
+impl Measured {
+    /// The same reading in a frame of size `to`, measured in one of size
+    /// `from`: a screenshot is scaled to the display shape, while the
+    /// tracker counts in the video's own pixels.
+    pub fn scaled(self, from: (i64, i64), to: (i64, i64)) -> Measured {
+        if from == to || from.0 <= 0 || from.1 <= 0 {
+            return self;
+        }
+        let at = |v: i64, f: i64, t: i64| (v * t + f / 2) / f;
+        let r = self.rect;
+        let (x0, x1) = (at(r.x, from.0, to.0), at(r.x + r.w, from.0, to.0));
+        let (y0, y1) = (at(r.y, from.1, to.1), at(r.y + r.h, from.1, to.1));
+        Measured { rect: Rect { w: x1 - x0, h: y1 - y0, x: x0, y: y0 }, ..self }
+    }
 }
 
 /// The detector's two levels, in luma steps (0-255).
@@ -91,6 +114,15 @@ pub const SDR: Levels = Levels { black: 0, limit: 24 };
 /// HDR (PQ, HLG) has dark picture much nearer black; 0.07 of the range, as
 /// `crop::CROPDETECT_HDR`.
 pub const HDR: Levels = Levels { black: 0, limit: 18 };
+
+/// The levels for video with this `video-params/gamma`, as
+/// [`cropdetect_for`](crate::crop::cropdetect_for).
+pub fn levels_for(gamma: Option<&str>) -> Levels {
+    match gamma {
+        Some("pq" | "hlg") => HDR,
+        _ => SDR,
+    }
+}
 
 /// Samples taken along each line: enough to see a lit area a few pixels
 /// wide in a 4K frame's 3840 px only by luck, which is fine, since bars are
@@ -282,6 +314,21 @@ pub(crate) mod tests {
             shown.push(t.bars(1).0);
         }
         assert_eq!(shown, [0, 0, 70, 70, 70, 70, 70, 0]);
+    }
+
+    #[test]
+    fn reads_rgb_and_scales_to_video_pixels() {
+        let (w, h) = (640, 360);
+        let rgb: Vec<u8> = letterboxed(w, h, (45, 20), scene).into_iter().flat_map(|v| [v, v, v]).collect();
+        let frame = Frame { w, h, stride: w * 3, format: PixelFormat::Rgb8, data: &rgb };
+        let m = detect(&frame, levels_for(Some("bt.1886"))).unwrap();
+        assert_eq!(m.rect, Rect { w: 600, h: 270, x: 20, y: 45 });
+        // Anamorphic: a 720x480 frame shown (and screenshotted) at 640x360.
+        let s = m.scaled((640, 360), (720, 480));
+        assert_eq!(s.rect, Rect { w: 675, h: 360, x: 23, y: 60 });
+        assert_eq!(s.crisp, m.crisp);
+        assert_eq!(m.scaled((640, 360), (640, 360)), m);
+        assert_eq!(levels_for(Some("pq")), HDR);
     }
 
     #[test]

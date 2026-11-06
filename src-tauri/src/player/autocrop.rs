@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
+use super::preroll::Opening;
 use super::Mpv;
 use crate::locks::Locked;
 use crate::AppState;
@@ -67,6 +68,7 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
     let mut zoom = CropZoom::new(Easing::default());
     let clock = Instant::now();
     let mut filter = CROPDETECT; // what mpv_tune added
+    let mut opened = 0; // the last load checked for opening bars
     loop {
         let event = tokio::time::timeout(Duration::from_millis(500), rx.recv()).await;
         let state = app.state::<AppState>();
@@ -108,6 +110,20 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
                 reading = None;
             }
             continue;
+        }
+        // The pre-roll probe's opening bars: wait for them (the load is
+        // paused meanwhile), then start this load's tracker with them.
+        if opened != load {
+            let mut slot = mpv.opening.locked();
+            match *slot {
+                Some(Opening::Probing(l)) if l == load => continue,
+                Some(Opening::Ready { load: l, full, bars }) if l == load => {
+                    tracker.open(load, full, bars);
+                    *slot = None;
+                    opened = load;
+                }
+                _ => opened = load,
+            }
         }
         if frame {
             tracker.update(load, g.size, g.display, reading);
