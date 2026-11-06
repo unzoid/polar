@@ -503,7 +503,7 @@ impl Mpv {
         // that fits in their memory, as mpv-android sizes it.
         #[cfg(target_os = "android")]
         base.extend([
-            format!("--hwdec={}", polar_player::tune::android_hwdec("auto-safe")),
+            format!("--hwdec={}", polar_player::tune::Tune::default().android_hwdec()),
             "--demuxer-max-bytes=64MiB".into(),
             "--demuxer-max-back-bytes=16MiB".into(),
         ]);

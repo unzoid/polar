@@ -79,7 +79,11 @@ impl Tune {
     /// Whether autocrop runs cropdetect inside mpv. Not on macOS, where
     /// libmpv hands our detector every frame, nor with [`Tune::every_frame`].
     pub fn cropdetect(&self) -> bool {
-        self.autocrop && !self.every_frame && !cfg!(target_os = "macos")
+        self.cropdetect_on(cfg!(target_os = "macos"))
+    }
+
+    fn cropdetect_on(&self, macos: bool) -> bool {
+        self.autocrop && !self.every_frame && !macos
     }
 
     /// Which frames our detector reads, with autocrop on ([`crate::sampler`]).
@@ -95,7 +99,11 @@ impl Tune {
     /// while it runs they're copied back from the GPU. Screenshots for our
     /// detector are taken from the GPU and need no copy-back.
     pub fn hwdec_mode(&self) -> &'static str {
-        match (self.hwdec, self.cropdetect()) {
+        self.hwdec_with(self.cropdetect())
+    }
+
+    fn hwdec_with(&self, cropdetect: bool) -> &'static str {
+        match (self.hwdec, cropdetect) {
             (false, _) => "no",
             (true, false) => "auto-safe",
             (true, true) => "auto-copy-safe",
@@ -110,15 +118,16 @@ impl Tune {
             BufferSize::Large => (300, "768MiB"),
         }
     }
-}
 
-/// [`Tune::hwdec_mode`] for mpv on Android, whose `auto-safe` list leaves MediaCodec out:
-/// MediaCodec straight to the screen, or copied back to memory when frames must be read.
-pub fn android_hwdec(mode: &str) -> &str {
-    match mode {
-        "auto-safe" => "mediacodec,mediacodec-copy",
-        "auto-copy-safe" => "mediacodec-copy",
-        other => other,
+    /// [`Tune::hwdec_mode`] for mpv on Android, whose `auto-safe` list leaves MediaCodec out:
+    /// MediaCodec straight to the screen, or copied back to memory when frames must be read.
+    /// Android's own rule, whatever the host it's compiled on (cropdetect runs there).
+    pub fn android_hwdec(&self) -> &'static str {
+        match self.hwdec_with(self.cropdetect_on(false)) {
+            "auto-safe" => "mediacodec,mediacodec-copy",
+            "auto-copy-safe" => "mediacodec-copy",
+            other => other,
+        }
     }
 }
 
@@ -174,8 +183,9 @@ mod tests {
     #[test]
     fn android_uses_mediacodec() {
         let on = Tune::default();
-        assert_eq!(android_hwdec(on.hwdec_mode()), "mediacodec,mediacodec-copy");
-        assert_eq!(android_hwdec(Tune { autocrop: true, ..on }.hwdec_mode()), "mediacodec-copy");
-        assert_eq!(android_hwdec(Tune { hwdec: false, ..on }.hwdec_mode()), "no");
+        assert_eq!(on.android_hwdec(), "mediacodec,mediacodec-copy");
+        assert_eq!(Tune { autocrop: true, ..on }.android_hwdec(), "mediacodec-copy");
+        assert_eq!(Tune { autocrop: true, every_frame: true, ..on }.android_hwdec(), "mediacodec,mediacodec-copy");
+        assert_eq!(Tune { hwdec: false, ..on }.android_hwdec(), "no");
     }
 }

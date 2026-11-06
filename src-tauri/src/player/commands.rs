@@ -153,7 +153,7 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
     }
     if was.hwdec_mode() != tune.hwdec_mode() {
         #[cfg(target_os = "android")]
-        let mode = polar_player::tune::android_hwdec(tune.hwdec_mode());
+        let mode = tune.android_hwdec();
         #[cfg(not(target_os = "android"))]
         let mode = tune.hwdec_mode();
         mpv.request(json!(["set_property", "hwdec", mode])).await?;
