@@ -84,7 +84,7 @@ can decode it.
 Built without running on Android: Back (button, gesture, a remote's Back) reaches the page through Tauri's
 `onBackButtonPress` (`lib/platform/back.ts`), which takes Back over from the system; the page presses Escape where
 focus is (`lib/ui/systemBack.ts`), so the top layer closes, then the player or pushed page; on a tab's own page Back
-goes Home, and on Home it closes the app (`exit`, permission `core:app:allow-exit` in `capabilities/mobile.json`).
+goes Home, and on Home the app goes to the background as Android's own Back does (`polarDevice.leave` in `MainActivity.kt`; `exit` only if that bridge is missing).
 A focused text field loses focus first. Tested here: the decision (`tests/systemBack.test.ts`) and the Escape it
 sends (`tests/dom/systemBack.test.ts`). Not known: whether the WebView also delivers KEYCODE_BACK to the page as a
 key (it would go back twice), and the account screens before sign-in, which register no handler (the system's
@@ -542,6 +542,23 @@ on the fake backend. AniList can't be reached here, so with the setting on, chec
   season's name and poster and "Episode N"; it opens that season's page. Library and Watched too.
 - TV mode: the same cards; a card opens the show's page with only that season's episodes.
 - Switching the setting off and on loses no progress or library items.
+
+## AirPlay on macOS (#19)
+
+Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,
+`tests/dom/airplay.test.ts`), and the button, the "Playing on AirPlay" screen and coming back in an
+end-to-end test with WebKit's AirPlay calls stood in for. Needs a Mac and an AirPlay receiver on the
+same network:
+- Play an MP4 or HLS source with mpv: an AirPlay button appears at the top right once the file has
+  started. Pick the receiver: it plays from the same moment; the app shows "Playing on AirPlay".
+- Play/pause, seeking, the 10-second skips and volume act on the receiver; the time and seek bar follow it.
+- Open the AirPlay list again and pick this Mac: mpv carries on from the receiver's position.
+- Continue Watching shows the receiver's position after leaving the player while casting.
+- An MKV source, a source that needs add-on request headers, or a download: no AirPlay button.
+- In a watch party there's no AirPlay button; while casting there's no Watch Party button.
+- Without mpv (built-in player) the same, with the element on screen sent as it is.
+- Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
+  untested. Subtitles inside the file aren't sent.
 
 ## Screens in headless Chromium (T-051)
 

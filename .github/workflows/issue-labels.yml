@@ -1,0 +1,36 @@
+# Adds OS labels to a new issue when its form says it only happens on those systems
+# (scripts/issueOsLabels.ts). Reporters can't apply labels themselves: a personal repository has
+# no Triage role. Runs once, when the issue is opened; labels changed later by hand stay as they are.
+name: Issue labels
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  os:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/issueOsLabels.ts
+          sparse-checkout-cone-mode: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Label the systems the issue is specific to
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+        # The body is read from the event file, never put into the command line.
+        run: |
+          jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > body.md
+          bun scripts/issueOsLabels.ts < body.md > labels.txt
+          while read -r label; do
+            [ -n "$label" ] && gh issue edit "$NUMBER" -R "$REPO" --add-label "$label"
+          done < labels.txt

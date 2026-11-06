@@ -1,0 +1,78 @@
+name: Something doesn't work
+description: A screen, button, setting or feature behaves wrongly or not at all.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Playback, wrong title information and slowness have their own forms, which ask for what those need.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did and what went wrong. Error messages word for word, if there were any.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The steps from opening the app, if you know them. Say if it happens every time or only sometimes.
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. ...
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where you saw it
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android phone or tablet
+        - Android TV / Google TV / Fire TV
+    validations:
+      required: true
+  - type: checkboxes
+    id: only
+    attributes:
+      label: Only on these systems?
+      description: Tick it only if this is specific to the systems picked above (it doesn't happen on others, or it's about something only they have). The issue is then labelled with them.
+      options:
+        - label: It only happens on the systems I picked.
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Interface
+      multiple: true
+      options:
+        - Desktop
+        - TV mode
+        - Phone
+  - type: input
+    id: version
+    attributes:
+      label: Polarity version
+      description: Settings → About.
+      placeholder: "0.17.0"
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, video or log
+      description: |
+        Drop images or a short video here. The log is polar.log: `%LOCALAPPDATA%\app.getpolar.desktop\logs` on Windows, `~/Library/Logs/app.getpolar.desktop` on macOS, `~/.local/share/app.getpolar.desktop/logs` on Linux.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you send
+      options:
+        - label: I removed API keys, add-on links (they can contain keys), my email address and anything else personal from the text, screenshots and log.
+          required: true

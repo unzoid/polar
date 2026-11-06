@@ -1,0 +1,38 @@
+name: Accessibility barrier
+description: Something is hard or impossible to use with a screen reader, keyboard, controller, low vision, colour vision deficiency, motion sensitivity or a reading difficulty.
+labels: [accessibility]
+body:
+  - type: textarea
+    id: barrier
+    attributes:
+      label: What stops you
+      description: Where it is and what happens.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: How you use the app
+      description: The assistive technology or settings involved, for example a screen reader and its version, keyboard only, a controller, system text size, reduced motion, high contrast, Polarity's dyslexia font.
+  - type: textarea
+    id: better
+    attributes:
+      label: What would work for you
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where you saw it
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android phone or tablet
+        - Android TV / Google TV / Fire TV
+  - type: checkboxes
+    id: only
+    attributes:
+      label: Only on these systems?
+      description: Tick it only if this is specific to the systems picked above (it doesn't happen on others, or it's about something only they have). The issue is then labelled with them.
+      options:
+        - label: It only happens on the systems I picked.

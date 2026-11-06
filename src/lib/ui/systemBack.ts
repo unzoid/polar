@@ -17,7 +17,7 @@ export type Where = {
   atHome: boolean;
 };
 
-/** What Back does on a phone or tablet: Escape's Back, then Home, then the app closes. */
+/** What Back does on a phone or tablet: Escape's Back, then Home, then the app goes to the background. */
 export function systemBackAction({ open, pushed, atHome }: Where): "escape" | "home" | "leave" {
   if (open || pushed > 0) return "escape";
   return atHome ? "leave" : "home";
