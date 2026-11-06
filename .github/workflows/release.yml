@@ -130,7 +130,9 @@ jobs:
               cp "$b"/nsis/*_x64-setup.exe "$b"/nsis/*_x64-setup.exe.sig out/
               cp "$b"/msi/*_x64_en-US.msi "$b"/msi/*_x64_en-US.msi.sig out/
               # The exact sources of the bundled mpv.exe (docs/licensing.md).
-              cp src-tauri/vendor/mpv-sources/polarity-windows-mpv-sources.tar "out/Polarity_${VERSION}_x64_mpv-sources.tar" ;;
+              cp src-tauri/vendor/mpv-sources/polarity-windows-mpv-sources.tar "out/Polarity_${VERSION}_x64_mpv-sources.tar"
+              # The player with its licence texts, for development builds without a signed-in gh (scripts/fetch-mpv.ts, #186).
+              (cd src-tauri/vendor/mpv && 7z a -tzip "$GITHUB_WORKSPACE/out/Polarity_${VERSION}_x64_mpv.zip" ./* >/dev/null) ;;
             macOS)
               cp "$b"/dmg/*_aarch64.dmg out/
               # Name the update archive per version and CPU, like the other files.
