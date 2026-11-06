@@ -240,6 +240,31 @@ test("settings change and stay changed", async ({ app }) => {
   await expect(settings).toHaveCount(0);
 });
 
+test("Settings → Sources has the torrent limits, kept on this device (#47)", async ({ app }) => {
+  const open = async () => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Settings" }).click();
+    const settings = app.getByRole("dialog", { name: /^Settings/ });
+    await settings.getByRole("button", { name: "Sources", exact: true }).click();
+    return settings;
+  };
+  let settings = await open();
+  await expect(settings.getByRole("heading", { name: "Torrent Sources" })).toBeVisible();
+  await expect(settings.getByText("Torrent cache limit")).toBeVisible();
+  await expect(settings.getByText("Torrent speed limit")).toBeVisible();
+  const sharing = settings.getByRole("switch", { name: /^Keep sharing after playback/ });
+  // Nothing is shared after playback until the user turns it on.
+  await expect(sharing).not.toBeChecked();
+  await sharing.click();
+  await expect(sharing).toBeChecked();
+  await app.keyboard.press("Escape");
+  await expect(settings).toHaveCount(0);
+
+  settings = await open();
+  await expect(settings.getByRole("switch", { name: /^Keep sharing after playback/ })).toBeChecked();
+  expect(await app.evaluate(() => JSON.parse(localStorage.getItem("polar.prefs") ?? "{}").torrentKeepSharing)).toBe(true);
+});
+
 test("a source list marks its first links ready or not ready, checked ahead of time (#21)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();

@@ -6,6 +6,7 @@ import { keys, useSettings, useUpdateSettings } from "../../lib/net";
 import type { Settings as SettingsT } from "../../lib/types";
 import { Card, FormRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
+import { isDesktop } from "../../lib/platform";
 
 export function SourcesPage() {
   const qc = useQueryClient();
@@ -74,6 +75,17 @@ export function SourcesPage() {
           </div>
         </div>
       </Card>
+
+      {isDesktop && (
+        <Card
+          title="Torrent Sources"
+          footer="Torrent sources your add-ons list play with the built-in engine. Only the file you watch is downloaded, in the order you watch it, into a cache on this device that's emptied when playback ends or Polarity quits. Other peers can see your IP address while a torrent plays."
+        >
+          <SettingRow id="torrentCacheGb" />
+          <SettingRow id="torrentSpeedMbps" />
+          <SettingRow id="torrentKeepSharing" />
+        </Card>
+      )}
     </>
   );
 }

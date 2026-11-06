@@ -131,7 +131,8 @@ export function Player({
     else if (engine === "html")
       logStep("Player: built-in (mpv isn't installed, so some files may not play: AC3/DTS audio, HEVC where the system can't decode it)", "info", "player");
   }, [engine, logStep]);
-  const source = useSource(type, metaId, videoId, stream, roomHint, logStep);
+  const startedRef = useRef(false);
+  const source = useSource(type, metaId, videoId, stream, roomHint, logStep, () => startedRef.current);
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const media: MediaLike | null = engine === "mpv" ? mpv : videoEl;
@@ -141,7 +142,6 @@ export function Player({
   const [buffering, setBuffering] = useState(true);
   // Until the first frame actually plays, the loading screen stays up.
   const [started, setStarted] = useState(false);
-  const startedRef = useRef(false);
   startedRef.current = started;
   /** Why the link check turned the built-in player's source down (mpv reports its own). */
   const linkError = useRef<string | null>(null);

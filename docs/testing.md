@@ -57,7 +57,7 @@ Each crate keeps unit tests next to its code. Worth knowing:
   holds the error codes on both sides.
 - `src-tauri` tests need the platform's web view libraries to build (WebKitGTK on Linux), so
   `cargo test --workspace` on a machine without them fails at `polar`; test the core crates with
-  `cargo test -p polar-addon -p polar-anime -p polar-index -p polar-library -p polar-player`.
+  `cargo test -p polar-addon -p polar-anime -p polar-index -p polar-library -p polar-player -p polar-torrent`.
 
 ## End to end, web build
 

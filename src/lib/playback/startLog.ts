@@ -12,7 +12,7 @@
 import type { Stream } from "../types";
 
 /** Where a step happens, for "Failed at …". */
-export type StartStage = "sources" | "link" | "server" | "player";
+export type StartStage = "sources" | "link" | "server" | "peers" | "player";
 
 export type StepTone = "info" | "ok" | "warn" | "fail";
 
@@ -37,6 +37,7 @@ export const STAGE_LABEL: Record<StartStage, string> = {
   sources: "finding sources (your add-ons)",
   link: "preparing the link",
   server: "the source's server",
+  peers: "the torrent's peers",
   player: "the player",
 };
 
@@ -126,6 +127,7 @@ export function describeProbe(e: ProbeEvent): Omit<StartStep, "at"> {
 export function describeStream(stream: Stream, url?: string): string {
   const link = url ?? stream.url;
   if (!link) {
+    if (stream.infoHash) return "a torrent from your add-on (played by the built-in engine)";
     if (stream.ytId) return "a YouTube video (opens outside the player)";
     if (stream.externalUrl) return `a page on ${hostOf(stream.externalUrl)} (opens outside the player)`;
     return "no playable link";

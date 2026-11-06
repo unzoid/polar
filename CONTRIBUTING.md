@@ -28,7 +28,8 @@ content, and we don't condone using it to access material without the rights hol
 
 So we don't accept contributions that add or promote sources of unlicensed content (links, domains,
 add-on manifests, magnet or tracker links, IPTV lists, named piracy sites or add-ons), peer-to-peer or
-file-sharing features, DRM or paywall circumvention, copyrighted media (frames, posters, logos, trailers,
+file-sharing features (beyond the built-in engine playing a torrent stream the user's own add-on returns;
+see `AGENTS.md` rule 3), DRM or paywall circumvention, copyrighted media (frames, posters, logos, trailers,
 subtitles) in the repository, code or assets we can't licence, or secrets and personal data. Pull requests
 and issues that do will be closed, and links to such material removed.
 

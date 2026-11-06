@@ -18,8 +18,11 @@ install; the project doesn't ship, endorse or link to any of them.
    unlicensed copies. Not as defaults, examples, fixtures, docs, comments or test data.
 2. **Bundled or pre-installed third-party stream add-ons**, or code that installs one without the user
    choosing it.
-3. **Peer-to-peer or file-sharing features:** a BitTorrent/P2P engine, seeding, swarm/peer counts as a
-   ranking signal, content-hash matching for sharing, or a "bridge" to a torrent client.
+3. **Peer-to-peer or file-sharing features**, except the built-in torrent engine (`crates/torrent`), which
+   plays a torrent stream only when one of the user's own add-ons returns it. Never add sources for it
+   (rule 1), sharing after playback unless the user turns it on, swarm/peer counts as a ranking signal,
+   content-hash matching for sharing, a "bridge" to a torrent client, or anything that finds, suggests or
+   fetches torrents by itself.
 4. **Wording that promotes infringement:** "free movies", "watch new releases free", "no subscription
    needed", release-group or scene terms used as selling points, "works with <named piracy add-on>". UI
    text, README, store text and release notes describe a player, not a way to get content.

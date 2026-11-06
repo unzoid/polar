@@ -202,6 +202,8 @@ pub enum Playable {
     Url {
         url: String,
     },
+    /// A torrent from the user's add-on: the player opens it with `torrent_open`.
+    Torrent {},
     /// Needs a browser (e.g. YouTube trailers, "watch on" links).
     External {
         url: String,
@@ -211,7 +213,7 @@ pub enum Playable {
     },
 }
 
-/// Turn a stream into something playable: a link, or a YouTube video opened outside.
+/// Turn a stream into something playable: a link, a torrent, or a YouTube video opened outside.
 #[tauri::command]
 pub fn resolve_stream(stream: Stream) -> Result<Playable> {
     Ok(resolve(stream))
@@ -225,6 +227,9 @@ pub fn resolve(stream: Stream) -> Playable {
             return Playable::Unsupported { reason: "This download is no longer on this device.".into() };
         }
         return Playable::Url { url };
+    }
+    if stream.info_hash.is_some() {
+        return Playable::Torrent {};
     }
     if let Some(yt) = stream.yt_id {
         // An add-on's id goes into a link the system opens: only a real video id gets through (L13).

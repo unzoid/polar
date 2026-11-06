@@ -36,6 +36,8 @@ base64 = "0.22"
 # gilrs has no Android or iOS backend; phones and TVs see controllers through the Gamepad API.
 gilrs = "0.11"
 keyring = "4.2"
+# Torrent playback of the user's add-on streams; desktop first (#47).
+polar-torrent.workspace = true
 tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 

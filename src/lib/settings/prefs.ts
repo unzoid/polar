@@ -65,6 +65,12 @@ export interface Prefs {
   autocropEveryFrame: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
+  /** Torrent sources: most GB their cache on this device may hold; 0 = no limit. */
+  torrentCacheGb: number;
+  /** Torrent sources: download and upload cap in Mbit/s; 0 = none. */
+  torrentSpeedMbps: number;
+  /** Torrent sources: keep sharing what was played until the app quits. Off: stop and delete it when playback ends. */
+  torrentKeepSharing: boolean;
   /** Keep the last few searches. */
   saveRecentSearches: boolean;
   /** Genres under the empty search field. */
@@ -133,6 +139,9 @@ const DEFAULTS: Prefs = {
   autocropLookahead: true,
   autocropEveryFrame: false,
   buffer: "normal",
+  torrentCacheGb: 20,
+  torrentSpeedMbps: 0,
+  torrentKeepSharing: false,
   saveRecentSearches: true,
   searchSuggestions: true,
   autoDownloadUpdates: true,
