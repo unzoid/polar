@@ -176,6 +176,11 @@ pub fn run() {
             downloads::manage(app.handle(), &dir)?;
             let store = Arc::new(Mutex::new(store::Store::load(path)));
             let cache = app.path().app_cache_dir()?;
+            #[cfg(target_os = "android")]
+            {
+                player::set_scratch_dir(cache.join("mpv"));
+                player::preload();
+            }
             let indexer = Indexer::new(index_config(&store.locked().data.settings));
             app.manage(AppState {
                 indexer: RwLock::new(Arc::new(indexer)),
