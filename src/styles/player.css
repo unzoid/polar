@@ -1137,8 +1137,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   position: absolute;
   inset: 0;
   z-index: 1;
-  /* A double tap is ours (seek, fullscreen), never the browser's zoom. */
-  touch-action: manipulation;
+  /* Taps, double taps (seek, fullscreen) and pinches (Fit / Fill, #176) are ours, never the browser's zoom. */
+  touch-action: none;
 }
 .player-status {
   z-index: 2; /* above the surface so its buttons work; chrome still on top */
