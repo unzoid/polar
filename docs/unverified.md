@@ -282,9 +282,9 @@ devices.
    names are in.
 3. A device that had the titles before keeps its own names, pictures and every episode's position
    after pulling (only the newest episode per title is on the server).
-4. Optional: run `supabase/optional/per_episode_progress.sql`, turn on Settings → Account → Sync
-   every episode on both devices, play different episodes of one show on each: both keep both.
-   `per_episode_progress_off.sql` goes back.
+4. Optional: run `supabase/optional/per_episode_progress.sql`, wait ten minutes (or restart both
+   apps), play different episodes of one show on each: both keep both, with no setting on either.
+   `per_episode_progress_off.sql` goes back the same way.
 5. A version older than this one, signed in after the migration: library and progress no longer
    sync for it (expected, cut over at once); updating it pushes what it has.
 

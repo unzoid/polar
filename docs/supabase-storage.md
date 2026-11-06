@@ -157,7 +157,7 @@ the entries are re-encoded, so what is stored always decodes.
 **One entry per title (on):** `progress_newest` keeps the push's newest entry when it is newer than
 the stored one, else writes nothing; `kind` follows it.
 
-**Per-episode history (built, off):** `supabase/optional/per_episode_progress.sql` swaps in
+**Per-episode history (built, off until the server turns it on):** `supabase/optional/per_episode_progress.sql` swaps in
 `progress_merge`, last write wins per **video**, so two devices that played different episodes of a
 show both keep theirs:
 
@@ -167,9 +167,13 @@ show both keep theirs:
 3. returns `null` (no write, `synced_at` untouched) when nothing changed, so re-sends don't wake
    other devices.
 
-The device setting `syncEpisodeHistory` (off) makes the app push every changed episode instead of
-only each title's newest; it is only worth turning on after the script has run.
-`per_episode_progress_off.sql` goes back, cutting every row down to its newest entry. Measured cost:
+The script also creates `polar_every_episode()` (returns `true`, callable by signed-in users). Before
+a push the app calls it (`serverKeepsEveryEpisode` in `src/lib/account/supabase.ts`, at most once
+every ten minutes): while it answers, the app pushes every changed episode; while the function is
+missing, only each title's newest. There is no setting: running the script turns it on for every
+user within ten minutes. `per_episode_progress_off.sql` drops the function and goes back, cutting
+every row down to its newest entry. Episodes changed before the switch stay on their device until
+they change again. Measured cost:
 the heavy profile's progress grows from 376 KiB to 496 KiB (§2).
 
 `library` keeps `sync_lww` (one record a row) with the same clamp.

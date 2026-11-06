@@ -8,7 +8,6 @@ import { useSecretsNote } from "../../components/settings/secretsNote";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
-import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AccountPage() {
   const account = useAccount();
@@ -45,7 +44,6 @@ export function AccountPage() {
       </Card>
 
       <Card title="Sync">
-        <SettingRow id="syncEpisodeHistory" />
         {account.profile && <SecretsRow profileId={account.profile.id} {...expand("secrets")} />}
         {settingsTooLarge() && (
           <p className="settings-error">This profile's settings are too large to sync. Add-on links take the most room: remove some to sync again.</p>
