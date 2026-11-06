@@ -36,7 +36,7 @@ jobs:
   e2e-web:
     name: End to end (web build)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -46,7 +46,15 @@ jobs:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - run: bunx tsc --noEmit -p e2e
-      - run: bunx playwright install --with-deps chromium webkit
+      # The system packages come from Ubuntu's mirror, which now and then stalls for the whole job;
+      # each attempt gets 5 minutes, and a stalled one is tried again.
+      - name: Install the browsers
+        run: |
+          for attempt in 1 2 3; do
+            timeout 300 bunx playwright install --with-deps chromium webkit && exit 0
+            echo "::warning::Installing the browsers failed or stalled (attempt $attempt of 3)"
+          done
+          exit 1
       - run: bun run e2e
       - name: Keep the report, traces and screenshots
         if: failure()
