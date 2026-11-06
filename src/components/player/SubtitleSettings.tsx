@@ -111,7 +111,7 @@ export const forgetAssOverride = (mpv: MpvMedia) => assOverride.delete(mpv);
 export function applySubtitleStyleToMpv(mpv: MpvMedia, saved: SubtitleStyle, delay: number) {
   const style = complete(saved);
   const custom = !isDefaultStyle(style);
-  const codec = mpv.tracks.find((t) => t.type === "sub" && t.id === mpv.sid)?.codec;
+  const codec = mpv.playing("sub")?.codec;
   const ass = codec === "ass" || codec === "ssa";
   // Only when it changes: each change stalls the stream while mpv re-reads it.
   const override = custom && ass ? "force" : "scale";
