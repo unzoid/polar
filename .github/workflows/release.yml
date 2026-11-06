@@ -20,7 +20,7 @@ on:
 
 permissions:
   contents: read
-  actions: read # scripts/fetch-mpv.ts downloads ci.yml's Windows mpv build
+  actions: read # scripts/fetch-mpv.ts downloads windows-mpv.yml's build
 
 concurrency:
   group: release-${{ github.ref }}
@@ -80,7 +80,7 @@ jobs:
           fi
 
       # Windows: tauri.conf.json's beforeBuildCommand fetches the pinned mpv build and its sources
-      # (ci.yml's windows-mpv job for this scripts/windows-mpv.lock must have passed).
+      # (windows-mpv.yml for this scripts/windows-mpv.lock must have passed).
       - name: Build (Windows)
         if: runner.os == 'Windows'
         env:

@@ -1,5 +1,5 @@
 // The version of the Windows app's mpv.exe: a hash of scripts/windows-mpv.sh and its lock, the
-// same as ci.yml computes (`cat … | tr -d '\r' | sha256sum | cut -c1-16`), so a Windows checkout's
+// same as the workflows compute (`cat … | tr -d '\r' | sha256sum | cut -c1-16`), so a Windows checkout's
 // line endings don't change it. The build writes it to out/mpv/VERSION.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";

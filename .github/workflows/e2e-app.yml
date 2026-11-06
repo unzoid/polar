@@ -49,7 +49,7 @@ jobs:
         with:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
-      # The mpv.exe ci.yml's windows-mpv job built for this version, or empty
+      # The mpv.exe windows-mpv.yml built for this version, or empty
       # stand-ins while it hasn't yet (the smoke test plays no video).
       - name: Version of the Windows mpv
         if: runner.os == 'Windows'
