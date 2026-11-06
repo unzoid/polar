@@ -108,12 +108,14 @@ pub struct Levels {
     pub limit: u8,
 }
 
-/// SDR video: 24 steps above black, close to the 0.09 of the range the
-/// `cropdetect` setting uses (`crop::CROPDETECT`).
-pub const SDR: Levels = Levels { black: 0, limit: 24 };
-/// HDR (PQ, HLG) has dark picture much nearer black; 0.07 of the range, as
-/// `crop::CROPDETECT_HDR`.
-pub const HDR: Levels = Levels { black: 0, limit: 18 };
+/// SDR video: 12 steps above black. `cropdetect`'s 0.09 of the range
+/// (`crop::CROPDETECT`) is about 8 full-range steps above black; 12 keeps the
+/// dim edges of dark shots as picture (docs/autocrop.md §2) and leaves room
+/// for grain in the bars.
+pub const SDR: Levels = Levels { black: 0, limit: 12 };
+/// HDR (PQ, HLG) has dark picture much nearer black: lower again, in the
+/// ratio of `crop::CROPDETECT_HDR` to `crop::CROPDETECT`.
+pub const HDR: Levels = Levels { black: 0, limit: 9 };
 
 /// The levels for video with this `video-params/gamma`, as
 /// [`cropdetect_for`](crate::crop::cropdetect_for).
@@ -262,7 +264,7 @@ pub(crate) mod tests {
         let night = |x: usize, y: usize| {
             let depth = y.saturating_sub(140);
             if depth < 60 {
-                (depth * ((x * 37 + y * 11) % 101) / 80) as u8
+                (depth * ((x * 37 + y * 11) % 101) / 160) as u8
             } else {
                 scene(x, y)
             }

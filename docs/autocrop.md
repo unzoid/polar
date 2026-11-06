@@ -28,7 +28,7 @@ none. `bars::detect` is an **independent implementation**, written from the idea
 `vf_cropdetect.c` (which a port would make GPL). Per frame:
 
 - A line (row or column) is **bar** when at most 1% of 512 samples along it are lit (more than
-  `limit` above `black`: 24 steps for SDR, 18 for HDR). Counting lit samples, not averaging,
+  `limit` above `black`: 12 steps for SDR, 9 for HDR). Counting lit samples, not averaging,
   keeps a dark line with a few highlights (stars, a lamp) as picture.
 - Bars run in from each edge; columns are judged over the picture's rows only, so a letterbox
   doesn't dilute them. A frame with no lit line (a fade) gives no reading.
@@ -48,7 +48,7 @@ per change of bars, bars never cropped, crop changes per minute, frames that cut
 frames that leave bars on screen. A second table counts how each crop change would be shown (§6):
 on the cut, following animated bars, eased because caught late, correcting a misread (at once
 or eased), and changes into a misread. A third table gives, per shot, the frames that cut picture
-off, and our detector also runs at lower limits (16, 12, 8) for comparison. Needs an ffmpeg built
+off, and our detector also runs at its earlier limit (24) and at cropdetect's level (8) for comparison. Needs an ffmpeg built
 with `cropdetect` (a GPL build) and a test film (Sintel from download.blender.org).
 
 **First results** (16 shots of 8 s each, 2026-11-05). On Tears of Steel our detector does
@@ -60,6 +60,23 @@ cause, to be confirmed by the limit rows: cropdetect's `limit=0.09` is compared 
 limited-range luma as decoded, so a line is picture from about 7 steps above black (16), while
 our 24 steps over full-range luma is about 21 limited steps, so dim picture at the edge of
 Sintel's dark shots reads as bar.
+
+**Limit rows** (same clips, our detector at 16, 12 and 8). Lower is better on every column
+of both films. On Sintel, picture is cut on 92, 89 and 86 frames, against 114 at 24 and 78 for
+cropdetect; bars are left on 28, 16 and 12 frames (115 for cropdetect); the first crop comes
+at 417, 375 and 333 ms on average (792); and 10 to 12 of 15 changes land on the cut (4).
+On Tears of Steel, 12 and 8 are right on every frame. The limit is now **12** (HDR 9, in
+cropdetect's ratio): nearly all the gain of 8, with some room for grain in the bars of real
+releases, which the clean padding of these clips doesn't test.
+
+The per-shot table also showed a fault in the measuring itself: on Sintel, shots without bars
+of their own cut picture on 1, 2, 3, 4, 5, then 6 frames, one more with each shot, while cropdetect
+cut none. The clip decoded to 3078 frames, not 16 × 192: written as rawvideo, ffmpeg keeps a
+constant frame rate and repeated a frame at six joins, so our detector's frames fell behind the
+truth and cropdetect's readings. The script now decodes every frame once (`-fps_mode
+passthrough`), and `autocrop_compare` stops when the frame count or cropdetect's readings don't
+match the clip. Our rows on Sintel above therefore count too many frames cutting picture (at least
+those 21); the measurement is to be run again.
 
 ## 3. Pre-roll: the crop is right on the first frame
 
@@ -231,5 +248,6 @@ sending the zoom on every frame until it settles.
 
 ## 7. Open
 
-- The limit for dark shots (§2's limit rows), then whether our detector replaces cropdetect on desktop.
+- Whether our detector replaces cropdetect on desktop, after §2's measurement is run again with the
+  frame count fixed and the limit at 12.
 - Lookahead defaults per device, after §4's measurements.

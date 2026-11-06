@@ -120,13 +120,17 @@ await run([
   "-an",
   "-vf",
   `cropdetect=limit=0.09:round=2:reset=1,metadata=mode=print:file=${cropdetect}`,
+  "-fps_mode",
+  "passthrough",
   "-f",
   "null",
   "-",
 ]);
 
-// Our detector reads full-range luma (black = 0), as mpv's screenshots are.
-const decode = Bun.spawn(["ffmpeg", "-v", "error", "-i", clip, "-an", "-vf", "scale=in_range=tv:out_range=pc,format=gray", "-f", "rawvideo", "-"], {
+// Our detector reads full-range luma (black = 0), as mpv's screenshots are. Every frame once: rawvideo
+// output is constant frame rate by default, which repeats a frame at some joins between shots.
+const gray = ["-vf", "scale=in_range=tv:out_range=pc,format=gray", "-fps_mode", "passthrough", "-f", "rawvideo", "-"];
+const decode = Bun.spawn(["ffmpeg", "-v", "error", "-i", clip, "-an", ...gray], {
   stdout: "pipe",
   stderr: "inherit",
 });
@@ -147,12 +151,13 @@ const compare = Bun.spawn(
     String(FPS),
     "--truth",
     truth.join(","),
+    "--frames",
+    String(shots * frames),
     "--cropdetect",
     cropdetect,
-    // cropdetect's limit is about 23 on limited-range luma, ~8 steps above black in full range:
-    // our detector at lower limits too, to see how much picture the default 24 cuts in dark shots.
+    // Our detector also at its earlier limit (24) and at cropdetect's level (about 8 steps above black in full range).
     "--also-limits",
-    "16,12,8",
+    "24,8",
   ],
   { stdin: decode.stdout, stdout: "inherit", stderr: "inherit" },
 );

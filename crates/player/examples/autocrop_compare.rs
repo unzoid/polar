@@ -6,12 +6,15 @@
 //!
 //! ```text
 //! autocrop_compare --size 1920x1080 --fps 24 --truth 0:0:0,6:138:0,... \
-//!     [--cropdetect cropdetect.txt] [--black 0] [--limit 24] [--also-limits 16,10] < frames.gray
+//!     [--frames 3072] [--cropdetect cropdetect.txt] [--black 0] [--limit 12] [--also-limits 24,8] < frames.gray
 //! ```
 //!
 //! stdin: the clip's frames as raw 8-bit luma (`-f rawvideo -pix_fmt gray`).
 //! `--truth`: from each start time (seconds), the bars it has (top and
-//! bottom, left and right). `--cropdetect`: FFmpeg's `metadata=mode=print`
+//! bottom, left and right). `--frames`: how many frames the clip has; any
+//! other count on stdin is an error, since the truth would no longer line up
+//! with the frames (a decoder that duplicates frames at the joins between
+//! shots). `--cropdetect`: FFmpeg's `metadata=mode=print`
 //! output for `cropdetect=limit=0.09:round=2:reset=1` on the same clip.
 //! `--also-limits`: our detector again at each of these limits, a row each.
 
@@ -40,6 +43,10 @@ fn run() -> Result<(), String> {
         .ok_or("--size WxH is needed")?;
     let fps: f64 = arg("--fps").and_then(|s| s.parse().ok()).ok_or("--fps is needed")?;
     let truth = parse_truth(arg("--truth").ok_or("--truth is needed")?)?;
+    let expected: Option<usize> = match arg("--frames") {
+        Some(n) => Some(n.parse().map_err(|_| "--frames: a count of frames")?),
+        None => None,
+    };
     let levels = Levels {
         black: arg("--black").map_or(Ok(SDR.black), str::parse).map_err(|_| "--black: 0-255")?,
         limit: arg("--limit").map_or(Ok(SDR.limit), str::parse).map_err(|_| "--limit: 0-255")?,
@@ -84,6 +91,12 @@ fn run() -> Result<(), String> {
     }
     if n == 0 {
         return Err("no frames on stdin".into());
+    }
+    if let Some(want) = expected.filter(|&want| want != n) {
+        return Err(format!("{n} frames on stdin, not {want}: the truth doesn't line up with them"));
+    }
+    if let Some(readings) = cropdetect.as_ref().filter(|r| r.len() != n) {
+        return Err(format!("{} cropdetect readings for {n} frames: they don't line up", readings.len()));
     }
     let mut runs = vec![ours, ours_plain];
     runs.extend(others.into_iter().map(|(_, run)| run));
