@@ -24,7 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Ubuntu pinned: on 26.04 (ubuntu-latest from November 2026) the WebKitGTK driver package is
+        # webkitgtk-webdriver, not webkit2gtk-driver; moving up is its own change.
+        os: [ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
