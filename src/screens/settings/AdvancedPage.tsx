@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Reset } from "../../components/icons";
 import { api } from "../../lib/api";
 import { keys } from "../../lib/net";
-import { resetPrefs, usePrefs } from "../../lib/settings";
+import { resetPrefs, settingDef, usePrefs } from "../../lib/settings";
+import { lookaheadCaption } from "../../lib/playback";
 import { Button } from "../../components/ui/Button";
 import { errorMessage } from "../../lib/errors";
 import { Card, ExpandRow, useExpanded, type Expandable } from "../../components/settings/rows";
@@ -13,8 +14,15 @@ import { StremioImport } from "../../components/settings/StremioImport";
 
 export function AdvancedPage() {
   const expand = useExpanded();
-  const { autocrop } = usePrefs();
+  const { autocrop, autocropLookahead } = usePrefs();
   const { data: hasMpv } = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
+  // What the lookahead does in the video playing now, kept current while this page is open.
+  const { data: lookahead = null } = useQuery({
+    queryKey: keys.mpvLookahead,
+    queryFn: api.mpvLookahead,
+    enabled: hasMpv === true && autocrop && autocropLookahead,
+    refetchInterval: 3000,
+  });
   const account = useAccount();
   return (
     <>
@@ -25,7 +33,11 @@ export function AdvancedPage() {
         <SettingRow id="hwdec" disabled={hasMpv === false} />
         <SettingRow id="deband" disabled={hasMpv === false} />
         <SettingRow id="autocrop" disabled={hasMpv === false} />
-        <SettingRow id="autocropLookahead" disabled={hasMpv === false || !autocrop} />
+        <SettingRow
+          id="autocropLookahead"
+          caption={lookaheadCaption(settingDef("autocropLookahead").caption ?? "", autocrop && autocropLookahead ? lookahead : null)}
+          disabled={hasMpv === false || !autocrop}
+        />
         {/* macOS and iOS read every frame anyway, in memory. */}
         {os !== "macos" && os !== "ios" && <SettingRow id="autocropEveryFrame" disabled={hasMpv === false || !autocrop} />}
         <SettingRow id="buffer" />
