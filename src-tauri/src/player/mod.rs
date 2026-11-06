@@ -392,16 +392,9 @@ impl Mpv {
             "--demuxer-max-bytes=64MiB".into(),
             "--demuxer-max-back-bytes=16MiB".into(),
         ]);
-        // iPhones and iPads: the same cache as on Android phones, Core Audio's output for apps
-        // (the audio session itself is set up in ios/mpv_view.m), and HTTPS checked against the
-        // system's certificates, as on Android.
+        // iPhones and iPads: their cache, audio output, certificates and VideoToolbox frames.
         #[cfg(target_os = "ios")]
-        base.extend([
-            "--demuxer-max-bytes=64MiB".into(),
-            "--demuxer-max-back-bytes=16MiB".into(),
-            "--ao=audiounit".into(),
-            "--tls-verify=yes".into(),
-        ]);
+        base.extend(polar_player::tune::IOS_ARGS.iter().map(|a| a.to_string()));
         let (engine, client) = start_engine(window, base, &pipe).await?;
         *self.process.locked() = match &engine {
             Engine::Process(child) => Some(child.clone()),

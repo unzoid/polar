@@ -42,6 +42,21 @@ fn on() -> bool {
 /// Where libmpv in the app hands our detector each frame in memory (src-tauri's player/apple.rs).
 const FRAMES_IN_MEMORY: bool = cfg!(any(target_os = "macos", target_os = "ios"));
 
+/// mpv's launch arguments on iPhones and iPads, after the ones every system gets: the same cache
+/// as on Android phones, Core Audio's output for apps (the audio session itself is set up in
+/// src-tauri's ios/mpv_view.m), HTTPS checked against the system's certificates, as on Android,
+/// and VideoToolbox's frames in 8-bit NV12. mpv draws with OpenGL ES there, which can only take
+/// 8-bit frames from VideoToolbox: a 10-bit video (HEVC Main 10, HDR) left in VideoToolbox's
+/// own 10-bit format couldn't be shown, and the picture was one blue colour. VideoToolbox
+/// converts on the GPU; the colours (HDR included) are still mapped by mpv.
+pub const IOS_ARGS: &[&str] = &[
+    "--demuxer-max-bytes=64MiB",
+    "--demuxer-max-back-bytes=16MiB",
+    "--ao=audiounit",
+    "--tls-verify=yes",
+    "--hwdec-image-format=nv12",
+];
+
 #[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum BufferSize {
@@ -199,5 +214,12 @@ mod tests {
         assert_eq!(Tune { autocrop: true, ..on }.android_hwdec(), "mediacodec-copy");
         assert_eq!(Tune { autocrop: true, every_frame: true, ..on }.android_hwdec(), "mediacodec,mediacodec-copy");
         assert_eq!(Tune { hwdec: false, ..on }.android_hwdec(), "no");
+    }
+
+    #[test]
+    fn ios_asks_videotoolbox_for_frames_its_gl_can_show() {
+        // iOS's OpenGL ES can't map VideoToolbox's 10-bit frames: the picture was one blue colour (#172).
+        assert!(IOS_ARGS.contains(&"--hwdec-image-format=nv12"));
+        assert!(IOS_ARGS.contains(&"--ao=audiounit"));
     }
 }

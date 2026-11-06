@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { detectOs, detectTvDevice } from "../src/lib/platform/device";
+import { detectIpad, detectOs, detectTvDevice } from "../src/lib/platform/device";
 
 test("detectOs reads the webview's navigator", () => {
   expect(detectOs({ platform: "Win32", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" })).toBe("windows");
@@ -26,4 +26,11 @@ test("detectTvDevice asks Android's polarDevice bridge and never throws", () => 
       },
     }),
   ).toBe(false);
+});
+
+test("detectIpad: the desktop-site iPad, the iPad agent, never an iPhone or a Mac", () => {
+  expect(detectIpad({ platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 5 })).toBe(true);
+  expect(detectIpad({ platform: "iPad", userAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)", maxTouchPoints: 5 })).toBe(true);
+  expect(detectIpad({ platform: "iPhone", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", maxTouchPoints: 5 })).toBe(false);
+  expect(detectIpad({ platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" })).toBe(false);
 });

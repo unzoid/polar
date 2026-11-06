@@ -288,6 +288,7 @@ pub fn run() {
             player::mpv_tune,
             player::mpv_stop,
             player::mpv_snapshot,
+            player::player_system_bars,
         ])
         .build(tauri::generate_context!())
         .expect("error while building polar")

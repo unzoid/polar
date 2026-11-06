@@ -37,6 +37,22 @@ pub fn mpv_available() -> bool {
     false
 }
 
+/// Hide the system's bars while the player is open, and show them again when it closes. On
+/// iPhones and iPads: the status bar, and the home indicator until the screen is touched
+/// (ios/system_bars.m). Elsewhere nothing changes.
+#[tauri::command]
+pub fn player_system_bars(hidden: bool) {
+    #[cfg(target_os = "ios")]
+    {
+        extern "C" {
+            fn polar_set_system_bars_hidden(hide: std::ffi::c_int);
+        }
+        unsafe { polar_set_system_bars_hidden(hidden.into()) }
+    }
+    #[cfg(not(target_os = "ios"))]
+    let _ = hidden;
+}
+
 /// Load `url` (optionally starting at `start` seconds) and play. With `probe_id`,
 /// the link check reports its steps as `player://probe` events. `headers` are
 /// the stream's `behaviorHints.proxyHeaders.request`; only those

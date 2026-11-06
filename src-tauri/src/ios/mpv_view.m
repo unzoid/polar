@@ -174,7 +174,11 @@ static void *gl_proc_address(void *ctx, const char *name) {
             { MPV_RENDER_PARAM_FLIP_Y, &flip },
             { MPV_RENDER_PARAM_INVALID, NULL },
         };
-        mpv.render_render(_rctx, params);
+        // A frame mpv couldn't draw shows black, never what the buffer held before.
+        if (mpv.render_render(_rctx, params) < 0) {
+            glClearColor(0, 0, 0, 1);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
         glBindRenderbuffer(GL_RENDERBUFFER, _color);
         [_ctx presentRenderbuffer:GL_RENDERBUFFER];
         mpv.render_report_swap(_rctx);

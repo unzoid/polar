@@ -22,7 +22,7 @@ import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
-import { appWindow, leaveApp } from "./lib/platform";
+import { appWindow, leaveApp, systemBack } from "./lib/platform";
 import { PartyHost } from "./components/party/PartyHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
@@ -300,12 +300,13 @@ function DesktopApp() {
   }, [playing, back]);
 
   // Android's back button and gesture: Escape's Back, then Home, then the app goes to the background.
+  // iOS's swipe in from the left edge: Escape's Back only.
   useSystemBack(() => {
     const open = !!playing || isSettingsOpen() || dismissDepth() > 0;
-    const action = systemBackAction({ open, pushed: stack.length - 1, atHome: rootTab(stack).name === "home" });
+    const action = systemBackAction({ open, pushed: stack.length - 1, atHome: rootTab(stack).name === "home", swipe: systemBack === "swipe" });
     if (action === "escape") pressEscape();
     else if (action === "home") tab({ name: "home" });
-    else void leaveApp();
+    else if (action === "leave") void leaveApp();
   });
 
   return (
