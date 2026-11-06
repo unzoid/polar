@@ -685,3 +685,11 @@ against a real project.
   is gone; start a download of a source that plays in a browser ("can't be downloaded"); play a source that answers
   404 (the loading screen says `Failed at the source's server`) and, with mpv missing from its folder, any source
   (`Failed at the player`). Signed in with 5 profiles, adding a sixth says "An account can have up to 5 profiles."
+- `polar.json` renamed `polarity.json` (#40; `polar_library::moved::take_over_or_keep`, tested on Linux): at
+  the first start of this version the file is copied to `polarity.json` (owner-only on Linux and macOS), then
+  the old one renamed `polar.json.moved`. If the copy can't be made, `polar.json` stays in use and the next start
+  tries again. The log (`polar.log`) and the `app.getpolar.desktop` folders keep their names. To check on each
+  desktop: with a library and settings from the previous version, start this one: everything is there, the app
+  data folder has `polarity.json` and `polar.json.moved` and no `polar.json`; change a setting, quit, start
+  again: still changed. An earlier version started after this one finds no `polar.json` and starts empty
+  (rename `polar.json.moved` back to go back).

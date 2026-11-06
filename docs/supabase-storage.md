@@ -195,7 +195,7 @@ cascades through `profiles`. Pulls (`profile_id = $1 and synced_at > $2`) walk t
 A pulled title arrives with an id, a kind and times only. After each sync round the device looks up
 every title it has no name for (`src/lib/account/titleDisplay.ts`: newest first, four at a time,
 through `api.meta`, the call the title page makes) and keeps the name and pictures in its own store
-(`polar.json`, commands `space_untitled` / `space_fill_display`, `crates/library/src/display.rs`),
+(`polarity.json`, commands `space_untitled` / `space_fill_display`, `crates/library/src/display.rs`),
 so each title is looked up once per device. Filling moves no times, so nothing is pushed back.
 Pictures the lookup didn't give are built from the id where the source has a fixed pattern:
 
