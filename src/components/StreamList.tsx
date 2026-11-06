@@ -2,7 +2,7 @@ import { AlertCircle, Check, Instant } from "./icons";
 import { useRouter } from "../lib/router";
 import { openSettings, type PageId } from "../lib/settings";
 import { useSettings, useStreams } from "../lib/net";
-import { READY_CHECKS, sourceRow, startsIn, TAG_LABELS, tagsOf, useReadiness, useSourceFilters } from "../lib/playback";
+import { READY_CHECKS, readinessNote, sourceRow, TAG_LABELS, tagsOf, useReadiness, useSourceFilters } from "../lib/playback";
 import type { ContentType, RankedStream, Readiness } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
 import { Button } from "./ui/Button";
@@ -144,12 +144,7 @@ function StreamRow({
   const row = sourceRow(s);
   const tags = tagsOf(s).filter((t) => ROW_TAGS.has(t));
   const isReady = readiness?.state === "ready";
-  const note =
-    readiness?.state === "ready"
-      ? `Ready to play: this link answered with the video in ${(readiness.ms / 1000).toFixed(1)} s`
-      : readiness?.state === "notReady"
-        ? readiness.reason
-        : undefined;
+  const note = readiness && readinessNote(readiness);
   // The release name is for the curious: on hover, not in the row.
   const release = s.stream.title ?? s.stream.description;
   return (
@@ -159,7 +154,7 @@ function StreamRow({
       data-current={current}
       data-ready={readiness?.state === "ready" ? "yes" : readiness?.state === "notReady" ? "no" : undefined}
       onClick={() => onPick(s)}
-      title={[note, release].filter(Boolean).join("\n") || undefined}
+      title={[note?.long, release].filter(Boolean).join("\n") || undefined}
     >
       <span className="stream-lead" aria-hidden>
         {current ? <Check size={16} strokeWidth={2.5} /> : isReady ? <Instant size={15} fill="currentColor" strokeWidth={0} /> : null}
@@ -175,7 +170,7 @@ function StreamRow({
           {s.quality.lowQualitySource && <span className="badge badge-bad">CAM</span>}
         </span>
         <span className="stream-sub t-caption">
-          {current ? "Playing · " : readiness?.state === "ready" ? `Ready · ${startsIn(readiness.ms)} · ` : readiness?.state === "notReady" ? `${readiness.reason} · ` : ""}
+          {current ? "Playing · " : note ? `${note.short} · ` : ""}
           {row.detail}
         </span>
       </span>

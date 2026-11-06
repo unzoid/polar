@@ -236,3 +236,17 @@ test("a source list marks its first links ready or not ready, checked ahead of t
   // Only the first few are checked: the last source stays as it was.
   await expect(app.locator(".stream-row").last()).not.toHaveAttribute("data-ready");
 });
+
+test("the player's Sources panel marks the same links (#21)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Sources", exact: true }).click();
+  const sources = app.getByRole("radiogroup", { name: "Sources" });
+  // The source playing keeps its check; the next ones are marked.
+  await expect(sources.locator('[data-ready="yes"]')).toHaveCount(3);
+  await expect(sources.locator('[data-ready="no"]')).toContainText("Not ready at the source");
+  await expect(sources.locator('[data-ready="yes"]').nth(1).locator(".options-check svg")).toBeVisible();
+  await expect(sources.locator('[data-ready="yes"]').nth(1)).toContainText("Ready · starts in 0.4 s");
+});

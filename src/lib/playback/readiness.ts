@@ -88,3 +88,10 @@ export function useReadiness(streams: RankedStream[], enabled = true): ReadonlyM
 
 /** "starts in 0.4 s" */
 export const startsIn = (ms: number) => `starts in ${(Math.max(ms, 100) / 1000).toFixed(1)} s`;
+
+/** What a source row says about its check: `short` in the detail line, `long` on hover. */
+export function readinessNote(r: Readiness): { short: string; long: string } | undefined {
+  if (r.state === "ready") return { short: `Ready · ${startsIn(r.ms)}`, long: `Ready to play: this link answered with the video in ${(Math.max(r.ms, 100) / 1000).toFixed(1)} s` };
+  if (r.state === "notReady") return { short: r.reason, long: r.reason };
+  return undefined;
+}

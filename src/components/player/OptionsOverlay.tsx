@@ -1,4 +1,4 @@
-import { Check, Close } from "../icons";
+import { Check, Close, Instant } from "../icons";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
@@ -23,6 +23,10 @@ export interface OptionItem {
   /** Starts a group: a small heading above this row ("Other sources"). */
   heading?: string;
   disabled?: boolean;
+  /** A source checked ahead of time (#21): "yes" shows the bolt, "no" dims the row. */
+  ready?: "yes" | "no";
+  /** Hover text. */
+  note?: string;
 }
 
 export interface OptionColumn {
@@ -176,10 +180,12 @@ function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: bool
       disabled={o.disabled}
       className="options-item"
       data-rich={!!(o.detail || o.thumbnail)}
+      data-ready={o.ready}
+      title={o.note}
       onClick={() => onSelect(o.id)}
     >
       <span className="options-check" aria-hidden>
-        {selected && <Check size={20} strokeWidth={2.5} />}
+        {selected ? <Check size={20} strokeWidth={2.5} /> : o.ready === "yes" ? <Instant size={17} fill="currentColor" strokeWidth={0} /> : null}
       </span>
       {o.thumbnail !== undefined && (
         <span className="options-thumb" aria-hidden>
