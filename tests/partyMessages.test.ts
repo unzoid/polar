@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { LAG_MAX, parseMember, parseMessage, parsePresence, roundTrip, takesOver, V_JUMP_MAX, type Timeline } from "../src/lib/party/messages";
+import { LAG_MAX, OUT_MAX, parseMember, parseMessage, parsePresence, roundTrip, takesOver, V_JUMP_MAX, type Timeline } from "../src/lib/party/messages";
 
 const media = { type: "series", metaId: "tt0000105", videoId: "tt0000105:1:5", label: "S1:E5 · The Lantern and the Key", hint: { release: "Show.S01E05.1080p" } };
 const tl = (over: Record<string, unknown> = {}) => ({ v: 3, by: "a", media, paused: false, held: false, position: 61.5, lag: 0.04, ...over });
@@ -100,4 +100,41 @@ test("a key holding several presence entries counts as its newest, wherever the 
   expect(parsePresence({ a: [entry(2), { id: "a" }] })).toEqual([expect.objectContaining({ seq: 2 })]);
   expect(parseMember({ ...entry(2), buffering: true, seq: -1 })).toEqual(expect.not.objectContaining({ seq: expect.anything() }));
   expect(parseMember({ ...entry(2), buffering: true })?.buffering).toBe(true);
+});
+
+test("the host's rules and answers are checked like everything else (#156)", () => {
+  const rules = { v: 2, host: null, locked: true, control: "host", wait: false, approve: true, out: ["b", "b", "c<"] };
+  expect(parseMessage({ t: "rules", from: "a", rules })).toEqual({ t: "rules", from: "a", rules: { ...rules, control: "host", out: ["b"] } as never });
+  expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, control: "anyone" } })).toBeNull();
+  expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, v: 0 } })).toBeNull();
+  expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, locked: "yes" } })).toBeNull();
+  expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, host: "x y" } })).toBeNull();
+  const many = parseMessage({ t: "rules", from: "a", rules: { ...rules, out: Array.from({ length: 80 }, (_, i) => `m${i}`) } });
+  if (many?.t !== "rules") throw new Error("expected rules");
+  expect(many.rules.out).toHaveLength(OUT_MAX);
+  expect(many.rules.out.at(-1)).toBe("m79");
+
+  expect(parseMessage({ t: "admit", from: "a", to: "b" })).toEqual({ t: "admit", from: "a", to: "b" });
+  expect(parseMessage({ t: "kick", from: "a" })).toBeNull();
+  expect(parseMessage({ t: "refuse", from: "a", to: "b", why: "locked" })).toEqual({ t: "refuse", from: "a", to: "b", why: "locked" });
+  expect(parseMessage({ t: "refuse", from: "a", to: "b", why: "because" })).toBeNull();
+  expect(parseMessage({ t: "end", from: "a" })).toEqual({ t: "end", from: "a" });
+  expect(parseMessage({ t: "at", from: "b", videoId: "tt0000105:1:5", position: -3, paused: false, lag: 99 })).toEqual({
+    t: "at",
+    from: "b",
+    videoId: "tt0000105:1:5",
+    position: 0,
+    paused: false,
+    lag: LAG_MAX,
+  });
+  expect(parseMessage({ t: "at", from: "b", videoId: "tt0000105:1:5", position: 3 })).toBeNull();
+  expect(parseMember({ id: "s1", name: "Sam", avatar: "", joinedAt: 1, waiting: false, knock: true }, "s1")?.knock).toBe(true);
+});
+
+test("only the host's timeline counts when only the host controls playback", () => {
+  const members = [{ id: "a" }, { id: "b" }];
+  const next = tl({ v: 4, by: "b" }) as Timeline;
+  expect(takesOver({ v: 3, by: "a" }, next, members, "a")).toBe(true);
+  expect(takesOver({ v: 3, by: "a" }, next, members, "a", true)).toBe(false);
+  expect(takesOver({ v: 3, by: "a" }, next, members, "b", true)).toBe(true);
 });
