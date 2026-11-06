@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { leaveApp } from "../src/lib/platform/back";
+import { leaveApp, setImmersive } from "../src/lib/platform/back";
 
 describe("leaving the app at the root (Android Back)", () => {
   test("the activity goes to the background through the bridge; the process isn't ended", async () => {
@@ -16,4 +16,14 @@ describe("leaving the app at the root (Android Back)", () => {
     await leaveApp({ polarDevice: {} }, async () => void quit++);
     expect(quit).toBe(2);
   });
+});
+
+test("the player asks Android for immersive mode and gives the bars back (#178)", () => {
+  const calls: boolean[] = [];
+  setImmersive(true, { polarDevice: { immersive: (on) => calls.push(on) } });
+  setImmersive(false, { polarDevice: { immersive: (on) => calls.push(on) } });
+  expect(calls).toEqual([true, false]);
+  // No bridge (desktop, iOS) or an older shell without the call: nothing happens.
+  expect(() => setImmersive(true, {})).not.toThrow();
+  expect(() => setImmersive(true, { polarDevice: {} })).not.toThrow();
 });

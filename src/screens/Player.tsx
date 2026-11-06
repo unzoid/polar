@@ -20,7 +20,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { anchorOf, appWindow, isDesktop, isMac, nativeDialogsAvailable, showNativeDialog } from "../lib/platform";
+import { anchorOf, appWindow, isDesktop, isMac, nativeDialogsAvailable, setImmersive, showNativeDialog } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -134,6 +134,11 @@ export function Player({
   const tv = useTvMode();
   // With a controller in TV mode, controls show the button that triggers them.
   const pad = usePadGlyph(tv);
+  // On Android the system bars hide while the player is open (#178), and come back when it closes.
+  useEffect(() => {
+    setImmersive(true);
+    return () => setImmersive(false);
+  }, []);
   // A link pasted into a watch party (#136): no title behind it, so no title page, episodes, sources,
   // progress or lookups by id; it plays the URL it came with.
   const link = isLinkId(metaId) ? stream?.url : undefined;
