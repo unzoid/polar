@@ -75,7 +75,7 @@ import { playContext, stillFor } from "../lib/anime";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
-import { fileStream, isFileId, recentPosition } from "../lib/localFiles";
+import { fileId, filePlace, fileStream, isFileId, recentPosition, useRecentFiles } from "../lib/localFiles";
 import {
   closePartySurface,
   getParty,
@@ -673,6 +673,22 @@ export function Player({
         }),
     [meta, shownSeason, progressById],
   );
+  // A file on this device (#242): the other videos in its folder, in order, with how long each is and
+  // where it stopped as Recent files has them. The paths stay on this device (lib/localFiles).
+  const { data: recentFiles } = useRecentFiles();
+  const folderItems = useMemo<OptionItem[]>(() => {
+    if (!local) return [];
+    const recent = new Map((recentFiles ?? []).map((r) => [fileId(r.path), r]));
+    return (meta?.videos ?? []).map((v) => {
+      const { length, stopped } = filePlace(recent.get(v.id));
+      return {
+        id: v.id,
+        label: v.title,
+        detail: length === undefined ? undefined : stopped === undefined ? formatTime(length) : formatRemaining(stopped, length),
+        progress: length && stopped !== undefined ? stopped / length : undefined,
+      };
+    });
+  }, [local, meta, recentFiles]);
 
   const rankedStreams = useMemo(() => streams.data?.streams ?? [], [streams.data]);
   const currentKey = source.state.status === "ready" ? streamKey(source.state) : undefined;
@@ -1084,7 +1100,7 @@ export function Player({
             <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={(el) => openOptions("speed", el)} />
           )}
           {type === "series" && (
-            <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
+            <ActionButton icon={<Episodes size={22} />} label={local ? "In this folder" : "Episodes"} glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
           <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={(el) => openOptions("tracks", el)} />
           {!link && !local && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
@@ -1098,7 +1114,7 @@ export function Player({
           {next && (
             <ActionButton
               icon={<SkipForward size={22} fill="currentColor" />}
-              label="Next Episode"
+              label={local ? "Next video" : "Next Episode"}
               glyph={skip.active ? null : pad("skipOrNext", "nextEpisode")}
               onClick={() => playVideo(next.id)}
             />
@@ -1192,7 +1208,7 @@ export function Player({
             </div>
             <div className="next-up-text">
               <span className="next-up-kicker">
-                {ended && stillWatching ? "Are you still watching?" : `Up Next · ${episodeCode(next.season, next.episode)}`}
+                {ended && stillWatching ? "Are you still watching?" : local ? "Up Next" : `Up Next · ${episodeCode(next.season, next.episode)}`}
               </span>
               {skipped.length > 0 && !(ended && stillWatching) && (
                 <span className="next-up-skipping">
@@ -1279,7 +1295,21 @@ export function Player({
         onClose={() => setOptions(null)}
         media={media}
         columns={
-          episodeLayout === "list" || !meta
+          local
+            ? [
+                {
+                  title: "In this folder",
+                  size: "wide",
+                  value: videoId,
+                  options: folderItems,
+                  onSelect: (id) => {
+                    if (id === videoId) return;
+                    setOptions(null);
+                    playVideo(id);
+                  },
+                },
+              ]
+            : episodeLayout === "list" || !meta
             ? [
                 {
                   title: "Seasons",

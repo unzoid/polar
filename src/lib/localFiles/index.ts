@@ -67,6 +67,15 @@ export function recentPosition(videoId: string): Pick<RecentFile, "position" | "
   return queryClient.getQueryData<RecentFile[]>(keys.recentFiles)?.find((r) => fileId(r.path) === videoId);
 }
 
+/**
+ * A file's length and where it stopped, from its Recent files entry (#242): `length` when it's known,
+ * `stopped` only while it's part-way (not at the start, not at the end).
+ */
+export function filePlace(r: Pick<RecentFile, "position" | "duration"> | undefined): { length?: number; stopped?: number } {
+  if (!r || !(r.duration > 0)) return {};
+  return { length: r.duration, stopped: r.position > 0 && r.position < r.duration ? r.position : undefined };
+}
+
 /** The files of titles opened this session, by video id: Next Episode plays the next one's path. */
 const byId = new Map<string, LocalFile>();
 export function fileStream(videoId: string): Stream | undefined {
