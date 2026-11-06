@@ -9,6 +9,7 @@ export * from "./lookahead";
 export * from "./playTarget";
 export * from "./readiness";
 export * from "./sources";
+export * from "./sourceInfo";
 export * from "./startLog";
 export * from "./titlePlayback";
 export * from "./torrent";
