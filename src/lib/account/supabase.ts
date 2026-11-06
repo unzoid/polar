@@ -2,7 +2,7 @@
  * Supabase implementation of `AccountBackend`. The only file that imports
  * supabase-js; schema lives in supabase/migrations.
  */
-import { createClient, type AuthError, type PostgrestError, type User } from "@supabase/supabase-js";
+import { createClient, type AuthError, type PostgrestError, type RealtimeChannel, type User } from "@supabase/supabase-js";
 import type { AnimeLink } from "../library/identity";
 import type { Progress, SyncLibraryItem } from "../types";
 import { count, isRecord, listOf, str } from "../parse";
@@ -32,6 +32,8 @@ const PROGRESS_COLUMNS = "meta_id, kind, entries, updated_at, synced_at";
 const LINK_COLUMNS = "anilist, canonical, mal, kitsu, updated_at, synced_at";
 /** How long the server's answer to "do you keep every episode?" holds before a push asks again. */
 const EVERY_EPISODE_TTL_MS = 10 * 60_000;
+/** Party channels being taken down, by topic: a new one on the same topic waits for its removal. */
+const partyClosing = new Map<string, Promise<unknown>>();
 
 export function createSupabaseBackend(url: string, key: string): AccountBackend {
   const db = createClient(url, key, {
@@ -56,39 +58,66 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
     // code is the invitation. Nothing is stored.
     party: {
       connect(code, me, { onMessage, onPresence, onStatus }) {
+        const topic = `party:${code}`;
         let current = me;
-        const ch = db.channel(`party:${code}`, {
-          config: { private: true, broadcast: { self: true }, presence: { key: me.id } },
-        });
-        ch.on("broadcast", { event: "m" }, ({ payload }) => onMessage(payload as Record<string, unknown>));
-        ch.on("presence", { event: "sync" }, () => {
-          // Checked here: each entry must carry the key it was tracked under (critique M11).
-          onPresence(parsePresence(ch.presenceState()));
-        });
-        const fail = (err?: Error) => {
-          const message = err?.message ?? "";
-          if (message) console.warn("[party] realtime:", message);
-          // Realtime refuses a private topic no policy allows: the server is missing the watch_parties migration.
-          onStatus("error", { setup: /unauthori[sz]ed|permission|policy|not allowed/i.test(message), message });
+        let ch: RealtimeChannel | null = null;
+        let closed = false;
+        const open = () => {
+          const c = db.channel(topic, {
+            config: { private: true, broadcast: { self: true }, presence: { key: me.id } },
+          });
+          ch = c;
+          // Only the channel in use speaks: an old one being taken down stays quiet.
+          const mine = () => ch === c && !closed;
+          c.on("broadcast", { event: "m" }, ({ payload }) => mine() && onMessage(payload as Record<string, unknown>));
+          c.on("presence", { event: "sync" }, () => {
+            // Checked here: each entry must carry the key it was tracked under (critique M11).
+            if (mine()) onPresence(parsePresence(c.presenceState()));
+          });
+          const fail = (err?: Error) => {
+            if (!mine()) return;
+            const message = err?.message ?? "";
+            if (message) console.warn("[party] realtime:", message);
+            // Realtime refuses a private topic no policy allows: the server is missing the watch_parties migration.
+            onStatus("error", { setup: /unauthori[sz]ed|permission|policy|not allowed/i.test(message), message });
+          };
+          db.realtime
+            .setAuth()
+            .then(() =>
+              c.subscribe((status, err) => {
+                if (!mine()) return;
+                if (status === "SUBSCRIBED") {
+                  void c.track(current);
+                  onStatus("joined");
+                } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") fail(err);
+              }),
+            )
+            .catch(fail);
         };
-        db.realtime
-          .setAuth()
-          .then(() =>
-            ch.subscribe((status, err) => {
-              if (status === "SUBSCRIBED") {
-                void ch.track(current);
-                onStatus("joined");
-              } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") fail(err);
-            }),
-          )
-          .catch(fail);
+        /** Take the channel down; one on the same topic opens only after, or `db.channel` would hand this one back. */
+        const takeDown = () => {
+          const c = ch;
+          ch = null;
+          if (!c) return partyClosing.get(topic) ?? Promise.resolve();
+          const done: Promise<unknown> = db
+            .removeChannel(c)
+            .catch(() => {})
+            .finally(() => partyClosing.get(topic) === done && partyClosing.delete(topic));
+          partyClosing.set(topic, done);
+          return done;
+        };
+        void (partyClosing.get(topic) ?? Promise.resolve()).then(() => !closed && open());
         return {
-          send: (message) => void ch.send({ type: "broadcast", event: "m", payload: message }),
+          send: (message) => void ch?.send({ type: "broadcast", event: "m", payload: message }),
           track: (presence) => {
             current = presence;
-            void ch.track(presence);
+            void ch?.track(presence);
           },
-          close: () => void db.removeChannel(ch),
+          reconnect: () => void takeDown().then(() => !closed && !ch && open()),
+          close: () => {
+            closed = true;
+            void takeDown();
+          },
         };
       },
     },

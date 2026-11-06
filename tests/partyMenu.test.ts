@@ -1,7 +1,7 @@
 // The party menu's actions (#156), on simulated members (tests/partySim.ts):
 // each takes effect for every member within a couple of seconds.
 import { expect, test } from "bun:test";
-import { ENDED, KICKED } from "../src/lib/party/room";
+import { ENDED, GONE_MS, KICKED, LIVE_MS } from "../src/lib/party/room";
 import { MEDIA, partyOfTwo, statusOf, type Member } from "./partySim";
 
 /** A third member joins A's party; its join's outcome is in `result`. */
@@ -204,14 +204,18 @@ test("how far behind a member is, from where its player says it is", async () =>
   expect(s.a.room.behind("member-2")).toBeUndefined();
 });
 
-test("a member who drops off presence shows as Disconnected before it's gone", async () => {
+test("a member who drops off presence and goes quiet shows as Disconnected before it's gone", async () => {
   const s = partyOfTwo();
   s.sim.run(3000);
-  s.hub.dropTracks.add("member-2"); // can't come back
+  // Its connection is gone: no presence, and nothing it sends gets through.
+  s.hub.dropTracks.add("member-2");
+  s.hub.dropMessages.add("member-2");
   s.hub.lose("member-2");
   s.sim.run(1000);
+  expect(statusOf(s.a.room.getParty()!, "member-2")).toBe("Watching"); // heard from a moment ago
+  s.sim.run(LIVE_MS);
   expect(statusOf(s.a.room.getParty()!, "member-2")).toBe("Disconnected");
-  s.sim.run(10_000);
+  s.sim.run(GONE_MS + 2000);
   expect(statusOf(s.a.room.getParty()!, "member-2")).toBe("gone");
 });
 

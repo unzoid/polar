@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { endParty, expectedPosition, leaveParty, setQuiet, setRules, syncNow, type PartyState } from "../../lib/party";
+import { endParty, expectedPosition, leaveParty, partyLog, setQuiet, setRules, syncNow, type PartyState } from "../../lib/party";
 import { formatTime } from "../../lib/format";
 import { useMeta } from "../../lib/net";
+import { osName } from "../../lib/platform";
 import { useRouter } from "../../lib/router";
+import { appVersion } from "../../lib/updater";
 import { Lock, Pause, Play } from "../icons";
 import { Button } from "../ui/Button";
 import { Switch } from "../ui/Switch";
@@ -32,6 +34,7 @@ export function PartyMenu({ party, onClose }: { party: PartyState; onClose?: () 
           <Button variant="glass" onClick={leaveParty}>
             Leave Party
           </Button>
+          <PartyCopyLog />
         </div>
       </section>
       {host && (
@@ -137,8 +140,34 @@ export function PartyActions({ party, onGo }: { party: PartyState; onGo?: () => 
         <Button variant="glass" onClick={leaveParty}>
           Leave Party
         </Button>
+        <PartyCopyLog />
       </div>
     </div>
+  );
+}
+
+/**
+ * Copies this device's party log (#203), to compare a session that went wrong
+ * from both ends. Nothing personal in it: see lib/party/log.ts.
+ */
+export function PartyCopyLog() {
+  const [copied, setCopied] = useState<"yes" | "no" | null>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+  const copy = async () => {
+    const app = await appVersion().catch(() => "unknown");
+    navigator.clipboard.writeText(partyLog([`App ${app} on ${osName}`])).then(
+      () => setCopied("yes"),
+      () => setCopied("no"),
+    );
+  };
+  return (
+    <Button variant="glass" onClick={() => void copy()}>
+      {copied === "yes" ? "Copied" : copied === "no" ? "Couldn't copy" : "Copy Party Log"}
+    </Button>
   );
 }
 

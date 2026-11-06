@@ -74,6 +74,7 @@ export const {
   deny,
   endParty,
   dismissExit,
+  partyLog,
 } = room;
 
 export const partyAvailable = () => !!backend;

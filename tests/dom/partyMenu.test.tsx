@@ -100,3 +100,19 @@ test("a member sees no host controls and no per-member actions; joiners waiting 
   expect(text).toContain("Disconnected");
   expect(byText(container, "button", "Leave Party")).toBeTruthy();
 });
+
+test("Copy Party Log copies this device's log, with nothing personal in it (#203)", async () => {
+  let copied = "";
+  Object.defineProperty(navigator, "clipboard", { value: { writeText: async (t: string) => void (copied = t) }, configurable: true });
+  startParty(MEDIA, 754, true, { name: "Ash", avatar: "" });
+  const code = getParty()!.code;
+  const { container } = await render(at({ name: "home" }));
+  await click(byText(container, "button", "Copy Party Log"));
+  await new Promise((r) => setTimeout(r, 0));
+  expect(copied).toContain("Polarity watch party log");
+  expect(copied).toContain("started a party as");
+  expect(copied).toContain("v1 by");
+  // No name, no party code, no title or episode.
+  for (const secret of ["Ash", code, MEDIA.metaId, MEDIA.videoId, "Harbour"]) expect(copied).not.toContain(secret);
+  expect(byText(container, "button", "Copied")).toBeTruthy();
+});
