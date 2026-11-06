@@ -26,16 +26,23 @@ body:
   - type: dropdown
     id: platform
     attributes:
-      label: Where
+      label: Where you saw it
       multiple: true
       options:
         - Windows
         - macOS
         - Linux
         - Android phone or tablet
-        - Android TV, Google TV or Fire TV
+        - Android TV / Google TV / Fire TV
     validations:
       required: true
+  - type: checkboxes
+    id: only
+    attributes:
+      label: Only on these systems?
+      description: Tick it only if this is specific to the systems picked above (it doesn't happen on others, or it's about something only they have). The issue is then labelled with them.
+      options:
+        - label: It only happens on the systems I picked.
   - type: input
     id: device
     attributes:
