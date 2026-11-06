@@ -15,6 +15,7 @@ import { normalizeAvatar } from "../account/avatars";
 import type { PartyPresence } from "../account/backend";
 import type { ContentType } from "../types";
 import { checkLink, isLinkId, linkId } from "./links";
+import { isFileId } from "../localFiles/ids";
 
 export interface StreamHint {
   release?: string;
@@ -134,6 +135,8 @@ export function parseMedia(x: unknown): PartyMedia | undefined {
   const metaId = mediaId(x.metaId);
   const videoId = mediaId(x.videoId);
   if (!metaId || !videoId) return undefined;
+  // A file on someone's device (#204): nobody else can open it.
+  if (isFileId(metaId) || isFileId(videoId)) return undefined;
   const media: PartyMedia = { type: x.type, metaId, videoId };
   if (x.url !== undefined) {
     // A link must be one the app would share itself, and its ids must be its own: no other title's ids on it.

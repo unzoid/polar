@@ -708,6 +708,43 @@
     transform: none;
   }
 }
+/* Library → Recent Files (#204): a file on this device, its kind on the art and × to take it off. */
+.recent-file-kind {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--accent) 75%, white);
+}
+.recent-file-forget {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: var(--r-round);
+  background: rgb(0 0 0 / 0.45);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.recent-file-card:hover .recent-file-forget,
+.recent-file-card:focus-within .recent-file-forget,
+.recent-file-forget:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .recent-file-forget {
+    opacity: 1;
+  }
+}
 .download-card-state {
   position: absolute;
   left: 0.625rem;

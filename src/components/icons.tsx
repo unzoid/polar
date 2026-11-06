@@ -66,6 +66,7 @@ export const Settings = icon(S24.Cog6ToothIcon, S20.Cog6ToothIcon, S16.Cog6Tooth
 export const SignOut = icon(S24.ArrowRightStartOnRectangleIcon, S20.ArrowRightStartOnRectangleIcon, S16.ArrowRightStartOnRectangleIcon);
 export const Store = icon(S24.BuildingStorefrontIcon, S20.BuildingStorefrontIcon, S16.BuildingStorefrontIcon);
 export const Star = icon(S24.StarIcon, S20.StarIcon, S16.StarIcon);
+export const OpenFile = icon(S24.ArrowUpTrayIcon, S20.ArrowUpTrayIcon, S16.ArrowUpTrayIcon);
 export const Folder = icon(S24.FolderOpenIcon, S20.FolderOpenIcon, S16.FolderOpenIcon);
 export const Bookmark =icon(S24.BookmarkIcon, S20.BookmarkIcon, S16.BookmarkIcon);
 export const Calendar =icon(S24.CalendarDaysIcon, S20.CalendarDaysIcon, S16.CalendarDaysIcon);

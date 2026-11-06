@@ -6,7 +6,11 @@ import { Bookmark, ChevronLeft, ChevronRight, Close, Download, PlaylistIcon, Pla
 import { Img } from "../components/Img";
 import { PlaylistTile, usePlaylistItem } from "../components/Playlists";
 import { PosterCard } from "../components/PosterCard";
-import { Card } from "../components/title/Card";
+import { Card, ProgressBar } from "../components/title/Card";
+import { errorMessage } from "../lib/errors";
+import { formatRemaining } from "../lib/format";
+import { watchedFraction } from "../lib/library";
+import { fileKind, fileTitle, forgetRecent, playRecent, useRecentFiles, type RecentFile } from "../lib/localFiles";
 import { Row } from "../components/Row";
 import { StillPlaceholder } from "../components/StillPlaceholder";
 import { downloadFraction, localStream, useAllLeaving, useDownloads, useLeaving, type Download as DownloadRecord } from "../lib/library";
@@ -126,7 +130,8 @@ function Overview({ onOpen }: { onOpen: (o: Open) => void }) {
       See All <ChevronRight size={14} strokeWidth={2.25} />
     </button>
   );
-  const nothing = saved?.length === 0 && history?.length === 0 && playlists.length === 0 && dl.length === 0;
+  const { data: recentFiles = [] } = useRecentFiles();
+  const nothing = saved?.length === 0 && history?.length === 0 && playlists.length === 0 && dl.length === 0 && !recentFiles.length;
 
   return (
     <>
@@ -167,6 +172,13 @@ function Overview({ onOpen }: { onOpen: (o: Open) => void }) {
       {nothing && <EmptyState>Titles you save, download, watch or put in a playlist gather here.</EmptyState>}
 
       <div className="rows library-rows">
+        {recentFiles.length > 0 && (
+          <Row title="Recent Files" shape="landscape">
+            {recentFiles.map((f) => (
+              <RecentFileCard key={f.path} file={f} />
+            ))}
+          </Row>
+        )}
         {dl.length > 0 && (
           <Row title="Downloads" shape="landscape" action={seeAll("downloads")}>
             {dl.slice(0, 16).map((d) => (
@@ -236,6 +248,50 @@ function DownloadCard({ d, onOpen }: { d: DownloadRecord; onOpen: () => void }) 
       <span className="download-card-state" data-state={d.state}>
         {d.state === "done" ? <Play size={14} fill="currentColor" /> : <DownloadGlyph d={d} size={18} />}
       </span>
+    </Card>
+  );
+}
+
+/**
+ * A video file opened on this device (#204), kept here and never synced: plays from where it stopped,
+ * with its folder's other videos as episodes. One that's gone says so; × takes it off the list.
+ */
+function RecentFileCard({ file }: { file: RecentFile }) {
+  const { navigate } = useRouter();
+  const [gone, setGone] = useState<string | null>(null);
+  const fraction = file.duration > 0 ? file.position / file.duration : 0;
+  const watched = fraction >= watchedFraction();
+  const detail = gone ?? [formatBytes(file.size), watched ? "Watched" : fraction > 0.01 ? formatRemaining(file.position, file.duration) : ""].filter(Boolean).join(" · ");
+  const open = () =>
+    void playRecent(file.path).then(
+      (route) => route && navigate(route),
+      (e) => setGone(errorMessage(e)),
+    );
+  return (
+    <Card
+      shape="landscape"
+      className="recent-file-card"
+      fallback={<StillPlaceholder />}
+      title={fileTitle(file.name)}
+      detail={detail}
+      hint={file.name}
+      onClick={open}
+      actions={
+        <button
+          type="button"
+          className="recent-file-forget"
+          aria-label={`Remove ${file.name} from Recent Files`}
+          onClick={(e) => {
+            e.stopPropagation();
+            void forgetRecent(file.path);
+          }}
+        >
+          <Close size={16} />
+        </button>
+      }
+    >
+      <span className="recent-file-kind">{fileKind(file.name)}</span>
+      {!gone && !watched && fraction > 0.01 && <ProgressBar fraction={fraction} />}
     </Card>
   );
 }

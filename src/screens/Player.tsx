@@ -71,6 +71,7 @@ import { playContext, stillFor } from "../lib/anime";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
+import { fileStream, isFileId, recentPosition } from "../lib/localFiles";
 import { getParty, isLinkId, linkLabel, linkMedia, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
@@ -119,7 +120,10 @@ export function Player({
   // A link pasted into a watch party (#136): no title behind it, so no title page, episodes, sources,
   // progress or lookups by id; it plays the URL it came with.
   const link = isLinkId(metaId) ? stream?.url : undefined;
-  const { data: meta } = useMeta(type, metaId, !isLinkId(metaId));
+  // A video file on this device (#204): its title is the file or its folder (lib/localFiles), its
+  // source the file itself, and where it stopped is kept on this device; nothing is looked up online.
+  const local = isFileId(metaId);
+  const { data: meta } = useMeta(type, metaId, !isLinkId(metaId) && !local);
   const { data: settings } = useSettings();
   const { touch } = useFormFactor();
   // Engine: embedded mpv when installed (plays every codec, AC3/DTS audio, every
@@ -143,7 +147,8 @@ export function Player({
       logStep("Player: built-in (mpv isn't installed, so some files may not play: AC3/DTS audio, HEVC where the system can't decode it)", "info", "player");
   }, [engine, logStep]);
   const startedRef = useRef(false);
-  const source = useSource(type, metaId, videoId, stream, roomHint, logStep, () => startedRef.current);
+  const playStream = stream ?? (local ? fileStream(videoId) : undefined);
+  const source = useSource(type, metaId, videoId, playStream, roomHint, logStep, () => startedRef.current);
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   /** What plays in the app; `media` is what the controls drive, an AirPlay receiver's element while casting with mpv. */
@@ -224,6 +229,8 @@ export function Player({
     },
     (patch) => updateSettings.mutate(patch),
     playingFile,
+    // Subtitles beside a file on this device load with it (mpv's sub-auto); add-ons aren't asked.
+    !local,
   );
   useEffect(() => {
     if (engine !== "mpv") return;
@@ -250,7 +257,7 @@ export function Player({
   const { data: seekTrack } = useQuery({
     queryKey: keys.seekr(videoId, durationS),
     queryFn: () => api.seekPreviews(videoId, durationS * 1000),
-    enabled: !!settings?.seekPreviews && !!settings?.seekrKey && durationS > 0 && !link,
+    enabled: !!settings?.seekPreviews && !!settings?.seekrKey && durationS > 0 && !link && !local,
     staleTime: Infinity,
     retry: false,
   });
@@ -277,7 +284,7 @@ export function Player({
     return { next: n, skipped };
   }, [meta, type, videoId, animeSkipFiller]);
   const title = link ? stream?.name || linkLabel(link) : (meta?.name ?? "");
-  const heading = current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
+  const heading = local ? (current?.title ?? title) : current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
 
   // --- Watch party ------------------------------------------------------------
   const playingStream = source.state.status === "ready" ? source.state.stream : undefined;
@@ -322,7 +329,7 @@ export function Player({
 
   // --- Load source ----------------------------------------------------------
   /** Where to pick up (Settings → Playback: resume on/off, rewind), or undefined to start over. */
-  const resumePoint = (r?: Progress) => {
+  const resumePoint = (r?: Pick<Progress, "position" | "duration">) => {
     if (settings?.resumePlayback === false || !r || r.position <= 30 || r.position / r.duration >= watchedFraction()) return undefined;
     return Math.max(0, r.position - (settings?.resumeRewind ?? 0));
   };
@@ -338,7 +345,7 @@ export function Player({
     if (v instanceof MpvMedia) {
       // Start at the resume point (or where the watch party is) directly: no
       // fetching the opening of a network stream only to seek away from it.
-      const start = partyPosition(videoId) ?? resumePoint(source.resume);
+      const start = partyPosition(videoId) ?? resumePoint(source.resume ?? (local ? recentPosition(videoId) : undefined));
       resumed.current = true;
       v.load(source.state.url, start, requestHeaders(source.state.stream));
     } else if (v instanceof HTMLVideoElement) {
@@ -431,7 +438,8 @@ export function Player({
 
   // Settings → Playback → "Pause when minimized".
   const { pauseOnMinimize, discordPresence } = usePrefs();
-  useDiscordPresence(media, meta, videoId, discordPresence);
+  // A file on this device stays private: its name isn't shown on Discord.
+  useDiscordPresence(media, meta, videoId, local ? "off" : discordPresence);
   useEffect(() => {
     if (!pauseOnMinimize) return;
     const unlisten = win.onResized(() => {
@@ -468,7 +476,7 @@ export function Player({
     canplay: () => setBuffering(false),
     loadedmetadata: () => {
       const v = videoRef.current!;
-      const start = partyPosition(videoId) ?? resumePoint(source.resume);
+      const start = partyPosition(videoId) ?? resumePoint(source.resume ?? (local ? recentPosition(videoId) : undefined));
       if (!resumed.current && start != null) v.currentTime = start;
       resumed.current = true;
       if (!startedRef.current) {
@@ -550,7 +558,7 @@ export function Player({
     preferFile: preferFileChapters,
     seekTo,
     onAutoSkipped,
-    online: !link,
+    online: !link && !local,
   });
 
   // A phone or tablet has no window to make fullscreen: its button fits the picture inside the
@@ -736,7 +744,7 @@ export function Player({
           if (next) playVideo(next.id);
           return true;
         case "sources":
-          if (link) return false;
+          if (link || local) return false;
           toggleOptions(action);
           return true;
         case "tracks":
@@ -885,7 +893,7 @@ export function Player({
             background={meta?.background}
             steps={steps}
             backend={engine === "html" ? "built-in" : (engine ?? "not chosen yet")}
-            onSources={link ? undefined : () => setOptions("sources")}
+            onSources={link || local ? undefined : () => setOptions("sources")}
           />
         )}
       </AnimatePresence>
@@ -1023,7 +1031,7 @@ export function Player({
             <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
           <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={(el) => openOptions("tracks", el)} />
-          {!link && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
+          {!link && !local && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
           {canParty && !airplay.casting && (
             <ActionButton
               icon={<WatchParty size={22} />}
@@ -1184,7 +1192,7 @@ export function Player({
                     ? [{ title: "Host", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyHostControls party={party} /> }]
                     : []),
                 ]
-              : [{ title: "Watch Party", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={startHere} /> }]),
+              : [{ title: "Watch Party", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={local ? undefined : startHere} /> }]),
             // TV mode: no pasting on a remote; links others put on still play there.
             ...(tv
               ? []

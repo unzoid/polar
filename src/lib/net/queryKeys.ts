@@ -20,6 +20,8 @@ export const keys = {
     ["subtitles", type, videoId, file?.size ?? null, file?.name ?? null] as const,
   progress: (metaId: string) => ["progress", metaId] as const,
   progressAll: ["progress"] as const,
+  /** Video files opened on this device (lib/localFiles.ts); never synced. */
+  recentFiles: ["recent-files"] as const,
   continue: ["continue"] as const,
   history: ["history"] as const,
   library: ["library"] as const,

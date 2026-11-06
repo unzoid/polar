@@ -7,6 +7,7 @@ mod downloads;
 mod imdb;
 mod introdb;
 mod keychain;
+mod local_files;
 mod locks;
 mod logging;
 mod native_dialogs;
@@ -182,6 +183,12 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .on_window_event(|window, event| {
+            // Videos dropped on the window open in the player (#204).
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                local_files::dropped(window.app_handle(), paths.clone());
+            }
+        })
         .setup(|app| {
             logging::init(&app.path().app_log_dir()?, app.path().home_dir().ok().as_deref());
             tracing::info!("Polarity {} starting", app.package_info().version);
@@ -189,11 +196,13 @@ pub fn run() {
             {
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
+                app.handle().plugin(tauri_plugin_dialog::init())?;
             }
             let dir = app.path().app_data_dir()?;
             let path = data_file(&dir);
             migrate_legacy_store(&dir, &path);
             downloads::manage(app.handle(), &dir)?;
+            local_files::manage(app.handle())?;
             let mut store = store::Store::load(path);
             let (vault, secrets) = keychain::open_vault(&store.data);
             store.data.fill_secrets(&secrets);
@@ -291,6 +300,12 @@ pub fn run() {
             sync::space_fill_display,
             player::mpv_available,
             player::mpv_load,
+            local_files::local_pick,
+            local_files::local_folder,
+            local_files::local_recent,
+            local_files::local_reopen,
+            local_files::local_seen,
+            local_files::local_forget,
             streamcheck::stream_probe,
             streamcheck::stream_ready,
             discord::discord_available,

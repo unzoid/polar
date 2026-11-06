@@ -84,6 +84,9 @@ const commands: Record<string, (a: Args) => unknown> = {
   anime_episode_flags: () => ({ filler: [], recap: [] }),
   anime_cache: () => ({ path: "~/.cache/polar/anime", bytes: 1_843_200 }),
   downloads_list: () => downloads,
+  // Files on this device (#204): none opened, and the file dialog is cancelled.
+  local_recent: () => [],
+  local_pick: () => [],
   download_start: (a) => {
     const { req } = a as { req: Omit<Download, "id" | "file" | "received" | "state" | "addedAt"> & { videoId: string } };
     const { videoId, ...rest } = req;
