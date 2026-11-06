@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: **[date, to fill in when published]**
+Last updated: 06/11/2026
 
 Polarity is a media player. This page says what it stores about you, where, and who else your device talks to while
 you use it. It's written from what the app does today; where something isn't settled yet, it says so.
@@ -27,7 +27,7 @@ in, it keeps:
 
 - **Your email address**, which you sign in with (a login code is emailed to you; there's no password), and the
   times you signed in. Supabase's sign-in service also keeps its own logs of requests, which include your IP address.
-  How long those are kept: **[to fill in from the Supabase plan]**.
+  How long those are kept: 1 day
 - **Profiles:** each profile's name and the avatar picked for it (one of the app's built-in pictures, never a photo).
 - **Library:** which titles are in each profile's library, by id (for example an IMDb or Kitsu id), and when they
   were added. Not their names or pictures.
