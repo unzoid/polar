@@ -5,6 +5,8 @@ import { useSyncExternalStore } from "react";
 import { queryClient } from "../net/queries";
 import { errorMessage } from "../errors";
 import type { ContentType, MetaPreview, RankedStream, Stream, Video } from "../types";
+import { api } from "../api";
+import { runBatch } from "./batchDownloads";
 
 /**
  * Downloads (src-tauri/src/downloads.rs): a movie or an episode saved to this
@@ -74,8 +76,8 @@ export function useDownload(videoId: string | undefined) {
 /** A source the backend can copy as a file: a link. */
 export const downloadable = (s: Stream) => !!s.url;
 
-/** Start downloading `pick`, the source chosen in the download sheet. */
-export async function startDownload(item: MetaPreview, video: Video | undefined, pick: RankedStream) {
+/** Start downloading `pick`, the source chosen in the download sheet. Resolves with why it couldn't start, or null. */
+export async function startDownload(item: MetaPreview, video: Video | undefined, pick: RankedStream): Promise<string | null> {
   const type = item.type;
   const videoId = video?.id ?? item.id;
   setPending(videoId, { kind: "finding" });
@@ -100,9 +102,29 @@ export async function startDownload(item: MetaPreview, video: Video | undefined,
     });
     setPending(videoId, null);
   } catch (e) {
-    setPending(videoId, { kind: "error", message: errorMessage(e) });
+    const message = errorMessage(e);
+    setPending(videoId, { kind: "error", message });
+    await refresh();
+    return message;
   }
   await refresh();
+  return null;
+}
+
+/** Downloads `videos` of a show as one batch (batchDownloads.ts), with the app's sources and downloads. */
+export function downloadBatch(key: string, item: MetaPreview, videos: Video[]) {
+  return runBatch(key, item, videos, {
+    sources: (video) => api.streams(item.type, video.id).then((r) => r.streams),
+    start: startDownload,
+    status: async (id) => {
+      const d = (await call<Download[]>("downloads_list")).find((x) => x.id === id);
+      return d && { state: d.state, fraction: downloadFraction(d) };
+    },
+    pause: pauseDownload,
+    resume: resumeDownload,
+    remove: removeDownload,
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  });
 }
 
 export async function pauseDownload(id: string) {

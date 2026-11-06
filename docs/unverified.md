@@ -693,3 +693,12 @@ against a real project.
   data folder has `polarity.json` and `polar.json.moved` and no `polar.json`; change a setting, quit, start
   again: still changed. An earlier version started after this one finds no `polar.json` and starts empty
   (rename `polar.json.moved` back to go back).
+- Add-ons and API keys per profile on a device (#80; `startProfile`, `setupSources`, `copySetup` in
+  `lib/account/settingsSync.ts`, tested with the mocked store). Settings → Account → Sync → "Share add-ons and keys
+  between profiles on this device": on for installs from before this version (prefs or an account's settings
+  already stored), off for new ones. Off, a profile this device has never synced starts without the add-ons and
+  keys in the store (only the app's own subtitles add-on stays), takes its account's own on the first sync round,
+  and sends nobody else's up; while it has none, Settings → Account offers "From Guest on this device" and the
+  account's other profiles synced here. Not run signed in. To check, with sharing off: as a guest add a TMDB key
+  and an add-on; sign in to a new account: no key, no add-on, and the offer lists Guest; copy: both there; sign
+  out: the guest's set as it was; sign in to a second account: it never sees the first account's set.

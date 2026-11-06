@@ -362,6 +362,45 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A heading that opens the shelf's full list (#48): the same type, a chevron after it that moves on hover. */
+.row-title-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+/* The text keeps the ellipsis; the heading itself mustn't clip the focus ring. */
+.row-title:has(.row-title-link) {
+  overflow: visible;
+}
+.row-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row-title-chevron {
+  flex: none;
+  color: var(--text-3);
+  transition: transform 160ms var(--ease-out), color 160ms var(--ease-out);
+}
+.row-title-link:focus-visible .row-title-chevron {
+  color: var(--text);
+}
+@media (hover: hover) and (pointer: fine) {
+  .row-title-link:hover .row-title-chevron {
+    color: var(--text);
+    transform: translateX(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-title-chevron {
+    transition: none;
+  }
+}
 .row-viewport {
   position: relative;
 }

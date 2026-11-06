@@ -140,7 +140,7 @@ fn migrate_legacy_store(dir: &std::path::Path, path: &std::path::Path) {
 }
 
 /// Addons that come with the app: subtitles work out of the box.
-const BUNDLED_ADDONS: &[&str] = &["https://opensubtitles-v3.strem.io/manifest.json"];
+pub(crate) const BUNDLED_ADDONS: &[&str] = &["https://opensubtitles-v3.strem.io/manifest.json"];
 
 /// Install each bundled addon the first time the app runs with it. Offline
 /// launches try again next time; one the user has removed stays removed.
@@ -230,6 +230,7 @@ pub fn run() {
             commands::skip_segments,
             commands::ratings,
             commands::addons_list,
+            commands::addons_bundled,
             commands::addon_install,
             commands::addon_remove,
             commands::library_list,

@@ -234,6 +234,13 @@ setting (#89, §2.1 option D by default, C with a passphrase):
   the others' keys; it keeps its own keys and add-ons and Settings → Account asks for the passphrase.
 - A profile's first round on a device takes the account's keys but keeps a key the account lacks,
   and no add-on is taken away (`firstDoc`).
+- **Per profile on a device** (#80): each profile's keys and add-ons are its own copy on the device,
+  put back when it's entered; the guest's are kept aside and put back at sign-out. Unless Settings →
+  Account shares add-ons and keys between profiles on the device (on for installs from before #80,
+  off for new ones), a profile the device has never synced starts with none of those in the store,
+  only the app's own add-ons (`startProfile`), so its first round sends nobody else's to its account.
+  While it has none, Settings → Account offers to copy the guest's set or one of the account's other
+  profiles' sets kept on the device (`copySetup`); copies sync like any change.
 - Versions from before #89 drop the `secrets` field when they write the document (the next newer
   device puts it back from its own copy) and pass `sealed` on as it came. A passphrase typed in such
   a version while the option was off is forgotten on update (nothing was sealed with it).
