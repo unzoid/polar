@@ -5,6 +5,8 @@ import logo from "../../assets/polarity-white.png";
 import { Button } from "../../components/ui/Button";
 import { TextField, type TextFieldProps } from "../../components/ui/TextField";
 import { AccountError, useAccount } from "../../lib/account";
+import { api } from "../../lib/api";
+import { PRIVACY_URL, TERMS_URL } from "../../lib/settings";
 import { errorMessage } from "../../lib/errors";
 import { AccountShell } from "./AccountShell";
 import { Captcha } from "./Captcha";
@@ -126,6 +128,7 @@ export function AuthScreen() {
               An account keeps your profiles, library, watch history and settings in sync across devices. New here? Signing in
               creates one.
             </p>
+            <LegalLinks />
           </>
         )}
 
@@ -151,6 +154,7 @@ export function AuthScreen() {
             <button type="button" className="auth-link" onClick={() => go("start")}>
               Back to sign in
             </button>
+            <LegalLinks />
           </form>
         )}
 
@@ -238,6 +242,21 @@ function useCountdown(from: number, seconds: number) {
 /** A field with no label above it (the placeholder asks; aria-label names it), as Linear's. */
 function Input({ onValue, type = "text", ...rest }: { value: string; onValue: (v: string) => void } & Omit<TextFieldProps, "onChange" | "look">) {
   return <TextField look="block" type={type} onChange={onValue} spellCheck={false} autoCapitalize="off" {...rest} />;
+}
+
+/** The privacy policy and terms (#157), under the steps that create an account. */
+function LegalLinks() {
+  return (
+    <p className="auth-legal">
+      <button type="button" onClick={() => void api.openExternal(PRIVACY_URL)}>
+        Privacy Policy
+      </button>
+      <span aria-hidden>·</span>
+      <button type="button" onClick={() => void api.openExternal(TERMS_URL)}>
+        Terms of Use
+      </button>
+    </p>
+  );
 }
 
 function ErrorLine({ error, action }: { error: Failure | null; action?: ReactNode }) {
