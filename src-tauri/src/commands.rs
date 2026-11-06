@@ -366,16 +366,23 @@ pub fn watch_history(state: State<'_, AppState>) -> Vec<Progress> {
 /// `updatedAt` is set here. Returns whether anything changed: the anime
 /// pages call this on every visit, and a link that says what the stored one
 /// already does keeps the stored one's time (so sync has nothing to send).
+/// A link the anime id lists already give, for a show with nothing kept
+/// under its ids yet, isn't stored at all (#102, `Space::needs_link`).
 #[tauri::command]
-pub fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<bool> {
+pub async fn link_anime(state: State<'_, AppState>, mut link: AnimeLink) -> Result<bool> {
     if !link.is_valid() {
         return Err(CmdError::Unsupported(format!("not a title id Polarity keys by: {}", link.canonical)));
     }
-    let known = {
+    // What the anime id lists say (none when they can't be read: then the link is kept).
+    let listed = state.anime_lists.find(&polar_anime::AnimeKey::Anilist(link.anilist)).await.and_then(|m| m.imdb_id);
+    let skip = {
         let store = state.store.locked();
-        store.data.space().and_then(|s| s.links.get(&link.anilist)).is_some_and(|old| old.same_target(&link))
+        store.data.space().is_some_and(|s| {
+            s.links.get(&link.anilist).is_some_and(|old| old.same_target(&link))
+                || !s.needs_link(&link, listed.as_deref())
+        })
     };
-    if known {
+    if skip {
         return Ok(false);
     }
     link.updated_at = now();

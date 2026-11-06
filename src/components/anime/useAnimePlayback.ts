@@ -16,7 +16,7 @@ import {
   useAniZip,
 } from "../../lib/anime";
 import { usePrefs } from "../../lib/settings";
-import { useMeta, useProgress } from "../../lib/net";
+import { useLibrary, useMeta, useProgress } from "../../lib/net";
 import { watchedFraction } from "../../lib/library";
 
 /**
@@ -51,11 +51,15 @@ export function useAnimePlayback(anime: AnimeCard | Anime) {
   const episodes = useMemo(() => animeEpisodes({ anime, zip, videos: meta?.videos ?? [], imdb, titles: animeTitles }), [zip, meta, anime, animeTitles, imdb]);
 
   // The id this entry plays from, for the backend: library and progress kept under its other ids move onto it.
-  // Only once the IMDb lookup has answered, so a failed lookup doesn't link the entry to its Kitsu id.
+  // Only once the IMDb lookup has answered, so a failed lookup doesn't link the entry to its Kitsu id. A link
+  // the anime id lists already give is only kept once the show is in the library or has progress (#102), so
+  // it's asked again when that happens.
   const qc = useQueryClient();
+  const { data: library } = useLibrary();
+  const used = !!progress?.length || !!library?.some((l) => l.id === metaId);
   useEffect(() => {
     if (metaId && imdbKnown) void linkAnime(qc, { canonical: metaId, anilist: anime.id, mal: malId, kitsu });
-  }, [qc, metaId, imdbKnown, anime.id, malId, kitsu]);
+  }, [qc, metaId, imdbKnown, anime.id, malId, kitsu, used]);
 
   // AniSkip needs MyAnimeList's numbering, and stream addons know an IMDb-matched episode by its Kitsu id
   // too; the player can't know either. Leave them (kept across restarts) for every episode.
