@@ -71,6 +71,9 @@ const edges = new Map<string, Map<string, string>>(); // real path -> (load comm
     walk(real);
   }
 })(source);
+// Polarity's mpv ships without libdvdcss (Homebrew's mpv doesn't link it today).
+const dvdcss = [...libs.values()].filter((name) => /^libdvdcss\b/.test(name));
+if (dvdcss.length) throw new Error(`libmpv links ${dvdcss.join(", ")}, which Polarity doesn't ship`);
 
 // 2. Copy and rewire.
 rmSync(out, { recursive: true, force: true });
