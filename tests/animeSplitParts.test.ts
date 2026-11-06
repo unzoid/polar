@@ -4,7 +4,17 @@ import type { AniZip } from "../src/lib/anime/anizip";
 import { animeEpisodes } from "../src/lib/anime/episodes";
 import { walkSeasons } from "../src/lib/anime/seasons";
 import { entryZip, prequelOf, sameSplitEntry } from "../src/lib/anime/splitParts";
-import type { Video } from "../src/lib/types";
+import type { Links, Lookup } from "../src/lib/anime/search";
+import type { MetaPreview, SearchResults, Video } from "../src/lib/types";
+
+// The anime modules reach ones that read localStorage when they load.
+const mem = new Map<string, string>();
+(globalThis as { localStorage?: unknown }).localStorage ??= {
+  getItem: (k: string) => mem.get(k) ?? null,
+  setItem: (k: string, v: string) => void mem.set(k, v),
+  removeItem: (k: string) => void mem.delete(k),
+};
+const { animeImdb, withoutPart } = await import("../src/lib/anime/search");
 
 // An invented franchise: two TV seasons, then a newest part split into "1st Leg" (one long episode,
 // in March) and "2nd & 3rd Leg" (weekly from September). ani.zip lists the whole part under the first
@@ -107,5 +117,105 @@ describe("a franchise's newest part split into two entries", () => {
     const own = { ...leg1Zip, episodes: { "1": leg1Zip.episodes["1"] } };
     expect(entryZip(leg2Page, leg2Zip, own)).toBe(leg2Zip);
     expect(entryZip(leg2Page, undefined, leg1Zip)).toBeUndefined();
+  });
+});
+
+// IMDb (and so the catalogs) also list the newest part as a series of its own, "Iron Trail: Kestrel Hollow":
+// the first leg is its episode 1, the later legs go on from episode 2 (#78). Its dates are whole days, one a
+// day early, as the catalogs write them.
+const PART = "tt0000002";
+const partVideos: Video[] = Array.from({ length: 12 }, (_, i) => ({
+  id: `${PART}:1:${i + 1}`,
+  title: "",
+  season: 1,
+  episode: i + 1,
+  released: `${new Date((i === 0 ? FIRST : at(i - 1)) - (i === 4 ? 86_400_000 : 0)).toISOString().slice(0, 10)}T00:00:00.000Z`,
+}));
+const mainVideos = (withPart: boolean): Video[] => [
+  ...[1, 2].flatMap((season) =>
+    Array.from({ length: 12 }, (_, i) => ({
+      id: `tt0000001:${season}:${i + 1}`,
+      title: "",
+      season,
+      episode: i + 1,
+      released: `${2018 + season}-04-0${(i % 9) + 1}`,
+    })),
+  ),
+  ...(withPart ? videos : []),
+];
+
+const partFound = { "IRON TRAIL Kestrel Hollow": [{ id: PART, type: "series", name: "Iron Trail: Kestrel Hollow", releaseInfo: "2026-" } as MetaPreview] };
+
+function catalog(main: Video[], found: Record<string, MetaPreview[]> = partFound, partEpisodes = partVideos) {
+  const searched: string[] = [];
+  const lookup: Lookup = {
+    search: async (q: string): Promise<SearchResults> => {
+      searched.push(q);
+      return { movies: [], series: found[q] ?? [] };
+    },
+    meta: async (_type: string, id: string) =>
+      ({ id, type: "series", name: id === PART ? "Iron Trail: Kestrel Hollow" : "Kestrel Hollow", videos: id === PART ? partEpisodes : main }) as never,
+  };
+  return { lookup, searched };
+}
+const noLinks: Links = { listed: async () => null, stored: async () => undefined };
+const english = (t: string) => ({ title: { romaji: null, english: t, native: null } });
+const leg1Named = { ...leg1Page, ...english("IRON TRAIL Kestrel Hollow 1st Leg") };
+const leg2Named = { ...leg2Page, ...english("IRON TRAIL Kestrel Hollow 2nd - 3rd Leg") };
+
+describe("a split part IMDb lists as a series of its own (#78)", () => {
+  test("the second part plays from that series when the main show doesn't have its episodes", async () => {
+    const zip = entryZip(leg2Named, leg2Zip, leg1Zip);
+    const { lookup } = catalog(mainVideos(false));
+    expect(await animeImdb(leg2Named, zip ?? null, lookup, noLinks)).toEqual({ id: PART, by: "mapping" });
+  });
+
+  test("and when the main show lists them as a season too", async () => {
+    const zip = entryZip(leg2Named, leg2Zip, leg1Zip);
+    const { lookup, searched } = catalog(mainVideos(true));
+    expect(await animeImdb(leg2Named, zip ?? null, lookup, noLinks)).toEqual({ id: PART, by: "mapping" });
+    // Only by its name without the part name: the main show's is left out.
+    expect(searched).toEqual(["IRON TRAIL Kestrel Hollow"]);
+  });
+
+  test("its aired and upcoming episodes line up with the series by air date, from the series' episode 2", () => {
+    const zip = entryZip(leg2Named, leg2Zip, leg1Zip);
+    const eps = animeEpisodes({ anime: leg2Named, zip, videos: partVideos, imdb: PART, titles: "english", now: NOW });
+    expect(eps.map((e) => [e.number, e.video?.id, e.upcoming])).toEqual([
+      ...Array.from({ length: 6 }, (_, i) => [i + 1, `${PART}:1:${i + 2}`, false]),
+      ...Array.from({ length: 5 }, (_, i) => [i + 7, `${PART}:1:${i + 8}`, true]),
+    ]);
+  });
+
+  test("the first part is the series' episode 1", async () => {
+    const zip = entryZip(leg1Named, leg1Zip);
+    const { lookup } = catalog(mainVideos(true));
+    expect(await animeImdb(leg1Named, zip ?? null, lookup, noLinks)).toEqual({ id: PART, by: "mapping" });
+    const eps = animeEpisodes({ anime: leg1Named, zip, videos: partVideos, imdb: PART, titles: "english", now: NOW });
+    expect(eps.map((e) => [e.number, e.video?.id])).toEqual([[1, `${PART}:1:1`]]);
+  });
+
+  test("a series by that name without the part's episodes isn't it: the main show stays", async () => {
+    const zip = entryZip(leg2Named, leg2Zip, leg1Zip);
+    const other = partVideos.map((v) => ({ ...v, released: v.released?.replace("2026", "2011") }));
+    expect(await animeImdb(leg2Named, zip ?? null, catalog(mainVideos(true), undefined, other).lookup, noLinks)).toEqual({ id: "tt0000001", by: "mapping" });
+    expect(await animeImdb(leg2Named, zip ?? null, catalog(mainVideos(true), undefined, []).lookup, noLinks)).toEqual({ id: "tt0000001", by: "mapping" });
+  });
+
+  test("a later season without a part name isn't searched for", async () => {
+    const zip = entryZip(leg2Named, leg2Zip, leg1Zip);
+    const { lookup, searched } = catalog(mainVideos(true));
+    expect(await animeImdb({ ...leg2Named, ...english("Iron Trail") }, zip ?? null, lookup, noLinks)).toEqual({ id: "tt0000001", by: "mapping" });
+    expect(searched).toEqual([]);
+  });
+
+  test("withoutPart takes off a part name however it's written", () => {
+    expect(withoutPart("IRON TRAIL Kestrel Hollow 2nd - 3rd Leg")).toBe("IRON TRAIL Kestrel Hollow");
+    expect(withoutPart("IRON TRAIL Kestrel Hollow 1st Stage")).toBe("IRON TRAIL Kestrel Hollow");
+    expect(withoutPart("Kestrel Hollow: Iron Trail - 2nd & 3rd Leg")).toBe("Kestrel Hollow: Iron Trail");
+    expect(withoutPart("Kestrel Hollow: Iron Trail - The Parting")).toBe("Kestrel Hollow: Iron Trail");
+    expect(withoutPart("Kestrel Hollow 2nd Season")).toBe("Kestrel Hollow");
+    expect(withoutPart("Kestrel Hollow Part 2")).toBe("Kestrel Hollow");
+    expect(withoutPart("Ryokou-dan")).toBe("Ryokou-dan");
   });
 });
