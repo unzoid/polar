@@ -32,20 +32,25 @@ export function Segmented<T extends string | number>({
   const list = useRef<HTMLDivElement>(null);
   const active = useRef<HTMLDivElement>(null);
   const instant = useRef(true); // first placement never animates
+  const placed = useRef(value);
 
   const optionsKey = options.map((o) => `${o.id}:${o.label}`).join("|");
   useLayoutEffect(() => {
-    const root = list.current;
-    const overlay = active.current;
-    const el = root?.querySelector<HTMLElement>(`[data-id="${CSS.escape(String(value))}"]`);
-    if (!root || !overlay || !el) return;
-    // Offsets relative to the overlay, which is inset by the track padding.
-    const left = el.offsetLeft - overlay.offsetLeft;
-    const right = overlay.clientWidth - left - el.offsetWidth;
-    overlay.dataset.instant = String(instant.current);
-    overlay.style.clipPath = `inset(0 ${right}px 0 ${left}px round 999px)`;
-    instant.current = false;
+    placed.current = value;
+    // Hidden (a collapsed section, a closed sheet) measures nothing: placed when shown, below, without a glide.
+    if (place(list.current, active.current, value, instant.current)) instant.current = false;
   }, [value, optionsKey]);
+
+  // Shown after starting hidden, or resized (fonts loading, the window): placed again where it now belongs.
+  useLayoutEffect(() => {
+    const root = list.current;
+    if (!root) return;
+    const ro = new ResizeObserver(() => {
+      if (place(root, active.current, placed.current, true)) instant.current = false;
+    });
+    ro.observe(root);
+    return () => ro.disconnect();
+  }, []);
 
   const select = (id: T, viaKeyboard = false) => {
     if (id === value) return;
@@ -90,4 +95,16 @@ export function Segmented<T extends string | number>({
       </div>
     </div>
   );
+}
+
+/** Clips the active copy to `value`'s segment; false when there's nothing to measure (hidden). */
+function place(root: HTMLElement | null, overlay: HTMLElement | null, value: string | number, instant: boolean): boolean {
+  const el = root?.querySelector<HTMLElement>(`[data-id="${CSS.escape(String(value))}"]`);
+  if (!root || !overlay || !el || !el.offsetWidth) return false;
+  // Offsets relative to the overlay, which is inset by the track padding.
+  const left = el.offsetLeft - overlay.offsetLeft;
+  const right = overlay.clientWidth - left - el.offsetWidth;
+  overlay.dataset.instant = String(instant);
+  overlay.style.clipPath = `inset(0 ${right}px 0 ${left}px round 999px)`;
+  return true;
 }
