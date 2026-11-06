@@ -665,6 +665,21 @@
     background: rgb(0 0 0 / 0.68);
   }
 }
+/* Android: mpv's picture is a surface behind the clear page, shown live under the shade (no frosted
+   copy, OptionsOverlay.tsx). The shade deepens so the options read over a sharp picture, and nothing
+   blends with or filters what's under it: over the surface both redrew wrongly as the panel opened (#181). */
+html[data-os="android"] .options-shade {
+  background: rgb(0 0 0 / 0.68);
+}
+html[data-os="android"] .options-shade::after {
+  content: none;
+}
+html[data-os="android"] .options-columns {
+  transition: transform 340ms var(--ease-reveal);
+  @starting-style {
+    filter: none;
+  }
+}
 
 /* --- Scrubber: a tvOS bar — thick, rounded, no knob at rest. */
 .scrubber {
