@@ -1080,11 +1080,24 @@
     flex-wrap: wrap;
     row-gap: 0.75rem;
   }
-  .seasons-picker {
+  .seasons-picker,
+  .seasons-bar > .seasons-tabs {
     flex: 1 0 100%;
   }
   .seasons-bar > .segmented {
     margin-left: auto;
+  }
+  /* The season dropdown (always one on a phone: SeasonPicker.tsx) a size down, a long name ellipsized. */
+  :is(.seasons-picker, .seasons-tabs) .select-trigger[data-size="large"] {
+    max-width: 100%;
+    min-height: 42px;
+    font-size: 1.25rem;
+  }
+  :is(.seasons-picker, .seasons-tabs) .select-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   /* A listed episode's Download and Sources sit on its still's top corner, as on a card in a row:
      at the row's end they ran over the title and synopsis. */

@@ -826,9 +826,19 @@
   border-bottom-right-radius: 14px;
   box-shadow: none;
 }
-:root[data-form="phone"] .t3s-nav-item > span {
+/* The label (not the profile row's avatar, also a span) takes the row. */
+:root[data-form="phone"] .t3s-nav-item > span:not(.avatar) {
   display: block;
   flex: 1;
+}
+:root[data-form="phone"] .t3s-nav-item > .avatar {
+  flex: none;
+  width: 24px !important;
+  border-radius: 6px !important;
+}
+/* The list scrolls as a whole: its parts keep their height instead of being squeezed to fit. */
+:root[data-form="phone"] .t3s-sidebar > * {
+  flex: none;
 }
 :root[data-form="phone"] .t3s-nav-item > svg {
   color: var(--t3-fg);
@@ -849,8 +859,11 @@
   background: var(--t3-card);
   color: var(--t3-fg);
 }
-:root[data-form="phone"] .t3s-sidebar-foot .t3s-nav-item > span {
+:root[data-form="phone"] .t3s-sidebar-foot .t3s-nav-item > span:not(.avatar) {
   display: block;
+}
+:root[data-form="phone"] .t3s-sidebar-foot {
+  margin-top: 0;
 }
 :root[data-form="phone"] .t3s-results {
   gap: 0.25rem;

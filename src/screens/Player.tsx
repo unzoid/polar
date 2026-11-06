@@ -1159,9 +1159,10 @@ function ActionButton({
   onClick: () => void;
 }) {
   return (
-    <button className="player-action pressable" onClick={onClick}>
+    // Named by its label even where the label isn't drawn (a phone held upright shows the glyphs alone).
+    <button className="player-action pressable" onClick={onClick} aria-label={label} title={label}>
       {icon}
-      <span>{label}</span>
+      <span aria-hidden>{label}</span>
       {glyph}
     </button>
   );

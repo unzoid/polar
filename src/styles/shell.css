@@ -452,6 +452,16 @@
   gap: 0.25rem;
   margin-right: 0.5rem;
 }
+/* The tabs are at the bottom, so the top bar has room for the wordmark again (the narrow-window
+   rule above hides it to make room for tabs). */
+:root[data-form="phone"] .navbar-brand {
+  display: flex;
+  margin-right: 0;
+  padding: 0 0.5rem;
+}
+:root[data-form="phone"] .brand-logo {
+  height: 30px;
+}
 :root[data-form="phone"] .scroll {
   padding-bottom: calc(4rem + var(--tabbar-h));
 }
