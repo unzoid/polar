@@ -36,6 +36,23 @@ The IMDb ids come from Wikidata (P345) for Tears of Steel and Big Buck Bunny. Si
 its Russian Wikipedia article gives. If a search in Polarity opens a different title, use that title's id
 instead.
 
+## The home screen and TV mode
+
+`readme-images/home.webp` and `readme-images/tvmode.webp` come from `scripts/readme-shots.ts`. It
+takes frames of the three films for their posters and backdrops, opens the app's fake shell
+(`fake.html?films=1`: the films lead the movies and Continue Watching, every other title is made up)
+and saves both screenshots. Download the films first (links below; Big Buck Bunny's 720p `.mov` is
+zipped), then:
+
+```sh
+bun scripts/readme-shots.ts --sintel Sintel.2010.1080p.mkv \
+  --tears-of-steel tears_of_steel_720p.mov --big-buck-bunny big_buck_bunny_720p_h264.mov
+```
+
+The browser has to play H.264, so the script uses Google Chrome, or the Chromium given in
+`POLAR_E2E_CHROMIUM`. Which second of each film it uses is at the top of the script. The README
+credits all three films under each screenshot.
+
 ## Playing one in Polarity
 
 Polarity plays streams from addons, so `scripts/open-films-addon.ts` is a small local addon that offers

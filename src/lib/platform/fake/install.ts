@@ -20,6 +20,7 @@ let downloads: Download[] = [];
 // `fake.html?theme=black` and the like start with that setting changed.
 const params = new URLSearchParams(location.search);
 params.delete("worst"); // fixtures.ts's worst-case switch, not a setting
+params.delete("films"); // and its README-screenshot switch
 let settings: Settings = { ...fx.settings, ...Object.fromEntries(params) };
 
 type Args = Record<string, unknown>;

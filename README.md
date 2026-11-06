@@ -3,12 +3,22 @@
 </p>
 
 <p align="center">
-  A desktop app for browsing shows, movies and anime, and playing streams from Stremio-supported addons.
+  A player and library for shows, movies and anime. It plays streams from add-ons you install that use
+  the Stremio add-on protocol; it isn't made or endorsed by Stremio.
 </p>
 
 <p align="center">
-  <img src="readme-images/home.png" alt="Polarity home screen" width="900">
+  <img src="readme-images/home.webp" alt="Polarity's home screen, with the open movie Sintel featured" width="900">
+  <br>
+  <sub>Pictures from the Blender Foundation's open movies, under <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>:
+  <i>Sintel</i>, © copyright Blender Foundation | durian.blender.org;
+  <i>Tears of Steel</i>, (CC) Blender Foundation | mango.blender.org;
+  <i>Big Buck Bunny</i>, (c) copyright 2008, Blender Foundation / www.bigbuckbunny.org.
+  Every other title on screen is made up.</sub>
 </p>
+
+Polarity is a player for media you're entitled to watch. It doesn't host, provide, index or recommend
+content, and it comes with nothing to play from: you choose the add-ons you install, and you're responsible for them.
 
 ## What's in it
 
@@ -48,7 +58,13 @@
 
 Big cards, a clock, and everything reachable with a controller or the arrow keys.
 
-![TV mode](readme-images/tvmode.png)
+<img src="readme-images/tvmode.webp" alt="TV mode's home screen, with Sintel, Tears of Steel and Big Buck Bunny in Continue Watching" width="900">
+
+<sub>Pictures from the Blender Foundation's open movies, under <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>:
+<i>Sintel</i>, © copyright Blender Foundation | durian.blender.org;
+<i>Tears of Steel</i>, (CC) Blender Foundation | mango.blender.org;
+<i>Big Buck Bunny</i>, (c) copyright 2008, Blender Foundation / www.bigbuckbunny.org.
+Every other title on screen is made up.</sub>
 
 ### Player
 
@@ -73,8 +89,8 @@ bun run index
 
 ## Setup
 
-1. Open Settings and add a Stremio addon URL.
-2. Optionally add a TMDB API key. 
+1. Open Settings and add the URL of an add-on you use (one that follows the Stremio add-on protocol).
+2. Optionally add a TMDB API key.
 
 Settings, keys and add-on URLs are kept in `polarity.json` in the app's data folder (called `polar.json` in
 earlier versions; the first start renames it and keeps the old one as `polar.json.moved`). On Linux and macOS
@@ -111,7 +127,20 @@ explains how to play one in Polarity and how to credit it.
 MIT, see [LICENSE](LICENSE). Bundled fonts, avatars and mpv keep their own licences: [docs/licensing.md](docs/licensing.md).
 
 ## Donate
+
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/polarityapp)
+
+One-off donations only, to the project's owner: no tiers, no perks, and nothing in the app depends on
+them. They pay for running costs: the Supabase plan behind accounts and sync, Apple's developer
+programme for an iOS release, and a Windows code-signing certificate.
+
+## Data sources
+
+<a href="https://www.themoviedb.org/"><img src="https://www.themoviedb.org/assets/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="TMDB" height="12"></a>
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+Titles, artwork and other metadata shown in the app come from third-party services and belong to their
+owners. Which services, and on what terms: [docs/data-sources.md](docs/data-sources.md).
 
 ## Built with
 
