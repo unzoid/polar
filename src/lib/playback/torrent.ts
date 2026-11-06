@@ -10,13 +10,17 @@ import { formatBytes, formatMs } from "./startLog";
 /** Settings → Sources → Torrent Sources, as `torrent_open` and `torrent_close` take them. */
 export interface TorrentLimits {
   cacheGb: number;
-  speedMbps: number;
+  downloadMbps: number;
+  uploadMbps: number;
   keepSharing: boolean;
 }
 
-export const torrentLimits = (p: Pick<Prefs, "torrentCacheGb" | "torrentSpeedMbps" | "torrentKeepSharing">): TorrentLimits => ({
+export const torrentLimits = (
+  p: Pick<Prefs, "torrentCacheGb" | "torrentSpeedMbps" | "torrentUploadMbps" | "torrentKeepSharing">,
+): TorrentLimits => ({
   cacheGb: p.torrentCacheGb,
-  speedMbps: p.torrentSpeedMbps,
+  downloadMbps: p.torrentSpeedMbps,
+  uploadMbps: p.torrentUploadMbps,
   keepSharing: p.torrentKeepSharing,
 });
 

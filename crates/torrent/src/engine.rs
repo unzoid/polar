@@ -39,8 +39,11 @@ const VIDEO_EXTS: &[&str] = &["mkv", "mp4", "m4v", "webm", "avi", "mov", "ts", "
 pub struct Limits {
     /// Most bytes the cache may hold; 0 = no limit.
     pub cache_bytes: u64,
-    /// Download and upload speed cap in bytes per second; `None` = none.
-    pub rate_bps: Option<NonZeroU32>,
+    /// Download speed cap in bytes per second; `None` = none.
+    pub download_bps: Option<NonZeroU32>,
+    /// Upload speed cap in bytes per second; `None` = none. It stays in force
+    /// while a torrent is kept for sharing after its playback.
+    pub upload_bps: Option<NonZeroU32>,
     /// Keep sharing a torrent after its playback ends (until the app quits
     /// or the room is needed). Off: it stops and its files are deleted.
     pub keep_sharing: bool,
@@ -186,8 +189,8 @@ impl Engine {
         self.close(limits).await;
         let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
         let stale = || self.generation.load(Ordering::SeqCst) != generation;
-        self.session.ratelimits.set_download_bps(limits.rate_bps);
-        self.session.ratelimits.set_upload_bps(limits.rate_bps);
+        self.session.ratelimits.set_download_bps(limits.download_bps);
+        self.session.ratelimits.set_upload_bps(limits.upload_bps);
 
         let trackers = magnet::trackers(&request.sources);
         let started = Instant::now();

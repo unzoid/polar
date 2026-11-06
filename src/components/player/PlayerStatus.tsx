@@ -47,13 +47,13 @@ export function PlayerStatus({
   const failed = state.status === "failed" || !!error;
   const stageAt = failed ? failedStage(steps) : undefined;
 
-  const stage = state.status === "searching" ? "searching" : state.status === "resolving" ? "resolving" : "starting";
+  const stage = state.status === "searching" ? "searching" : state.status === "resolving" || state.status === "notice" ? "resolving" : "starting";
   const message = failed
     ? (error ?? (state.status === "failed" ? state.reason : ""))
     : stage === "searching"
       ? "Finding the best source"
       : stage === "resolving"
-        ? `Connecting${state.status === "resolving" && state.label ? ` · ${state.label}` : ""}`
+        ? `Connecting${(state.status === "resolving" || state.status === "notice") && state.label ? ` · ${state.label}` : ""}`
         : "Starting";
 
   return (

@@ -37,5 +37,10 @@ test("a torrent source is named without its hash, and failures say where", () =>
 });
 
 test("limits go to the backend as set", () => {
-  expect(torrentLimits({ torrentCacheGb: 20, torrentSpeedMbps: 0, torrentKeepSharing: false })).toEqual({ cacheGb: 20, speedMbps: 0, keepSharing: false });
+  expect(torrentLimits({ torrentCacheGb: 20, torrentSpeedMbps: 50, torrentUploadMbps: 2, torrentKeepSharing: true })).toEqual({
+    cacheGb: 20,
+    downloadMbps: 50,
+    uploadMbps: 2,
+    keepSharing: true,
+  });
 });
