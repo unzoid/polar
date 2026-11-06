@@ -12,6 +12,11 @@ import type { AccountBackend } from "./backend";
 import { createSupabaseBackend } from "./supabase";
 
 function pick(): AccountBackend | null {
+  // fake.html's stand-in account (lib/platform/fake/account.ts): dev server only, never in a build.
+  if (import.meta.env.DEV) {
+    const fake = (globalThis as { __polarFakeAccount?: AccountBackend }).__polarFakeAccount;
+    if (fake) return fake;
+  }
   const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
   if (url && key) return createSupabaseBackend(url, key);

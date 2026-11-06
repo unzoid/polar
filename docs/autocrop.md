@@ -204,12 +204,41 @@ landing with `--video-sync=display-resample` and without.
 readings in pts order (`keyframe`). A keyframe's bars on an axis count when they are even, at
 least 1% a side and leave 40% of the frame; black frames and uneven readings don't count. New
 bars are scheduled on the keyframe they first show on, at once when crisp on both sides, or when
-a later keyframe reads them again. Per displayed frame the engine calls `take(pts)` and hands a
-due change to `CropTracker::cut` before that frame's reading, so `on_cut` is true and the zoom
-jumps. A change believed only after its frame was shown is dropped, never applied late; an axis
-whose bars the frame before already had is left alone (they changed between keyframes); picture
-in the new bars still un-crops on the next reading. `restart` after a seek; `wants_more` keeps
-the reading within `AHEAD_SECS` (60 s, inside mpv's 90 s cache).
+a later keyframe reads them again; and every later keyframe that reads the same bars is due
+too, since a shot with no keyframe of its own may have come in between and changed them live.
+Per displayed frame the engine calls `take(pts)` and hands a due change to `CropTracker::cut`
+before that frame's reading, so `on_cut` is true and the zoom jumps. A change believed only
+after its frame was shown is dropped, never applied late; an axis whose bars the frame before
+already had is left alone; picture in the new bars still un-crops on the next reading.
+`restart` after a seek; `wants_more` keeps the reading within `AHEAD_SECS` (60 s, inside mpv's
+90 s cache).
+
+**Cuts between keyframes.** Encoders don't put every cut on a keyframe: x264 and x265 skip one
+less than `min-keyint` after the last keyframe (right after a short shot), and anime encodes
+use long keyframe intervals. Each change then carries `after`, the keyframe before it that
+still had the old bars: the cut is somewhere after it. On every frame in that window the engine
+also calls `found(pts, cropdetect's reading)`, and the first frame whose own reading shows the
+new bars where the frame before didn't is taken as the cut: the change is applied there
+(`Why::Window`) and is no longer due on its keyframe. What the lookahead can't see is a shot
+with no keyframe at all whose bars differ from both its neighbours; that is the live tracker's,
+and its end is put right on the next keyframe.
+
+**How much lands on the cut** (`lookahead::tests::with_the_lookahead_changes_land_on_their_cut`,
+an invented episode of 120 shots played through the engine's default path, cropdetect on every
+frame and a screenshot 2 frames late): with keyframes placed as x264 places them (keyint 250,
+min-keyint 24, every eighth shot under a second, 14 of 119 cuts between keyframes) 91.6% of the
+changes land on their cut frame with the lookahead, 52.1% without; with only every other cut a
+keyframe, 88.2% against 52.1%. `scripts/autocrop-keyframes.ts` encodes the same episode for real
+(`make`), counts how many of any video's bar changes fall on a keyframe (`measure`), and scores
+a playback from the player's log (`score`).
+
+**Is it running?** The lookahead says in the log, and under its setting in Settings → Advanced,
+whether it reads ahead in the video playing now or why it can't (`preroll::Lookahead`): the
+second mpv didn't start, the source didn't open a second time (a link that allows one
+connection), a live stream, a source that can't be sought by keyframe, or one that stopped
+answering and kept failing when opened again three times (it is opened again after a dropped
+connection, and waits at the file's end until a seek); on macOS, iOS and Android there's no
+second player yet.
 
 **In the desktop engine** (`src-tauri/src/player/preroll.rs`, `ahead`): way 2 first, as it
 needs nothing of the main player's cache. Once a load has its opening bars, the autocrop loop
@@ -277,8 +306,8 @@ hides the jump). Ease-out is the default; the other two stay for comparison.
 or a move the film makes itself, and neither is eased. Easing is the fallback for what slips
 past those two:
 
-- a change the lookahead missed, or one that falls between keyframes, so it is only seen live
-  a few frames late;
+- a change the lookahead can't see (a shot with no keyframe whose bars differ from both its
+  neighbours) or whose cut cropdetect didn't read, so it is only believed a few frames late;
 - no lookahead: switched off (phones, §4, or the setting), a live stream, or macOS (no probe):
   a change seen live is believed after 1 or 2 frames with crisp edges, 2, 4 or 12 otherwise, and
   eased when late;
@@ -294,10 +323,21 @@ picture appears in a cropped bar (`CropTracker::revealed`), so a misread hides p
 little as possible and its correction is shown on the frame it happens. How often each case
 happens is the second table of §2's comparison, run on the test films.
 
-In code: `CropTracker::on_cut` says whether the newest frame changed the bars on the frame the
-picture's own bars changed (or followed animated bars), and `crop::CropZoom` jumps for those, a
-new file and a new window size, and otherwise glides past the 1% threshold (`zoom_changed`),
-sending the zoom on every frame until it settles.
+**One rule for the jump.** A change on its cut jumps; any other is eased, the same way every
+time. On the cut means: the lookahead's keyframe (`Why::Keyframe`), the first frame between
+keyframes whose own reading shows the lookahead's bars (`Why::Window`), or a reading of that
+very frame (cropdetect's, which runs a frame ahead of the screen) that changes the bars where
+the frame before had others (`Why::Cut`). A screenshot for our detector arrives a few frames
+after the frame it shows, so a change it brings is never on the cut (`Why::Late`, eased), even
+on its first reading; on the frame cropdetect's reading changes, that reading is fed first, so
+picture back in a bar still un-crops on the cut. Followed animated bars (§5) move frame by
+frame (`Why::Follow`). Each change is logged with its rule ("autocrop: bars 140/0 px from
+12.375 s, on the cut: jump (lookahead, keyframe)").
+
+In code: `CropTracker::changed` says which rule changed the bars on the newest frame,
+`on_cut` whether it jumps, and `crop::CropZoom` jumps for those, a new file and a new window
+size, and otherwise glides past the 1% threshold (`zoom_changed`), sending the zoom on every
+frame until it settles.
 
 ## 7. Open
 

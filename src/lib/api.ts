@@ -34,6 +34,7 @@ import { settingsChanged } from "./settings/changes";
 import type { AnimeLink } from "./library/identity";
 import type { DiscordActivity } from "./playback/discordPresence";
 import type { TorrentLimits } from "./playback/torrent";
+import type { LookaheadState } from "./playback/lookahead";
 
 /** A native command; a change it couldn't save is reported app-wide (errors.ts onSaveFailure) and still rejects. */
 const call = <T = unknown>(command: string, args?: Record<string, unknown>) =>
@@ -136,6 +137,8 @@ export const api = {
   resetSettings: () => call<Settings>("settings_reset").then(changed),
 
   mpvAvailable: () => call<boolean>("mpv_available"),
+  /** Whether autocrop's lookahead reads ahead in the video playing now, or why it can't; null with nothing to say. */
+  mpvLookahead: () => call<LookaheadState | null>("mpv_lookahead").catch(() => null),
   /** Whether this build can show what plays on Discord (desktop, built with a Discord application). */
   discordAvailable: () => call<boolean>("discord_available").catch(() => false),
   /** Shows what plays on the user's Discord profile, or clears it (null); nothing happens without Discord. */

@@ -194,6 +194,8 @@ pub struct Mpv {
     source: StdMutex<Option<(u64, String, Vec<String>)>>,
     /// The lookahead's bar changes ahead of the playhead (docs/autocrop.md §4).
     ahead: StdMutex<Option<Schedule>>,
+    /// Whether the lookahead reads ahead in this load, or why not, by load.
+    lookahead: StdMutex<Option<(u64, preroll::Lookahead)>>,
     /// The `time-pos` of the frame shown last, as `f64` bits (NaN: none
     /// yet this load), from the autocrop loop for the lookahead.
     playhead: AtomicU64,

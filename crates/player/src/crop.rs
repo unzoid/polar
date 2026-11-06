@@ -251,11 +251,42 @@ pub struct CropTracker {
     shown: (i64, i64),
     /// Bar thicknesses cropped earlier in this load, per axis.
     known: [Vec<i64>; 2],
-    /// Whether the newest frame changed the bars on the frame the picture's
-    /// own bars changed (or by following animated bars).
-    on_cut: bool,
-    /// A change from the lookahead was applied on the frame about to be fed.
-    cut: bool,
+    /// How the newest frame changed the bars, if it did.
+    change: Option<Why>,
+    /// A change from the lookahead applied on the frame about to be fed.
+    cut: Option<Why>,
+}
+
+/// Which rule changed the bars on a frame (docs/autocrop.md §6), for the
+/// log line of each change and for [`CropTracker::on_cut`]: the zoom jumps
+/// for all but [`Why::Late`], which is eased, the same way every time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Why {
+    /// The lookahead read the new bars on this keyframe.
+    Keyframe,
+    /// The lookahead knew the bars change before its next keyframe, and
+    /// this frame's own reading is the first to show them.
+    Window,
+    /// This frame's own reading changed the bars on the frame they changed.
+    Cut,
+    /// Bars the film animates, followed frame by frame.
+    Follow,
+    /// Believed frames after they changed, or from a reading that came
+    /// late (a screenshot): away from the cut.
+    Late,
+}
+
+impl Why {
+    /// Said in the log: what decided the change and whether it jumped.
+    pub fn describe(self) -> &'static str {
+        match self {
+            Why::Keyframe => "on the cut: jump (lookahead, keyframe)",
+            Why::Window => "on the cut: jump (lookahead, found between keyframes)",
+            Why::Cut => "on the cut: jump (this frame's reading)",
+            Why::Follow => "following animated bars: frame by frame",
+            Why::Late => "away from the cut: eased",
+        }
+    }
 }
 
 impl CropTracker {
@@ -282,21 +313,36 @@ impl CropTracker {
     /// Feed one frame's reading (`None` if cropdetect had nothing).
     /// `display` is the frame's display size, for non-square pixels.
     pub fn update(&mut self, load: u64, full: (i64, i64), display: (i64, i64), reading: Option<Rect>) {
-        self.feed(load, full, display, reading, [false; 2]);
+        self.feed(load, full, display, reading, [false; 2], true);
     }
 
     /// Feed one frame as our own detector measured it (`None`: a black frame).
     pub fn update_measured(&mut self, load: u64, full: (i64, i64), display: (i64, i64), measured: Option<Measured>) {
         let crisp = measured.map_or([false; 2], |m| [m.crisp[0] && m.crisp[1], m.crisp[2] && m.crisp[3]]);
-        self.feed(load, full, display, measured.map(|m| m.rect), crisp);
+        self.feed(load, full, display, measured.map(|m| m.rect), crisp, true);
     }
 
-    fn feed(&mut self, load: u64, full: (i64, i64), display: (i64, i64), reading: Option<Rect>, crisp: [bool; 2]) {
+    /// The same for a reading that came frames after the frame it's of (a
+    /// screenshot): a change it brings is never on the cut, so it's eased.
+    pub fn update_late(&mut self, load: u64, full: (i64, i64), display: (i64, i64), measured: Option<Measured>) {
+        let crisp = measured.map_or([false; 2], |m| [m.crisp[0] && m.crisp[1], m.crisp[2] && m.crisp[3]]);
+        self.feed(load, full, display, measured.map(|m| m.rect), crisp, false);
+    }
+
+    fn feed(
+        &mut self,
+        load: u64,
+        full: (i64, i64),
+        display: (i64, i64),
+        reading: Option<Rect>,
+        crisp: [bool; 2],
+        exact: bool,
+    ) {
         if load != self.load || full != self.full {
             *self = CropTracker { load, full, ..Default::default() };
         }
-        let cut = std::mem::take(&mut self.cut);
-        self.on_cut = cut;
+        let cut = self.cut.take();
+        self.change = cut;
         let (fw, fh) = full;
         // An all-black frame comes back as an empty or inside-out area.
         let Some(r) =
@@ -336,14 +382,20 @@ impl CropTracker {
         }
         let previous = (self.recent.len() >= 2).then(|| self.recent[self.recent.len() - 2]);
         let newest = self.recent.back().map_or([0; 4], |r| *r);
-        self.on_cut = cut
-            || (0..2).any(|axis| next[axis] != shown[axis])
-                && (0..2).filter(|&axis| next[axis] != shown[axis]).all(|axis| {
-                    self.follow[axis]
-                        || previous.is_none_or(|p| {
-                            (0..2).any(|side| (p[2 * axis + side] - newest[2 * axis + side]).abs() > EDGE_SLACK)
-                        })
-                });
+        let moved: Vec<usize> = (0..2).filter(|&axis| next[axis] != shown[axis]).collect();
+        let on_frame = |axis: usize| {
+            previous
+                .is_none_or(|p| (0..2).any(|side| (p[2 * axis + side] - newest[2 * axis + side]).abs() > EDGE_SLACK))
+        };
+        if cut.is_none() && !moved.is_empty() {
+            self.change = Some(if moved.iter().all(|&axis| self.follow[axis]) {
+                Why::Follow
+            } else if exact && moved.iter().all(|&axis| self.follow[axis] || on_frame(axis)) {
+                Why::Cut
+            } else {
+                Why::Late
+            });
+        }
         self.shown = (next[0], next[1]);
     }
 
@@ -353,8 +405,9 @@ impl CropTracker {
     /// axis whose bars the frame before already had is left alone, since
     /// they changed between keyframes and not here; so is a change that
     /// would leave less than 40% of the frame. Picture showing in the new
-    /// bars un-crops on the next reading, as always.
-    pub fn cut(&mut self, load: u64, full: (i64, i64), bars: [Option<i64>; 2]) {
+    /// bars un-crops on the next reading, as always. `why`: [`Why::Keyframe`]
+    /// or [`Why::Window`], for the log.
+    pub fn cut(&mut self, load: u64, full: (i64, i64), bars: [Option<i64>; 2], why: Why) {
         if load != self.load || full != self.full {
             return;
         }
@@ -380,17 +433,22 @@ impl CropTracker {
         // The frames before the cut say nothing about the shot after it.
         (self.recent, self.crisp, self.crisp_run, self.follow) = (VecDeque::new(), [false; 2], [0; 2], [false; 2]);
         self.shown = (next[0], next[1]);
-        self.cut = true;
+        self.cut = Some(why);
     }
 
     /// Whether the newest frame changed the bars on the very frame the
     /// picture's own bars changed (the first frame of a file, a cut, a known
     /// shape coming back) or by following animated bars: then the zoom jumps
     /// to it, since readings run a frame ahead of the screen and the jump
-    /// lands with the picture. A change believed a few frames late is eased
-    /// instead ([`CropZoom`]).
+    /// lands with the picture. A change believed a few frames late, or
+    /// from a late reading, is eased instead ([`CropZoom`]).
     pub fn on_cut(&self) -> bool {
-        self.on_cut
+        self.change.is_some_and(|w| w != Why::Late)
+    }
+
+    /// How the newest frame changed the bars, if it did.
+    pub fn changed(&self) -> Option<Why> {
+        self.change
     }
 
     /// Whether bars are being animated by the film: following them frame by frame.
@@ -747,6 +805,29 @@ mod tests {
         // A black frame keeps the bars and is no change.
         t.update(1, HD, HD, None);
         assert!(!t.on_cut());
+    }
+
+    #[test]
+    fn a_late_reading_never_jumps_and_each_change_says_why() {
+        let crisp = |rect: Rect| Some(Measured { rect, crisp: [true, true, false, false] });
+        let mut t = CropTracker::default();
+        feed(&mut t, &[Some(FULL); 3]);
+        assert_eq!(t.changed(), None);
+        // A screenshot's crisp reading of new bars: believed at once, but frames after the cut.
+        t.update_late(1, HD, HD, crisp(SCOPE));
+        assert_eq!((t.bars(1), t.changed(), t.on_cut()), ((140, 0), Some(Why::Late), false));
+        // The same reading of the very frame jumps.
+        let mut t = CropTracker::default();
+        feed(&mut t, &[Some(FULL); 3]);
+        t.update_measured(1, HD, HD, crisp(SCOPE));
+        assert_eq!((t.changed(), t.on_cut()), (Some(Why::Cut), true));
+        // cropdetect seeing picture in the bars on the frame it shows: a cut.
+        t.update(1, HD, HD, Some(FULL));
+        assert_eq!(t.changed(), Some(Why::Cut));
+        // A lookahead cut says which kind, even on a black frame.
+        t.cut(1, HD, [Some(140), None], Why::Window);
+        t.update(1, HD, HD, None);
+        assert_eq!((t.bars(1), t.changed(), t.on_cut()), ((140, 0), Some(Why::Window), true));
     }
 
     #[test]

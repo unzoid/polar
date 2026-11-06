@@ -17,7 +17,7 @@ export function useMpvTune(mpv: MpvMedia | null) {
     if (!mpv) return;
     const apply = () => {
       // Folding down only helps (and only makes sense) with a centre channel.
-      const track = mpv.tracks.find((t) => t.type === "audio" && t.id === mpv.aid);
+      const track = mpv.playing("audio");
       const surround = (track?.["demux-channel-count"] ?? 0) > 2;
       void call("mpv_tune", {
         tune: {
