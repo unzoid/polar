@@ -1,6 +1,6 @@
 import { LayoutList, LayoutRow, Volume, VolumeMuted } from "../components/icons";
 import { NameList } from "../components/title/NameList";
-import { useFoldSnap, useFormFactor } from "../lib/ui";
+import { useArtGate, useFoldSnap, useFormFactor } from "../lib/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
 import { cardMenu } from "../components/CardMenu";
@@ -122,9 +122,11 @@ function DetailHero({
   };
 
   const facts = joinFacts([item.releaseInfo, formatRuntime(meta?.runtime)]);
+  // The logo or name waits for the backdrop (or the poster blurred in its place, as the page draws it; #173).
+  const gate = useArtGate(item.background, [item.poster]);
 
   return (
-    <section className="detail-hero">
+    <section className="detail-hero" {...gate}>
       <div className="detail-hero-main">
         <TitleHeading name={item.name} logo={item.logo} look="detail" />
         {item.description && <p className="detail-description t-callout">{item.description}</p>}

@@ -15,6 +15,7 @@ import { airLabel, episodeCode, formatDate, formatRemaining, formatRuntime, isRe
 import { usePlayTarget, useTitlePlayback } from "../lib/playback";
 import { useLibrary, useMeta, useProgress, useStreams, useToggleLibrary } from "../lib/net";
 import { usePrefs } from "../lib/settings";
+import { useArtGate } from "../lib/ui";
 import type { ContentType, Meta, MetaPreview, RankedStream, Video } from "../lib/types";
 import { useBack, useFocusTrap, usePageActive } from "./shell";
 import { reveal } from "./spatial";
@@ -54,6 +55,8 @@ export function TvDetail({ type, id, preview, entry }: { type: ContentType; id: 
 
   // The trailer behind the art, while nothing's open over the page.
   const trailer = useBackdropTrailer(id, { active: active && panels.length === 0 });
+  // The logo or name waits for the backdrop (#173).
+  const gate = useArtGate(shown?.background);
 
   /** Play now, or (auto-pick off, nothing to resume) choose a source first. */
   const playback = useTitlePlayback(
@@ -79,7 +82,7 @@ export function TvDetail({ type, id, preview, entry }: { type: ContentType; id: 
       <TvBackdrop src={shown.background} className="tv-detail-art">
         {trailer.node}
       </TvBackdrop>
-      <div className="tv-detail-body">
+      <div className="tv-detail-body" {...gate}>
         <TitleHeading name={shown.name} logo={shown.logo} look="tv-detail" />
         <Facts facts={titleFacts(shown, [formatRuntime(meta?.runtime)])} />
         {shown.description && <p className="tv-detail-description">{shown.description}</p>}
