@@ -31,6 +31,7 @@ mock.module("../src/lib/api", () => ({
     addons: async () => dev.addons.map((u) => ({ manifestUrl: u, manifest: { id: u } })),
     installAddon: async (u: string) => void dev.addons.push(u),
     removeAddon: async (id: string) => void (dev.addons = dev.addons.filter((u) => u !== id)),
+    bundledAddons: async () => ["https://subtitles.example.org/manifest.json"],
   },
 }));
 mock.module("../src/lib/net/queries", () => ({ queryClient: { setQueryData() {}, invalidateQueries() {} } }));
@@ -165,5 +166,64 @@ describe("a server without the settings table (#16)", () => {
     } finally {
       console.warn = original;
     }
+  });
+});
+
+describe("add-ons and keys per profile on this device (#80)", () => {
+  const subtitles = "https://subtitles.example.org/manifest.json";
+  const guestAddon = "https://addon.example.com/guest.json";
+
+  test("a profile new to this device starts without the guest's, none of them reach its account, and it can copy them", async () => {
+    const g = device({ tmdbKey: "guest-key" }, [subtitles, guestAddon]);
+    on(g);
+    stored = null;
+    g.storage.set("polar.settingsOwner", "local");
+    await s.keepDeviceSettings("Q");
+    expect(await s.startProfile("Q")).toBe(true);
+    // The app's own add-on stays; the guest's key and add-on are gone from the store.
+    expect(g.settings.tmdbKey).toBeNull();
+    expect(g.addons).toEqual([subtitles]);
+
+    await s.syncSettings("Q", server, () => true);
+    expect(JSON.stringify(stored)).not.toContain("guest-key");
+    expect(JSON.stringify(stored)).not.toContain("guest.json");
+
+    // Settings → Account offers the guest's set, and copying adds it to the profile's.
+    expect(s.setupSources("Q", ["Q", "other"])).toEqual([{ id: "local", keys: 1, addons: 2 }]);
+    await s.copySetup("local");
+    expect(g.settings.tmdbKey).toBe("guest-key");
+    expect(g.addons.sort()).toEqual([guestAddon, subtitles]);
+
+    // Signing out gives the guest back exactly what it had.
+    g.settings.tmdbKey = "changed-by-q";
+    await s.restoreDeviceSettings();
+    expect(g.settings.tmdbKey).toBe("guest-key");
+    expect(g.addons.sort()).toEqual([guestAddon, subtitles]);
+  });
+
+  test("a profile this device has synced before keeps what it had", async () => {
+    // "Q" synced in the test above.
+    expect(await s.startProfile("Q")).toBe(false);
+  });
+
+  test("shared between profiles on this device: a new profile starts with what's here, as before #80", async () => {
+    const { setPrefs } = await import("../src/lib/settings/prefs");
+    const h = device({ tmdbKey: "shared-key" }, [guestAddon]);
+    on(h);
+    setPrefs({ shareAddonsAndKeys: true });
+    try {
+      expect(await s.startProfile("R")).toBe(false);
+      expect(h.settings.tmdbKey).toBe("shared-key");
+      expect(h.addons).toEqual([guestAddon]);
+    } finally {
+      setPrefs({ shareAddonsAndKeys: false });
+    }
+  });
+
+  test("nothing to clear: nothing is touched", async () => {
+    const e = device({}, [subtitles]);
+    on(e);
+    expect(await s.startProfile("S")).toBe(false);
+    expect(e.addons).toEqual([subtitles]);
   });
 });
