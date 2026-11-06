@@ -115,11 +115,14 @@ test("the season picker keeps its own row on a phone (#151)", async ({ app }) =>
 test("settings on a phone: the sections, then one section with a way back", async ({ app }) => {
   await app.getByRole("button", { name: /^Profile/ }).tap();
   await app.getByRole("menuitem", { name: "Settings" }).tap();
-  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  // Not by name: on a phone the header shows only the open section, and that names the dialog ("Browsing").
+  const settings = app.getByRole("dialog");
+  await expect(settings).toHaveAccessibleName(/^Settings/);
   const browsing = settings.getByRole("button", { name: "Browsing", exact: true });
   await expect(browsing).toBeVisible();
   await browsing.tap();
   await expect(settings.getByRole("switch", { name: /^Show the Calendar/ })).toBeVisible();
+  await expect(settings).toHaveAccessibleName("Browsing");
   await expect(browsing).toBeHidden();
   await settings.getByRole("button", { name: "All settings" }).tap();
   await expect(browsing).toBeVisible();
