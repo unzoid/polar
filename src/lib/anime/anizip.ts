@@ -126,9 +126,9 @@ export function animeArt(
 
 /**
  * The background and logo of a grouped anime's page, the same on every season tab (#27). They come
- * from the general title the franchise's first entry is linked to (`meta`, fetched in the app's
+ * from the general title the franchise's base title (#246) is linked to (`meta`, fetched in the app's
  * metadata language, so its logo is in that language where one exists), else from `animeArt` of the
- * first entry (ani.zip's, whose logos carry no language). `imdb` is that title's id: undefined while it's being found, null when there's none.
+ * base title (ani.zip's, whose logos carry no language). `imdb` is that title's id: undefined while it's being found, null when there's none.
  * Until it and its title have answered there's no art and no logo (the name shows), so nothing
  * changes once drawn.
  */
@@ -141,7 +141,7 @@ export function franchiseArt({
   imdb: string | null | undefined;
   meta: { background?: string | null; logo?: string | null } | undefined;
   metaLoading: boolean;
-  /** `animeArt` of the franchise's first entry, with its own ani.zip. */
+  /** `animeArt` of the franchise's base title, with its own ani.zip. */
   first: { background?: string; logo?: string };
 }): { background: string | undefined; logo: string | undefined } {
   const linked = imdb?.startsWith("tt");
