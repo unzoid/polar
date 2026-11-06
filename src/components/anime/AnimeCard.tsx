@@ -92,10 +92,12 @@ export function AnimeCard({ item, label }: { item: Media; label?: string }) {
   // A manga or novel in a franchise has no page here: it opens on MyAnimeList
   // (AniList when MAL doesn't list it), badged so it doesn't pass for a show.
   const isAnime = item.type !== "MANGA";
-  // The linked IMDb title's poster first, so every season of a show looks alike (#27); nothing until the links answer.
+  // The linked IMDb title's poster first, so every season of a show looks alike (#27), unless seasons are
+  // separate shows (#194): then the entry's own cover. Nothing until the links answer.
   const imdb = useLinkedImdb(isAnime ? item.id : 0);
   const cover = item.coverImage.extraLarge ?? item.coverImage.large;
-  const [art, ...artFallbacks] = !isAnime ? (cover ? [cover] : []) : imdb === undefined ? [] : posterArt({ imdb, cover });
+  const separate = prefs.animeSeparateEntries;
+  const [art, ...artFallbacks] = !isAnime ? (cover ? [cover] : []) : imdb === undefined ? [] : posterArt({ imdb, cover, separate });
   if (prefs.matureContent === "hide" && isMature(item)) return null;
   const readOn = item.idMal ? `https://myanimelist.net/manga/${item.idMal}` : `https://anilist.co/manga/${item.id}`;
 
@@ -133,10 +135,12 @@ export function AnimeCard({ item, label }: { item: Media; label?: string }) {
 export function AnimeLandscapeCard({ item, label }: { item: Media; label?: string }) {
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
-  const { matureContent } = usePrefs();
-  // Wide art first (re-test N5); nothing until the links answer, so the picture doesn't change once drawn.
+  const { matureContent, animeSeparateEntries: separate } = usePrefs();
+  // Wide art first (re-test N5), the entry's own with seasons as separate shows (#194); nothing until the links
+  // answer, so the picture doesn't change once drawn.
   const imdb = useLinkedImdb(item.id);
-  const [art, ...artFallbacks] = imdb === undefined ? [] : landscapeArt({ imdb, bannerImage: item.bannerImage, cover: item.coverImage.extraLarge });
+  const [art, ...artFallbacks] =
+    imdb === undefined ? [] : landscapeArt({ imdb, bannerImage: item.bannerImage, cover: item.coverImage.extraLarge, separate });
   if (matureContent === "hide" && isMature(item)) return null;
   return (
     <Card

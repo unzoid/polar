@@ -71,8 +71,9 @@ export function useAnimePlayback(anime: AnimeCard | Anime) {
     const lined = episodes.flatMap((e): [string, number][] => (e.video ? [[e.video.id, e.number]] : []));
     playContext.remember(metaId, { mal: malId, kitsu }, lined);
     // Which entry these episodes are, for cards with seasons as separate shows (#22).
-    if (!isMovie) animeEntries.remember(metaId, anime.id, { title: anime.title, cover: anime.coverImage.extraLarge ?? anime.coverImage.large }, lined);
-  }, [episodes, malId, kitsu, metaId, imdbKnown, isMovie, anime.id, anime.title, anime.coverImage]);
+    const shown = { title: anime.title, cover: anime.coverImage.extraLarge ?? anime.coverImage.large, banner: anime.bannerImage };
+    if (!isMovie) animeEntries.remember(metaId, anime.id, shown, lined);
+  }, [episodes, malId, kitsu, metaId, imdbKnown, isMovie, anime.id, anime.title, anime.coverImage, anime.bannerImage]);
 
   const byVideo = useMemo(() => progressByVideo(progress ?? [], { episodes, imdb, kitsu, isMovie }), [progress, episodes, imdb, kitsu, isMovie]);
   const next = useMemo(() => upNext({ episodes, byVideo, isMovie, metaId, watched: watchedFraction() }), [episodes, byVideo, isMovie, metaId]);
