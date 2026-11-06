@@ -59,7 +59,6 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
     party: {
       connect(code, me, { onMessage, onPresence, onStatus }) {
         const topic = `party:${code}`;
-        let current = me;
         let ch: RealtimeChannel | null = null;
         let closed = false;
         const open = () => {
@@ -74,6 +73,11 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
             // Checked here: each entry must carry the key it was tracked under (critique M11).
             if (mine()) onPresence(parsePresence(c.presenceState()));
           });
+          // Why the server is about to close the channel (ClientPresenceRateLimitReached, #227), said with CLOSED.
+          let why = "";
+          c.on("system", {}, (payload: { status?: string; message?: string }) => {
+            if (mine() && payload?.status === "error") why = String(payload.message ?? "").slice(0, 120);
+          });
           const fail = (err?: Error) => {
             if (!mine()) return;
             const message = err?.message ?? "";
@@ -86,10 +90,12 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
             .then(() =>
               c.subscribe((status, err) => {
                 if (!mine()) return;
-                if (status === "SUBSCRIBED") {
-                  void c.track(current);
-                  onStatus("joined");
-                } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") fail(err);
+                // The room sends its entry itself, within its presence budget (#227).
+                if (status === "SUBSCRIBED") onStatus("joined");
+                else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") fail(err);
+                // Closed by the server, not by us (takeDown stops this channel being ours first): nothing
+                // reopens it but `reconnect()`. Broadcasts still go out over REST meanwhile.
+                else if (status === "CLOSED") onStatus("closed", { setup: false, message: why });
               }),
             )
             .catch(fail);
@@ -109,10 +115,7 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
         void (partyClosing.get(topic) ?? Promise.resolve()).then(() => !closed && open());
         return {
           send: (message) => void ch?.send({ type: "broadcast", event: "m", payload: message }),
-          track: (presence) => {
-            current = presence;
-            void ch?.track(presence);
-          },
+          track: (presence) => void ch?.track(presence),
           reconnect: () => void takeDown().then(() => !closed && !ch && open()),
           close: () => {
             closed = true;

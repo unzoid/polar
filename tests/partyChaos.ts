@@ -14,6 +14,10 @@
 // - Faults: a connection that drops (the app is told) and comes back, one that
 //   dies silently (the library notices only after a while), and the server
 //   forgetting an entry while the member is still connected.
+// - Supabase's presence limit (#227): over PRESENCE_LIMIT updates in a window
+//   from one client, the server closes its channel (the app is told CLOSED).
+//   Its broadcasts still go out (realtime-js falls back to the REST endpoint),
+//   but nothing comes in until it reconnects.
 import type { PartyHandlers, PartyLink, PartyPresence } from "../src/lib/account/backend";
 import { parsePresence } from "../src/lib/party/messages";
 import type { Sim, SimServer } from "./partySim";
@@ -41,6 +45,9 @@ export interface Faults {
   miss: number;
 }
 
+/** Supabase Realtime's default: this many track() calls per client per window, and the next closes the channel. */
+export const PRESENCE_LIMIT = { max: 5, windowMs: 30_000 };
+
 export const CALM: Faults = { jitter: 0, drop: 0, split: 0, miss: 0 };
 
 type Meta = PartyPresence & { presence_ref: string };
@@ -65,9 +72,10 @@ interface Session {
 interface Channel {
   id: string;
   handlers: PartyHandlers;
-  current: PartyPresence;
   session: Session | null;
   closed: boolean;
+  /** Its channel was closed by the server: what it sends still goes out over REST, nothing comes in. */
+  rest: boolean;
 }
 
 export class ChaosHub implements SimServer {
@@ -78,6 +86,10 @@ export class ChaosHub implements SimServer {
   private sessions = new Map<number, Channel>();
   private lags = new Map<string, number>();
   private pid = 0;
+  /** When the server took each client's presence updates, for PRESENCE_LIMIT (counted per client, across its channels). */
+  private updates = new Map<string, number[]>();
+  /** Off for a case that's about something else. */
+  presenceLimit: { max: number; windowMs: number } | null = PRESENCE_LIMIT;
   private ref = 0;
   /** Everything the server did, for a failing run's report. */
   readonly trace: string[] = [];
@@ -110,15 +122,12 @@ export class ChaosHub implements SimServer {
 
   readonly party = {
     connect: (_code: string, me: PartyPresence, handlers: PartyHandlers): PartyLink => {
-      const ch: Channel = { id: me.id, handlers, current: me, session: null, closed: false };
+      const ch: Channel = { id: me.id, handlers, session: null, closed: false, rest: false };
       this.channels.set(me.id, ch);
       this.join(ch);
       return {
-        send: (message) => this.up(ch, (s) => this.broadcast(s, message)),
-        track: (p) => {
-          ch.current = p;
-          this.up(ch, (s) => this.track(ch, s, p));
-        },
+        send: (message) => (ch.rest && !ch.session ? this.rest(ch, message) : this.up(ch, (s) => this.broadcast(s, message))),
+        track: (p) => this.up(ch, (s) => this.track(ch, s, p)),
         reconnect: () => {
           // As supabase.ts does: the old channel goes (its leave reaches the server if the connection still works), a new one opens.
           const s = ch.session;
@@ -128,6 +137,7 @@ export class ChaosHub implements SimServer {
             s.up = s.down = false;
           }
           ch.session = null;
+          ch.rest = false;
           this.sim.after(() => !ch.closed && !ch.session && this.join(ch), this.lag(ch.id));
         },
         close: () => {
@@ -139,21 +149,18 @@ export class ChaosHub implements SimServer {
     },
   };
 
-  /** A new session: the server's join reply, then its presence state, then (as supabase.ts does) the entry tracked. */
+  /** A new session: the server's join reply, then its presence state; the app tracks its entry itself. */
   private join(ch: Channel) {
     const s: Session = { pid: ++this.pid, up: true, down: true, live: false, copy: {}, lastPresence: 0, lastUp: 0 };
     ch.session = s;
+    ch.rest = false;
     this.sessions.set(s.pid, ch);
     const lag = this.lag(ch.id);
     this.sim.after(() => {
       if (ch.closed || ch.session !== s) return;
       s.live = true;
       this.note(`${ch.id} joined (session ${s.pid})`);
-      this.sim.after(() => {
-        if (!s.down) return;
-        ch.handlers.onStatus("joined");
-        this.up(ch, (x) => this.track(ch, x, ch.current));
-      }, lag);
+      this.sim.after(() => s.down && ch.handlers.onStatus("joined"), lag);
       this.presenceTo(s, (copy) => {
         for (const k of Object.keys(copy)) delete copy[k];
         Object.assign(copy, this.snapshot());
@@ -174,7 +181,12 @@ export class ChaosHub implements SimServer {
     return [...this.sessions.entries()].filter(([, ch]) => ch.session).flatMap(([pid, ch]) => (ch.session!.pid === pid && ch.session!.live ? [ch] : []));
   }
 
-  private broadcast(_from: Session, message: Record<string, unknown>) {
+  /** A broadcast over the REST endpoint: no session needed. */
+  private rest(ch: Channel, message: Record<string, unknown>) {
+    this.sim.after(() => !ch.closed && this.broadcast(null, message), this.lag(ch.id) + this.jitter());
+  }
+
+  private broadcast(_from: Session | null, message: Record<string, unknown>) {
     for (const ch of this.live()) {
       const s = ch.session!;
       const from = String(message.from);
@@ -195,7 +207,18 @@ export class ChaosHub implements SimServer {
     return out;
   }
 
+  /** How many presence updates the server has taken from each client. */
+  readonly tracks = new Map<string, number>();
+
   private track(ch: Channel, s: Session, p: PartyPresence) {
+    this.tracks.set(ch.id, (this.tracks.get(ch.id) ?? 0) + 1);
+    if (this.presenceLimit) {
+      const { max, windowMs } = this.presenceLimit;
+      const recent = (this.updates.get(ch.id) ?? []).filter((t) => this.sim.now() - t < windowMs);
+      recent.push(this.sim.now());
+      this.updates.set(ch.id, recent);
+      if (recent.length > max) return this.closeChannel(ch, s, `${recent.length} presence updates in ${windowMs / 1000} s`);
+    }
     const list = this.metas.get(ch.id) ?? [];
     const old = list.find((m) => m.pid === s.pid);
     const fresh = { ...p, presence_ref: String(++this.ref), pid: s.pid };
@@ -265,6 +288,24 @@ export class ChaosHub implements SimServer {
     }, at - this.sim.now());
   }
 
+  /** The server closes a client's channel (ClientPresenceRateLimitReached): its entry goes, it's told CLOSED. */
+  private closeChannel(ch: Channel, s: Session, why: string) {
+    this.note(`${ch.id} channel closed by the server: ${why} (session ${s.pid})`);
+    this.closedByServer++;
+    this.leave(s);
+    s.up = false;
+    this.sim.after(() => {
+      s.down = false;
+      if (ch.session !== s || ch.closed) return;
+      ch.session = null;
+      ch.rest = true;
+      ch.handlers.onStatus("closed", { setup: false, message: "ClientPresenceRateLimitReached" });
+    }, this.lag(ch.id));
+  }
+
+  /** How many times the server closed a channel for too many presence updates. */
+  closedByServer = 0;
+
   // --- Faults ----------------------------------------------------------------
 
   /**
@@ -278,6 +319,7 @@ export class ChaosHub implements SimServer {
     this.note(`${id} connection dropped (session ${s.pid})`);
     s.up = s.down = false;
     ch.session = null;
+    ch.rest = false;
     ch.handlers.onStatus("error", { setup: false, message: "connection lost" });
     this.sim.after(() => this.leave(s), noticeMs);
     this.sim.after(() => !ch.closed && !ch.session && this.join(ch), backMs);

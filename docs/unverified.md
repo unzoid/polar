@@ -763,6 +763,23 @@ connections loudly and silently, splits and loses presence updates, and forgets 
    carry no names, party code, titles or links.
 5. If something goes wrong anyway, keep both logs: they show which messages and presence lists each side got.
 
+## Presence limit and refused changes (#227)
+
+Supabase Realtime closes a client's channel after 5 presence updates in 30 s (per connection), and a closed
+channel still sends but hears nothing. `lib/party/room.ts` now sends each settled status once (a 1 s wait,
+at most 5 per 32 s, the entry after each join included), reopens a channel the server closes, reconnects when its entry is still
+out of date after a second try, drops a change the host refused, and shows a member that talks but is missing
+from presence as Reconnecting. The fake server models the limit, the CLOSED status and the REST fallback
+(`tests/partyChaos.ts`), with the cases in `tests/partyChaosCases.test.ts`. Not checked against Supabase:
+whether the window resets on a channel rejoin over the same socket (assumed not), and the shape of the
+"system" message that comes before CLOSED. To check, two signed-in devices (A starts, B joins):
+1. B leaves the player and comes back five times in 20 s: Supabase's Realtime logs (Dashboard → Logs →
+   Realtime) show no ClientPresenceRateLimitReached, and both show both as connected throughout.
+2. B's party log has no "closed by the server" line; A's has no "talking, but missing from my presence list"
+   lasting more than a few seconds.
+3. With A paused, B presses play while A can't see B's entry (hard to force by hand: the logs show it as
+   "refused vN by …"): B goes back to paused within a second or two.
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,

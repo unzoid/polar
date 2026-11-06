@@ -1,6 +1,6 @@
 // Two simulated watch-party members (#155) on tests/partySim.ts.
 import { expect, test } from "bun:test";
-import { GONE_MS } from "../src/lib/party/room";
+import { GONE_MS, SETTLE_MS } from "../src/lib/party/room";
 import { partyOfTwo, statusOf } from "./partySim";
 
 // --- Tests -------------------------------------------------------------------
@@ -72,7 +72,7 @@ test("leaving the player is Away on both screens, even when the server loses the
   sim.run(5000);
   expect(statusOf(a.room.getParty()!, "member-2")).toBe("Watching");
   b.stop!();
-  sim.run(1000);
+  sim.run(SETTLE_MS + 1000);
   expect(statusOf(a.room.getParty()!, "member-2")).toBe("Away");
   expect(statusOf(b.room.getParty()!, "member-2")).toBe("Away");
   // The server forgets B's presence while B is still connected: B notices and comes back

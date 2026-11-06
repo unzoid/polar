@@ -212,7 +212,7 @@ test("a member who drops off presence and goes quiet shows as Disconnected befor
   s.hub.dropMessages.add("member-2");
   s.hub.lose("member-2");
   s.sim.run(1000);
-  expect(statusOf(s.a.room.getParty()!, "member-2")).toBe("Watching"); // heard from a moment ago
+  expect(statusOf(s.a.room.getParty()!, "member-2")).toBe("Reconnecting"); // heard from a moment ago (#227)
   s.sim.run(LIVE_MS);
   expect(statusOf(s.a.room.getParty()!, "member-2")).toBe("Disconnected");
   s.sim.run(GONE_MS + 2000);

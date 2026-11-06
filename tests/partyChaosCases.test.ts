@@ -2,7 +2,7 @@
 // scripted case on the same fault-injecting server (tests/partyChaos.ts), so a
 // fix that comes undone fails here by name, whatever the random runs do.
 import { expect, test } from "bun:test";
-import { ECHO_MISSES, GHOST_MS, GONE_MS, HEAL_MS, PING_MS } from "../src/lib/party/room";
+import { ECHO_MISSES, GHOST_MS, GONE_MS, HEAL_MS, PING_MS, PRESENCE_WINDOW_MS } from "../src/lib/party/room";
 import { ChaosHub, rng } from "./partyChaos";
 import { MEDIA, setup, statusOf, type Member } from "./partySim";
 
@@ -155,7 +155,8 @@ test("a member missing from one device's presence but still talking is shown as 
   hub.missPresence.add(id(0));
   sim.run(HEAL_MS * 2);
   hub.missPresence.clear();
-  sim.run(10_000);
+  // B's entry waits for its presence budget (joining and opening the player spent most of it).
+  sim.run(PRESENCE_WINDOW_MS);
   watch();
   expect(shown).not.toContain("Disconnected");
   expect(shown).not.toContain("gone");
@@ -209,4 +210,103 @@ test("a member let in without the timeline (the answers were lost) asks again in
   expect(b.room.getParty()!.playback).toBeNull();
   s.sim.run(HEAL_MS + 1000);
   expect(b.room.getParty()!.playback).toBeTruthy();
+});
+
+// #227: Supabase closes a client's channel past 5 presence updates in 30 s, and a closed channel only works outwards.
+
+test("joining and opening the player sends the settled entry, not one update per step", () => {
+  const { hub, ms } = party(2);
+  // The join's own entry, then one for being let in and loading, then one for the player started.
+  expect(hub.tracks.get(id(1))).toBeLessThanOrEqual(3);
+  expect(hub.closedByServer).toBe(0);
+  expect(ms[1].room.getParty()!.status).toBe("live");
+});
+
+test("leaving the player and coming back, again and again, never gets the channel closed", () => {
+  const { sim, hub, ms, watch } = party(2);
+  const [a, b] = ms;
+  for (let i = 0; i < 6; i++) {
+    b.stop!();
+    sim.run(700);
+    watch(b, b.room.partyPosition(MEDIA.videoId)!);
+    sim.run(900);
+  }
+  sim.run(35_000);
+  expect(hub.closedByServer).toBe(0);
+  expect(statusOf(a.room.getParty()!, id(1))).toBe("Watching");
+  expect(statusOf(b.room.getParty()!, id(0))).toBe("Watching");
+  // And it still hears the room: A pauses, B follows.
+  a.media!.pause();
+  sim.run(3000);
+  expect(timeline(b)).toEqual(timeline(a));
+  expect(b.media!.paused).toBe(true);
+});
+
+test("a channel the server closes is opened again at once, not after three missed pings", () => {
+  const { sim, hub, ms } = party(2);
+  const [a, b] = ms;
+  // A server with a tighter limit than ours: the next update closes B's channel.
+  hub.presenceLimit = { max: 0, windowMs: 1000 };
+  b.room.setPartyBuffering(true);
+  while (!hub.closedByServer) sim.run(10);
+  hub.presenceLimit = null;
+  sim.run(3000);
+  expect(hub.closedByServer).toBe(1);
+  expect(hub.connected(id(1))).toBe(true);
+  expect(b.room.partyLog()).toContain("closed by the server");
+  a.media!.pause();
+  sim.run(2000);
+  expect(timeline(b)).toEqual(timeline(a));
+});
+
+test("a change the host refused doesn't survive: the member goes back to the host's timeline", () => {
+  const s = setup((sim) => new ChaosHub(sim, rng(1)));
+  const [a, b] = [s.member(), s.member()];
+  s.watch(a, 100);
+  s.sim.run(2000);
+  a.room.startParty(MEDIA, 100, false, { name: "Ash", avatar: "" });
+  s.sim.run(1000);
+  a.media!.pause();
+  s.sim.run(2000);
+  expect(timeline(a)!.paused).toBe(true);
+  b.room.joinParty(a.room.getParty()!.code, { name: "Bea", avatar: "" }).catch(() => {});
+  // The host sees B knocking and lets it in, then hears no more of B's presence: to the host B never got in.
+  while (!a.room.partyLog().includes(`let ${id(1)} in`)) s.sim.run(10);
+  s.hub.missPresence.add(id(0));
+  s.sim.run(1500);
+  s.watch(b, b.room.partyPosition(MEDIA.videoId)!);
+  s.sim.run(3000);
+  b.media!.play();
+  s.sim.run(3000);
+  s.hub.missPresence.clear();
+  b.room.setPartyBuffering(true);
+  s.sim.run(500);
+  b.room.setPartyBuffering(false);
+  s.sim.run(15_000);
+  expect(timeline(b)).toEqual(timeline(a));
+  expect(timeline(a)!.by).toBe(id(0));
+  expect(a.media!.paused).toBe(true);
+  expect(b.media!.paused).toBe(true);
+  // And B's entry gets through once its presence budget allows.
+  s.sim.run(PRESENCE_WINDOW_MS);
+  expect(statusOf(a.room.getParty()!, id(1))).toBe("Paused");
+});
+
+test("the host shows a member who's talking but missing from presence as reconnecting, not gone", () => {
+  const { sim, hub, ms } = party(2);
+  const [a] = ms;
+  // The server drops B's entry, and A hears nothing of B's presence after that: only B's messages.
+  hub.lose(id(1));
+  sim.run(200);
+  hub.missPresence.add(id(0));
+  sim.run(HEAL_MS * 3);
+  expect(statusOf(a.room.getParty()!, id(1))).toBe("Reconnecting");
+  hub.missPresence.clear();
+  sim.run(PRESENCE_WINDOW_MS);
+  expect(statusOf(a.room.getParty()!, id(1))).toBe("Watching");
+});
+
+test("the party log gives the round trip in whole ms", () => {
+  const { ms } = party(2);
+  expect(ms[1].room.partyLog()).toMatch(/round trip \d+ ms/);
 });

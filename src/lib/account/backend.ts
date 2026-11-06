@@ -127,11 +127,14 @@ export interface PartyHandlers {
   onMessage(message: Record<string, unknown>): void;
   onPresence(members: PartyPresence[]): void;
   /**
-   * `joined` again after a reconnect; `error` when the room can't be reached.
+   * `joined` again after a reconnect (the room then sends its entry: joining
+   * doesn't); `error` when the room can't be reached.
    * `setup`: the server refused the room itself (not configured for parties),
-   * so retrying won't help.
+   * so retrying won't help. `closed`: the server closed the channel (too many
+   * presence updates, #227): nothing arrives, and nothing reopens it, until
+   * `reconnect()`.
    */
-  onStatus(status: "joined" | "error", detail?: { setup: boolean; message: string }): void;
+  onStatus(status: "joined" | "error" | "closed", detail?: { setup: boolean; message: string }): void;
 }
 
 export interface AccountBackend {

@@ -3,7 +3,8 @@
 // messages, connections that drop or die silently, a slow first load and a host
 // that leaves. Every seed is a different run; each must end with every device
 // agreeing: the same members, nobody shown disconnected, the same timeline and
-// host, nobody stuck loading or knocking, the players together. And while it
+// host, nobody stuck loading or knocking, the players together, and no channel
+// closed for too many presence updates. And while it
 // runs, a member that's connected is never shown as disconnected for long.
 //
 // PARTY_SEEDS=n runs more seeds; a failing seed prints its own replay command
@@ -203,6 +204,8 @@ function runSeed(seed: number, opts: { members?: number; chaosMs?: number; fault
     const gap = Math.abs(m.media!.currentTime - players[0].media!.currentTime);
     if (gap > 1.5) problems.push(`players ${gap.toFixed(1)} s apart`);
   }
+  // Supabase's presence limit (#227): over it, a member's channel is closed and it hears nothing until it reconnects.
+  if (hub.closedByServer) problems.push(`the server closed a channel for too many presence updates ${hub.closedByServer} times`);
   if (worstLost.ms > SHOWN_LOST_MAX) problems.push(`${worstLost.who} as disconnected for ${(worstLost.ms / 1000).toFixed(1)} s while both were connected`);
 
   const report = [

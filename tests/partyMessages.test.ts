@@ -24,6 +24,13 @@ test("a timeline from someone else is a relay: parsed, and left to the room to j
   expect(parseMessage({ ...state(), from: undefined })).toBeNull();
 });
 
+test("the host's answer can name the timeline it refuses, when it names a real one (#227)", () => {
+  expect(parseMessage({ ...state(), no: { v: 4, by: "b" } })).toEqual({ t: "state", from: "a", tl: tl() as Timeline, no: { v: 4, by: "b" } });
+  expect(parseMessage({ ...state(), no: { v: 0, by: "b" } })).toEqual({ t: "state", from: "a", tl: tl() as Timeline });
+  expect(parseMessage({ ...state(), no: { v: 4 } })).toEqual({ t: "state", from: "a", tl: tl() as Timeline });
+  expect(parseMessage({ ...state(), no: "v4" })).toEqual({ t: "state", from: "a", tl: tl() as Timeline });
+});
+
 test("a ping carries its sender's entry number, when it's a real one", () => {
   expect(parseMessage({ t: "ping", from: "a", sent: 1, seq: 4 })).toEqual({ t: "ping", from: "a", sent: 1, seq: 4 });
   expect(parseMessage({ t: "ping", from: "a", sent: 1, seq: -1 })).toEqual({ t: "ping", from: "a", sent: 1 });
