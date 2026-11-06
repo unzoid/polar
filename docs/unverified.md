@@ -699,3 +699,20 @@ against a real project.
   sends one only with the request for a code). To check, on each platform with a build carrying
   `VITE_CAPTCHA_SITE_KEY` and CAPTCHA on in a test project: ask for a code: the check shows under the
   button, and once passed the code is sent; enter the code: signed in. With CAPTCHA off: no check shows.
+- `polar.json` renamed `polarity.json` (#40; `polar_library::moved::take_over_or_keep`, tested on Linux): at
+  the first start of this version the file is copied to `polarity.json` (owner-only on Linux and macOS), then
+  the old one renamed `polar.json.moved`. If the copy can't be made, `polar.json` stays in use and the next start
+  tries again. The log (`polar.log`) and the `app.getpolar.desktop` folders keep their names. To check on each
+  desktop: with a library and settings from the previous version, start this one: everything is there, the app
+  data folder has `polarity.json` and `polar.json.moved` and no `polar.json`; change a setting, quit, start
+  again: still changed. An earlier version started after this one finds no `polar.json` and starts empty
+  (rename `polar.json.moved` back to go back).
+- Add-ons and API keys per profile on a device (#80; `startProfile`, `setupSources`, `copySetup` in
+  `lib/account/settingsSync.ts`, tested with the mocked store). Settings → Account → Sync → "Share add-ons and keys
+  between profiles on this device": on for installs from before this version (prefs or an account's settings
+  already stored), off for new ones. Off, a profile this device has never synced starts without the add-ons and
+  keys in the store (only the app's own subtitles add-on stays), takes its account's own on the first sync round,
+  and sends nobody else's up; while it has none, Settings → Account offers "From Guest on this device" and the
+  account's other profiles synced here. Not run signed in. To check, with sharing off: as a guest add a TMDB key
+  and an add-on; sign in to a new account: no key, no add-on, and the offer lists Guest; copy: both there; sign
+  out: the guest's set as it was; sign in to a second account: it never sees the first account's set.

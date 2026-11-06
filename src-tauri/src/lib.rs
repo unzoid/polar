@@ -2,6 +2,7 @@
 mod automation;
 mod commands;
 mod controllers;
+mod discord;
 mod downloads;
 mod imdb;
 mod introdb;
@@ -85,7 +86,7 @@ impl AppState {
     }
 }
 
-/// How long changes gather before `polar.json` is written: the player saves
+/// How long changes gather before `polarity.json` is written: the player saves
 /// progress every 5 s, so at most one write each time.
 const SAVE_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
 
@@ -112,6 +113,18 @@ pub fn index_config(settings: &store::Settings) -> IndexConfig {
     }
 }
 
+/// The data file, `polarity.json` (#40): taken over once from `polar.json`, its name before. While
+/// that can't be done (the old file can't be read, the disk is full), the old one stays in use.
+fn data_file(dir: &std::path::Path) -> std::path::PathBuf {
+    let (path, done) = polar_library::moved::take_over_or_keep(&dir.join("polar.json"), &dir.join("polarity.json"));
+    match done {
+        Ok(polar_library::moved::TakeOver::Nothing) => {}
+        Ok(_) => tracing::info!("polar.json is now polarity.json"),
+        Err(e) => tracing::warn!("couldn't rename polar.json to polarity.json, next start tries again: {e}"),
+    }
+    path
+}
+
 /// The app used to be called Rustio (identifier `app.rustio.desktop`); bring
 /// its data file over the first time Polarity starts.
 fn migrate_legacy_store(dir: &std::path::Path, path: &std::path::Path) {
@@ -128,7 +141,7 @@ fn migrate_legacy_store(dir: &std::path::Path, path: &std::path::Path) {
 }
 
 /// Addons that come with the app: subtitles work out of the box.
-const BUNDLED_ADDONS: &[&str] = &["https://opensubtitles-v3.strem.io/manifest.json"];
+pub(crate) const BUNDLED_ADDONS: &[&str] = &["https://opensubtitles-v3.strem.io/manifest.json"];
 
 /// Install each bundled addon the first time the app runs with it. Offline
 /// launches try again next time; one the user has removed stays removed.
@@ -171,7 +184,7 @@ pub fn run() {
                 app.handle().plugin(tauri_plugin_process::init())?;
             }
             let dir = app.path().app_data_dir()?;
-            let path = dir.join("polar.json");
+            let path = data_file(&dir);
             migrate_legacy_store(&dir, &path);
             downloads::manage(app.handle(), &dir)?;
             let store = Arc::new(Mutex::new(store::Store::load(path)));
@@ -218,6 +231,7 @@ pub fn run() {
             commands::skip_segments,
             commands::ratings,
             commands::addons_list,
+            commands::addons_bundled,
             commands::addon_install,
             commands::addon_remove,
             commands::library_list,
@@ -262,6 +276,8 @@ pub fn run() {
             player::mpv_load,
             streamcheck::stream_probe,
             streamcheck::stream_ready,
+            discord::discord_available,
+            discord::discord_presence,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,

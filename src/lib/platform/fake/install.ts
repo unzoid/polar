@@ -47,6 +47,7 @@ const commands: Record<string, (a: Args) => unknown> = {
     fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
   trailer: () => null,
   addons_list: () => fx.addons,
+  addons_bundled: () => [],
   library_list: () => library,
   library_toggle: (a) => {
     const item = a.item as MetaPreview;
@@ -83,6 +84,9 @@ const commands: Record<string, (a: Args) => unknown> = {
   download_reveal: () => undefined,
   controllers_list: () => [],
   mpv_available: () => false,
+  // Discord: what the player sends is kept for browser tests to read.
+  discord_available: () => true,
+  discord_presence: (a) => void ((window as { __discord?: unknown[] }).__discord ??= []).push(a.activity),
   resolve_stream: (a) => ({ kind: "url", url: (a.stream as { url: string }).url }),
   stream_probe: (a) => a.url,
   // One source a placeholder, the rest quick (#21).

@@ -364,6 +364,31 @@ test("the title page's Download button names what it downloads (#26)", async ({ 
   await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
 });
 
+test("with Show on Discord set to the title, the player sends what plays, its pause, and clears it on close (#31)", async ({ app }) => {
+  const sent = () => app.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as ({ details: string; state?: string; end?: number } | null)[]);
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("combobox", { name: "Show on Discord" }).click();
+  await app.getByRole("option", { name: "What you're watching" }).click();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "The Glass Orchard" });
+  expect((await sent()).at(-1)?.end).toBeGreaterThan(Date.now());
+
+  await app.keyboard.press(" ");
+  await expect.poll(async () => (await sent()).at(-1)?.state).toBe("Paused");
+  await app.keyboard.press("Escape");
+  await expect(app.locator(".player")).toHaveCount(0);
+  await expect.poll(async () => (await sent()).at(-1)).toBeNull();
+  // Nothing was sent before it played.
+  expect((await sent())[0]).not.toBeNull();
+});
+
 test("a Home shelf's heading opens its browse page with the filter on, and Back returns to the same place (#48)", async ({ app }) => {
   const home = app.locator('.page[data-active="true"] .scroll');
   const heading = app.getByRole("button", { name: "New Movies", exact: true });

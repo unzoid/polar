@@ -41,8 +41,7 @@ jobs:
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          scripts/ci-apt.sh --no-install-recommends \
             libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev \
             librsvg2-dev libxdo-dev libssl-dev libudev-dev \
             webkit2gtk-driver xvfb
