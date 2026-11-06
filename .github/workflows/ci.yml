@@ -136,9 +136,10 @@ jobs:
   # mpv.exe for the Windows app, built from pinned sources in mpv-winbuild-cmake's
   # build image (scripts/windows-mpv.sh, docs/licensing.md): once per version of
   # the script and its lock, then restored from the cache. The first build also
-  # makes the MinGW toolchain, kept on its own so a run cut off by the time limit
-  # goes on from there. The artifact (mpv.exe, licence texts, the exact sources)
-  # is what scripts/fetch-mpv.ts takes for Windows builds and releases.
+  # makes the clang toolchain (LLVM, about two hours), kept on its own so a run
+  # cut off by the time limit goes on from there. The artifact (mpv.exe, licence
+  # texts, the exact sources) is what scripts/fetch-mpv.ts takes for Windows
+  # builds and releases.
   windows-mpv:
     name: Windows mpv (pinned build)
     runs-on: ubuntu-latest

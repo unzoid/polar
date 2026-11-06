@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Builds the mpv.exe the Windows app bundles with shinchiro's mpv-winbuild-cmake (GPL build, the
-# same scripts as the mpv builds Windows used before), every library at the git commit
-# scripts/windows-mpv.lock pins, and packs the exact sources that went into it.
+# same scripts as the mpv builds Windows used before, with their clang toolchain), every library
+# at the git commit scripts/windows-mpv.lock pins, and packs the exact sources that went into it.
 #
 #   scripts/windows-mpv.sh <work dir> [toolchain]
 #
 # With `toolchain` it stops once the toolchain is built, so CI can keep the work dir before the
 # long part; run again on the same work dir to go on.
 # Runs in mpv-winbuild-cmake's own build image (Arch Linux with cmake, ninja, meson, nasm, ...;
-# CI pins it). The first build also builds the MinGW GCC toolchain: a few hours.
+# CI pins it). The first build also builds the toolchain: LLVM (clang, lld) with the image's clang,
+# then MinGW-w64 and LLVM's runtimes (compiler-rt, libunwind, libc++) for Windows; about two hours.
+# Plain x86-64 (no -v3: no AVX2 needed), C++ runtime libc++ linked statically, UCRT.
 #
 # Writes into <work dir>/out:
 #   mpv/                                  mpv.exe, d3dcompiler_43.dll, licence texts, BUNDLED.txt and
@@ -89,22 +91,6 @@ if grep -rqw libdvdcss winbuild/packages --exclude=libdvdread.cmake || grep -q '
 	exit 1
 fi
 
-# ngtcp2's and curl's scripts pass the static libraries OpenSSL needs (zlib, brotli, zstd, crypt32) in
-# CMAKE_C_FLAGS, which CMake puts before the objects; GNU ld (this build's GCC toolchain, unlike the
-# lld of winbuild's clang builds) resolves static libraries left to right, so their link checks
-# against the static OpenSSL fail. As standard libraries (Windows-GNU's own kept) they come last,
-# in the try_compile checks too.
-winlibs="-lws2_32 -lbcrypt -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32"
-for p in ngtcp2 curl; do
-	f=winbuild/packages/$p.cmake
-	libs=$(sed -n "s/^.*-DCMAKE_C_FLAGS='[^']*\(-lz [^']*\)'.*$/\1/p" "$f")
-	[ -n "$libs" ] || {
-		echo "windows-mpv.sh: no -l flags in $f's CMAKE_C_FLAGS any more; check how it links OpenSSL" >&2
-		exit 1
-	}
-	sed -i "/-DCMAKE_C_FLAGS='/a\\        \"-DCMAKE_C_STANDARD_LIBRARIES='$libs $winlibs'\"\\n        -DCMAKE_TRY_COMPILE_PLATFORM_VARIABLES=CMAKE_C_STANDARD_LIBRARIES" "$f"
-done
-
 # On a failure, the logs of the step that failed: winbuild sends each package's configure and build
 # output to its stamp folder only (CI keeps those folders as an artifact too).
 build() {
@@ -120,11 +106,12 @@ build() {
 	return 1
 }
 
-cmake -DTARGET_ARCH=$ARCH -DSINGLE_SOURCE_LOCATION="$work/src" -DRUSTUP_LOCATION="$work/rustup" \
+cmake -DTARGET_ARCH=$ARCH -DCOMPILER_TOOLCHAIN=clang -DGCC_ARCH=x86-64 -DCLANG_PACKAGES_LTO=ON \
+	-DSINGLE_SOURCE_LOCATION="$work/src" -DRUSTUP_LOCATION="$work/rustup" \
 	-G Ninja -B build -S winbuild
 build download
-# The toolchain's sources too (GCC, binutils, MinGW-w64), before anything is built.
-targets=$(ninja -C build -t targets all | sed -n 's/^\(gcc[^:]*-download\|mingw-w64[^:]*-download\|cppwinrt-download\|gendef-download\|widl-download\|winpthreads-download\): phony$/\1/p')
+# The toolchain's sources too (LLVM, MinGW-w64), before anything is built.
+targets=$(ninja -C build -t targets all | sed -n 's/^\(llvm[^:]*-download\|mingw-w64[^:]*-download\|cppwinrt-download\|gendef-download\|widl-download\|winpthreads-download\): phony$/\1/p')
 [ -n "$targets" ] && build $targets
 
 [ ! -e src/libdvdcss ] || {
@@ -169,7 +156,7 @@ done
 [ $bad -eq 0 ] || exit 1
 
 if [ "${2:-}" = toolchain ]; then
-	build gcc
+	build llvm-clang
 	exit 0
 fi
 
@@ -179,7 +166,7 @@ mkdir -p stage
 tar -cf - --exclude=.git -C "$work" src | xz -T0 >stage/sources.tar.xz
 ls src >stage/packed.txt
 
-build gcc
+build llvm-clang
 build mpv mpv-packaging
 
 # Anything downloaded during the build isn't in the sources archive.
@@ -199,7 +186,7 @@ tar -cf - -C "$CARGO_HOME/registry" cache -C "$sysroot/lib/rustlib/src/rust" lib
 {
 	echo "Sources of mpv.exe in Polarity for Windows"
 	echo
-	echo "Built for $ARCH with shinchiro's mpv-winbuild-cmake ($WINBUILD_REPO, commit"
+	echo "Built for $ARCH (plain x86-64, clang toolchain) with shinchiro's mpv-winbuild-cmake ($WINBUILD_REPO, commit"
 	echo "$WINBUILD_COMMIT), included under winbuild/ with Polarity's pins applied, by Polarity's"
 	echo "scripts/windows-mpv.sh and scripts/windows-mpv.lock (both included)."
 	echo

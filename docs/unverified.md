@@ -492,7 +492,9 @@ against a real project.
 - Until this change the Windows app shipped shinchiro's prebuilt `mpv.exe`; now CI builds it with the same
   scripts at a fixed commit, every library at the commit `scripts/windows-mpv.lock` gives it, and the release
   attaches the exact sources. The build only runs in CI (it needs mpv-winbuild-cmake's Arch Linux image); nothing
-  here has run it. The `mpv.exe` that ships is a different build, so it needs a check on a Windows PC.
+  here has run it. The `mpv.exe` that ships is a different build, so it needs a check on a Windows PC. It is
+  winbuild's clang build for plain x86-64 (no AVX2 needed), with libc++ linked in and the Universal CRT
+  (part of Windows 10 and 11), so it should also start on an older x86-64 PC.
 - Get it: once CI's `windows-mpv` job has passed on the commit, `bun scripts/fetch-mpv.ts` on the PC (GitHub CLI
   signed in) puts it into `src-tauri/vendor/mpv`; then `bun run tauri dev`, or a release build.
 - Check: a film and an episode play with picture and sound, hardware decoding on (Settings → Playback), seeking,

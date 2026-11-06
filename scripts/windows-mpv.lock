@@ -61,6 +61,7 @@ libwebp d19a90a30e9b2cc5aa66e5fe71d2f2d9d61588c4 https://chromium.googlesource.c
 libxml2 febeb5c91fffeca92b84162d57a1832fe5a60b09 https://github.com/GNOME/libxml2.git
 libzimg 67e0603271c080e22c8429856dd4a8a56587e61e https://github.com/sekrit-twc/zimg.git
 libzvbi 34bb6f660c5c1bacd4a66cc7b22311e4ca3c1ab5 https://github.com/zapping-vbi/zvbi.git
+llvm 2875c6073a7eef62dc8eb3105b5ff50de483a563 https://github.com/llvm/llvm-project.git
 luajit 5d8d0a27bfa4595b24b8ed36123555fcd2bb2f8c https://github.com/openresty/luajit2.git
 mbedtls 1ec69067fa1351427f904362c1221b31538c8b57 https://github.com/Mbed-TLS/mbedtls.git
 megasdk 2c95a487b4b297dba1d792c88189d432c3452694 https://github.com/meganz/sdk.git
