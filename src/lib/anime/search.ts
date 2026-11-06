@@ -1,10 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { cachedLookup } from "../net/queries";
-import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, type AnimeCard, type BrowseFilters } from "./anilist";
+import { ANIME_GENRES, ANIME_TAGS, gql, useAnimeBrowse, useCardsShown, type AnimeCard, type BrowseFilters } from "./anilist";
 import { airedEpisodes, airsWith, cachedAniZip, type AniZip, type AniZipEpisode } from "./anizip";
 import { norm } from "./merge";
-import { oneFranchiseEach } from "./franchise";
 import { readCards, readPage } from "./responses";
 import { keys } from "../net/queryKeys";
 
@@ -27,9 +26,10 @@ export function useAnimeResults(query: string, retry?: string) {
   const retried = q2.data?.pages[0]?.media;
   const items = again ? retried && retryMatches(retried, retry!) : first;
   const searched = again ? retry! : query;
+  const shown = useCardsShown();
   return {
     title: genre || tag ? `${genre ?? tag} Anime` : "Anime",
-    items: items && oneFranchiseEach(genre || tag ? items : byRelevance(items, searched)),
+    items: items && shown(genre || tag ? items : byRelevance(items, searched)),
     /** Every entry found, before one per franchise: what hides the same shows' Cinemeta results (a later part listed on its own, test report 1, item 10). */
     all: items,
     loading: !!query && (q.isLoading || (again && q2.isLoading)),

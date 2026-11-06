@@ -95,6 +95,7 @@ export function TvDiscover({ type }: { type: ContentType }) {
 export function TvLibrary() {
   const { data: saved } = useLibrary();
   const { data: history } = useWatchHistory();
+  const watching = useMemo(() => new Map((history ?? []).map((p) => [p.metaId, p.videoId])), [history]);
   const { data: downloads } = useDownloads();
   const playlists = usePlaylists();
   const { navigate } = useRouter();
@@ -128,7 +129,7 @@ export function TvLibrary() {
           </TvRail>
         ) : null,
     },
-    { key: "saved", render: () => <TvItemsRail title="Saved" items={saved} shape="poster" /> },
+    { key: "saved", render: () => <TvItemsRail title="Saved" items={saved} shape="poster" watching={watching} /> },
     {
       key: "watched",
       render: () =>
