@@ -20,6 +20,7 @@ import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
 import { dismissDepth, lazyNamed, pressEscape, systemBackAction, usePageFocus, useSystemBack } from "./lib/ui";
 import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
+import { OpenFilesHost } from "./components/OpenFiles";
 import { UpdateToast, WhatsNewSheet } from "./components/Updates";
 import { startUpdateChecks } from "./lib/updater";
 import { appWindow, leaveApp, longPressMenus, onLongPress, openContextMenu, systemBack } from "./lib/platform";
@@ -351,6 +352,7 @@ function DesktopApp() {
       <SecretsSyncToast tv={false} />
       {!playing && <CardMenuHost />}
       <TrailerHost />
+      <OpenFilesHost />
     </div>
   );
 }

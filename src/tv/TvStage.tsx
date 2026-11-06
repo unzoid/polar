@@ -7,6 +7,7 @@ import { kindFacts } from "../lib/format";
 import { api } from "../lib/api";
 import { isAnimePreview } from "../lib/anime";
 import { keys } from "../lib/net";
+import { markImageBroken, markImageLoaded, useArtGate } from "../lib/ui";
 import type { MetaPreview } from "../lib/types";
 
 /**
@@ -100,13 +101,15 @@ export function TvStage({ entry }: { entry: StageEntry | null }) {
     const m = !item.description ? meta.data : undefined;
     return { ...m, ...Object.fromEntries(Object.entries(item).filter(([, v]) => v != null)) } as MetaPreview;
   }, [item, meta.data]);
+  // The logo or name waits for the backdrop (#173).
+  const gate = useArtGate(shown?.background);
 
   return (
     <div className="tv-stage">
       <TvAmbient src={shown?.background} />
       <TvBackdrop src={shown?.background} className="tv-stage-art" />
       {shown && (
-        <div key={shown.id} className="tv-stage-info" aria-live="polite">
+        <div key={shown.id} className="tv-stage-info" aria-live="polite" {...gate}>
           <TitleHeading name={shown.name} logo={shown.logo} logos={shown.logos} backdrop={shown.background} look="tv-stage" />
           {entry?.kicker && <p className="tv-stage-kicker">{entry.kicker}</p>}
           <Facts facts={titleFacts(shown)} />
@@ -141,8 +144,14 @@ export function TvBackdrop({ src, className = "", children }: { src?: string; cl
           decoding="async"
           draggable={false}
           data-ready={l.ready}
-          onLoad={() => setLayers((ls) => ls.map((x) => (x.id === l.id ? { ...x, ready: true } : x)))}
-          onError={() => setLayers((ls) => ls.filter((x) => x.id !== l.id))}
+          onLoad={() => {
+            markImageLoaded(l.src);
+            setLayers((ls) => ls.map((x) => (x.id === l.id ? { ...x, ready: true } : x)));
+          }}
+          onError={() => {
+            markImageBroken(l.src);
+            setLayers((ls) => ls.filter((x) => x.id !== l.id));
+          }}
           onTransitionEnd={(e) => {
             if (e.propertyName !== "opacity" || !l.ready) return;
             setLayers((ls) => {

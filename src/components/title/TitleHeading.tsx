@@ -8,7 +8,7 @@ export type HeadingLook = "hero" | "detail" | "tv-stage" | "tv-detail" | "tv-pan
 /**
  * A title's name at the top of a hero or title page (docs/ui-components.md U4): its logo when it has one,
  * else (or when it doesn't load) the name as the heading. The facts line and synopsis under it stay with each layout, built with
- * `joinFacts`/`kindFacts` from lib/format.
+ * `joinFacts`/`kindFacts` from lib/format. Inside a `useArtGate` element the logo or name waits for the art (`art-after`).
  */
 export function TitleHeading({
   name,
@@ -36,15 +36,15 @@ export function TitleHeading({
         backdrop={backdrop}
         spot={LOGO_SPOTS[look]}
         alt={name}
-        className={`${look}-logo`}
+        className={`${look}-logo art-after`}
         loading={panel ? undefined : "eager"}
         onFail={() => setFailed(logo)}
       />
     );
-  if (panel) return <h2 className={`${look}-title`}>{name}</h2>;
+  if (panel) return <h2 className={`${look}-title art-after`}>{name}</h2>;
   // The desktop layouts set the display type style; TV's own classes size theirs.
   return (
-    <h1 className={look.startsWith("tv-") ? `${look}-title` : `t-display ${look}-title`} title={name}>
+    <h1 className={look.startsWith("tv-") ? `${look}-title art-after` : `t-display ${look}-title art-after`} title={name}>
       {name}
     </h1>
   );

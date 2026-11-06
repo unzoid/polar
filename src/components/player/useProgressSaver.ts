@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { api } from "../../lib/api";
 import { sync } from "../../lib/account";
 import { isLocalFile } from "../../lib/library";
+import { isFileId, noteFile } from "../../lib/localFiles";
 import { keys, queryClient } from "../../lib/net";
 import type { ContentType, Meta, Progress, Video } from "../../lib/types";
 import type { MediaLike } from "./mpvMedia";
@@ -33,10 +34,13 @@ export function useProgressSaver({
   state: ReturnType<typeof useSource>["state"];
 }) {
   const lastSave = useRef(0);
+  const local = isFileId(metaId);
   const save = useCallback(() => {
     const v = media.current;
     if (!v || !v.duration || !Number.isFinite(v.duration) || !meta || state.status !== "ready") return;
     lastSave.current = Date.now();
+    // A file on this device (#204): where it stopped stays on this device, never in the synced library.
+    if (local) return void noteFile(state.url, v.currentTime, v.duration);
     const p: Progress = {
       metaId,
       videoId,
@@ -55,7 +59,13 @@ export function useProgressSaver({
       updatedAt: 0,
     };
     api.saveProgress(p).then(sync.schedule, () => {});
-  }, [media, meta, metaId, videoId, type, current, state]);
+  }, [media, meta, metaId, videoId, type, current, state, local]);
+
+  // Opening a file on this device puts it at the top of Recent files.
+  const openedPath = local && state.status === "ready" ? state.url : undefined;
+  useEffect(() => {
+    if (openedPath) void noteFile(openedPath, -1, 0, true);
+  }, [openedPath]);
 
   const saveIfDue = useCallback(() => {
     if (Date.now() - lastSave.current > SAVE_EVERY && media.current && !media.current.paused) save();

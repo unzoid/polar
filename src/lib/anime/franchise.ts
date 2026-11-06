@@ -25,6 +25,11 @@ export function franchiseName(title: string | null | undefined): string {
  * directly or through the others, or when their titles name the same franchise in the same language.
  */
 export function oneFranchiseEach<T extends AnimeCard>(items: T[]): T[] {
+  return franchiseGroups(items).map((g) => g[0]);
+}
+
+/** A list's entries by franchise, as {@link oneFranchiseEach} tells them apart: each group in the order given, groups by their first entry. */
+export function franchiseGroups<T extends AnimeCard>(items: T[]): T[][] {
   const root = new Map<number, number>(items.map((a) => [a.id, a.id]));
   const find = (id: number): number => {
     const up = root.get(id)!;
@@ -41,23 +46,33 @@ export function oneFranchiseEach<T extends AnimeCard>(items: T[]): T[] {
   const byName = new Map<string, number>();
   for (const a of items) {
     for (const b of a.chain ?? []) if (root.has(b)) join(b, a.id);
-    for (const [lang, t] of [
-      ["en", a.title.english],
-      ["ro", a.title.romaji],
-    ] as const) {
-      const name = franchiseName(t);
-      if (name.length < 3) continue;
-      const key = `${lang}:${name}`;
+    for (const key of nameKeys(a)) {
       const other = byName.get(key);
       if (other === undefined) byName.set(key, a.id);
       else join(other, a.id);
     }
   }
-  const seen = new Set<number>();
-  return items.filter((a) => {
+  const groups = new Map<number, T[]>();
+  for (const a of items) {
     const r = find(a.id);
-    return !seen.has(r) && !!seen.add(r);
-  });
+    const group = groups.get(r);
+    if (group) group.push(a);
+    else groups.set(r, [a]);
+  }
+  return [...groups.values()];
+}
+
+/** The franchise an entry's English and romaji titles name, per language; none for names under 3 characters. */
+export function nameKeys(a: Pick<AnimeCard, "title">): string[] {
+  return (
+    [
+      ["en", a.title.english],
+      ["ro", a.title.romaji],
+    ] as const
+  )
+    .map(([lang, t]) => [lang, franchiseName(t)] as const)
+    .filter(([, name]) => name.length >= 3)
+    .map(([lang, name]) => `${lang}:${name}`);
 }
 
 /** A list as the cards to show: every entry with seasons as separate shows (#22), else one per franchise. */

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { AnimeCard, BrowseFilters } from "./anime/anilist";
 import type { ContentType, MetaPreview, Stream } from "./types";
 import { isLinkId } from "./party/links";
+import { isFileId } from "./localFiles/ids";
 
 export type TabRoute =
   | { name: "home" }
@@ -105,8 +106,8 @@ export function useRouter() {
 export function pushed(stack: Entry[], route: Route, key: () => number): Entry[] {
   const top = stack[stack.length - 1].route;
   const add: Route[] = [];
-  // A pasted link (#136) has no title page.
-  if (route.name === "player" && !isLinkId(route.metaId) && top.name !== "player" && top.name !== "anime-detail" && !(top.name === "detail" && top.id === route.metaId))
+  // A pasted link (#136) and a file on this device (#204) have no title page.
+  if (route.name === "player" && !isLinkId(route.metaId) && !isFileId(route.metaId) && top.name !== "player" && top.name !== "anime-detail" && !(top.name === "detail" && top.id === route.metaId))
     add.push({ name: "detail", type: route.type, id: route.metaId });
   add.push(route);
   const next = [...stack, ...add.map((r) => ({ key: key(), route: r }))];

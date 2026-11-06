@@ -1,4 +1,5 @@
-import { type Anime, type AnimeCard as Card, relatedRows, type RelatedCard } from "../../lib/anime";
+import { type Anime, LIKED_THIS_FILL, likedThis, relatedRows, type RelatedCard, useMoreRecommendations } from "../../lib/anime";
+import { usePrefs } from "../../lib/settings";
 import { Row } from "../Row";
 import { AnimeCard } from "./AnimeCard";
 import type { Franchise } from "./AnimeEpisodes";
@@ -45,13 +46,21 @@ export function AnimeRelated({ anime, franchise }: { anime: Anime; franchise?: F
           {franchiseRow}
         </>
       )}
-      <Recommendations anime={anime} />
+      <Recommendations anime={anime} franchise={franchise} />
     </div>
   );
 }
 
-function Recommendations({ anime }: { anime: Anime }) {
-  const recs = anime.recommendations.nodes.map((n) => n.mediaRecommendation).filter((m): m is Card => !!m);
+/**
+ * AniList's recommendations without this franchise, one card per franchise (lib/anime/likedThis.ts);
+ * the next page is asked for when grouping leaves too few to fill the row.
+ */
+function Recommendations({ anime, franchise }: { anime: Anime; franchise?: Franchise }) {
+  const { animeSeparateEntries: separate } = usePrefs();
+  const own = (franchise?.seasons ?? []).map((s) => s.card);
+  const first = likedThis(anime, anime.recommendations.nodes, own, separate);
+  const { data: more } = useMoreRecommendations(anime.id, first.length < LIKED_THIS_FILL && !!anime.recommendations.hasNextPage);
+  const recs = more ? likedThis(anime, [...anime.recommendations.nodes, ...more.nodes], own, separate) : first;
   if (!recs.length) return null;
   return (
     <Row title="If You Liked This">

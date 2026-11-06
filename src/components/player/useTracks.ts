@@ -57,6 +57,8 @@ export function useTracks(
   onPrefChange: (patch: { audioLanguage?: string; subtitleLanguage?: string }) => void,
   /** The playing file's size and name, when its add-on said: subtitle add-ons match on them. */
   file: VideoFile = {},
+  /** Ask subtitle add-ons; off for a file on this device. */
+  online = true,
 ) {
   const video = media instanceof HTMLVideoElement ? media : null;
   const mpv = isMpv(media) ? media : null;
@@ -78,6 +80,7 @@ export function useTracks(
     queryKey: keys.subtitles(type, videoId, file),
     queryFn: () => api.subtitles(type, videoId, file),
     staleTime: 30 * 60_000,
+    enabled: online,
     // Another source of the same episode asks again; its list replaces this one when it comes.
     placeholderData: (previous, query) => (query?.queryKey[2] === videoId ? previous : undefined),
   });

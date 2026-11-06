@@ -16,6 +16,7 @@ import { usePrefs } from "../../lib/settings";
 import { Star, Volume, VolumeMuted } from "../icons";
 import { IconButton } from "../ui/Button";
 import { useEffect } from "react";
+import { useArtGate } from "../../lib/ui";
 import { SourcePicker, useSourcePicker } from "../title/SourcePicker";
 import { TitleActions } from "../title/TitleActions";
 import { TitleHeading } from "../title/TitleHeading";
@@ -33,7 +34,7 @@ export function AnimeHero({
   item,
   anime,
   logo,
-  backdrop,
+  background,
   name,
   onImdb,
   trailer,
@@ -42,8 +43,8 @@ export function AnimeHero({
   anime?: Anime;
   /** The franchise's logo (`franchiseArt`), the same on every season tab: this entry's name shows under it. */
   logo?: string;
-  /** The page's backdrop, which the logo is measured against (#215). */
-  backdrop?: string;
+  /** The page's backdrop: the logo or name waits for it (#173), and the logo is measured against it (#215). */
+  background?: string;
   name: string;
   /** The id it plays from: undefined until known, null when there's none (the page's backdrop trailer is that title's). */
   onImdb?: (id: string | null | undefined) => void;
@@ -77,11 +78,12 @@ export function AnimeHero({
   const studio = anime?.studios.edges.find((e) => e.isMain && e.node.isAnimationStudio)?.node.name;
   const next = item.nextAiringEpisode;
   const paragraphs = cleanDescription(anime?.description);
+  const gate = useArtGate(background);
 
   return (
-    <section className="detail-hero anime-hero">
+    <section className="detail-hero anime-hero" {...gate}>
       <div className="detail-hero-main">
-        <TitleHeading name={name} logo={logo} backdrop={backdrop} look="detail" />
+        <TitleHeading name={name} logo={logo} backdrop={background} look="detail" />
         {subtitle && <p className="anime-native t-callout">{subtitle}</p>}
         <p className="detail-facts anime-meta-line t-callout tabular">
           {score && (

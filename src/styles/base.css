@@ -231,6 +231,24 @@ input {
 .img-fade[data-loaded="true"] {
   opacity: 1;
 }
+/* --- A title logo or name waits for the art it sits on (#173, lib/ui/artGate.ts): hidden while the art is
+   pending, then it fades in with the art. Art that's in view and still not in after a short wait (1.2 s)
+   lets it in anyway; a logo still loading keeps waiting for itself. An element inside a ready gate (a card on a
+   page whose backdrop is still loading) isn't held back by the outer one. No script timers, nothing while idle. */
+.art-after {
+  transition: opacity var(--dur-base) var(--ease-std);
+}
+[data-art="pending"] .art-after.art-after:not([data-art="ready"] .art-after) {
+  opacity: 0;
+}
+[data-art="pending"][data-art-seen] .art-after:not([data-loaded="false"], [data-art="ready"] .art-after) {
+  animation: art-late var(--dur-base) var(--ease-std) 1200ms forwards;
+}
+@keyframes art-late {
+  to {
+    opacity: 1;
+  }
+}
 /* A title logo that doesn't read on the art behind it (TitleLogo, #215): one
    dark ink becomes a white silhouette, keeping the soft shadow the logos carry;
    a multicolour or detailed one keeps its artwork over a soft halo, light behind

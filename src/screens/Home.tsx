@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { prefetchTitlePage, useEntryShown } from "../lib/anime";
 import { AmbientWash } from "../components/AmbientWash";
 import { ChevronLeft, ChevronRight, Play } from "../components/icons";
@@ -19,7 +19,7 @@ import {
   useRecommend,
   useSettings,
 } from "../lib/net";
-import { prefersReducedMotion, useFormFactor, useNearViewport } from "../lib/ui";
+import { prefersReducedMotion, useArtGate, useFormFactor, useNearViewport } from "../lib/ui";
 import { useRouter } from "../lib/router";
 import { progressItem, shelfKey, shelfRoute, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/catalog";
 import { cardMenu } from "../components/CardMenu";
@@ -99,6 +99,16 @@ export function HeroCarousel({
   const hero = useRef<HTMLDivElement>(null);
   const count = items?.length ?? 0;
   const item = items?.[index];
+  // The logo or name waits for the current backdrop (#173).
+  const gate = useArtGate(item?.background);
+  const gateRef = gate.ref;
+  const heroRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      hero.current = node;
+      gateRef(node);
+    },
+    [gateRef],
+  );
 
   const { data: settings } = useSettings();
   const rotate = settings?.heroAutoplay ?? true;
@@ -149,7 +159,8 @@ export function HeroCarousel({
       {count > 1 && <HeroPeek item={items[(index - 1 + count) % count]} side="prev" onClick={() => setIndex((index - 1 + count) % count)} />}
       <div
         className="hero-card"
-        ref={hero}
+        ref={heroRef}
+        data-art={gate["data-art"]}
         onPointerEnter={() => setPaused(true)}
         onPointerLeave={() => setPaused(false)}
         {...swipeHandlers}

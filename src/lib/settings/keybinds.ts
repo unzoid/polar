@@ -27,7 +27,8 @@ export type Action =
   | "sources"
   | "speed"
   | "toggleTv"
-  | "search";
+  | "search"
+  | "openFile";
 
 export type ActionGroup = "player" | "app";
 
@@ -48,6 +49,7 @@ export const ACTIONS: { id: Action; label: string; group: ActionGroup; when?: st
   { id: "speed", label: "Playback speed", group: "player" },
   { id: "toggleTv", label: "Switch TV / desktop mode", group: "app", when: "Anywhere, even while watching" },
   { id: "search", label: "Search", group: "app", when: "While browsing" },
+  { id: "openFile", label: "Open file", group: "app", when: "Anywhere, even while watching" },
 ];
 
 export const GROUPS: { id: ActionGroup; label: string; when: string }[] = [
@@ -72,6 +74,7 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   toggleTv: ["F10"],
   // Letters are stored lower-case (see comboOf); they're shown upper-case.
   search: ["/", `${MOD}+k`],
+  openFile: [`${MOD}+o`],
 };
 
 /** Keys that keep their meaning everywhere and can't be bound: Back, and typing into fields. */

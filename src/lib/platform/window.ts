@@ -43,3 +43,17 @@ export const appWindow: AppWindow = {
   onResized: (handler) => win().onResized(() => handler()),
   setZoom: (scale) => getCurrentWebview().setZoom(scale),
 };
+
+export type FileDrag = { type: "enter"; paths: string[] } | { type: "leave" } | { type: "drop" };
+
+/**
+ * Files dragged onto the window from the system (desktop windows). The dropped files themselves come
+ * from the native side once it has checked them (lib/localFiles), not from here.
+ */
+export function onFileDrag(handler: (e: FileDrag) => void): Promise<Unlisten> {
+  return getCurrentWebview().onDragDropEvent(({ payload: p }) => {
+    if (p.type === "enter") handler({ type: "enter", paths: p.paths });
+    else if (p.type === "leave") handler({ type: "leave" });
+    else if (p.type === "drop") handler({ type: "drop" });
+  });
+}

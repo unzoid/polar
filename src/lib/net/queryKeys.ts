@@ -20,6 +20,8 @@ export const keys = {
     ["subtitles", type, videoId, file?.size ?? null, file?.name ?? null] as const,
   progress: (metaId: string) => ["progress", metaId] as const,
   progressAll: ["progress"] as const,
+  /** Video files opened on this device (lib/localFiles.ts); never synced. */
+  recentFiles: ["recent-files"] as const,
   continue: ["continue"] as const,
   history: ["history"] as const,
   library: ["library"] as const,
@@ -65,6 +67,8 @@ export const keys = {
     listedImdb: (anilistId: number) => ["anime", "listed-imdb", anilistId] as const,
     link: (anilistId: number) => ["anime", "link", anilistId] as const,
     media: (anilistId: number) => ["anime", "media", anilistId] as const,
+    /** An entry's second page of recommendations (lib/anime/anilist.ts useMoreRecommendations). */
+    moreRecommendations: (anilistId: number) => ["anime", "more-recommendations", anilistId] as const,
     schedule: (from: number, to: number) => ["anime", "schedule", from, to] as const,
     browse: (filters: object) => ["anime", "browse", filters] as const,
     imdb: (anilistId: number) => ["anime", "imdb", anilistId] as const,
