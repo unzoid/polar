@@ -104,10 +104,10 @@ export function EpisodeCard({
           label={`Sources for episode ${v.episode}`}
           title="Choose source"
         >
-          <Sources size={17} />
+          <Sources size={15} />
         </IconButton>
       )}
-      {released && item && <DownloadButton item={item} video={v} className={buttonClass("glass", true, "episode-download pressable")} size={18} />}
+      {released && item && <DownloadButton item={item} video={v} className={buttonClass("glass", true, "episode-download pressable")} size={16} />}
     </div>
   );
 }

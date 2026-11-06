@@ -116,7 +116,7 @@ test("a wheel turn down a show's page lands its season tabs below the navbar's b
   expect((await tabs.boundingBox())!.y).toBe(last);
 });
 
-test("an episode's Sources and Download buttons show alike, on a dark fill, without hovering (#18)", async ({ app }) => {
+test("an episode's Sources and Download buttons show alike, quietly, only while the card is pointed at or focused (#18, #79)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();
   const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
@@ -128,12 +128,33 @@ test("an episode's Sources and Download buttons show alike, on a dark fill, with
       const alpha = Number(/rgba?\(([^)]+)\)/.exec(s.backgroundColor)?.[1].split(",")[3] ?? 1);
       return { opacity: s.opacity, alpha, color: s.color, size: b.getBoundingClientRect().width };
     });
+  // Out of the way while nothing points at the card.
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("0");
+  expect((await look(".episode-download")).opacity).toBe("0");
+
+  // Pointing at the card shows both, alike: a white glyph on a lighter fill than before, the same size.
+  await ep.hover();
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("1");
   const sources = await look(".episode-sources");
   const download = await look(".episode-download");
   expect(sources).toEqual(download);
-  expect(sources.opacity).toBe("1");
   expect(sources.color).toBe("rgb(255, 255, 255)");
-  expect(sources.alpha).toBeGreaterThanOrEqual(0.5);
+  expect(sources.alpha).toBeGreaterThanOrEqual(0.4);
+  expect(sources.alpha).toBeLessThan(0.55);
+  expect(sources.size).toBe(32);
+
+  // Keyboard focus on the card shows them too; the tap area stays 44 px.
+  await app.mouse.move(0, 0);
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("0");
+  await ep.locator(".episode-card-main").focus();
+  await app.keyboard.press("Shift+Tab");
+  await app.keyboard.press("Tab");
+  await expect.poll(() => look(".episode-sources").then((l) => l.opacity)).toBe("1");
+  const tap = await ep.locator(".episode-sources").evaluate((b) => {
+    const a = getComputedStyle(b, "::after");
+    return b.getBoundingClientRect().width - 2 * parseFloat(a.top);
+  });
+  expect(tap).toBe(44);
 });
 
 test("a downloaded episode offers Show in Folder and Delete as buttons, and Play takes the download (#25)", async ({ app }) => {
