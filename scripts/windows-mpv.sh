@@ -18,6 +18,7 @@
 #   windows-mpv.lock                      the commits this build cloned, in the lock's format
 # A library the lock doesn't pin, or pins at another repository, stops the build after the
 # download; out/windows-mpv.lock then holds what was cloned, to review and copy over the lock.
+# A winbuild patch that doesn't apply to its library's pinned commit stops it there too.
 # The sources archive goes with every release that carries this mpv.exe.
 set -euo pipefail
 export LC_ALL=C
@@ -120,6 +121,21 @@ done
 	echo "windows-mpv.sh: compare $out/windows-mpv.lock with scripts/windows-mpv.lock" >&2
 	exit 1
 }
+
+# Every patch the scripts apply with git am, checked against the pinned clone it is for, so a
+# lock line that has moved past the patch's base stops the build here rather than hours in.
+for f in winbuild/packages/*.cmake winbuild/toolchain/*.cmake winbuild/toolchain/*/*.cmake; do
+	grep -q 'git am' "$f" || continue
+	name=$(basename "$f" .cmake)
+	[ -d "src/$name/.git" ] || continue
+	patches=("$work/$(dirname "$f")/$name"-*.patch)
+	[ -e "${patches[0]}" ] || continue
+	if ! git -C "src/$name" apply --check "${patches[@]}"; then
+		echo "windows-mpv.sh: winbuild's $name patches don't apply to $name at the lock's commit; pin it to the commit they were written against" >&2
+		bad=1
+	fi
+done
+[ $bad -eq 0 ] || exit 1
 
 if [ "${2:-}" = toolchain ]; then
 	ninja -C build gcc

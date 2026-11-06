@@ -53,7 +53,7 @@ libssh 4064a8b16e5706bd047dfef9cf3dfe7f3fbeffff https://gitlab.com/libssh/libssh
 libudfread b0bc6957e7e07d5f35391f210596d9eb71cffdd9 https://code.videolan.org/videolan/libudfread.git
 libunibreak 32555542453f59101356ecbb8686f5e198f92b62 https://github.com/adah1972/libunibreak.git
 libva f052e984e0c8bf10784198cc311b23c567b1367f https://github.com/intel/libva.git
-libvpl 412c5cffe3022d5ebb8a955c3b30afe7bd2e3929 https://github.com/intel/libvpl.git
+libvpl 674d015bcb294bc39fa276e99a652ea045423e82 https://github.com/intel/libvpl.git
 libvpx 2a406e82885f1560e52fac4e484553526fe2c60e https://chromium.googlesource.com/webm/libvpx.git
 libwebp d19a90a30e9b2cc5aa66e5fe71d2f2d9d61588c4 https://chromium.googlesource.com/webm/libwebp.git
 libxml2 febeb5c91fffeca92b84162d57a1832fe5a60b09 https://github.com/GNOME/libxml2.git
