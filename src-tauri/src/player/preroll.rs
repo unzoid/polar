@@ -8,8 +8,64 @@
 //! written as an uncompressed PNG ([`polar_player::png`]) to this app's
 //! screenshot folder, read and deleted.
 
+use serde::Serialize;
+use tauri::{AppHandle, Manager};
+
+use crate::locks::Locked;
+use crate::AppState;
+
+/// Whether the lookahead reads ahead in the video playing now, or why it
+/// can't: logged, and shown under its setting (Settings → Advanced).
+/// With mpv inside the app only [`Lookahead::ThisDevice`] is ever said.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+#[cfg_attr(mpv_in_app, allow(dead_code))]
+pub enum Lookahead {
+    /// Reading keyframes ahead of the playhead.
+    Reading,
+    /// mpv runs inside the app here, with no second instance to read with.
+    #[cfg_attr(not(mpv_in_app), allow(dead_code))]
+    ThisDevice,
+    /// The second mpv didn't start.
+    NoReader,
+    /// The source didn't open a second time (one connection per link, or the link expired).
+    NotOpened,
+    /// A live stream: nothing ahead to read.
+    Live,
+    /// The source can't be sought keyframe by keyframe (no index, or no range requests).
+    NoSeeking,
+    /// The source stopped answering the second reader, and kept failing when opened again.
+    Stopped,
+}
+
+impl Lookahead {
+    fn describe(self) -> &'static str {
+        match self {
+            Lookahead::Reading => "reading keyframes ahead",
+            Lookahead::ThisDevice => "not on this device (no second player)",
+            Lookahead::NoReader => "off: the second mpv didn't start",
+            Lookahead::NotOpened => "off: the source didn't open a second time",
+            Lookahead::Live => "off: a live stream, nothing ahead to read",
+            Lookahead::NoSeeking => "off: the source can't be sought by keyframe",
+            Lookahead::Stopped => "off: the source stopped answering the second reader",
+        }
+    }
+}
+
+/// Note the lookahead's state for `load`, if that's still the load playing.
+fn report(app: &AppHandle, load: u64, state: Option<Lookahead>) {
+    let mpv = &app.state::<AppState>().mpv;
+    let mut slot = mpv.lookahead.locked();
+    if mpv.loads.load(std::sync::atomic::Ordering::SeqCst) != load {
+        return;
+    }
+    if let Some(s) = state.filter(|s| slot.is_none_or(|(l, was)| l != load || was != *s)) {
+        tracing::info!("autocrop lookahead: {}", s.describe());
+    }
+    *slot = state.map(|s| (load, s));
+}
+
 /// A load's opening crop, handed from `mpv_load` to the autocrop loop.
-use tauri::AppHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum Opening {
@@ -39,7 +95,8 @@ pub(super) async fn opening(url: String, fields: Vec<String>, start: f64) -> Opt
 /// `bars` removed) ahead of the playhead into `Mpv::ahead`, while autocrop
 /// run `run` lasts and the lookahead is on for this load.
 pub(super) async fn ahead(app: AppHandle, run: u64, load: u64, url: String, fields: Vec<String>, bars: (i64, i64)) {
-    imp::ahead(app, run, load, url, fields, bars).await;
+    let ended = imp::ahead(&app, run, load, url, fields, bars).await;
+    report(&app, load, ended.err());
 }
 
 /// Kill any probe still running (the app is closing).
@@ -51,16 +108,17 @@ pub(super) fn kill_all() {
 mod imp {
     use tauri::AppHandle;
 
-    use super::Found;
+    use super::{Found, Lookahead};
 
     pub(super) async fn ahead(
-        _app: AppHandle,
+        _app: &AppHandle,
         _run: u64,
         _load: u64,
         _url: String,
         _fields: Vec<String>,
         _bars: (i64, i64),
-    ) {
+    ) -> Result<(), Lookahead> {
+        Err(Lookahead::ThisDevice)
     }
 
     /// libmpv runs inside the app on macOS, iOS and Android, with no second instance to probe with yet.
@@ -87,7 +145,7 @@ mod imp {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf};
     use tokio::sync::mpsc;
 
-    use super::Found;
+    use super::{report, Found, Lookahead};
     use crate::locks::Locked;
     use crate::player::ipc::{self, Stream};
     use crate::player::{kill_process, launch, mpv_binary, shots_dir, Process};
@@ -343,14 +401,30 @@ mod imp {
             && mpv.crop_events.locked().as_ref().is_some_and(|(r, _)| *r == run)
     }
 
-    pub(super) async fn ahead(app: AppHandle, run: u64, load: u64, url: String, fields: Vec<String>, bars: (i64, i64)) {
-        let _ = read_ahead(&app, run, load, &url, &fields, bars).await;
+    /// `Ok` once no longer wanted (the next load, autocrop or the setting
+    /// off), else why it stopped.
+    pub(super) async fn ahead(
+        app: &AppHandle,
+        run: u64,
+        load: u64,
+        url: String,
+        fields: Vec<String>,
+        bars: (i64, i64),
+    ) -> Result<(), Lookahead> {
+        let ended = read_ahead(app, run, load, &url, &fields, bars).await;
         let mpv = &app.state::<AppState>().mpv;
         let mut slot = mpv.ahead.locked();
         if mpv.loads.load(Ordering::SeqCst) == load {
             *slot = None;
         }
+        ended
     }
+
+    /// Times the lookahead opens the source again after it stopped
+    /// answering (a dropped connection, a source slow to deliver what's
+    /// ahead), and seeks refused in a row before it gives up.
+    const REOPENS: u32 = 3;
+    const REFUSALS: u32 = 5;
 
     /// The probe follows the playhead: from the keyframe at or before it,
     /// keyframe by keyframe up to [`AHEAD_SECS`](polar_player::lookahead::AHEAD_SECS)
@@ -363,22 +437,28 @@ mod imp {
         url: &str,
         fields: &[String],
         bars: (i64, i64),
-    ) -> Option<()> {
-        let mut p = self::start("ahead").await?;
-        let video = p.open(url, fields).await?;
-        video.duration?;
+    ) -> Result<(), Lookahead> {
+        let mut p = self::start("ahead").await.ok_or(Lookahead::NoReader)?;
+        let video = p.open(url, fields).await.ok_or(Lookahead::NotOpened)?;
+        let duration = video.duration.ok_or(Lookahead::Live)?;
         let mpv = &app.state::<AppState>().mpv;
         *mpv.ahead.locked() = Some(Schedule::new(load, video.full, bars));
+        report(app, load, Some(Lookahead::Reading));
         let mut last_head = f64::NAN;
         let mut step = STEP;
         let mut led = false;
+        let (mut reopens, mut refused) = (0, 0);
+        // Read to the file's end: nothing more until a seek.
+        let mut at_end = false;
         while wanted(app, run, load) {
             let head = f64::from_bits(mpv.playhead.load(Ordering::SeqCst));
             if !head.is_finite() {
                 tokio::time::sleep(Duration::from_millis(250)).await;
                 continue;
             }
-            let (read, more) = mpv.ahead.locked().as_ref().map(|s| (s.read_to(), s.wants_more(head)))?;
+            let Some((read, more)) = mpv.ahead.locked().as_ref().map(|s| (s.read_to(), s.wants_more(head))) else {
+                return Ok(());
+            };
             // A seek moves the playhead back, or on by more than playing
             // would; and once the reading led, the playhead passing it means
             // the same (or reading too slowly): start again from there.
@@ -387,23 +467,53 @@ mod imp {
             last_head = head;
             let fresh = read.is_none() || seeked;
             if fresh {
-                led = false;
+                (led, at_end) = (false, false);
             }
-            let landed = if fresh {
+            let sought = if fresh {
                 if seeked {
-                    mpv.ahead.locked().as_mut()?.restart();
+                    mpv.ahead.locked().as_mut().ok_or(Lookahead::Stopped)?.restart();
                 }
-                p.seek(head, "absolute+keyframes").await.ok()?
-            } else if more {
-                p.seek(step, "relative+keyframes").await.ok()?
+                p.seek(head, "absolute+keyframes").await
+            } else if more && !at_end {
+                p.seek(step, "relative+keyframes").await
             } else {
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 continue;
             };
+            let landed = match sought {
+                Ok(landed) => landed,
+                Err(()) => {
+                    // Past the last keyframe the file ends: open it again and wait there.
+                    let end = !fresh && read.is_some_and(|r| r + 2.0 * MAX_STEP >= duration);
+                    if !end {
+                        reopens += 1;
+                        if reopens > REOPENS {
+                            return Err(Lookahead::Stopped);
+                        }
+                        tracing::info!("autocrop lookahead: the source stopped answering, opening it again ({reopens} of {REOPENS})");
+                        tokio::time::sleep(Duration::from_secs(2 * u64::from(reopens))).await;
+                    }
+                    if p.open(url, fields).await.is_none() {
+                        // mpv itself is gone: another one.
+                        p = self::start("ahead").await.ok_or(Lookahead::NoReader)?;
+                        p.open(url, fields).await.ok_or(Lookahead::Stopped)?;
+                    }
+                    at_end = end;
+                    if !end {
+                        mpv.ahead.locked().as_mut().ok_or(Lookahead::Stopped)?.restart();
+                    }
+                    continue;
+                }
+            };
             if !landed {
+                refused += 1;
+                if refused >= REFUSALS {
+                    return Err(Lookahead::NoSeeking);
+                }
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 continue;
             }
+            refused = 0;
             let Some(pts) = p.command(json!(["get_property", "time-pos"])).await.and_then(|t| t.as_f64()) else {
                 continue;
             };
@@ -419,13 +529,13 @@ mod imp {
             led |= pts >= head;
             let Some(measured) = p.reading(&video).await else { continue };
             let mut slot = mpv.ahead.locked();
-            let s = slot.as_mut()?;
+            let Some(s) = slot.as_mut() else { return Ok(()) };
             s.keyframe(load, pts, measured);
             if fresh && pts < head {
                 // Shown before the playhead got here: what it changed is the live tracker's.
                 s.take(load, head);
             }
         }
-        Some(())
+        Ok(())
     }
 }

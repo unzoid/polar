@@ -11,7 +11,7 @@ import {
   type PartyMedia,
   type StreamHint,
 } from "../../lib/party";
-import { isMpv, type MediaLike } from "./mpvMedia";
+import type { MediaLike } from "./mpvMedia";
 import { createPartyFollower, FOLLOW_MS } from "./partyFollower";
 
 /** A stall shorter than this (a catch-up seek loading) isn't worth showing the room. */
@@ -99,16 +99,6 @@ export function usePartySync({
     setPartyAway(away);
     return () => setPartyAway(true);
   }, [inParty, away]);
-
-  // Seeks land on the exact frame asked for: a keyframe seek can land seconds
-  // short, which reads as drift and seeks again — the room rubber-banding.
-  useEffect(() => {
-    if (!inParty || !isMpv(media)) return;
-    media.exactSeeks = true;
-    return () => {
-      media.exactSeeks = false;
-    };
-  }, [inParty, media]);
 
   // Follow the room, and make what the viewer does here the room's.
   const follower = useRef<ReturnType<typeof createPartyFollower> | null>(null);
