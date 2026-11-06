@@ -12,10 +12,12 @@ import { serveMedia } from "./media";
  * element to hold still over two frames runs out on clicks and hovers there.
  * In WebKit every page is drawn without it; no test looks at the blur.
  */
-export const test = base.extend<{ tv: boolean; app: Page }>({
+export const test = base.extend<{ tv: boolean; account: boolean; app: Page }>({
   /** Start in TV mode (`test.use({ tv: true })`), as the Controls page's switch leaves it. */
   tv: [false, { option: true }],
-  app: async ({ page, baseURL, tv, browserName }, use) => {
+  /** Start signed in to the fake shell's account, with watch parties in the page (`test.use({ account: true })`). */
+  account: [false, { option: true }],
+  app: async ({ page, baseURL, tv, account, browserName }, use) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     await page.route(
@@ -32,7 +34,7 @@ export const test = base.extend<{ tv: boolean; app: Page }>({
         }),
       );
     if (tv) await page.addInitScript(() => localStorage.setItem("polar.tvMode", "1"));
-    await page.goto("/fake.html");
+    await page.goto(account ? "/fake.html?account=1" : "/fake.html");
     await expect(page.locator("#root > *").first()).toBeAttached();
     await use(page);
     expect(errors, "uncaught errors in the page").toEqual([]);

@@ -76,12 +76,13 @@ export function useWatchLink(me: Me, onDone?: () => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
-  useEffect(
-    () => () => {
+  // Set again on every mount: StrictMode mounts twice, and a first unmount mustn't leave the form deaf.
+  useEffect(() => {
+    alive.current = true;
+    return () => {
       alive.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
   const submit = () => {
     if (busy) return;
     const link = checkLink(text);
