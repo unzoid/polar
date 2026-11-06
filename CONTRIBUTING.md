@@ -17,6 +17,10 @@ It restores them into `.agents/skills/` and `.claude/skills/`, which git ignores
 experimental by the `skills` tool; if it changes, `npx skills add emilkowalski/skills` adds the same set
 (every entry in the lock file comes from that source).
 
+A clone made before the skill folders left the repository loses them when it's updated past that change:
+git removes the files it used to track. After updating, run `npx skills experimental_install` again to get
+them back from `skills-lock.json`.
+
 ## What this project won't accept
 
 Polarity is a player for media you're entitled to watch. It doesn't provide, host, index or recommend
