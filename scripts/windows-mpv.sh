@@ -7,8 +7,8 @@
 #
 # With `toolchain` it stops once the toolchain is built, so CI can keep the work dir before the
 # long part; run again on the same work dir to go on.
-# Runs in mpv-winbuild-cmake's own build image (Arch Linux with cmake, ninja, meson, nasm, ...;
-# CI pins it). The first build also builds the toolchain: LLVM (clang, lld) with the image's clang,
+# Runs in the image scripts/windows-mpv.Dockerfile describes (mpv-winbuild-cmake's build packages
+# on Arch Linux, from the Arch Linux Archive on a fixed day; CI builds and caches it). The first build also builds the toolchain: LLVM (clang, lld) with the image's clang,
 # then MinGW-w64 and LLVM's runtimes (compiler-rt, libunwind, libc++) for Windows, and Rust; about
 # two hours.
 # Plain x86-64 (no -v3: no AVX2 needed), C++ runtime libc++ linked statically, UCRT.
@@ -210,7 +210,8 @@ tar -cf - -C "$CARGO_HOME/registry" cache -C "$sysroot/lib/rustlib/src/rust" lib
 	echo
 	echo "Built for $ARCH (plain x86-64, clang toolchain) with shinchiro's mpv-winbuild-cmake ($WINBUILD_REPO, commit"
 	echo "$WINBUILD_COMMIT), included under winbuild/ with Polarity's pins applied, by Polarity's"
-	echo "scripts/windows-mpv.sh and scripts/windows-mpv.lock (both included)."
+	echo "scripts/windows-mpv.sh and scripts/windows-mpv.lock, in the image scripts/windows-mpv.Dockerfile"
+	echo "describes (all three included)."
 	echo
 	echo "sources.tar.xz: src/<package>, each as downloaded, before the patches in winbuild/packages/:"
 	while read -r name commit url; do
@@ -226,12 +227,12 @@ tar -cf - -C "$CARGO_HOME/registry" cache -C "$sysroot/lib/rustlib/src/rust" lib
 	echo
 	echo "How each is configured: winbuild/packages/<package>.cmake (FFmpeg: ffmpeg.cmake, with"
 	echo "--enable-gpl --enable-version3; mpv: mpv.cmake). To rebuild: scripts/windows-mpv.sh <dir>"
-	echo "in mpv-winbuild-cmake's build image, with the lock beside it."
+	echo "in the image windows-mpv.Dockerfile describes, with the lock beside it."
 } >"$work/SOURCES.txt"
 
 tar -cf "$out/polarity-windows-mpv-sources.tar" --exclude=winbuild/.git --transform 's,^,polarity-windows-mpv-sources/,' \
 	-C "$work" SOURCES.txt winbuild \
-	-C "$work/stage" sources.tar.xz rust.tar.xz -C "$root/scripts" windows-mpv.sh windows-mpv.lock
+	-C "$work/stage" sources.tar.xz rust.tar.xz -C "$root/scripts" windows-mpv.sh windows-mpv.lock windows-mpv.Dockerfile
 
 package=$(echo build/mpv-x86_64-*-git-*/)
 mpv="$out/mpv"
