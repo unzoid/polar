@@ -1,8 +1,9 @@
 //! Discord Rich Presence (#31): what plays, on the user's Discord profile, when they turn it on
 //! (Settings → Playback; off by default). Talks to the Discord app on this machine over its local
 //! IPC socket (a named pipe on Windows): a handshake with the app's client id, then `SET_ACTIVITY`.
-//! The client id comes from the build (`POLAR_DISCORD_CLIENT_ID`); a build without one, or a
-//! machine where Discord isn't running, simply shows nothing. One thread owns the connection, so a
+//! The client id is Polarity's Discord application ([`APP_ID`]); a build can use another with
+//! `POLAR_DISCORD_CLIENT_ID`, or none by setting it empty. Without an id, or on a machine where
+//! Discord isn't running, nothing is shown. One thread owns the connection, so a
 //! slow or missing Discord never holds up the player; it sends the latest activity only, at most
 //! once every few seconds (Discord's own limit), and logs no titles.
 // The phone apps have no Discord IPC: there the commands do nothing.
@@ -26,9 +27,19 @@ pub struct Activity {
     pub image_text: Option<String>,
 }
 
-/// The build's Discord application, if it has one.
+/// Polarity's application in Discord's Developer Portal, named "Polarity", which is what profiles
+/// show ("Watching Polarity"). An application id isn't a secret: Discord shows it to anyone who
+/// sees the activity.
+const APP_ID: &str = "1568225292877701221";
+
+/// The build's Discord application: `POLAR_DISCORD_CLIENT_ID` when the build sets it (empty for
+/// none), else [`APP_ID`].
 fn client_id() -> Option<&'static str> {
-    option_env!("POLAR_DISCORD_CLIENT_ID").filter(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit()))
+    pick_client_id(option_env!("POLAR_DISCORD_CLIENT_ID"))
+}
+
+fn pick_client_id(from_build: Option<&'static str>) -> Option<&'static str> {
+    Some(from_build.unwrap_or(APP_ID)).filter(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// Discord wants 2-128 characters on each line.
@@ -266,6 +277,14 @@ pub fn discord_presence(activity: Option<Activity>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_build_uses_polaritys_application_unless_it_names_another_or_none() {
+        assert_eq!(pick_client_id(None), Some(APP_ID));
+        assert_eq!(pick_client_id(Some("123456789012345678")), Some("123456789012345678"));
+        assert_eq!(pick_client_id(Some("")), None);
+        assert_eq!(pick_client_id(Some("not-an-id")), None);
+    }
 
     fn activity() -> Activity {
         Activity {
