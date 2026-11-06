@@ -8,6 +8,10 @@
 </p>
 
 <p align="center">
+  <a href="https://ko-fi.com/polarityapp"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support Polarity on Ko-fi"></a>
+</p>
+
+<p align="center">
   <img src="readme-images/home.webp" alt="Polarity's home screen, with the open movie Sintel featured" width="900">
   <br>
   <sub>Pictures from the Blender Foundation's open movies, under <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>:
@@ -128,9 +132,7 @@ MIT, see [LICENSE](LICENSE). Bundled fonts, avatars and mpv keep their own licen
 
 ## Donate
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/polarityapp)
-
-One-off donations only, to the project's owner: no tiers, no perks, and nothing in the app depends on
+[Donate on Ko-fi](https://ko-fi.com/polarityapp). One-off donations only, to the project's owner: no tiers, no perks, and nothing in the app depends on
 them. They pay for running costs: the Supabase plan behind accounts and sync, Apple's developer
 programme for an iOS release, and a Windows code-signing certificate.
 
