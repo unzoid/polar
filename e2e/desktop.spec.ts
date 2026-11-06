@@ -327,3 +327,33 @@ test("the title page's Download button names what it downloads (#26)", async ({ 
   await card(app, "The Glass Orchard").click();
   await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
 });
+
+test("a Home shelf's heading opens its browse page with the filter on, and Back returns to the same place (#48)", async ({ app }) => {
+  const home = app.locator('.page[data-active="true"] .scroll');
+  const heading = app.getByRole("button", { name: "New Movies", exact: true });
+  await heading.scrollIntoViewIfNeeded();
+  const before = await home.evaluate((el) => el.scrollTop);
+  expect(before).toBeGreaterThan(0);
+  // Reachable with the keyboard, like any button.
+  await heading.focus();
+  await app.keyboard.press("Enter");
+
+  await expect(app.getByRole("heading", { level: 1, name: "Movies" })).toBeVisible();
+  await expect(app.getByRole("radiogroup", { name: "Catalog" }).getByRole("radio", { name: "New" })).toBeChecked();
+  await expect(app.getByRole("combobox", { name: "Genre" })).toHaveText(/All Genres/);
+
+  await app.keyboard.press("Escape");
+  await expect(heading).toBeVisible();
+  expect(await home.evaluate((el) => el.scrollTop)).toBe(before);
+
+  // A genre shelf (today's pick) opens its type at Popular with that genre picked.
+  const genreTitles = await app.locator(".row-title-link").allTextContents();
+  // lib/catalog/shelves.ts's GENRES.
+  const known = ["Action & Adventure", "Sci-Fi Movies", "Animated Movies", "Comedy Movies", "Horror Movies", "Thrillers", "Romance Movies", "Crime Movies"]
+    .concat(["Fantasy Movies", "Documentaries", "Comedy Series", "Crime Series", "Drama Series", "Sci-Fi & Fantasy Series", "Animated Series", "Mystery Series", "Docuseries"]);
+  const pick = genreTitles.map((t) => t.trim()).find((t) => known.includes(t));
+  expect(pick).toBeDefined();
+  await app.getByRole("button", { name: pick, exact: true }).click();
+  await expect(app.getByRole("radiogroup", { name: "Catalog" }).getByRole("radio", { name: "Popular" })).toBeChecked();
+  await expect(app.getByRole("combobox", { name: "Genre" })).not.toHaveText(/All Genres/);
+});
