@@ -299,7 +299,7 @@ function DesktopApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [playing, back]);
 
-  // Android's back button and gesture: Escape's Back, then Home, then the app closes.
+  // Android's back button and gesture: Escape's Back, then Home, then the app goes to the background.
   useSystemBack(() => {
     const open = !!playing || isSettingsOpen() || dismissDepth() > 0;
     const action = systemBackAction({ open, pushed: stack.length - 1, atHome: rootTab(stack).name === "home" });

@@ -84,7 +84,7 @@ can decode it.
 Built without running on Android: Back (button, gesture, a remote's Back) reaches the page through Tauri's
 `onBackButtonPress` (`lib/platform/back.ts`), which takes Back over from the system; the page presses Escape where
 focus is (`lib/ui/systemBack.ts`), so the top layer closes, then the player or pushed page; on a tab's own page Back
-goes Home, and on Home it closes the app (`exit`, permission `core:app:allow-exit` in `capabilities/mobile.json`).
+goes Home, and on Home the app goes to the background as Android's own Back does (`polarDevice.leave` in `MainActivity.kt`; `exit` only if that bridge is missing).
 A focused text field loses focus first. Tested here: the decision (`tests/systemBack.test.ts`) and the Escape it
 sends (`tests/dom/systemBack.test.ts`). Not known: whether the WebView also delivers KEYCODE_BACK to the page as a
 key (it would go back twice), and the account screens before sign-in, which register no handler (the system's
