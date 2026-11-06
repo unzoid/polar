@@ -114,15 +114,42 @@ function basePreview(type: "movie" | "series", name: string, i: number): MetaPre
   };
 }
 
-export const movies = MOVIE_NAMES.map((n, i) => preview("movie", n, i));
+/**
+ * `fake.html?films=1`: the README's screenshots (scripts/readme-shots.ts). The Blender Foundation's
+ * open films lead the movies and Continue Watching, pictured with frames of the films that the
+ * script serves under /readme-shots/ (docs/screenshots.md says how they're licensed and credited).
+ */
+export const FILMS = new URLSearchParams(location.search).get("films") === "1";
+const OPEN_FILMS: [key: string, name: string, year: string, genres: string[], description: string][] = [
+  ["sintel", "Sintel", "2010", ["Animation", "Fantasy"], "A young woman crosses snow, desert and city alone, searching for the baby dragon she once nursed back to health."],
+  ["tears-of-steel", "Tears of Steel", "2012", ["Sci-Fi", "Action"], "In a future Amsterdam, a band of scientists and soldiers stage one last scene to stop an army of robots."],
+  ["big-buck-bunny", "Big Buck Bunny", "2008", ["Animation", "Comedy"], "A large, gentle rabbit has had enough of the three rodents who torment the smaller animals of his meadow."],
+];
+const openFilms: MetaPreview[] = FILMS
+  ? OPEN_FILMS.map(([key, name, year, genres, description], i) => ({
+      id: `tt${9000001 + i}`,
+      type: "movie",
+      name,
+      poster: `/readme-shots/${key}-poster.jpg`,
+      background: `/readme-shots/${key}-backdrop.jpg`,
+      description,
+      releaseInfo: year,
+      genres,
+    }))
+  : [];
+
+export const movies = [...openFilms, ...MOVIE_NAMES.map((n, i) => preview("movie", n, i))];
 export const series = SERIES_NAMES.map((n, i) => preview("series", n, i));
 export const all = [...movies, ...series];
 
 /** A catalog page: the list rotated by the catalog's name so shelves differ. */
 export function catalogPage(type: string, id: string, skip: number): MetaPreview[] {
   const list = type === "series" ? series : movies;
-  const shift = [...id].reduce((a, c) => a + c.charCodeAt(0), 0) % list.length;
-  const rotated = [...list.slice(shift), ...list.slice(0, shift)];
+  // The open films stay first (FILMS); the rest turn.
+  const fixed = type === "series" ? 0 : openFilms.length;
+  const rest = list.slice(fixed);
+  const shift = [...id].reduce((a, c) => a + c.charCodeAt(0), 0) % rest.length;
+  const rotated = [...list.slice(0, fixed), ...rest.slice(shift), ...rest.slice(0, shift)];
   // Two pages, then the end.
   return skip >= list.length * 2 ? [] : rotated.map((m) => ({ ...m }));
 }
@@ -250,7 +277,8 @@ export const library: LibraryItem[] = libraryTitles.map((m, k) => ({
   addedAt: now - k * 86_400_000,
 }));
 
-const progressTitles = WORST === "empty" ? [] : WORST ? [series[0], movies[0], series[2], movies[3], series[4]] : [series[1], movies[4], series[3], movies[0]];
+const progressTitles =
+  WORST === "empty" ? [] : WORST ? [series[0], movies[0], series[2], movies[3], series[4]] : FILMS ? [...openFilms, series[1], movies[7]] : [series[1], movies[4], series[3], movies[0]];
 export const progress: Progress[] = progressTitles.map((m, k) => ({
   metaId: m.id,
   videoId: m.type === "series" ? `${m.id}:2:${k + 3}` : m.id,
@@ -263,6 +291,8 @@ export const progress: Progress[] = progressTitles.map((m, k) => ({
   episodeTitle: m.type === "series" ? "Chapter 3: Crossings" : undefined,
   position: 1200 + k * 600,
   duration: 3100,
+  // The open films' own lengths (Sintel 15 min, Tears of Steel 12, Big Buck Bunny 10).
+  ...(FILMS && k < openFilms.length && { position: [310, 420, 200][k], duration: [888, 734, 596][k] }),
   updatedAt: now - k * 3_600_000,
   ...(WORST && { season: m.type === "series" ? 2024 : undefined, episode: m.type === "series" ? 9999 : undefined, episodeTitle: m.type === "series" ? `${W_LONG}, Part 9999` : undefined, position: [1, 359_999, 0, 5_000, 7_200][k], duration: [360_000, 360_000, 0, 4_000, 7_200][k] }),
 }));

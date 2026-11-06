@@ -1,5 +1,7 @@
 import { useEffect, useState, type ButtonHTMLAttributes } from "react";
 import { IconButton } from "./ui/Button";
+import { anchorOf, nativeDialogsAvailable, showNativeDialog } from "../lib/platform";
+import { warnFailed } from "../lib/errors";
 
 /** How long the armed state waits for the second click before standing down. */
 const DISARM_AFTER = 3000;
@@ -7,9 +9,10 @@ const DISARM_AFTER = 3000;
 /**
  * The two-step behaviour on any button: `onClick` arms it, a second click runs `onConfirm`. It stands
  * down on its own after a few seconds, on Escape, or when focus moves away. Spread `props` on the button
- * and give it the `confirm-delete` class (red while armed, the bin's lid open).
+ * and give it the `confirm-delete` class (red while armed, the bin's lid open). On iOS a tap asks with the system's
+ * action sheet instead, its red button saying `action`.
  */
-export function useConfirmDelete(onConfirm: () => void) {
+export function useConfirmDelete(onConfirm: () => void, action = "Delete") {
   const [armed, setArmed] = useState(false);
 
   useEffect(() => {
@@ -20,7 +23,16 @@ export function useConfirmDelete(onConfirm: () => void) {
 
   const props: ButtonHTMLAttributes<HTMLButtonElement> & { "data-armed"?: true } = {
     "data-armed": armed || undefined,
-    onClick: () => (armed ? onConfirm() : setArmed(true)),
+    onClick: (e) => {
+      if (!nativeDialogsAvailable) return armed ? onConfirm() : setArmed(true);
+      const actions = [
+        { id: "delete", label: action, style: "destructive" as const },
+        { id: "cancel", label: "Cancel", style: "cancel" as const },
+      ];
+      showNativeDialog({ kind: "sheet", actions, anchor: anchorOf(e.currentTarget) })
+        .then((picked) => picked === "delete" && onConfirm())
+        .catch(warnFailed("delete confirmation"));
+    },
     onBlur: () => setArmed(false),
     onKeyDown: (e) => {
       if (e.key === "Escape" && armed) {
@@ -46,7 +58,7 @@ export function ConfirmDeleteButton({
   onConfirm: () => void;
   className?: string;
 }) {
-  const { armed, props } = useConfirmDelete(onConfirm);
+  const { armed, props } = useConfirmDelete(onConfirm, `Delete ${label[0].toUpperCase()}${label.slice(1)}`);
   return (
     <IconButton
       className={className ? `confirm-delete quiet-btn ${className}` : "confirm-delete quiet-btn"}

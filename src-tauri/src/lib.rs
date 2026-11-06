@@ -9,6 +9,8 @@ mod introdb;
 mod keychain;
 mod locks;
 mod logging;
+mod native_dialogs;
+mod native_tabs;
 mod player;
 mod ratings;
 mod seekr;
@@ -299,6 +301,9 @@ pub fn run() {
             player::mpv_stop,
             player::mpv_snapshot,
             player::player_system_bars,
+            native_tabs::native_tabs,
+            native_dialogs::native_dialog,
+            native_dialogs::native_share,
         ])
         .build(tauri::generate_context!())
         .expect("error while building polar")

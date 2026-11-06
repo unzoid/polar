@@ -481,6 +481,14 @@
     padding: 0 1.125rem;
   }
 }
+/* iOS draws the tabs itself (components/NativeTabs.tsx): its tab bar is part of the safe area, so pages
+   pad by that alone. */
+:root[data-native-tabs] .navbar-links {
+  display: none;
+}
+:root[data-native-tabs][data-form="phone"] {
+  --tabbar-h: var(--safe-bottom);
+}
 :root[data-form="phone"] .brand-logo {
   height: 30px;
 }

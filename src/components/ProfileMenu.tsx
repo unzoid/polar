@@ -6,6 +6,8 @@ import { openSettings } from "../lib/settings";
 import { useSettings } from "../lib/net";
 import { Avatar } from "./Avatar";
 import { MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "./ui/Menu";
+import { anchorOf, nativeDialogsAvailable, showNativeDialog, type DialogAction } from "../lib/platform";
+import { warnFailed } from "../lib/errors";
 
 /** Used for the template profile when nobody's signed in. */
 const GUEST_AVATAR = "guest";
@@ -15,7 +17,7 @@ const GUEST_AVATAR = "guest";
  * the Calendar while it isn't a navbar tab.
  * Without an account it's a template "Guest" profile (Settings, Sign In);
  * signed in it adds switching profiles, managing them, the account and
- * signing out.
+ * signing out. On iOS it's the system's own menu, with the same choices.
  */
 export function ProfileMenu() {
   const account = useAccount();
@@ -27,6 +29,39 @@ export function ProfileMenu() {
   const { tab } = useRouter();
   // While Settings → Browsing → Show the Calendar makes it a navbar tab, it isn't listed here too (#92).
   const { data: settings } = useSettings();
+
+  if (nativeDialogsAvailable) {
+    // The web menu below, as groups of choices (a separator between groups).
+    const groups: { id: string; label: string; run: () => void }[][] = [
+      [
+        ...others.map((p) => ({ id: `profile:${p.id}`, label: p.name, run: () => void account.chooseProfile(p) })),
+        ...(me ? [{ id: "manage", label: "Manage Profiles", run: () => account.switchProfile("manage") }] : []),
+      ],
+      [
+        ...(me && partyAvailable() ? [{ id: "party", label: "Join Watch Party", run: () => setJoinPartyOpen(true) }] : []),
+        ...(!settings?.showCalendar ? [{ id: "calendar", label: "Calendar", run: () => tab({ name: "calendar" }) }] : []),
+        { id: "settings", label: "Settings", run: () => openSettings() },
+        ...(me ? [{ id: "account", label: "Account", run: () => openSettings("account") }] : []),
+      ],
+      me
+        ? [{ id: "sign-out", label: "Sign Out", run: () => void account.signOut() }]
+        : account.enabled
+          ? [{ id: "sign-in", label: "Sign In", run: account.showSignIn }]
+          : [],
+    ];
+    const choices = groups.flat();
+    const open = (el: HTMLElement) => {
+      const actions = groups.flatMap((g, i) => g.map((c): DialogAction => ({ id: c.id, label: c.label, style: "default", group: i })));
+      showNativeDialog({ kind: "menu", title: me ? name : `${name} · Not signed in`, anchor: anchorOf(el), actions })
+        .then((picked) => choices.find((c) => c.id === picked)?.run())
+        .catch(warnFailed("profile menu"));
+    };
+    return (
+      <button type="button" className="navbar-profile pressable" aria-label={`Profile: ${name}`} aria-haspopup="menu" onClick={(e) => open(e.currentTarget)}>
+        <Avatar id={avatar} />
+      </button>
+    );
+  }
 
   return (
     <MenuRoot modal={false}>

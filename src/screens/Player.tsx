@@ -18,7 +18,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { appWindow, isDesktop, isMac } from "../lib/platform";
+import { anchorOf, appWindow, isDesktop, isMac, nativeDialogsAvailable, showNativeDialog } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -48,6 +48,7 @@ import { EpisodeRail } from "../components/player/EpisodeRail";
 import { Dropdown } from "../components/Dropdown";
 import { SkipTransport } from "../components/player/SkipTransport";
 import { useTracks } from "../components/player/useTracks";
+import { pickedSpeed, pickedTrack, speedLabel, speedMenu, tracksMenu } from "../components/player/nativeMenus";
 import {
   DEFAULT_SUBTITLE_STYLE,
   SubtitlePreview,
@@ -76,7 +77,7 @@ import { LinkForm, PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes,
 import { PartyActions, PartyHostControls } from "../components/party/PartyMenu";
 import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
-import { errorMessage, storeLocal } from "../lib/errors";
+import { errorMessage, storeLocal, warnFailed } from "../lib/errors";
 import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
 import { PlayerStatus } from "../components/player/PlayerStatus";
 import { TorrentNotice } from "../components/player/TorrentNotice";
@@ -183,6 +184,8 @@ export function Player({
   const [ended, setEnded] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
   const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | "party" | null>(null);
+  // iOS's own menu is up (Speed, Subtitles & Audio): the controls stay while it is.
+  const [nativeMenu, setNativeMenu] = useState(false);
   const updateSettings = useUpdateSettings();
   // Settings → Playback → "Remember playback speed" (settings may arrive after the player opens).
   const [picked, setPicked] = useState<number>();
@@ -248,7 +251,7 @@ export function Player({
   // --- Chrome visibility --------------------------------------------------
   const { chrome, poke, hide: hideChrome, overControls } = usePlayerChrome(hideAfter);
   const ready = source.state.status === "ready" && !error;
-  const chromeVisible = chrome.visible || paused || !!options || !ready;
+  const chromeVisible = chrome.visible || paused || !!options || nativeMenu || !ready;
   // Whether the controls showed when the press on the picture began: the
   // player's own pointerdown shows them before the click, so a tap that should
   // bring them back would otherwise hide them again at once.
@@ -662,6 +665,29 @@ export function Player({
     setOptionsByKey(true);
     setOptions((open) => (open === o ? null : o));
   };
+  // A tap on Speed or Subtitles & Audio: on iOS the system's menu from the button (nativeMenus.ts), elsewhere the picker.
+  const openOptions = (o: NonNullable<typeof options>, from: Element) => {
+    if (!nativeDialogsAvailable || (o !== "speed" && o !== "tracks")) return setOptions(o);
+    const menu = o === "speed" ? speedMenu(SPEEDS, rate) : tracksMenu(tracks);
+    setNativeMenu(true);
+    showNativeDialog({ ...menu, anchor: anchorOf(from) })
+      .then((id) => {
+        if (o === "speed") {
+          const r = pickedSpeed(id);
+          if (r != null && r !== rate) setRate(r);
+          return;
+        }
+        const pick = pickedTrack(id);
+        if (pick === "settings") {
+          setSubSettingsOpen(true);
+          setOptions("tracks");
+        } else if (pick && "audio" in pick) {
+          if (pick.audio !== tracks.audioId) tracks.selectAudio(pick.audio);
+        } else if (pick && pick.subtitle !== tracks.subId) void tracks.selectSubtitle(pick.subtitle);
+      })
+      .catch(warnFailed("menu"))
+      .finally(() => setNativeMenu(false));
+  };
   // The page underneath has the keyboard already while the player fades out; the torrent notice has it while it's up.
   const torrentNotice = source.state.status === "notice";
   usePlayerKeyboard(
@@ -969,12 +995,12 @@ export function Player({
         </div>
         <div className="player-actions">
           {!party && (
-            <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={() => setOptions("speed")} />
+            <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={(el) => openOptions("speed", el)} />
           )}
           {type === "series" && (
             <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
-          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={() => setOptions("tracks")} />
+          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={(el) => openOptions("tracks", el)} />
           {!link && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
           {canParty && !airplay.casting && (
             <ActionButton
@@ -1002,7 +1028,7 @@ export function Player({
           {
             title: "Playback Speed",
             value: String(rate),
-            options: SPEEDS.map((r) => ({ id: String(r), label: r === 1 ? "1x (Normal)" : `${r}x` })),
+            options: SPEEDS.map((r) => ({ id: String(r), label: speedLabel(r) })),
             onSelect: (id) => setRate(Number(id)),
           },
         ]}
@@ -1265,11 +1291,12 @@ function ActionButton({
   label: string;
   /** The controller button that does the same (TV mode with a controller). */
   glyph?: React.ReactNode;
-  onClick: () => void;
+  /** Gets the button, for a menu that opens from it. */
+  onClick: (el: HTMLButtonElement) => void;
 }) {
   return (
     // Named by its label even where the label isn't drawn (a phone held upright shows the glyphs alone).
-    <button className="player-action pressable" onClick={onClick} aria-label={label} title={label}>
+    <button className="player-action pressable" onClick={(e) => onClick(e.currentTarget)} aria-label={label} title={label}>
       {icon}
       <span aria-hidden>{label}</span>
       {glyph}

@@ -1,5 +1,7 @@
 import { Select } from "@base-ui/react/select";
 import { Check, ChevronDown } from "./icons";
+import { anchorOf, nativeDialogsAvailable, showNativeDialog } from "../lib/platform";
+import { warnFailed } from "../lib/errors";
 
 interface Option<T extends string> {
   value: T;
@@ -13,6 +15,8 @@ interface Option<T extends string> {
  *
  *  - "default": settings rows, sort menus.
  *  - "large": the season picker, set in the same big type as the season tabs.
+ *
+ * On iOS the trigger opens the system's own menu instead, the current choice ticked.
  */
 export function Dropdown<T extends string>({
   value,
@@ -27,6 +31,33 @@ export function Dropdown<T extends string>({
   label: string;
   size?: "default" | "large";
 }) {
+  const chevron = <ChevronDown size={size === "large" ? 20 : 15} strokeWidth={2.25} />;
+  if (nativeDialogsAvailable)
+    return (
+      <button
+        type="button"
+        className="select-trigger"
+        data-size={size}
+        aria-label={label}
+        aria-haspopup="menu"
+        onClick={(e) =>
+          void showNativeDialog({
+            kind: "menu",
+            title: label,
+            anchor: anchorOf(e.currentTarget),
+            actions: options.map((o) => ({ id: o.value, label: o.label, style: "default", checked: o.value === value })),
+          })
+            .then((picked) => {
+              const o = options.find((o) => o.value === picked);
+              if (o && o.value !== value) onChange(o.value);
+            })
+            .catch(warnFailed("menu"))
+        }
+      >
+        <span className="select-value">{options.find((o) => o.value === value)?.label}</span>
+        <span className="select-icon">{chevron}</span>
+      </button>
+    );
   return (
     <Select.Root
       value={value}
@@ -35,9 +66,7 @@ export function Dropdown<T extends string>({
     >
       <Select.Trigger className="select-trigger" data-size={size} aria-label={label}>
         <Select.Value className="select-value" />
-        <Select.Icon className="select-icon">
-          <ChevronDown size={size === "large" ? 20 : 15} strokeWidth={2.25} />
-        </Select.Icon>
+        <Select.Icon className="select-icon">{chevron}</Select.Icon>
       </Select.Trigger>
       <Select.Portal>
         <Select.Positioner className="select-positioner" sideOffset={6} alignItemWithTrigger={false} align="start">

@@ -16,20 +16,30 @@ import { useEffect, useRef } from "react";
 type Entry = { dismiss: () => void };
 
 const stack: Entry[] = [];
+const depthListeners = new Set<() => void>();
 
 /** Adds a layer on top; returns its removal. */
 export function pushDismiss(dismiss: () => void): () => void {
   const entry: Entry = { dismiss };
   stack.push(entry);
   install();
+  depthListeners.forEach((l) => l());
   return () => {
     const i = stack.lastIndexOf(entry);
-    if (i >= 0) stack.splice(i, 1);
+    if (i < 0) return;
+    stack.splice(i, 1);
+    depthListeners.forEach((l) => l());
   };
 }
 
 /** How many layers are open (0: Escape goes on to the app). */
 export const dismissDepth = () => stack.length;
+
+/** Calls `listener` whenever a layer opens or closes; returns the unsubscribe. */
+export function onDismissDepth(listener: () => void): () => void {
+  depthListeners.add(listener);
+  return () => void depthListeners.delete(listener);
+}
 
 type EscapeEvent = Pick<KeyboardEvent, "key" | "defaultPrevented" | "isComposing" | "preventDefault" | "stopPropagation">;
 
