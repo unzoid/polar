@@ -14,9 +14,12 @@ import {
   animePreview,
   aniZipQuery,
   countdown,
+  entryZip,
   imdbForAnime,
   isMature,
+  knowsNothing,
   linkAnime,
+  prequelOf,
   SEASON_LABEL,
   untilAiring,
   useAnimeScore,
@@ -220,13 +223,16 @@ export function TvAnimeDetail({ id }: { id: number }) {
   useEffect(() => {
     let live = true;
     void (async () => {
-      const z = await qc.fetchQuery(aniZipQuery(id)).catch(() => null);
+      let z = await qc.fetchQuery(aniZipQuery(id)).catch(() => null);
       // As on desktop: the IMDb show with this entry's episodes, else Kitsu.
       let sure = true;
       let mal = z?.mappings.mal_id;
       const imdb = await fetchAnime(id)
-        .then((a) => {
+        .then(async (a) => {
           mal = a.idMal ?? mal;
+          // The second half of a split part ani.zip lists under its prequel (lib/anime/splitParts.ts).
+          const prequel = prequelOf(a);
+          if (knowsNothing(z) && prequel !== undefined) z = entryZip(a, z, await qc.fetchQuery(aniZipQuery(prequel)).catch(() => null)) ?? null;
           return imdbForAnime(a, z, cachedLookup(qc));
         })
         .catch(() => {
