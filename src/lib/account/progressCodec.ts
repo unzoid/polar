@@ -30,6 +30,9 @@ export interface ProgressEntry {
   updatedAt: number;
 }
 
+/** What `encodeEntries` takes: `null` numbers count as absent, as the native store writes a film's (#94). */
+export type EntryToPack = Omit<ProgressEntry, "season" | "episode"> & { season?: number | null; episode?: number | null };
+
 const VERSION = 1;
 const OWN = 0;
 const SEASON_EPISODE = 1;
@@ -54,31 +57,32 @@ function pushVarint(out: number[], n: number) {
 const whole = (seconds: number) => (Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0);
 
 /** The key (form + payload) and the numbers the key doesn't carry. */
-function key(metaId: string, e: ProgressEntry): { key: number[]; season?: number; episode?: number } {
+function key(metaId: string, e: EntryToPack): { key: number[]; season?: number; episode?: number } {
   const out: number[] = [];
+  const [season, episode] = [e.season ?? undefined, e.episode ?? undefined];
   const rest = e.videoId.startsWith(`${metaId}:`) ? e.videoId.slice(metaId.length + 1) : null;
   const se = rest === null ? null : SE.exec(rest);
   const ep = rest === null ? null : E.exec(rest);
   if (e.videoId === metaId) {
     out.push(OWN);
-    return { key: out, season: e.season, episode: e.episode };
+    return { key: out, season, episode };
   }
-  if (se && Number(se[1]) === e.season && Number(se[2]) === e.episode) {
+  if (se && season !== undefined && episode !== undefined && Number(se[1]) === season && Number(se[2]) === episode) {
     out.push(SEASON_EPISODE);
-    pushVarint(out, e.season);
-    pushVarint(out, e.episode);
+    pushVarint(out, season);
+    pushVarint(out, episode);
     return { key: out };
   }
-  if (ep && Number(ep[1]) === e.episode) {
+  if (ep && episode !== undefined && Number(ep[1]) === episode) {
     out.push(EPISODE);
-    pushVarint(out, e.episode);
-    return { key: out, season: e.season };
+    pushVarint(out, episode);
+    return { key: out, season };
   }
   const bytes = new TextEncoder().encode(e.videoId);
   out.push(OTHER);
   pushVarint(out, bytes.length);
   out.push(...bytes);
-  return { key: out, season: e.season, episode: e.episode };
+  return { key: out, season, episode };
 }
 
 function compareBytes(a: number[], b: number[]) {
@@ -87,15 +91,15 @@ function compareBytes(a: number[], b: number[]) {
 }
 
 /** The newest entry's time: what the row's `updated_at` must be for `encodeEntries`'s ages. */
-export const newestAt = (entries: ProgressEntry[]) => entries.reduce((max, e) => Math.max(max, e.updatedAt), 0);
+export const newestAt = (entries: { updatedAt: number }[]) => entries.reduce((max, e) => Math.max(max, e.updatedAt), 0);
 
 /**
  * Packs one title's entries. A video listed twice keeps its newest entry.
  * Ages are measured from `newestAt(entries)`, which the row must carry as
  * its `updated_at`.
  */
-export function encodeEntries(metaId: string, entries: ProgressEntry[]): Uint8Array {
-  const newest = new Map<string, ProgressEntry>();
+export function encodeEntries(metaId: string, entries: EntryToPack[]): Uint8Array {
+  const newest = new Map<string, EntryToPack>();
   for (const e of entries) {
     const seen = newest.get(e.videoId);
     if (!seen || e.updatedAt > seen.updatedAt) newest.set(e.videoId, e);
@@ -103,7 +107,7 @@ export function encodeEntries(metaId: string, entries: ProgressEntry[]): Uint8Ar
   const top = newestAt([...newest.values()]);
   const coded = [...newest.values()].map((e) => {
     const k = key(metaId, e);
-    const flags = (e.season !== undefined ? HAS_SEASON : 0) | (e.episode !== undefined ? HAS_EPISODE : 0);
+    const flags = (e.season != null ? HAS_SEASON : 0) | (e.episode != null ? HAS_EPISODE : 0);
     const tail: number[] = [];
     if (k.season !== undefined) pushVarint(tail, k.season);
     if (k.episode !== undefined) pushVarint(tail, k.episode);
