@@ -553,6 +553,16 @@
   color: white;
   animation: fade-in var(--dur-fast) var(--ease-std);
 }
+/* The pencils are always there, faded in while managing, so the mode changes in place. */
+.profile-tile-edit {
+  opacity: 0;
+  pointer-events: none;
+  animation: none;
+  transition: opacity var(--dur-fast) var(--ease-std);
+}
+.profile-tile[data-managing="true"] .profile-tile-edit {
+  opacity: 1;
+}
 .profile-tile-pencil {
   display: grid;
   place-items: center;

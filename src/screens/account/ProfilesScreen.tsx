@@ -64,7 +64,8 @@ export function ProfilesScreen({ initial = "pick" }: { initial?: "pick" | "manag
         </button>
       }
     >
-      <div className="profiles" key={view.name}>
+      {/* Managing is a mode of the same screen: Done and Manage Profiles change it in place (#93). */}
+      <div className="profiles">
         <h1 className="profiles-title">{managing ? "Manage Profiles" : "Who's watching?"}</h1>
         <ul className="profiles-grid" onKeyDown={moveFocus}>
           {account.profiles.map((p, i) => (
@@ -81,13 +82,11 @@ export function ProfilesScreen({ initial = "pick" }: { initial?: "pick" | "manag
               >
                 <span className="profile-tile-art">
                   <Avatar id={p.avatar} />
-                  {managing && (
-                    <span className="profile-tile-overlay">
-                      <span className="profile-tile-pencil">
-                        <Edit size={22} strokeWidth={2.25} />
-                      </span>
+                  <span className="profile-tile-overlay profile-tile-edit" aria-hidden>
+                    <span className="profile-tile-pencil">
+                      <Edit size={22} strokeWidth={2.25} />
                     </span>
-                  )}
+                  </span>
                   {entering === p.id && (
                     <span className="profile-tile-overlay">
                       <BusyRing size={28} />

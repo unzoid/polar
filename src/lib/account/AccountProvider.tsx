@@ -19,7 +19,7 @@ import { refreshLocalViews, sync } from "./sync";
  */
 export type AccountStatus = "loading" | "signed-out" | "guest" | "onboarding" | "profiles" | "ready";
 
-interface Account {
+export interface Account {
   /** False when no provider is configured: no sign-in UI anywhere. */
   enabled: boolean;
   status: AccountStatus;
@@ -60,7 +60,8 @@ interface Account {
   deleteAccount(): Promise<void>;
 }
 
-const AccountContext = createContext<Account | null>(null);
+/** The account `useAccount` reads; tests provide their own. */
+export const AccountContext = createContext<Account | null>(null);
 
 /** How long sign-out waits for the pushes before it counts what's left. */
 const SIGN_OUT_PUSH_MS = 8000;
