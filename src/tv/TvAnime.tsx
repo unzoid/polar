@@ -169,9 +169,14 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
   const timer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  // The linked IMDb title's backdrop or poster first, opened or not (#34), the same for every season of a show (#27).
+  // The linked IMDb title's backdrop or poster first, opened or not (#34), the same for every season of a show (#27);
+  // the entry's own art first with seasons as separate shows (#194).
   const imdb = useLinkedImdb(card.id);
-  const { item, fallbacks } = useMemo(() => withLinkedArt(animePreview(card, zip, prefs.animeTitles), imdb, shape), [card, zip, prefs.animeTitles, shape, imdb]);
+  const separateArt = prefs.animeSeparateEntries;
+  const { item, fallbacks } = useMemo(
+    () => withLinkedArt(animePreview(card, zip, prefs.animeTitles), imdb, shape, separateArt),
+    [card, zip, prefs.animeTitles, shape, imdb, separateArt],
+  );
   const next = prefs.animeCardCountdown ? card.nextAiringEpisode : undefined;
   const nextText = next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`;
   // What's on the card stays artwork; when it airs goes on the stage above.

@@ -5,6 +5,7 @@ import { CardMenuHost } from "../../src/components/CardMenu";
 import { AnimeCard, useAnimeHandlers } from "../../src/components/anime/AnimeCard";
 import { aniZipQuery, type AnimeCard as Media } from "../../src/lib/anime";
 import { keys } from "../../src/lib/net";
+import { setPrefs } from "../../src/lib/settings/prefs";
 import { RouterProvider } from "../../src/lib/router";
 import { render } from "./render";
 
@@ -65,4 +66,36 @@ test("AnimeCard: every season of a show linked to one IMDb title shows that titl
   const poster = "https://images.metahub.space/poster/medium/tt0000001/img";
   expect(srcs).toEqual([poster, poster, "https://art.example/900004.jpg"]);
   await unmount();
+});
+
+test("AnimeCard: with seasons as separate shows each season shows its own cover, the linked poster only behind it (#194)", async () => {
+  const season = (id: number, name: string) =>
+    ({ ...upcoming, id, title: { english: name, romaji: null, native: null }, coverImage: { extraLarge: `https://art.example/${id}.jpg`, large: null, color: null } }) as Media;
+  const qc = new QueryClient();
+  qc.setQueryData(keys.animeLinks, [{ canonical: "tt0000001", anilist: 900012, updatedAt: 1 }]);
+  qc.setQueryData(keys.anime.listedImdb(900012), null);
+  qc.setQueryData(keys.anime.listedImdb(900013), "tt0000001");
+  const cards = (
+    <QueryClientProvider client={qc}>
+      <RouterProvider>
+        <AnimeCard item={season(900012, "The Lantern Keepers")} />
+        <AnimeCard item={season(900013, "The Lantern Keepers Season 2")} />
+      </RouterProvider>
+    </QueryClientProvider>
+  );
+  const srcs = (c: HTMLElement) => [...c.querySelectorAll("img")].map((i) => i.getAttribute("src"));
+  const poster = "https://images.metahub.space/poster/medium/tt0000001/img";
+  try {
+    const grouped = await render(cards);
+    await settle();
+    expect(srcs(grouped.container)).toEqual([poster, poster]);
+    await grouped.unmount();
+    setPrefs({ animeSeparateEntries: true }, { quiet: true });
+    const separate = await render(cards);
+    await settle();
+    expect(srcs(separate.container)).toEqual(["https://art.example/900012.jpg", "https://art.example/900013.jpg"]);
+    await separate.unmount();
+  } finally {
+    setPrefs({ animeSeparateEntries: false }, { quiet: true });
+  }
 });

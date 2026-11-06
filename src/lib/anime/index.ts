@@ -19,6 +19,7 @@ export * from "./links";
 export * from "./merge";
 export * from "./playContext";
 export * from "./preview";
+export * from "./relatedRows";
 export * from "./responses";
 export * from "./search";
 export * from "./seasonLabels";

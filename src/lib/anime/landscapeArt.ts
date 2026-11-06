@@ -4,23 +4,37 @@ import { keys } from "../net/queryKeys";
 import type { AnimeLink } from "../library/identity";
 import type { MetaPreview } from "../types";
 
+const distinct = (urls: (string | null | undefined)[]) => urls.filter((u, i, all): u is string => !!u && all.indexOf(u) === i);
+
 /**
  * The pictures a widescreen anime card tries, in turn (re-test N5): the linked IMDb title's backdrop
  * (made for a wide frame, the title's recognisable art), then AniList's banner, and only last the
- * upright cover, cropped.
+ * upright cover, cropped. With seasons as separate shows (`separate`, #194) the entry's own banner and
+ * cover come first: the linked title's backdrop is the same for every season, so it's only the last try.
  */
-export function landscapeArt({ imdb, bannerImage, cover }: { imdb: string | null | undefined; bannerImage?: string | null; cover?: string | null }): string[] {
+export function landscapeArt({
+  imdb,
+  bannerImage,
+  cover,
+  separate = false,
+}: {
+  imdb: string | null | undefined;
+  bannerImage?: string | null;
+  cover?: string | null;
+  separate?: boolean;
+}): string[] {
   const backdrop = imdb?.startsWith("tt") ? `https://images.metahub.space/background/large/${imdb}/img` : null;
-  return [backdrop, bannerImage, cover].filter((u, i, all): u is string => !!u && all.indexOf(u) === i);
+  return distinct(separate ? [bannerImage, cover, backdrop] : [backdrop, bannerImage, cover]);
 }
 
 /**
  * The pictures an upright anime card tries, in turn (#27): the linked IMDb title's poster, the same for
- * every season of a show, then the entry's own AniList cover.
+ * every season of a show, then the entry's own AniList cover. With seasons as separate shows (#194) the
+ * entry's own cover first, so each season looks like itself.
  */
-export function posterArt({ imdb, cover }: { imdb: string | null | undefined; cover?: string | null }): string[] {
+export function posterArt({ imdb, cover, separate = false }: { imdb: string | null | undefined; cover?: string | null; separate?: boolean }): string[] {
   const poster = imdb?.startsWith("tt") ? `https://images.metahub.space/poster/medium/${imdb}/img` : null;
-  return [poster, cover].filter((u, i, all): u is string => !!u && all.indexOf(u) === i);
+  return distinct(separate ? [cover, poster] : [poster, cover]);
 }
 
 /**
@@ -53,19 +67,20 @@ export function linkedImdb(anilistId: number, listed: string | null | undefined,
 /**
  * A TV card's preview with the linked art as its picture: on a landscape card {@link landscapeArt} (the
  * linked backdrop, then the preview's own: ani.zip's fanart or the banner, then the cover), on a poster
- * {@link posterArt}. No picture until the link is known.
+ * {@link posterArt}; with seasons as separate shows (`separate`) the preview's own first. No picture until the link is known.
  */
 export function withLinkedArt(
   preview: MetaPreview,
   imdb: string | null | undefined,
   shape: "landscape" | "poster" = "landscape",
+  separate = false,
 ): { item: MetaPreview; fallbacks: string[] } {
   if (shape === "poster") {
     if (imdb === undefined) return { item: { ...preview, poster: undefined }, fallbacks: [] };
-    const [poster, ...fallbacks] = posterArt({ imdb, cover: preview.poster });
+    const [poster, ...fallbacks] = posterArt({ imdb, cover: preview.poster, separate });
     return { item: { ...preview, poster }, fallbacks };
   }
   if (imdb === undefined) return { item: { ...preview, background: undefined }, fallbacks: [] };
-  const [background, ...fallbacks] = landscapeArt({ imdb, bannerImage: preview.background, cover: preview.poster });
+  const [background, ...fallbacks] = landscapeArt({ imdb, bannerImage: preview.background, cover: preview.poster, separate });
   return { item: { ...preview, background }, fallbacks };
 }

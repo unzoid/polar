@@ -1,59 +1,34 @@
-import { type Anime, FORMAT_LABEL, LIKED_THIS_FILL, likedThis, RELATION_LABEL, type RelationType, useMoreRecommendations } from "../../lib/anime";
+import { type Anime, LIKED_THIS_FILL, likedThis, relatedRows, type RelatedCard, useMoreRecommendations } from "../../lib/anime";
 import { usePrefs } from "../../lib/settings";
 import { Row } from "../Row";
 import { AnimeCard } from "./AnimeCard";
 import type { Franchise } from "./AnimeEpisodes";
 
-/** Watch order first (prequels, sequels, the main story), then everything else. */
-const RELATION_ORDER: RelationType[] = [
-  "PREQUEL",
-  "SEQUEL",
-  "PARENT",
-  "SIDE_STORY",
-  "SPIN_OFF",
-  "ALTERNATIVE",
-  "SUMMARY",
-  "COMPILATION",
-  "CONTAINS",
-  "CHARACTER",
-  "OTHER",
-  "SOURCE",
-  "ADAPTATION",
-];
-
 /**
- * The rest of the franchise not already in the season tabs, watch order first,
- * then AniList's recommendations.
+ * Watch Order and the rest of the franchise not already in the season tabs
+ * (lib/anime/relatedRows.ts), then AniList's recommendations. A Watch Order
+ * card for one of the page's tabs switches to it, back at the top of the page.
  */
 export function AnimeRelated({ anime, franchise }: { anime: Anime; franchise?: Franchise }) {
-  // Entries already in the season tabs above aren't repeated here.
-  const tabbed = new Set((franchise?.seasons ?? []).map((s) => s.card.id));
-  const edges = [...anime.relations.edges]
-    .filter((e) => !tabbed.has(e.node.id))
-    .sort(
-      (a, b) =>
-        RELATION_ORDER.indexOf(a.relationType) - RELATION_ORDER.indexOf(b.relationType) || (a.node.startDate?.year ?? 9999) - (b.node.startDate?.year ?? 9999),
-    );
-  const watchOrder = edges.filter((e) => ["PREQUEL", "SEQUEL", "PARENT"].includes(e.relationType));
-  const rest = edges.filter((e) => !watchOrder.includes(e));
-  const label = (e: (typeof edges)[number]) =>
-    [RELATION_LABEL[e.relationType], e.node.format ? FORMAT_LABEL[e.node.format] : undefined, e.node.seasonYear ?? e.node.startDate?.year]
-      .filter(Boolean)
-      .join(" · ");
-  const watchOrderRow = watchOrder.length > 0 && (
-    <Row title="Watch Order">
-      {watchOrder.map((e) => (
-        <AnimeCard key={`${e.relationType}/${e.node.id}`} item={e.node} label={label(e)} />
-      ))}
-    </Row>
+  const { watchOrder, also: rest } = relatedRows(anime, franchise);
+  const card = (c: RelatedCard) => (
+    <AnimeCard
+      key={`${c.card.id}/${c.label}`}
+      item={c.card}
+      label={c.label}
+      current={c.current}
+      onOpen={
+        franchise && c.tab
+          ? (e) => {
+              franchise.select(c.card.id);
+              e.currentTarget.closest(".detail-scroll")?.scrollTo({ top: 0 });
+            }
+          : undefined
+      }
+    />
   );
-  const franchiseRow = rest.length > 0 && (
-    <Row title="Also in This Franchise">
-      {rest.map((e) => (
-        <AnimeCard key={`${e.relationType}/${e.node.id}`} item={e.node} label={label(e)} />
-      ))}
-    </Row>
-  );
+  const watchOrderRow = watchOrder.length > 0 && <Row title="Watch Order">{watchOrder.map(card)}</Row>;
+  const franchiseRow = rest.length > 0 && <Row title="Also in This Franchise">{rest.map(card)}</Row>;
   return (
     <div className="rows anime-related">
       {watchOrderRow && franchiseRow ? (

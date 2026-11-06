@@ -18,5 +18,6 @@ export async function lineUpEntry(qc: QueryClient, anime: AnimeCard, zip: AniZip
   if (!meta?.videos?.length) return;
   const imdb = metaId.startsWith("tt") ? metaId : undefined;
   const lined = animeEpisodes({ anime, zip, videos: meta.videos, imdb, titles }).flatMap((e): [string, number][] => (e.video ? [[e.video.id, e.number]] : []));
-  animeEntries.remember(metaId, anime.id, { title: anime.title, cover: anime.coverImage.extraLarge ?? anime.coverImage.large }, lined);
+  const shown = { title: anime.title, cover: anime.coverImage.extraLarge ?? anime.coverImage.large, banner: anime.bannerImage };
+  animeEntries.remember(metaId, anime.id, shown, lined);
 }

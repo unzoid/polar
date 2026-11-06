@@ -139,7 +139,11 @@ export async function imdbForAnime(a: Titled, zip: AniZip | null, lookup: Lookup
  * its own: TVDB has Paleblade: Hundred-Night Ash War as season 17 of Paleblade,
  * IMDb (and so Cinemeta) as a separate show, and Paleblade's episodes stop in
  * 2012. So when none of the entry's aired episodes are in the linked show,
- * the show that does have them is looked up by title instead.
+ * the show that does have them is looked up by title instead. And a part
+ * with a part name ("… - 1st Stage", "… 2nd - 3rd Stage") that IMDb lists as
+ * a series of its own, named like the part without that name, plays from that
+ * series even when the linked show has its episodes too (#78): its episodes
+ * are matched by air date, the first part's as the series' first episodes.
  *
  * With no IMDb link on ani.zip, the id lists may have one. With none at all
  * (a new show often has neither an IMDb nor a Kitsu id yet), the link stored
@@ -155,8 +159,10 @@ export async function animeImdb(a: Titled, zip: AniZip | null, lookup: Lookup = 
   if (linked) {
     // Nothing aired to check by, or the linked show has it: keep the link.
     if (!aired.length) return { id: linked, by: "mapping" };
-    const videos = (await lookup.meta("series", linked).catch(() => null))?.videos;
-    if (!videos || aired.some((e) => airsWith(e, videos))) return { id: linked, by: "mapping" };
+    const show = await lookup.meta("series", linked).catch(() => null);
+    const videos = show?.videos;
+    if (!videos) return { id: linked, by: "mapping" };
+    if (aired.some((e) => airsWith(e, videos))) return { id: (await ownSeries(a, aired, { id: linked, name: show?.name }, lookup)) ?? linked, by: "mapping" };
     return { id: (await findImdbId(a, aired, linked, lookup)) ?? linked, by: "mapping" };
   }
   const stored = await links.stored(a.id);
@@ -173,16 +179,39 @@ export async function animeImdb(a: Titled, zip: AniZip | null, lookup: Lookup = 
  */
 export function lookupTitles(a: Pick<Titled, "title" | "synonyms">): string[] {
   const own = [a.title.english, a.title.romaji].filter((t): t is string => !!t);
-  const base = own.map((t) =>
-    t
-      .replace(/\s+[-–—]\s+[^-–—]+$/, "")
-      .replace(/[\s:]+(?:(?:part|cour|season)\s*\d+|\d+(?:st|nd|rd|th)\s+season)$/i, "")
-      .trim(),
-  );
+  const base = own.map(withoutPart);
   const other = [...(a.synonyms ?? []), a.title.native].filter((t): t is string => !!t);
   const all = [...own, ...base, ...other].filter((t) => norm(t).length > 1);
   // Two titles that only differ in case or punctuation are one search.
   return all.filter((t, i) => all.findIndex((u) => norm(u) === norm(t)) === i);
+}
+
+/**
+ * A title without its part name: "… - 1st Stage", "… 2nd - 3rd Stage", "… 2nd & 3rd Leg", "… - The
+ * Parting", "… Part 2", "… 2nd Season". The title itself when it has none.
+ */
+export function withoutPart(title: string): string {
+  return title
+    .replace(/(?:\s*[-–—:])?\s+\d+(?:st|nd|rd|th)(?:\s*(?:[-–—&]|and)\s*\d+(?:st|nd|rd|th))?\s+(?:stage|leg|part|cour|season)s?$/i, "")
+    .replace(/\s+[-–—]\s+[^-–—]+$/, "")
+    .replace(/[\s:]+(?:(?:part|cour|season)\s*\d+|\d+(?:st|nd|rd|th)\s+season)$/i, "")
+    .trim();
+}
+
+/**
+ * The series of its own IMDb lists a part under (#78), when the linked show (`show`) has its episodes
+ * too: searched for only by the entry's titles without their part name, leaving out the linked show's
+ * own name, and taken only when it has most of the aired episodes by air date. An entry without a part
+ * name isn't searched for. Null when there's none, or the search fails: the linked show stays.
+ */
+async function ownSeries(a: Titled, aired: AniZipEpisode[], show: { id: string; name?: string }, lookup: Lookup): Promise<string | null> {
+  const own = [a.title.english, a.title.romaji].filter((t): t is string => !!t);
+  const parts = own
+    .filter((t) => norm(withoutPart(t)) !== norm(t))
+    .map(withoutPart)
+    .filter((t) => norm(t).length > 1 && norm(t) !== norm(show.name));
+  if (!parts.length) return null;
+  return findImdbId(a, aired, show.id, lookup, { titles: parts, dated: true }).catch(() => null);
 }
 
 /** How many different titles a lookup searches for at most: each is a request to the catalogs. */
@@ -205,12 +234,15 @@ export async function findImdbId(
   aired: AniZipEpisode[] = [],
   exclude?: string,
   lookup: Lookup = api,
+  /** `titles`: search only these. `dated`: only a series with most of the aired episodes counts. */
+  only: { titles?: string[]; dated?: boolean } = {},
 ): Promise<string | null> {
   const type = a.format === "MOVIE" ? "movies" : "series";
   const year = a.seasonYear ?? a.startDate?.year ?? undefined;
   const tried = new Set<string>(exclude ? [exclude] : []);
-  const titles = lookupTitles(a).slice(0, MAX_SEARCHES);
-  const names = new Set(titles.map(norm));
+  const all = lookupTitles(a);
+  const titles = (only.titles ?? all).filter((t, i, ts) => ts.findIndex((u) => norm(u) === norm(t)) === i).slice(0, MAX_SEARCHES);
+  const names = new Set([...all, ...titles].map(norm));
   let failed: unknown;
   let answered = false;
   for (const t of titles) {
@@ -229,7 +261,7 @@ export async function findImdbId(
       if (type === "series" && aired.length) {
         const videos = (await lookup.meta("series", m.id).catch(() => null))?.videos ?? [];
         if (aired.filter((e) => airsWith(e, videos)).length * 2 >= aired.length) return m.id;
-        if (sameYear && !videos.some((v) => v.released)) return m.id;
+        if (sameYear && !only.dated && !videos.some((v) => v.released)) return m.id;
       } else if (sameYear) return m.id;
     }
   }

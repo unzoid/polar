@@ -45,3 +45,15 @@ test("a poster card shows the linked title's poster, the same for every season o
   expect(withLinkedArt(preview, "tt0000001", "poster")).toEqual({ item: { ...preview, poster }, fallbacks: [cover] });
   expect(withLinkedArt(preview, undefined, "poster")).toEqual({ item: { ...preview, poster: undefined }, fallbacks: [] });
 });
+
+test("with seasons as separate shows a card tries the entry's own art first, the linked title's (every season's) last (#194)", () => {
+  const poster = "https://images.metahub.space/poster/medium/tt0000001/img";
+  const backdrop = "https://images.metahub.space/background/large/tt0000001/img";
+  expect(posterArt({ imdb: "tt0000001", cover, separate: true })).toEqual([cover, poster]);
+  expect(posterArt({ imdb: "tt0000001", cover: null, separate: true })).toEqual([poster]);
+  expect(landscapeArt({ imdb: "tt0000001", bannerImage: banner, cover, separate: true })).toEqual([banner, cover, backdrop]);
+  const preview = { id: "anilist:7", type: "series", name: "Kiko", poster: cover, background: banner };
+  expect(withLinkedArt(preview, "tt0000001", "poster", true)).toEqual({ item: preview, fallbacks: [poster] });
+  expect(withLinkedArt(preview, "tt0000001", "landscape", true)).toEqual({ item: preview, fallbacks: [cover, backdrop] });
+  expect(withLinkedArt(preview, undefined, "poster", true)).toEqual({ item: { ...preview, poster: undefined }, fallbacks: [] });
+});

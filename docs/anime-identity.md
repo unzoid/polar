@@ -10,7 +10,9 @@ Polarity knows a show by a string id. For anything a metadata addon knows that i
 are `tt…:S:E` or `kitsu:N:E`. The anime pages start from an AniList entry and pick the id each
 time the page is opened (`usePlayback` in `src/screens/AnimeDetail.tsx`, `TvAnimeDetail` in
 `src/tv/TvAnime.tsx`), through ani.zip and, since bcd0a85, `imdbForAnime`
-(`src/lib/anime/search.ts`), which can override ani.zip's link with a Cinemeta title search.
+(`src/lib/anime/search.ts`), which can override ani.zip's link with a Cinemeta title search
+(also, since #78, for a part with a part name, "… 1st Stage", "… 2nd - 3rd Stage", that IMDb lists
+as a series of its own: the entry plays from that series, its episodes matched by air date).
 
 Nothing remembers that choice. So the same show splits into several items when:
 

@@ -93,14 +93,18 @@ describe("a title's page as one entry's (TV mode, #22)", () => {
       id: "tt0000101",
       name: "Tower of Glass",
       poster: "https://media.example.com/show.jpg",
+      background: "https://media.example.com/show-bg.jpg",
       logo: "https://media.example.com/logo.png",
       videos: [video(1, 12), video(1, 13), video(1, 24), video(2, 1)],
     };
     const s = entryStore(memory());
-    s.remember("tt0000101", 12, { title: towerB, cover: "https://media.example.com/2.jpg" }, eps("tt0000101", 1, 13, 24));
+    const shown = { title: towerB, cover: "https://media.example.com/2.jpg", banner: "https://media.example.com/2-bg.jpg" };
+    s.remember("tt0000101", 12, shown, eps("tt0000101", 1, 13, 24));
     const page = entryMeta(meta, s.entry("tt0000101", 12)!, "Tower of Glass Part 2");
     expect(page.name).toBe("Tower of Glass Part 2");
     expect(page.poster).toBe("https://media.example.com/2.jpg");
+    // Its own banner, not the title's background every season shares (#194).
+    expect(page.background).toBe("https://media.example.com/2-bg.jpg");
     expect(page.logo).toBeUndefined();
     expect(page.videos.map((v) => [v.id, v.season, v.episode])).toEqual([
       ["tt0000101:1:13", 1, 1],
@@ -117,4 +121,14 @@ describe("cards shown in anime lists (#22)", () => {
     expect(cardsShown(list, false).map((a) => a.id)).toEqual([1, 3]);
     expect(cardsShown(list, true).map((a) => a.id)).toEqual([1, 2, 3]);
   });
+});
+
+test("an entry kept before banners were stored keeps the title's background on its page (#194)", () => {
+  const storage = memory();
+  const old = { title: towerB, cover: "https://media.example.com/2.jpg", runs: [[1, 13, 24, 1]], at: 1 };
+  storage.setItem("polar.animeEntries.v1", JSON.stringify({ tt0000101: { 12: old } }));
+  const record = entryStore(storage).entry("tt0000101", 12)!;
+  expect(record.banner).toBeUndefined();
+  const meta = { name: "Tower of Glass", background: "https://media.example.com/show-bg.jpg", videos: [] };
+  expect(entryMeta(meta, record, "Tower of Glass Part 2").background).toBe("https://media.example.com/show-bg.jpg");
 });

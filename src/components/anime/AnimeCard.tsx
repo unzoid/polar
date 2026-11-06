@@ -81,9 +81,10 @@ export function useOpenAnime(item: Media) {
  * An anime's poster: the cover with its own key colour behind it while it
  * loads and, as Settings → Anime has them, the AniList score and when the next
  * episode lands. `label` replaces the caption's facts (a relation type,
- * "Episode 5 · 18:30").
+ * "Episode 5 · 18:30"). `onOpen` replaces opening its page (a season tab of the
+ * page it's on); `current` marks the entry on screen.
  */
-export function AnimeCard({ item, label }: { item: Media; label?: string }) {
+export function AnimeCard({ item, label, onOpen, current }: { item: Media; label?: string; onOpen?: (e: React.MouseEvent<HTMLElement>) => void; current?: boolean }) {
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
   const prefs = usePrefs();
@@ -92,17 +93,20 @@ export function AnimeCard({ item, label }: { item: Media; label?: string }) {
   // A manga or novel in a franchise has no page here: it opens on MyAnimeList
   // (AniList when MAL doesn't list it), badged so it doesn't pass for a show.
   const isAnime = item.type !== "MANGA";
-  // The linked IMDb title's poster first, so every season of a show looks alike (#27); nothing until the links answer.
+  // The linked IMDb title's poster first, so every season of a show looks alike (#27), unless seasons are
+  // separate shows (#194): then the entry's own cover. Nothing until the links answer.
   const imdb = useLinkedImdb(isAnime ? item.id : 0);
   const cover = item.coverImage.extraLarge ?? item.coverImage.large;
-  const [art, ...artFallbacks] = !isAnime ? (cover ? [cover] : []) : imdb === undefined ? [] : posterArt({ imdb, cover });
+  const separate = prefs.animeSeparateEntries;
+  const [art, ...artFallbacks] = !isAnime ? (cover ? [cover] : []) : imdb === undefined ? [] : posterArt({ imdb, cover, separate });
   if (prefs.matureContent === "hide" && isMature(item)) return null;
   const readOn = item.idMal ? `https://myanimelist.net/manga/${item.idMal}` : `https://anilist.co/manga/${item.id}`;
 
   return (
     <Card
       shape="poster"
-      className="anime-card"
+      className={current ? "anime-card anime-card-current" : "anime-card"}
+      aria-current={current || undefined}
       frameClass="anime-card-frame"
       art={art}
       artFallbacks={artFallbacks}
@@ -115,6 +119,7 @@ export function AnimeCard({ item, label }: { item: Media; label?: string }) {
           : cardFacts(item))
       }
       {...(isAnime ? open : { onClick: () => void api.openExternal(readOn), hint: "Open on MyAnimeList" })}
+      {...(onOpen && { onClick: onOpen })}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >
       {prefs.matureContent === "blur" && isMature(item) && <MatureCover />}
@@ -133,10 +138,12 @@ export function AnimeCard({ item, label }: { item: Media; label?: string }) {
 export function AnimeLandscapeCard({ item, label }: { item: Media; label?: string }) {
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
-  const { matureContent } = usePrefs();
-  // Wide art first (re-test N5); nothing until the links answer, so the picture doesn't change once drawn.
+  const { matureContent, animeSeparateEntries: separate } = usePrefs();
+  // Wide art first (re-test N5), the entry's own with seasons as separate shows (#194); nothing until the links
+  // answer, so the picture doesn't change once drawn.
   const imdb = useLinkedImdb(item.id);
-  const [art, ...artFallbacks] = imdb === undefined ? [] : landscapeArt({ imdb, bannerImage: item.bannerImage, cover: item.coverImage.extraLarge });
+  const [art, ...artFallbacks] =
+    imdb === undefined ? [] : landscapeArt({ imdb, bannerImage: item.bannerImage, cover: item.coverImage.extraLarge, separate });
   if (matureContent === "hide" && isMature(item)) return null;
   return (
     <Card
