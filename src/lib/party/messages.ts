@@ -14,6 +14,7 @@
 import { normalizeAvatar } from "../account/avatars";
 import type { PartyPresence } from "../account/backend";
 import type { ContentType } from "../types";
+import { checkLink, isLinkId, linkId } from "./links";
 
 export interface StreamHint {
   release?: string;
@@ -26,6 +27,8 @@ export interface PartyMedia {
   /** "S1:E5 · Title", for "Sam put on …". */
   label?: string;
   hint?: StreamHint;
+  /** A pasted link (#136): each member's player opens it itself. Its ids are `linkId(url)`. */
+  url?: string;
 }
 
 export interface Timeline {
@@ -87,6 +90,12 @@ export function parseMedia(x: unknown): PartyMedia | undefined {
   const videoId = mediaId(x.videoId);
   if (!metaId || !videoId) return undefined;
   const media: PartyMedia = { type: x.type, metaId, videoId };
+  if (x.url !== undefined) {
+    // A link must be one the app would share itself, and its ids must be its own: no other title's ids on it.
+    const link = typeof x.url === "string" ? checkLink(x.url) : undefined;
+    if (!link?.ok || link.url !== x.url || videoId !== linkId(link.url) || metaId !== videoId) return undefined;
+    media.url = link.url;
+  } else if (isLinkId(metaId) || isLinkId(videoId)) return undefined;
   const label = text(x.label, LABEL_MAX);
   if (label) media.label = label;
   const release = isRecord(x.hint) ? text(x.hint.release, RELEASE_MAX) : undefined;

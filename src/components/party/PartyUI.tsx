@@ -3,12 +3,19 @@ import { useEffect, useRef, useState } from "react";
 import { ease } from "../../lib/ui";
 import {
   CODE_LENGTH,
+  checkLink,
+  getParty,
+  isStreamLink,
   joinParty,
   leaveParty,
+  linkMedia,
   normalizeCode,
+  partyAct,
+  startParty,
   type Member,
   type PartyState,
 } from "../../lib/party";
+import { api } from "../../lib/api";
 import { Avatar } from "../Avatar";
 import { BusyLabel } from "../BusyLabel";
 import { Spinner } from "../Spinner";
@@ -33,6 +40,98 @@ export function PartyStart({ onStart, me }: { onStart: () => void; me: Me }) {
       </div>
       <JoinForm me={me} />
     </div>
+  );
+}
+
+/** What the readiness check says of a web page (crates/addon probe.rs). */
+const PAGE = "Answered with a page, not a video";
+
+/**
+ * Puts a link on for the whole party (#136), or opens a party on it: once it's a web link that answers
+ * with a video. Video pages (a site's page around its player) aren't played: the player opens files and
+ * HLS/DASH streams only. PartyHost then opens it here, and asks everyone else first.
+ */
+export function useWatchLink(me: Me, onDone?: () => void) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+  const submit = () => {
+    if (busy) return;
+    const link = checkLink(text);
+    if (!link.ok) return setError(link.reason);
+    setBusy(true);
+    setError(null);
+    const play = () => {
+      const media = linkMedia(link.url);
+      if (getParty()?.playback) partyAct({ media, position: 0, paused: false });
+      else startParty(media, 0, false, me);
+      setText("");
+      onDone?.();
+    };
+    api.streamReady(link.url).then(
+      (r) => {
+        if (!alive.current) return;
+        setBusy(false);
+        // A stream's manifest may come as plain text; the player reads it all the same.
+        if (r.state !== "notReady" || (r.reason === PAGE && isStreamLink(link.url))) return play();
+        setError(
+          r.reason === PAGE
+            ? "That's a web page, not a video. Paste the address of the video file or stream itself (.mp4, .mkv, .m3u8, .mpd…)."
+            : `That link didn't play: ${r.reason}.`,
+        );
+      },
+      (e: Error) => {
+        if (!alive.current) return;
+        setBusy(false);
+        setError(`That link couldn't be checked: ${e.message}`);
+      },
+    );
+  };
+  const change = (value: string) => {
+    setText(value);
+    setError(null);
+  };
+  return { text, change, submit, busy, error };
+}
+
+/** "Watch a Link": paste a video's address, and everyone in the party watches it (#136). */
+export function LinkForm({ me, onDone }: { me: Me; onDone?: () => void }) {
+  const { text, change, submit, busy, error } = useWatchLink(me, onDone);
+  return (
+    <form
+      className="party-join party-link"
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <input
+        className="party-join-input"
+        aria-label="Video link"
+        placeholder="https://… (video file or stream)"
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        spellCheck={false}
+        value={text}
+        data-invalid={!!error}
+        onChange={(e) => change(e.target.value)}
+      />
+      <Button variant="glass" className="party-join-btn" type="submit" disabled={busy || !text.trim()} aria-busy={busy}>
+        <BusyLabel busy={busy}>Watch</BusyLabel>
+      </Button>
+      <p className="party-join-error" role="alert" data-shown={!!error}>
+        {error}
+      </p>
+    </form>
   );
 }
 

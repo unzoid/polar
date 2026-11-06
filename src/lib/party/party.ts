@@ -11,7 +11,8 @@
  *   buffering, and answers newcomers. Leaving hands the role to the next.
  * - Stream URLs never leave the device (add-on links can carry API keys):
  *   only a hint — the release name — so others pick the same file from their
- *   own add-ons.
+ *   own add-ons. The one exception is a link someone pastes to watch
+ *   together (links.ts): that URL is the room's, shown to everyone first.
  * - Leaving the player isn't leaving the room: a member who's browsing is
  *   "away" (not waited for), and whatever anyone puts on next brings them back.
  */

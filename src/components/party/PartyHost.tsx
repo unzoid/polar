@@ -1,11 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount } from "../../lib/account";
-import { leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty } from "../../lib/party";
+import { leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty, type Member, type PartyMedia } from "../../lib/party";
 import { useRouter } from "../../lib/router";
 import { Dialog } from "@base-ui/react/dialog";
 import { Close, WatchParty } from "../icons";
 import { iconButtonClass } from "../ui/Button";
-import { JoinForm, PartyNotes } from "./PartyUI";
+import { JoinForm, LinkForm, PartyNotes } from "./PartyUI";
+import { LinkConfirm } from "./LinkConfirm";
 import { useTvMode } from "../../tv/tvMode";
 
 /**
@@ -14,11 +15,28 @@ import { useTvMode } from "../../tv/tvMode";
  * room, browsing, so a party can go on from show to show; Leave Party (in the
  * player's party panel) is what leaves. Also hosts the "Join a Watch Party"
  * dialog, and the room's notes while you're out of the player.
+ *
+ * A link someone else put on (#136) is shown, with who sent it, before it
+ * plays here: Play opens it, Not Now stays out of the player.
  */
 export function PartyHost() {
   const party = useParty();
-  const { current, navigate, replace } = useRouter();
+  const { current, navigate, replace, back } = useRouter();
   const videoId = party?.playback?.media.videoId;
+  const [asking, setAsking] = useState<{ media: PartyMedia; from?: Member } | null>(null);
+
+  const go = (m: PartyMedia) => {
+    if (current.name === "player" && current.videoId === m.videoId) return;
+    const route = {
+      name: "player",
+      type: m.type,
+      metaId: m.metaId,
+      videoId: m.videoId,
+      ...(m.url ? { stream: { url: m.url, name: m.label } } : {}),
+    } as const;
+    if (current.name === "player") replace(route);
+    else navigate(route);
+  };
 
   // Only something new on the room moves you: pausing or seeking while you
   // browse doesn't, and your own pick has already navigated (it becomes the
@@ -28,14 +46,15 @@ export function PartyHost() {
     const m = party?.playback?.media;
     if (!m) {
       followed.current = null;
+      setAsking(null);
       return;
     }
     if (followed.current === m.videoId) return;
     followed.current = m.videoId;
-    if (current.name === "player" && current.videoId === m.videoId) return;
-    const route = { name: "player", type: m.type, metaId: m.metaId, videoId: m.videoId } as const;
-    if (current.name === "player") replace(route);
-    else navigate(route);
+    setAsking(null);
+    const by = party?.playback?.by;
+    if (m.url && by !== party?.me) setAsking({ media: m, from: party?.members.find((x) => x.id === by) });
+    else go(m);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
@@ -50,6 +69,21 @@ export function PartyHost() {
   // A centred dialog: one short question, not a place you browse.
   return (
     <>
+      {asking && (
+        <LinkConfirm
+          url={asking.media.url!}
+          from={asking.from?.name}
+          onPlay={() => {
+            setAsking(null);
+            go(asking.media);
+          }}
+          onLater={() => {
+            setAsking(null);
+            // Still on the room's last video: leave it, or the room would wait for this player.
+            if (inPlayer) back();
+          }}
+        />
+      )}
       {party && !inPlayer && (
         <div className="party-float">
           <PartyNotes party={party} />
@@ -65,6 +99,14 @@ export function PartyHost() {
             <Dialog.Title className="party-dialog-title">Join a Watch Party</Dialog.Title>
             <Dialog.Description className="party-dialog-text">Enter the code a friend shared with you.</Dialog.Description>
             {profile && <JoinForm me={profile} onJoined={() => setJoinPartyOpen(false)} />}
+            {profile && (
+              <>
+                <div className="party-or" aria-hidden>
+                  <span>or watch a link together</span>
+                </div>
+                <LinkForm me={profile} onDone={() => setJoinPartyOpen(false)} />
+              </>
+            )}
             <Dialog.Close className={iconButtonClass("party")} aria-label="Close">
               <Close size={18} />
             </Dialog.Close>

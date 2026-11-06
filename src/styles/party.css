@@ -396,6 +396,10 @@
   font-size: var(--fs-md);
   color: var(--text-2);
 }
+/* Between the code and the link field (#136). */
+.party-dialog .party-or {
+  margin: 0 0 0.875rem;
+}
 /* Centred under the centred field; empty until there's an error. */
 .party-dialog .party-join-error {
   margin-left: 0;
@@ -430,4 +434,56 @@
   .party-dialog[data-ending-style] {
     transform: none;
   }
+}
+/* --- A link someone put on (#136): shown in full before it plays here. */
+.party-link-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--scrim-2);
+  outline: none;
+  animation: fade-in var(--dur-base) var(--ease-out);
+}
+.party-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  width: min(32rem, 100%);
+  padding: 1.5rem;
+  border-radius: var(--r-panel);
+  background: var(--surface-popover);
+  backdrop-filter: var(--blur-popover);
+  -webkit-backdrop-filter: var(--blur-popover);
+}
+.party-link-card h2,
+.party-link-card p {
+  margin: 0;
+}
+.party-link-card p {
+  color: var(--text-2);
+}
+.party-link-card .party-link-url {
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--r-md);
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+  max-height: 8.5em;
+  overflow-y: auto;
+  user-select: text;
+}
+.party-link-card .player-status-actions {
+  justify-content: flex-end;
+}
+/* The link field: a URL, not a code. */
+.party-link .party-join-input {
+  font-size: var(--fs-md);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
 }
