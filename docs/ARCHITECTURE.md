@@ -120,7 +120,7 @@ read, not run, here.
 | IMDb ratings, trailers on the backdrop | `components/ImdbBadge.tsx`, `RatingRing.tsx`, `BackdropTrailer.tsx`, `Trailer.tsx` | `playback/trailers.ts` (TMDB videos first) | `ratings.rs`, `imdb.rs` |
 | Calendar | `screens/Calendar.tsx` | `catalog/calendar.ts` (6 lookups at a time) | `commands.rs` (`meta`) |
 | mpv inside the window | `screens/Player.tsx` (own chunk), `components/player/mpvMedia.ts` | — | `player/`, `macos/`, `crates/player` (§2) |
-| Source, subtitles, audio, speed from the player bar | `components/player/OptionsOverlay.tsx`, `useTracks.ts`, `SubtitleSettings.tsx`, `SourceFilters.tsx` | `playback/sources.ts`, `playback/languages.ts` | `commands.rs` (`streams`, `subtitles`), `crates/addon` (`rank.rs`, `subs.rs`) |
+| Source, subtitles, audio, speed from the player bar | `components/player/OptionsOverlay.tsx`, `useTracks.ts`, `SubtitleSettings.tsx`, `SourceFilters.tsx` | `playback/sources.ts`, `playback/languages.ts` | `commands.rs` (`streams`, `subtitles`), `crates/addon` (`rank.rs`, `episode.rs`: another episode's file listed last, `subs.rs`) |
 | Episode shelf, Next Episode | `components/title/EpisodeShelf.tsx`, player Episodes panel and Up Next card (`Player.tsx`) | `library/episodes.ts`, `playback/autoplay.ts` | `crates/addon/src/numbering.rs` |
 | Skip intros and recaps, skip filler | `components/player/SkipSegments.tsx` | `anime/aniskip.ts`, `anime/playContext.ts` (`isFiller`), `anime/episodeFlags.ts` | `introdb.rs`, `crates/anime/src/fillers.rs` |
 | Subtitle, sound and picture settings mid-video | `components/player/SubtitleSettings.tsx`, `useMpvTune.ts`, Settings → Playback/Subtitles | `settings/schema.ts` | `player/commands.rs` (`mpv_tune`), `crates/player/src/tune.rs` |

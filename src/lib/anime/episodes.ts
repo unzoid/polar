@@ -11,7 +11,10 @@ import type { Progress, Video } from "../types";
  */
 
 export interface AnimeEpisode {
+  /** The episode's number in this entry. */
   number: number;
+  /** Counted from the start of the show (ani.zip's, from TVDB), when known. */
+  absolute?: number;
   title?: string;
   image?: string;
   overview?: string;
@@ -52,6 +55,7 @@ export function animeEpisodes({
     const airDate = e.airDateUtc ?? e.airDate ?? e.airdate;
     return {
       number: Number(e.episode),
+      ...(e.absoluteEpisodeNumber !== undefined && { absolute: e.absoluteEpisodeNumber }),
       title: episodeTitle(e, titles),
       image: e.image,
       overview: e.overview ?? e.summary,

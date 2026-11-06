@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 import {
   type Anime,
   type AnimeCard,
+  type LinedEpisode,
   animeEntries,
   animeEpisodes,
   entryZip,
@@ -69,11 +70,13 @@ export function useAnimePlayback(anime: AnimeCard | Anime) {
     for (const e of episodes) if (e.video && e.image) rememberStill(e.video.id, e.image);
     if (!metaId || !imdbKnown) return;
     const lined = episodes.flatMap((e): [string, number][] => (e.video ? [[e.video.id, e.number]] : []));
-    playContext.remember(metaId, { mal: malId, kitsu }, lined);
+    // Kitsu and MAL ids are this entry's, so each episode keeps its number in it; one past the entry's end is dropped.
+    const count = anime.episodes ?? undefined;
+    playContext.remember(metaId, { mal: malId, kitsu, count }, episodes.flatMap((e): LinedEpisode[] => (e.video ? [[e.video.id, e.number, e.absolute]] : [])));
     // Which entry these episodes are, for cards with seasons as separate shows (#22).
     const shown = { title: anime.title, cover: anime.coverImage.extraLarge ?? anime.coverImage.large, banner: anime.bannerImage };
     if (!isMovie) animeEntries.remember(metaId, anime.id, shown, lined);
-  }, [episodes, malId, kitsu, metaId, imdbKnown, isMovie, anime.id, anime.title, anime.coverImage, anime.bannerImage]);
+  }, [episodes, malId, kitsu, metaId, imdbKnown, isMovie, anime.id, anime.title, anime.coverImage, anime.bannerImage, anime.episodes]);
 
   const byVideo = useMemo(() => progressByVideo(progress ?? [], { episodes, imdb, kitsu, isMovie }), [progress, episodes, imdb, kitsu, isMovie]);
   const next = useMemo(() => upNext({ episodes, byVideo, isMovie, metaId, watched: watchedFraction() }), [episodes, byVideo, isMovie, metaId]);

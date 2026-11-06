@@ -75,7 +75,9 @@ export function StreamList({
 
   // What matches the filters; with filters that only order (Settings → Sources), the rest follows it.
   const shown = f.view.slice(0, f.matched).map(({ r }) => r);
-  const others = f.view.slice(f.matched).map(({ r }) => r);
+  const others = f.view.slice(f.matched, f.otherEpisodes).map(({ r }) => r);
+  // Files that name another episode than this one (#225): last, under their own heading.
+  const otherEpisodes = f.view.slice(f.otherEpisodes).map(({ r }) => r);
   const grouped = f.sort === "best";
   const [best, ...rest] = shown;
 
@@ -109,6 +111,15 @@ export function StreamList({
         <>
           <div className="stream-group-label t-micro faint">Other Sources</div>
           {others.map((s) => (
+            <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} readiness={ready.get(streamKey(s))} onPick={onPick} />
+          ))}
+        </>
+      )}
+
+      {otherEpisodes.length > 0 && (
+        <>
+          <div className="stream-group-label t-micro faint">Other Episodes</div>
+          {otherEpisodes.map((s) => (
             <StreamRow key={streamKey(s)} s={s} current={currentKey === streamKey(s)} readiness={ready.get(streamKey(s))} onPick={onPick} />
           ))}
         </>

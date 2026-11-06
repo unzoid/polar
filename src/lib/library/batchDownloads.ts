@@ -97,7 +97,7 @@ export async function runBatch(key: string, item: MetaPreview, videos: Video[], 
       continue;
     }
     if (!before || before.state === "failed") {
-      const pick = (await deps.sources(video).catch(() => [])).find((s) => !!s.stream.url);
+      const pick = (await deps.sources(video).catch(() => [])).find((s) => !!s.stream.url && !s.otherEpisode);
       const why = pick ? await deps.start(item, video, pick) : "no source";
       if (why) {
         update({ failed: now().failed + 1 });

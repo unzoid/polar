@@ -7,6 +7,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 use serde::Serialize;
 
+use crate::episode::{file_episode, WantedEpisode};
 use crate::types::Stream;
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
@@ -41,6 +42,12 @@ pub struct RankedStream {
     pub score: f32,
     /// Short human label, e.g. "4K · HDR · 12.4 GB".
     pub label: String,
+    /// The id the add-on was asked by (`tt…:1:5`, `kitsu:12:5`): which request brought this source.
+    pub request_id: Option<String>,
+    /// What the file's name says it is ("S01E05", "Episode 5"), when it says.
+    pub file_episode: Option<String>,
+    /// The file names another episode than the one asked for: listed last, never picked by itself.
+    pub other_episode: bool,
 }
 
 static RES: LazyLock<Regex> =
@@ -432,15 +439,45 @@ pub fn rank_streams_filtered(
     streams: impl IntoIterator<Item = (String, Stream)>,
     filter: &StreamFilter,
 ) -> (Vec<RankedStream>, usize) {
+    rank_asked(streams.into_iter().map(|(addon, stream)| Asked { addon, request: None, stream }), filter, None)
+}
+
+/// One add-on's answer to one request.
+pub struct Asked {
+    pub addon: String,
+    /// The id the add-on was asked by.
+    pub request: Option<String>,
+    pub stream: Stream,
+}
+
+/// [`rank_streams_filtered`] for the answers to an episode's requests: each
+/// source keeps the id it was asked by, and a file that names another episode
+/// than `wanted` goes after every other source.
+pub fn rank_asked(
+    streams: impl IntoIterator<Item = Asked>,
+    filter: &StreamFilter,
+    wanted: Option<&WantedEpisode>,
+) -> (Vec<RankedStream>, usize) {
     let mut ranked: Vec<RankedStream> = streams
         .into_iter()
-        .filter(|(_, s)| s.url.is_some() || s.info_hash.is_some() || s.yt_id.is_some())
-        .map(|(addon, stream)| {
+        .filter(|a| a.stream.url.is_some() || a.stream.info_hash.is_some() || a.stream.yt_id.is_some())
+        .map(|Asked { addon, request, stream }| {
             let quality = parse_quality(&stream);
-            RankedStream { score: score(&quality), label: label(&quality), quality, addon, stream }
+            let file = wanted.and(file_episode(&stream));
+            RankedStream {
+                score: score(&quality),
+                label: label(&quality),
+                quality,
+                addon,
+                request_id: request,
+                file_episode: file.map(|f| f.label()),
+                other_episode: matches!((file, wanted), (Some(f), Some(w)) if !f.fits(w)),
+                stream,
+            }
         })
         .collect();
-    ranked.sort_by(|a, b| b.score.total_cmp(&a.score));
+    // Another episode's files last; the copy kept of a file found twice is then the right episode's.
+    ranked.sort_by(|a, b| a.other_episode.cmp(&b.other_episode).then(b.score.total_cmp(&a.score)));
 
     let mut seen = std::collections::HashSet::new();
     ranked.retain(|r| match (&r.stream.url, &r.stream.info_hash) {
@@ -474,6 +511,43 @@ mod tests {
             url: Some(format!("https://example.com/{title}")),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn another_episodes_file_goes_last_and_each_source_keeps_its_request() {
+        let asked = |request: &str, title: &str| Asked {
+            addon: "a".into(),
+            request: Some(request.into()),
+            stream: stream("Addon\n1080p", title),
+        };
+        let want = WantedEpisode::from_ids(["tt0000001:1:5", "kitsu:12:5"], &[]).unwrap();
+        let (ranked, _) = rank_asked(
+            [
+                // The best-looking file is the next episode, found by the Kitsu request.
+                asked("kitsu:12:5", "[Group] Made Up Show - 06 (2160p)"),
+                asked("tt0000001:1:5", "Made.Up.Show.S01E05.720p.WEB"),
+                asked("tt0000001:1:5", "Made.Up.Show.S01.1080p.WEB"),
+                asked("kitsu:12:5", "[Group] Made Up Show - 05 (480p)"),
+            ],
+            &StreamFilter::default(),
+            Some(&want),
+        );
+        let rows: Vec<_> = ranked
+            .iter()
+            .map(|r| (r.request_id.as_deref().unwrap(), r.file_episode.as_deref(), r.other_episode))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("tt0000001:1:5", Some("S01E05"), false),
+                ("tt0000001:1:5", None, false),
+                ("kitsu:12:5", Some("Episode 5"), false),
+                ("kitsu:12:5", Some("Episode 6"), true),
+            ]
+        );
+        // Without an episode to check against (a film), nothing is moved.
+        let (film, _) = rank_asked([asked("tt0000002", "Made Up Film - 06 (2160p)")], &StreamFilter::default(), None);
+        assert!(!film[0].other_episode && film[0].file_episode.is_none());
     }
 
     #[test]

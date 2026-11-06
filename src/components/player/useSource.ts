@@ -92,6 +92,8 @@ export function useSource(
         "sources",
       );
       if (failed.length) log(`No answer from: ${failed.join(", ")}`, "warn", "sources");
+      const others = all.filter((r) => r.otherEpisode).length;
+      if (others) log(`${others} of them ${others === 1 ? "is a file" : "are files"} of another episode, left for last and not tried`, "info", "sources");
       if (same) log("Using the watch party's file", "info", "sources");
       setCandidates(
         (same ? [same, ...ranked.filter((r) => r !== same)] : ranked)

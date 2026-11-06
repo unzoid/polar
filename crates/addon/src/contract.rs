@@ -139,6 +139,9 @@ fn field_names_match_contract() {
             quality: StreamQuality::default(),
             score: 1.0,
             label: "1080p".into(),
+            request_id: s("tt0000001:1:1"),
+            file_episode: s("S01E01"),
+            other_episode: false,
         }),
     );
 

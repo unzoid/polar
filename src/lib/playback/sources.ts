@@ -208,13 +208,13 @@ export function defaultFilter(streams: RankedStream[], settings?: Settings): Sou
 }
 
 /**
- * The order the player tries sources in on its own (auto-pick): CAM rips out,
+ * The order the player tries sources in on its own (auto-pick): CAM rips and other episodes' files out,
  * the filters you set in the player for this show if they leave something
  * (so the next episode is the same kind of file), else the list's default
  * filters if they do, best match (or your sort) first.
  */
 export function autoPickOrder(streams: RankedStream[], settings?: Settings, show?: string) {
-  const playable = streams.filter((s) => !s.quality.lowQualitySource);
+  const playable = streams.filter((s) => !s.quality.lowQualitySource && !s.otherEpisode);
   const kept = show ? playerChoices.get(show) : undefined;
   const yours = kept ? playable.filter((r) => matches(r, kept.filter)) : [];
   const f = defaultFilter(playable, settings);
@@ -291,13 +291,16 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
     const cmp = compareBy(sort, screen, preferScreen);
     return all
       .map((r, i) => ({ r, i }))
-      .map((x) => ({ ...x, match: matches(x.r, filter) }))
+      .map((x) => ({ ...x, match: matches(x.r, filter), other: !!x.r.otherEpisode }))
       .filter((x) => !hide || x.match)
-      // Without hiding, what matches comes first and the rest follows, each in sort order.
-      .sort((a, b) => Number(b.match) - Number(a.match) || cmp(a.r, b.r) || a.i - b.i);
+      // Without hiding, what matches comes first and the rest follows, each in sort order; files of
+      // other episodes come after all of it.
+      .sort((a, b) => Number(a.other) - Number(b.other) || Number(b.match) - Number(a.match) || cmp(a.r, b.r) || a.i - b.i);
   }, [all, filter, sort, screen, preferScreen, hide]);
-  /** How many of `view`, from the top, match the filters (the rest are "other sources"). */
-  const matched = view.filter((x) => x.match).length;
+  /** How many of `view`, from the top, match the filters (the rest are "other sources", then "other episodes"). */
+  const matched = view.filter((x) => x.match && !x.other).length;
+  /** Where in `view` the files of other episodes start. */
+  const otherEpisodes = view.findIndex((x) => x.other);
 
   const facets = useMemo(() => {
     const count = <K extends string>(skip: keyof SourceFilter, keyOf: (r: RankedStream) => K[]) => {
@@ -352,6 +355,7 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
     /** The visible sources, each with its index in the ranked list (ids stay stable). */
     view,
     matched,
+    otherEpisodes: otherEpisodes < 0 ? view.length : otherEpisodes,
     /** Filters order the list rather than hide (Settings → Sources). */
     soft: !hide,
     total: all.length,

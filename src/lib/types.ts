@@ -145,6 +145,12 @@ export interface RankedStream {
   quality: StreamQuality;
   score: number;
   label: string;
+  /** The id the add-on was asked by (`tt…:1:5`, `kitsu:12:5`): which request brought this source. */
+  requestId?: string | null;
+  /** What the file's name says it is ("S01E05", "Episode 5"), when it says. */
+  fileEpisode?: string | null;
+  /** The file names another episode than the one asked for: listed last, never picked by itself. */
+  otherEpisode?: boolean;
 }
 
 export interface StreamsResult {
