@@ -83,6 +83,9 @@ const commands: Record<string, (a: Args) => unknown> = {
   download_reveal: () => undefined,
   controllers_list: () => [],
   mpv_available: () => false,
+  // Discord: what the player sends is kept for browser tests to read.
+  discord_available: () => true,
+  discord_presence: (a) => void ((window as { __discord?: unknown[] }).__discord ??= []).push(a.activity),
   resolve_stream: (a) => ({ kind: "url", url: (a.stream as { url: string }).url }),
   stream_probe: (a) => a.url,
   space_untitled: () => [],

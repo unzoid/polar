@@ -42,6 +42,8 @@ export interface Prefs {
   uiScale: number;
   /** Pause when the window is minimized. */
   pauseOnMinimize: boolean;
+  /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title. */
+  discordPresence: "off" | "app" | "title";
   /** mpv: louder dialogue when surround is folded down to stereo. */
   dialogueBoost: boolean;
   /** mpv: even out loud and quiet scenes. */
@@ -114,6 +116,7 @@ const DEFAULTS: Prefs = {
   preferFileChapters: true,
   uiScale: 1,
   pauseOnMinimize: false,
+  discordPresence: "off",
   dialogueBoost: false,
   volumeLeveling: false,
   hwdec: true,

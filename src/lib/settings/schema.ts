@@ -234,6 +234,19 @@ export const SETTINGS: SettingDef[] = [
     bind: p("pauseOnMinimize"),
     control: toggle,
   },
+  {
+    id: "discordPresence",
+    page: "playback",
+    title: "Show on Discord",
+    caption: "While something plays, on your Discord profile. Discord needs to be running on this computer.",
+    keywords: "discord rich presence status activity profile privacy",
+    bind: p("discordPresence"),
+    control: choice([
+      { value: "off", label: "Off" },
+      { value: "app", label: "That you're watching" },
+      { value: "title", label: "What you're watching" },
+    ]),
+  },
   { id: "rememberSpeed", page: "playback", title: "Remember playback speed", keywords: "rate faster slower" },
   {
     id: "timeDisplay",

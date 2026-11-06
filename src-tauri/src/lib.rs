@@ -2,6 +2,7 @@
 mod automation;
 mod commands;
 mod controllers;
+mod discord;
 mod downloads;
 mod imdb;
 mod introdb;
@@ -261,6 +262,8 @@ pub fn run() {
             player::mpv_available,
             player::mpv_load,
             streamcheck::stream_probe,
+            discord::discord_available,
+            discord::discord_presence,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,
