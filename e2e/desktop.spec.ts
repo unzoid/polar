@@ -249,3 +249,39 @@ test("while a downloaded episode plays, its copy is the first source and picking
   await sources.getByRole("radio").first().click();
   await expect(video).toHaveAttribute("src", /\/downloads\/.+\.mkv$/);
 });
+
+test("a Stremio export is read, previewed and imported; its add-ons are only listed (#12)", async ({ app }) => {
+  const file = {
+    addons: {
+      addons: [{ transportUrl: "https://addon.example.org/TOKEN/manifest.json", flags: {}, manifest: { id: "org.example.one", name: "Example One" } }],
+    },
+    library: [
+      {
+        _id: "0001",
+        d: {
+          _id: "tt0000999",
+          _ctime: "2026-01-01T10:00:00.000Z",
+          _mtime: "2026-01-02T10:00:00.000Z",
+          type: "movie",
+          name: "Harbour Lights",
+          removed: false,
+          temp: false,
+          state: { video_id: "tt0000999", timeOffset: 1_200_000, duration: 5_400_000, lastWatched: "2026-01-02T10:00:00.000Z" },
+        },
+      },
+    ],
+  };
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  // Signed out (as here), it's under Advanced; signed in, under Account.
+  await settings.getByRole("button", { name: "Advanced", exact: true }).click();
+  await settings.locator('input[type="file"]').setInputFiles({ name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await expect(settings.getByText("1 title Polarity can show")).toBeVisible();
+  await expect(settings.getByRole("switch", { name: /^Where you left off/ })).toBeChecked();
+  const addon = settings.getByRole("switch", { name: /^Example One/ });
+  await expect(addon).not.toBeChecked();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText("Added 1 title to your library and 1 progress entry.")).toBeVisible();
+  await expect(addon).toHaveCount(0);
+});

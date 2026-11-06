@@ -4,8 +4,11 @@ import {
   type Anime,
   type AnimeCard,
   animeEpisodes,
+  entryZip,
+  knowsNothing,
   linkAnime,
   playContext,
+  prequelOf,
   progressByVideo,
   rememberStill,
   upNext,
@@ -23,7 +26,15 @@ import { watchedFraction } from "../../lib/library";
  * know itself (MAL numbering, Kitsu ids, stills).
  */
 export function useAnimePlayback(anime: AnimeCard | Anime) {
-  const { data: zip } = useAniZip(anime.id);
+  const { data: own } = useAniZip(anime.id);
+  // An entry ani.zip doesn't know may be the second half of a split part, listed under its prequel's record.
+  const prequel = prequelOf(anime);
+  const borrow = own !== undefined && knowsNothing(own) && prequel !== undefined;
+  const { data: prequelZip, isError: noPrequel } = useAniZip(prequel ?? 0, borrow);
+  const zip = useMemo(
+    () => (borrow && prequelZip === undefined && !noPrequel ? undefined : entryZip(anime, own, prequelZip)),
+    [anime, own, borrow, prequelZip, noPrequel],
+  );
   const isMovie = anime.format === "MOVIE";
   const kitsu = zip?.mappings.kitsu_id;
   // ani.zip's IMDb show, unless its episodes stop before this entry's (then the
