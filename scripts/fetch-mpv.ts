@@ -2,7 +2,7 @@
 // tauri.windows.conf.json bundles it with its licence texts) and the exact sources it was built
 // from into src-tauri/vendor/mpv-sources (release.ts attaches them to the release).
 //
-// Both come from ci.yml's windows-mpv job (scripts/windows-mpv.sh), which builds them once per
+// Both come from the workflow windows-mpv.yml (scripts/windows-mpv.sh), which builds them once per
 // version of that script and scripts/windows-mpv.lock and keeps them as the artifact
 // windows-mpv-<version>, downloaded here with the GitHub CLI (gh, signed in). Or from a build of
 // your own: --from <its out folder>. No-op when vendor/mpv already holds this version, and off
@@ -45,7 +45,7 @@ if (!from) {
   )[0];
   if (!run) {
     throw new Error(
-      `CI hasn't built ${name} (or it expired): wait for ci.yml's windows-mpv job on a commit with this scripts/windows-mpv.lock, ` +
+      `CI hasn't built ${name} (or it expired): wait for the workflow windows-mpv.yml on a commit with this scripts/windows-mpv.lock, ` +
         "or build it with scripts/windows-mpv.sh and pass --from <its out folder>",
     );
   }

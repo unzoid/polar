@@ -129,3 +129,61 @@ test("settings on a phone: the sections, then one section with a way back", asyn
   await settings.getByRole("button", { name: "Close settings" }).tap();
   await expect(settings).toHaveCount(0);
 });
+
+/** A notched phone's insets (in CSS px), set on the page as the webview would report them. */
+async function insets(page: Page, i: { top: number; right: number; bottom: number; left: number }) {
+  await page.evaluate((i) => {
+    const s = document.documentElement.style;
+    for (const [side, px] of Object.entries(i)) s.setProperty(`--safe-${side}`, `${px}px`);
+  }, i);
+}
+
+/** Every control in the player's bars lies inside the screen less the insets. */
+async function controlsClearOf(page: Page, i: { top: number; right: number; bottom: number; left: number }) {
+  const { width, height } = page.viewportSize()!;
+  const boxes = await page.locator(".player :is(.player-top, .player-bottom) :is(button, input)").evaluateAll((els) =>
+    els.filter((e) => (e as HTMLElement).offsetParent).map((e) => ({ name: e.getAttribute("aria-label") ?? e.textContent, ...e.getBoundingClientRect().toJSON() })),
+  );
+  expect(boxes.length).toBeGreaterThan(3);
+  for (const b of boxes) {
+    expect.soft(b.top, `${b.name} below the top inset`).toBeGreaterThanOrEqual(i.top);
+    expect.soft(b.bottom, `${b.name} above the bottom inset`).toBeLessThanOrEqual(height - i.bottom);
+    expect.soft(b.left, `${b.name} right of the left inset`).toBeGreaterThanOrEqual(i.left);
+    expect.soft(b.right, `${b.name} left of the right inset`).toBeLessThanOrEqual(width - i.right);
+  }
+}
+
+async function openPlayer(page: Page) {
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).tap();
+  await card(page, "The Glass Orchard").tap();
+  await page.getByRole("button", { name: "Play", exact: true }).tap();
+  const player = page.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  await expect(player).toHaveAttribute("data-chrome", "false");
+  await player.tap({ position: { x: 200, y: 300 } });
+  await expect(player).toHaveAttribute("data-chrome", "true");
+}
+
+test("the player's controls keep clear of the notch and the home indicator, upright and sideways (#172)", async ({ app }) => {
+  const upright = { top: 59, right: 0, bottom: 34, left: 0 };
+  await insets(app, upright);
+  await openPlayer(app);
+  await controlsClearOf(app, upright);
+
+  await app.setViewportSize({ width: 915, height: 412 });
+  const sideways = { top: 0, right: 59, bottom: 21, left: 59 };
+  await insets(app, sideways);
+  await controlsClearOf(app, sideways);
+});
+
+test.describe("on a tablet", () => {
+  test.use({ viewport: { width: 1180, height: 820 } });
+
+  test("the player's controls keep clear of the status bar and the home indicator (#172)", async ({ app }) => {
+    await expect(app.locator("html")).toHaveAttribute("data-form", "tablet");
+    const tablet = { top: 24, right: 0, bottom: 20, left: 0 };
+    await insets(app, tablet);
+    await openPlayer(app);
+    await controlsClearOf(app, tablet);
+  });
+});

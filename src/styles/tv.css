@@ -1992,3 +1992,13 @@
   font-weight: 500;
   color: var(--text-3);
 }
+/* The party menu as a panel (#156): one column, readable from the sofa. */
+.tv-party {
+  z-index: var(--z-sheet);
+}
+.tv-party-body {
+  width: min(40rem, 100%);
+  overflow-y: auto;
+  padding-bottom: 3rem;
+  font-size: var(--fs-xl);
+}

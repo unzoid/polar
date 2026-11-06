@@ -1,4 +1,4 @@
-import { os as deviceOs, type Os } from "./device";
+import { os as deviceOs, isIpad, type Os } from "./device";
 
 /**
  * What kind of device the app is laid out for (docs/ARCHITECTURE.md §4). The screens are the same on every one;
@@ -7,6 +7,8 @@ import { os as deviceOs, type Os } from "./device";
  *  - tablet:  the desktop layout with touch-sized targets.
  *  - phone:   the tabs move to a bar at the bottom, within thumb reach, and the content keeps clear of the
  *             notch and the home indicator.
+ * An iPad is a tablet in any window, Split View and Stage Manager's narrow ones too: its windows keep the
+ * tablet's layout as iPadOS's own apps keep theirs.
  * TV is a mode, not a form factor: it has its own shell (src/tv), switched on by the user or, on a TV device, at start.
  */
 export type FormFactor = "desktop" | "tablet" | "phone";
@@ -17,8 +19,9 @@ export type ScreenInfo = { width: number; height: number; coarse: boolean; fine:
 /** Shortest side below which a touch device is a phone: Android's 600dp tablet line. */
 export const PHONE_MAX = 600;
 
-/** A phone or tablet system turned sideways stays what it is, so the shortest side decides. */
-export function formFactorOf(os: Os, { width, height, coarse, fine }: ScreenInfo): FormFactor {
+/** A phone or tablet system turned sideways stays what it is, so the shortest side decides (an iPad: always a tablet). */
+export function formFactorOf(os: Os, { width, height, coarse, fine }: ScreenInfo, ipad = false): FormFactor {
+  if (os === "ios" && ipad) return "tablet";
   if (os === "android" || os === "ios") return Math.min(width, height) < PHONE_MAX ? "phone" : "tablet";
   // A Windows or Linux tablet with no mouse or trackpad attached.
   return coarse && !fine ? "tablet" : "desktop";
@@ -36,22 +39,34 @@ function read(): ScreenInfo {
   return { width: window.innerWidth, height: window.innerHeight, coarse: media("(any-pointer: coarse)"), fine: media("(any-pointer: fine)") };
 }
 
-let current = { form: formFactorOf(deviceOs, read()), touch: isTouchOf(deviceOs, read()) };
+/**
+ * A phone or tablet window narrower than a phone held sideways: a phone upright, or an iPad's Slide Over and
+ * narrow Split View windows. The player's controls take their compact arrangement there (player.css).
+ */
+export function isCompactOf(form: FormFactor, { width }: ScreenInfo): boolean {
+  return form !== "desktop" && width < PHONE_MAX;
+}
+
+function measure(s: ScreenInfo) {
+  const form = formFactorOf(deviceOs, s, isIpad);
+  return { form, touch: isTouchOf(deviceOs, s), compact: isCompactOf(form, s) };
+}
+
+let current = measure(read());
 const listeners = new Set<() => void>();
 
-/** The form factor now, and whether the screen is touched. */
+/** The form factor now, whether the screen is touched, and whether the window is compact. */
 export const formFactor = () => current;
 
-/** Called when either changes (a window resized, a tablet's keyboard cover attached); returns the unsubscribe. */
+/** Called when one changes (a window resized, a tablet's keyboard cover attached); returns the unsubscribe. */
 export function onFormFactor(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
 function update() {
-  const s = read();
-  const next = { form: formFactorOf(deviceOs, s), touch: isTouchOf(deviceOs, s) };
-  if (next.form === current.form && next.touch === current.touch) return;
+  const next = measure(read());
+  if (next.form === current.form && next.touch === current.touch && next.compact === current.compact) return;
   current = next;
   listeners.forEach((l) => l());
 }

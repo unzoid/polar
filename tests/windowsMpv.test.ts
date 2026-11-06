@@ -21,7 +21,7 @@ describe("Windows mpv version", () => {
   test("is what CI computes, whatever the line endings", () => {
     const lf = checkout(false);
     const crlf = checkout(true);
-    // ci.yml's step, on the repository's own files.
+    // The workflows' step, on the repository's own files.
     const ci = spawnSync("bash", ["-c", "cat scripts/windows-mpv.sh scripts/windows-mpv.lock | tr -d '\\r' | sha256sum | cut -c1-16"], {
       cwd: repo,
       encoding: "utf8",

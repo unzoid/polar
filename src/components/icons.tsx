@@ -49,6 +49,7 @@ export const LayoutList = icon(S24.ListBulletIcon, S20.ListBulletIcon, S16.ListB
 export const LayoutRow = icon(S24.ViewColumnsIcon, S20.ViewColumnsIcon, S16.ViewColumnsIcon);
 export const Lock = icon(S24.LockClosedIcon, S20.LockClosedIcon, S16.LockClosedIcon);
 export const Minus = icon(S24.MinusIcon, S20.MinusIcon, S16.MinusIcon);
+export const More = icon(S24.EllipsisHorizontalIcon, S20.EllipsisHorizontalIcon, S16.EllipsisHorizontalIcon);
 export const Warning = icon(S24.ExclamationTriangleIcon, S20.ExclamationTriangleIcon, S16.ExclamationTriangleIcon);
 export const Pause = icon(S24.PauseIcon, S20.PauseIcon, S16.PauseIcon);
 export const Picture = icon(S24.PhotoIcon, S20.PhotoIcon, S16.PhotoIcon);

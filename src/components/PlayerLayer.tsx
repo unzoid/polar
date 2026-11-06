@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
+import { appWindow } from "../lib/platform";
 import { useRouter, type Route } from "../lib/router";
 import { forgetPlayerSourceChoices } from "../lib/playback";
 import { lazyNamed, whenIdle } from "../lib/ui";
@@ -41,6 +42,14 @@ export function PlayerLayer({ player, leaving }: { player: PlayerRoute | null; l
   useEffect(() => {
     if (!open) forgetPlayerSourceChoices();
   }, [open]);
+  // No status bar over the video (iOS), from the first frame until the exit fade starts; one
+  // call per visit, not per episode.
+  const watching = open && !leaving;
+  useEffect(() => {
+    if (!watching) return;
+    void appWindow.setSystemBarsHidden(true);
+    return () => void appWindow.setSystemBarsHidden(false);
+  }, [watching]);
   const { back } = useRouter();
   if (!player) return null;
   const key = `${player.videoId}|${player.stream?.url ?? ""}`;

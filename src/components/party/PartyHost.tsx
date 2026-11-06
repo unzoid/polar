@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "../../lib/account";
-import { leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty, type Member, type PartyMedia } from "../../lib/party";
+import { dismissExit, getParty, leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty, usePartyExit, type Member, type PartyMedia } from "../../lib/party";
 import { useRouter } from "../../lib/router";
 import { Dialog } from "@base-ui/react/dialog";
 import { Close, WatchParty } from "../icons";
-import { iconButtonClass } from "../ui/Button";
+import { Button, iconButtonClass } from "../ui/Button";
 import { JoinForm, LinkForm, PartyNotes } from "./PartyUI";
 import { LinkConfirm } from "./LinkConfirm";
 import { useTvMode } from "../../tv/tvMode";
@@ -44,7 +44,8 @@ export function PartyHost() {
   const followed = useRef<string | null>(null);
   useEffect(() => {
     const m = party?.playback?.media;
-    if (!m) {
+    // Not let in yet: the room's video isn't ours to follow.
+    if (!m || party.knocking) {
       followed.current = null;
       setAsking(null);
       return;
@@ -56,12 +57,13 @@ export function PartyHost() {
     if (m.url && by !== party?.me) setAsking({ media: m, from: party?.members.find((x) => x.id === by) });
     else go(m);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId]);
+  }, [videoId, party?.knocking]);
 
   // Signing out or switching profiles remounts the app: that's leaving.
   useEffect(() => () => leaveParty(), []);
 
   const open = useJoinPartyOpen();
+  const exit = usePartyExit();
   // TV mode asks on its own on-screen keyboard (TvJoinParty).
   const tv = useTvMode();
   const { profile } = useAccount();
@@ -89,7 +91,15 @@ export function PartyHost() {
           <PartyNotes party={party} />
         </div>
       )}
-      <Dialog.Root open={open && !!profile && !tv} onOpenChange={(o) => !o && setJoinPartyOpen(false)}>
+      <Dialog.Root
+        open={open && !!profile && !tv}
+        onOpenChange={(o) => {
+          if (o) return;
+          // Closed while waiting for the host: that's giving up on joining.
+          if (getParty()?.knocking) leaveParty();
+          setJoinPartyOpen(false);
+        }}
+      >
         <Dialog.Portal>
           <Dialog.Backdrop className="party-dialog-scrim" />
           <Dialog.Popup className="party-dialog">
@@ -110,6 +120,20 @@ export function PartyHost() {
             <Dialog.Close className={iconButtonClass("party")} aria-label="Close">
               <Close size={18} />
             </Dialog.Close>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+      {/* Removed, or the host ended it: said once, until read. */}
+      <Dialog.Root open={!!exit} onOpenChange={(o) => !o && dismissExit()}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="party-dialog-scrim" />
+          <Dialog.Popup className="party-dialog">
+            <div className="party-dialog-icon" aria-hidden>
+              <WatchParty size={22} />
+            </div>
+            <Dialog.Title className="party-dialog-title">Watch party over</Dialog.Title>
+            <Dialog.Description className="party-dialog-text">{exit?.text}</Dialog.Description>
+            <Dialog.Close render={<Button variant="primary" className="party-dialog-ok" autoFocus />}>OK</Dialog.Close>
           </Dialog.Popup>
         </Dialog.Portal>
       </Dialog.Root>

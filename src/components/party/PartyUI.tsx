@@ -2,17 +2,23 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { ease } from "../../lib/ui";
 import {
+  admit,
+  behind,
   CODE_LENGTH,
   checkLink,
+  deny,
   getParty,
   isStreamLink,
   joinParty,
+  kick,
   leaveParty,
   linkMedia,
+  makeHost,
   memberStatus,
   normalizeCode,
   partyAct,
   startParty,
+  useParty,
   type Member,
   type PartyState,
 } from "../../lib/party";
@@ -20,8 +26,9 @@ import { api } from "../../lib/api";
 import { Avatar } from "../Avatar";
 import { BusyLabel } from "../BusyLabel";
 import { Spinner } from "../Spinner";
-import { Check, WatchParty } from "../icons";
-import { Button } from "../ui/Button";
+import { Check, Minus, More, Star, WatchParty } from "../icons";
+import { Button, iconButtonClass } from "../ui/Button";
+import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "../ui/Menu";
 
 type Me = Pick<Member, "name" | "avatar">;
 
@@ -136,8 +143,8 @@ export function LinkForm({ me, onDone }: { me: Me; onDone?: () => void }) {
   );
 }
 
-/** In a party: the code to share, and leaving. */
-export function PartyInvite({ party }: { party: PartyState }) {
+/** In a party: the code to share, and leaving (unless the menu has its own Leave). */
+export function PartyInvite({ party, leave = true }: { party: PartyState; leave?: boolean }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -166,7 +173,8 @@ export function PartyInvite({ party }: { party: PartyState }) {
             : "Friends join from their profile menu with this code."}
       </p>
       <div className="party-buttons">
-        <Button variant="primary" className="party-copy" onClick={copy} data-copied={copied}>
+        {/* In the menu, going back to the stream is the main action. */}
+        <Button variant={leave ? "primary" : "glass"} className="party-copy" onClick={copy} data-copied={copied}>
           <span className="party-copy-label" data-shown={!copied}>
             Copy Invite
           </span>
@@ -174,17 +182,61 @@ export function PartyInvite({ party }: { party: PartyState }) {
             <Check size={16} /> Copied
           </span>
         </Button>
-        <Button variant="glass" onClick={leaveParty}>
-          Leave Party
-        </Button>
+        {leave && (
+          <Button variant="glass" onClick={leaveParty}>
+            Leave Party
+          </Button>
+        )}
       </div>
     </div>
   );
 }
 
-/** Who's here, and what each is doing: the same words on every screen. */
+/** "Watching · 4 s behind": the status, and how far behind the room when it's worth saying. */
+function memberDetail(party: PartyState, m: Member) {
+  const status = memberStatus(m, party.playback);
+  const late = m.id !== party.me && (status === "Watching" || status === "Buffering") ? behind(m.id) : undefined;
+  const text = late ? `${status} · ${Math.round(late)} s behind` : status;
+  return m.id === party.hostId ? `Host · ${text}` : text;
+}
+
+/**
+ * Who's here, and what each is doing: the same words on every screen. The
+ * host can hand the role over or remove someone from each row, and let in
+ * (or turn away) anyone waiting to join.
+ */
 export function PartyMembers({ party }: { party: PartyState }) {
   const statusOf = (m: Member) => memberStatus(m, party.playback);
+  const host = party.hostId === party.me;
+  return (
+    <>
+      {host && party.knockers.length > 0 && (
+        <ul className="party-members party-knockers" aria-label="Waiting to join">
+          {party.knockers.map((m) => (
+            <li key={m.id} className="party-member">
+              <Avatar id={m.avatar} />
+              <span className="party-member-text">
+                <span className="party-member-name">{m.name}</span>
+                <span className="party-member-detail">Wants to join</span>
+              </span>
+              <span className="party-member-actions">
+                <Button variant="primary" className="party-mini" onClick={() => admit(m.id)}>
+                  Let In
+                </Button>
+                <Button variant="glass" className="party-mini" onClick={() => deny(m.id)} aria-label={`Don't let ${m.name} in`}>
+                  Decline
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <PartyMemberList party={party} host={host} statusOf={statusOf} />
+    </>
+  );
+}
+
+function PartyMemberList({ party, host, statusOf }: { party: PartyState; host: boolean; statusOf: (m: Member) => string }) {
   return (
     <ul className="party-members party-swap">
       <AnimatePresence initial={false} mode="popLayout">
@@ -204,11 +256,28 @@ export function PartyMembers({ party }: { party: PartyState }) {
                 {m.name}
                 {m.id === party.me && <span className="muted"> (You)</span>}
               </span>
-              <span className="party-member-detail">
-                {m.id === party.hostId ? `Host · ${statusOf(m)}` : statusOf(m)}
+              <span className="party-member-detail" data-lost={m.lost || undefined}>
+                {memberDetail(party, m)}
               </span>
             </span>
-            {(m.waiting || m.buffering) && !m.away && <Spinner size={16} label={statusOf(m)} />}
+            {(m.waiting || m.buffering) && !m.away && !m.lost && <Spinner size={16} label={statusOf(m)} />}
+            {host && m.id !== party.me && (
+              <MenuRoot>
+                <MenuTrigger className={iconButtonClass("plain", "party-member-more")} aria-label={`${m.name}: host actions`}>
+                  <More size={20} />
+                </MenuTrigger>
+                <MenuPopup align="end" aria-label={m.name}>
+                  {!m.lost && (
+                    <MenuItem icon={<Star size={16} />} onClick={() => makeHost(m.id)}>
+                      Make Host
+                    </MenuItem>
+                  )}
+                  <MenuItem icon={<Minus size={16} />} onClick={() => kick(m.id)}>
+                    Remove from Party
+                  </MenuItem>
+                </MenuPopup>
+              </MenuRoot>
+            )}
           </motion.li>
         ))}
       </AnimatePresence>
@@ -250,6 +319,17 @@ export function useJoinParty(me: Me, onJoined?: () => void) {
   return { code, change, submit, busy, error };
 }
 
+/** Joining a party that asks the host first: say so, rather than spin without a word. */
+export function KnockNote() {
+  const party = useParty();
+  const waiting = !!party?.knocking && party.rules.approve;
+  return (
+    <p className="party-join-note" role="status" data-shown={waiting}>
+      {waiting ? "Waiting for the host to let you in…" : null}
+    </p>
+  );
+}
+
 /** A code field that joins as soon as the code is complete. */
 export function JoinForm({ me, onJoined }: { me: Me; onJoined?: () => void }) {
   const { code, change, submit, busy, error } = useJoinParty(me, onJoined);
@@ -278,22 +358,18 @@ export function JoinForm({ me, onJoined }: { me: Me; onJoined?: () => void }) {
       <p className="party-join-error" role="alert" data-shown={!!error}>
         {error}
       </p>
+      <KnockNote />
     </form>
   );
 }
 
-/** Top bar: who's watching, as a stack of faces. Opens the party panel. */
-export function PartyBadge({ party, onOpen }: { party: PartyState; onOpen: () => void }) {
+/** Who's watching, as a stack of at most three faces and "+N"; a dot for the host when someone waits to join. */
+export function PartyFaces({ party }: { party: PartyState }) {
   const shown = party.members.slice(0, 3);
   const extra = party.members.length - shown.length;
+  const knocking = party.hostId === party.me && party.knockers.length > 0;
   return (
-    <button
-      className="party-badge pressable"
-      onClick={onOpen}
-      aria-label={`Watch party, ${party.members.length} watching`}
-      title="Watch party"
-      data-status={party.status}
-    >
+    <>
       <AnimatePresence initial={false} mode="popLayout">
         {shown.map((m) => (
           <motion.span
@@ -310,6 +386,22 @@ export function PartyBadge({ party, onOpen }: { party: PartyState; onOpen: () =>
         ))}
       </AnimatePresence>
       {extra > 0 && <span className="party-extra tabular">+{extra}</span>}
+      {knocking && <span className="party-knock-dot" aria-hidden />}
+    </>
+  );
+}
+
+/** The faces' accessible name: how many, and whether anyone is waiting to join. */
+export function partyBadgeLabel(party: PartyState) {
+  const waiting = party.hostId === party.me ? party.knockers.length : 0;
+  return `Watch party, ${party.members.length} watching${waiting ? `, ${waiting} waiting to join` : ""}`;
+}
+
+/** Player top bar: who's watching. Opens the party panel. */
+export function PartyBadge({ party, onOpen }: { party: PartyState; onOpen: () => void }) {
+  return (
+    <button className="party-badge pressable" onClick={onOpen} aria-label={partyBadgeLabel(party)} title="Watch party" data-status={party.status}>
+      <PartyFaces party={party} />
     </button>
   );
 }
@@ -347,15 +439,20 @@ export function PartyNotes({ party }: { party: PartyState }) {
             key={n.id}
             layout="position"
             className="party-note"
+            data-system={n.system || undefined}
             initial={{ opacity: 0, y: 8, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.16, ease: ease.out } }}
             transition={{ duration: 0.24, ease: ease.out }}
           >
             {n.who && <Avatar id={n.who.avatar} />}
-            <span>
-              <strong>{n.who?.name ?? "Someone"}</strong> {n.text}
-            </span>
+            {n.system ? (
+              <span>{n.text}</span>
+            ) : (
+              <span>
+                <strong>{n.who?.name ?? "Someone"}</strong> {n.text}
+              </span>
+            )}
           </motion.div>
         ))}
       </AnimatePresence>

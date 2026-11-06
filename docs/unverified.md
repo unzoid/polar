@@ -160,6 +160,43 @@ it); the IPA (a zip) holds `licenses/mpv/` with each library's licence and `BUND
 Not built: Picture in picture, background audio, lock screen controls, AirPlay on iOS (#19 is macOS), signing
 and TestFlight (the owner's Apple developer account).
 
+## iOS player and layouts (#172)
+
+The first runs (simulator and an iPhone) showed a solid blue picture with sound, the status bar over the
+video, the bottom controls under the home indicator and a player Back that did nothing. Changed, none of it
+run on iOS here:
+- Blue picture: mpv draws with OpenGL ES on iOS, which can't map VideoToolbox's 10-bit frames (p010; HEVC
+  Main 10 and HDR files), and the picture stays one blue colour; mpv's own tracker has the same report for
+  iOS. mpv now asks VideoToolbox for 8-bit NV12 (`--hwdec-image-format=nv12`, `polar_player::tune::IOS_ARGS`),
+  which it maps. A frame mpv can't draw now shows black, never an old buffer. Not known: whether the file the
+  user tried was 10-bit; if an 8-bit file was blue too, the cause is elsewhere (step 1 below tells the two
+  apart).
+- Player Back: the window's fullscreen query, refused on phones, held it up; fixed for Android and iOS
+  alike in #164 (`lib/platform/window.ts`), after the build that was tried.
+- Status bar and home indicator: hidden and fading while the player is open (`ios/system_bars.m`, through
+  Tauri's root view controller), back when it closes.
+- Safe areas: the player's bars, title, notices, Up Next, Skip and the options' close button keep clear of
+  the insets on phones and tablets (e2e with an iPhone's insets, upright and sideways, and a tablet's).
+- iOS Back: a swipe in from the left edge (within 24 px) closes what's open, then leaves a pushed page or the
+  player; at a tab's own page it does nothing (Android's Back goes Home, then leaves the app).
+- iPad: the tablet layout in every window, Slide Over and narrow Split View included; there (under 600 px
+  wide) the player takes the phone's compact controls. Seen as screenshots at iPad sizes in a desktop
+  browser with an iPad user agent, not on an iPad.
+
+To check on an iPhone (notched, iOS 17 or later) and an iPad:
+1. Play an 8-bit H.264 file and a 10-bit HEVC (or HDR) one: both with a picture in the right colours, in
+   the simulator and on the device; Settings → Advanced → hardware decoding off plays too.
+2. While playing, landscape and portrait: no status bar; the home indicator fades after a few seconds and
+   comes back on a touch; every control (Back, title, mute, Fit/Fill, scrubber, Speed, Subtitles & Audio,
+   Sources, Skip, Up Next) visible and tappable clear of the Dynamic Island and the home indicator. Closing
+   the player brings the status bar back.
+3. The player's Back button leaves the player; a swipe in from the left edge does too, closes an open sheet
+   or menu first, leaves a title page, and does nothing on a tab's own page; a vertical scroll that starts
+   at the edge still scrolls.
+4. iPad, portrait and landscape, full screen, Split View (half, a third) and Slide Over, Stage Manager
+   windows resized: the tablet layout; under 600 px wide the player shows glyph-only actions and the title
+   beside Back. With a keyboard and a trackpad: Escape is Back, the shortcuts work, hover shows on cards.
+
 ## macOS release: sources of the bundled libraries
 
 `scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself
@@ -883,3 +920,22 @@ To check on Windows (WebView2), and on Linux and macOS:
   answers `X-RateLimit-Limit: 30`, and then each row is one request. Open a card while rows are still loading: its
   page doesn't wait behind them. After a 429, loading shelves say "AniList is busy, loading…". Quit and start again:
   the Anime page draws its rows at once. Settings → About → Cache → Clear empties them.
+- Watch party menu (#156; `components/party/PartyMenu.tsx`, the host's rules in `lib/party/room.ts`). Tested on
+  simulated members (tests/partyMenu.test.ts): remove, make host, lock, approve joins, host-only control, wait
+  for everyone, end party, the host leaving, Disconnected, "behind", mute; the menu itself in tests/dom. Not run
+  against a real room or on TV. There's no server of our own: the rules hold because every member's app keeps
+  them, and a member removed keeps a code it can join again with as someone new unless the party is locked.
+  To check, with three signed-in devices (A starts, B and C join):
+  1. On A away from the player, click the faces in the top bar: what's playing, the members with their status,
+     the code, Go to the Current Stream (opens the player in step), Mute party sounds, Leave Party, and the
+     host controls. Leave B's player: A shows B as Away; pull B's network: Disconnected, then gone.
+  2. A turns on Approve joins; C joins: C's dialog says it's waiting, A's faces get a dot, A lets C in.
+     Again with Decline: C is told the host didn't let it in.
+  3. A turns on Lock party: a new join is told the party is locked; unlocking lets it in.
+  4. A turns on Only I control playback: B's pause, seek or next episode doesn't change the room (B gets a note,
+     its player goes back); A's do.
+  5. A makes B host: within a couple of seconds both show B as Host and only B has the host controls.
+     B removes C: C sees "The host removed you from the watch party." B ends the party: A sees it ended.
+  6. B hosts and leaves: the next member becomes host and everyone gets a note.
+  7. TV mode: the menu (side menu → Watch Party) works with the remote; the player's Watch Party panel has the
+     same parts.
