@@ -1,5 +1,6 @@
 package app.getpolar.desktop
 
+import android.app.Activity
 import android.app.UiModeManager
 import android.content.res.Configuration
 import android.os.Bundle
@@ -50,7 +51,7 @@ class MainActivity : TauriActivity() {
 
   // Runs before the first page loads, so the interface can read it while it starts (src/lib/platform/device.ts).
   override fun onWebViewCreate(webView: WebView) {
-    webView.addJavascriptInterface(PolarDevice(isTelevision()), "polarDevice")
+    webView.addJavascriptInterface(PolarDevice(this, isTelevision()), "polarDevice")
   }
 
   private fun isTelevision(): Boolean {
@@ -60,10 +61,18 @@ class MainActivity : TauriActivity() {
   }
 }
 
-/** What the web view may ask about the device; nothing else is exposed. */
-class PolarDevice(private val tv: Boolean) {
+/** What the web view may ask of the device; nothing else is exposed. */
+class PolarDevice(private val activity: Activity, private val tv: Boolean) {
   @JavascriptInterface
   fun isTv(): Boolean = tv
+
+  // Back at the root (src/lib/platform/back.ts): to the background, as Android 12 and later do for a
+  // launcher's activity. Ending the process instead ran its exit handlers under the web view's render
+  // threads, which crashed.
+  @JavascriptInterface
+  fun leave() {
+    activity.runOnUiThread { activity.moveTaskToBack(true) }
+  }
 }
 
 /** Hands the video surface to mpv in Rust (src-tauri/src/player/android.rs) as it comes and goes. */
