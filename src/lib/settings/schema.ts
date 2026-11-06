@@ -1039,7 +1039,7 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "releaseNotes", page: "about", title: "Release notes", keywords: "changelog what's new" },
   { id: "credits", page: "about", title: "Data sources", keywords: "credits attribution tmdb anilist thetvdb licence" },
-  { id: "animeCache", page: "about", title: "Anime data", keywords: "cache clear filler recap anime-lists ids storage disk" },
+  { id: "animeCache", page: "about", title: "Anime data", keywords: "cache clear filler recap anime-lists ids storage disk anilist shelves" },
 ];
 
 const BY_ID = new Map(SETTINGS.map((d) => [d.id, d]));

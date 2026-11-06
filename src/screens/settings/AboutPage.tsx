@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Reset, Download, Info, Trash } from "../../components/icons";
 import { api } from "../../lib/api";
 import tmdbLogo from "../../assets/tmdb-short.svg";
@@ -8,7 +9,7 @@ import { appVersion, checkForUpdates, downloadUpdate, installUpdate, releaseUrl,
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, LinkRow, PickRow, RowText, useExpanded } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
-import { keys } from "../../lib/net";
+import { cachedBytes, clearCached, keys } from "../../lib/net";
 
 export function AboutPage() {
   const s = useUpdate();
@@ -126,22 +127,29 @@ function CreditsCard() {
 function CacheCard() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: keys.animeCache, queryFn: api.animeCache });
+  // AniList's rows and pages, kept in this device's storage rather than the cache folder (#109).
+  const [kept, setKept] = useState(cachedBytes);
   const clear = useMutation({
-    mutationFn: api.animeCacheClear,
+    mutationFn: async () => {
+      clearCached();
+      setKept(0);
+      await api.animeCacheClear();
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.animeCache });
       void qc.removeQueries({ queryKey: keys.anime.episodeFlagsAll });
     },
   });
-  const size = !data ? "…" : !data.bytes ? "empty" : data.bytes >= 1e6 ? `${(data.bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(data.bytes / 1000))} KB`;
+  const bytes = data && data.bytes + kept;
+  const size = bytes === undefined ? "…" : !bytes ? "empty" : bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1000))} KB`;
   return (
     <Card title="Cache" footer={data ? <>Kept in {data.path}</> : undefined}>
       <ActionRow
         title="Anime data"
-        caption={`Filler and recap episodes, kept a day; the anime id list used when ani.zip is down, kept a week · ${size}`}
+        caption={`AniList's shelves and pages, kept up to a day; filler and recap episodes, kept a day; the anime id list used when ani.zip is down, kept a week · ${size}`}
         label="Clear"
         glyph={<Trash size={15} />}
-        disabled={!data?.bytes}
+        disabled={!bytes}
         pending={clear.isPending}
         onClick={() => clear.mutate()}
       />

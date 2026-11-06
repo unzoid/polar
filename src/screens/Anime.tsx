@@ -1,5 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AnimeCard, AnimeLandscapeCard, useAnimeHandlers, useOpenAnime } from "../components/anime/AnimeCard";
 import { Dropdown } from "../components/Dropdown";
 import { Calendar, Close, Filters, Grid, Play } from "../components/icons";
@@ -18,6 +18,9 @@ import {
   useAiringToday,
   useAnimeBrowse,
   useAnimeGenre,
+  useAniListBusy,
+  rowPriority,
+  reprioritiseAniList,
   useAnimeHome,
   type AiringSlot,
   type AnimeCard as Card,
@@ -39,7 +42,7 @@ import {
   useAnimeTitle,
   useShelfVisible,
 } from "../lib/anime";
-import { useNearViewport } from "../lib/ui";
+import { useViewportPlace } from "../lib/ui";
 import { usePrefs } from "../lib/settings";
 import { useRouter, type Route } from "../lib/router";
 import type { MetaPreview } from "../lib/types";
@@ -63,6 +66,7 @@ export function Anime() {
   const hasHero = visible("hero");
   const hero = useAnimeHero(hasHero ? data?.trending : undefined);
   const today = useAiringToday(visible("today"));
+  const todayNote = useWaitNote(!today.slots);
   const now = seasonOf();
   const next = nextSeason(now);
   const [index, setIndex] = useState(0);
@@ -119,6 +123,7 @@ export function Anime() {
       title="Airing Today"
       onOpen={() => navigate({ name: "anime-schedule" })}
       shape="landscape"
+      action={todayNote}
       items={airing && forShape(airing, "landscape")}
       skeletons={6}
       card={(m) => {
@@ -261,15 +266,33 @@ function AnimeShelf({
   onOpen?: () => void;
 }) {
   const C = shape === "landscape" ? AnimeLandscapeCard : AnimeCard;
+  const note = useWaitNote(!items);
   return (
-    <Shelf title={title} onOpen={onOpen} shape={shape} action={action} items={items && forShape(items, shape)} card={(a) => <C key={a.id} item={a} label={label?.(a)} />} />
+    <Shelf
+      title={title}
+      onOpen={onOpen}
+      shape={shape}
+      action={note ?? action}
+      items={items && forShape(items, shape)}
+      card={(a) => <C key={a.id} item={a} label={label?.(a)} />}
+    />
   );
 }
 
-/** Genre shelves below the fold only ask AniList once they're close. */
+/** A shelf still waiting its turn behind AniList's limit says so, rather than showing placeholders for a minute (#109). */
+function useWaitNote(loading: boolean) {
+  const busy = useAniListBusy();
+  return loading && busy ? <span className="row-note t-caption">AniList is busy, loading…</span> : undefined;
+}
+
+/**
+ * Genre shelves below the fold only ask AniList once they're close; while waiting their turn, one on
+ * screen goes before one just below it, and one scrolled far away waits behind both (#109).
+ */
 function GenreShelf({ genre, shape, action }: { genre: string; shape: Shape; action?: ReactNode }) {
-  const [ref, near] = useNearViewport<HTMLDivElement>();
-  const { data } = useAnimeGenre(genre, near);
+  const [ref, near, place] = useViewportPlace<HTMLDivElement>(reprioritiseAniList);
+  const priority = useCallback(() => rowPriority(place.current), [place]);
+  const { data } = useAnimeGenre(genre, near, priority);
   const { navigate } = useRouter();
   return (
     <div ref={ref}>

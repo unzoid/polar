@@ -727,3 +727,9 @@ on the fake backend. AniList can't be reached here, so with the setting on, chec
   account's other profiles synced here. Not run signed in. To check, with sharing off: as a guest add a TMDB key
   and an add-on; sign in to a new account: no key, no add-on, and the offer lists Guest; copy: both there; sign
   out: the guest's set as it was; sign in to a second account: it never sees the first account's set.
+- AniList requests by priority, rows kept on the device (#109; `lib/net/limiter.ts`, `lib/net/deviceCache.ts`,
+  tested with a fake clock and a fake AniList). Not run against AniList. To check, with devtools' Network filtered to
+  `anilist`: scroll the Anime page to the genre rows; rows on screen fill within a few seconds even while AniList
+  answers `X-RateLimit-Limit: 30`, and then each row is one request. Open a card while rows are still loading: its
+  page doesn't wait behind them. After a 429, loading shelves say "AniList is busy, loading…". Quit and start again:
+  the Anime page draws its rows at once. Settings → About → Cache → Clear empties them.

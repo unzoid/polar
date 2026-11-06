@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { concurrency, Limiter, limitedFetch, retryAfter, type Clock, type HostLimits } from "../src/lib/net/limiter";
+import { BUSY_AFTER, concurrency, Limiter, limitedFetch, PRIORITY, retryAfter, type Clock, type HostLimits } from "../src/lib/net/limiter";
 
 /** Virtual time: sleeping moves the clock on at once. */
 function fakeClock(): Clock & { t: number; slept: number[] } {
@@ -131,5 +131,87 @@ describe("concurrency", () => {
     expect(peak).toBe(2);
     expect(started).toEqual([0, 1, 2, 3, 4]);
     expect(results.map((r) => (r.status === "fulfilled" ? r.value : "err"))).toEqual([0, 10, 20, "err", 40]);
+  });
+});
+
+describe("Limiter priorities (#109)", () => {
+  test("once the burst is spent, the most urgent waiter goes next, whatever its arrival", async () => {
+    const clock = fakeClock();
+    const l = new Limiter({ ...limits, burst: 1 }, clock);
+    await l.take();
+    const order: string[] = [];
+    const go = (name: string, p: number) => l.take(undefined, p).then(() => order.push(name));
+    await Promise.all([go("background", PRIORITY.background), go("near", PRIORITY.near), go("page", PRIORITY.page), go("visible", PRIORITY.visible)]);
+    expect(order).toEqual(["page", "visible", "near", "background"]);
+  });
+
+  test("a waiter's priority is read when its turn comes, so a row scrolled into view moves up", async () => {
+    const clock = fakeClock();
+    const l = new Limiter({ ...limits, burst: 1 }, clock);
+    await l.take();
+    let row: number = PRIORITY.background;
+    const order: string[] = [];
+    const a = l.take(undefined, PRIORITY.near).then(() => order.push("other"));
+    const b = l.take(undefined, () => row).then(() => order.push("row"));
+    row = PRIORITY.visible;
+    await Promise.all([a, b]);
+    expect(order).toEqual(["row", "other"]);
+  });
+
+  test("while the host is degraded, background work waits until nothing else has asked for a while", async () => {
+    const clock = fakeClock();
+    const l = new Limiter({ ...limits, burst: 2, perMinute: 60 }, clock);
+    l.setLimit(30);
+    expect(l.reduced).toBe(true);
+    await l.take();
+    await l.take();
+    const order: string[] = [];
+    const bg = l.take(undefined, PRIORITY.background).then(() => order.push(`background@${clock.t}`));
+    const fg = l.take(undefined, PRIORITY.visible).then(() => order.push(`visible@${clock.t}`));
+    await Promise.all([bg, fg]);
+    // 28 a minute after the burst of 2: a token every ~2.1 s. The visible row takes the first one; background
+    // waits for a full bucket (~6.4 s) instead of the next token (~4.3 s).
+    expect(order[0].startsWith("visible@")).toBe(true);
+    expect(Number(order[1].split("@")[1])).toBeGreaterThanOrEqual(6000);
+    l.setLimit(90);
+    expect(l.reduced).toBe(false);
+  });
+
+  test("says it's busy while paused, and quiet once nobody waits", async () => {
+    const clock = fakeClock();
+    const l = new Limiter(limits, clock);
+    const seen: boolean[] = [];
+    const stop = l.subscribe(() => seen.push(l.busy));
+    l.pause(5000);
+    expect(l.busy).toBe(true);
+    await l.take();
+    expect(l.busy).toBe(false);
+    expect(seen).toEqual([true, false]);
+    stop();
+  });
+
+  test("says it's busy once an on-screen request has waited a few seconds", async () => {
+    const clock = fakeClock();
+    const l = new Limiter({ ...limits, burst: 1, perMinute: 6 }, clock);
+    await l.take();
+    let busyAt: number | undefined;
+    l.subscribe(() => {
+      if (l.busy && busyAt === undefined) busyAt = clock.t;
+    });
+    await l.take(undefined, PRIORITY.visible);
+    expect(busyAt).toBe(BUSY_AFTER);
+    expect(l.busy).toBe(false);
+  });
+
+  test("an aborted waiter leaves the queue and the next one goes", async () => {
+    const clock = fakeClock();
+    const l = new Limiter({ ...limits, burst: 1 }, clock);
+    await l.take();
+    const ac = new AbortController();
+    const gone = l.take(ac.signal, PRIORITY.page);
+    ac.abort(new Error("gone"));
+    await expect(gone).rejects.toThrow("gone");
+    await l.take(undefined, PRIORITY.background);
+    expect(clock.t).toBe(1000);
   });
 });
