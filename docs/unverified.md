@@ -536,6 +536,21 @@ against a real project.
     second (no MB written), CPU against autocrop off; a change lands within a frame or two of its cut; nothing
     hangs when playback stops or the window hides mid-read; hardware decoding stays zero-copy.
 
+## Windows mpv.exe built from pinned sources (`scripts/windows-mpv.sh`, CI job `windows-mpv`)
+
+- Until this change the Windows app shipped shinchiro's prebuilt `mpv.exe`; now CI builds it with the same
+  scripts at a fixed commit, every library at the commit `scripts/windows-mpv.lock` gives it, and the release
+  attaches the exact sources. The build only runs in CI (in the Arch Linux image of `scripts/windows-mpv.Dockerfile`); nothing
+  here has run it. The `mpv.exe` that ships is a different build, so it needs a check on a Windows PC. It is
+  winbuild's clang build for plain x86-64 (no AVX2 needed), with libc++ linked in and the Universal CRT
+  (part of Windows 10 and 11), so it should also start on an older x86-64 PC.
+- Get it: once CI's `windows-mpv` job has passed on the commit, `bun scripts/fetch-mpv.ts` on the PC (GitHub CLI
+  signed in) puts it into `src-tauri/vendor/mpv`; then `bun run tauri dev`, or a release build.
+- Check: a film and an episode play with picture and sound, hardware decoding on (Settings → Playback), seeking,
+  subtitles (an embedded track and an add-on one), audio track switching, HDR on an HDR screen, autocrop on a
+  letterboxed film, and a stream over HTTPS. `licenses/mpv/BUNDLED.txt` in the installed app lists the libraries,
+  and the release lists `Polarity_<version>_x64_mpv-sources.tar` among its files.
+
 ## Torrent sources (#47)
 
 - Checked here: `crates/torrent`'s loopback test (a second session shares a made-up file; the engine fetches it

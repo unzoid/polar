@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # scripts/fetch-mpv.ts downloads ci.yml's Windows mpv build
 
 concurrency:
   group: release-${{ github.ref }}
@@ -78,9 +79,12 @@ jobs:
             exit 1
           fi
 
-      # Windows: tauri.conf.json's beforeBuildCommand fetches the pinned mpv build.
+      # Windows: tauri.conf.json's beforeBuildCommand fetches the pinned mpv build and its sources
+      # (ci.yml's windows-mpv job for this scripts/windows-mpv.lock must have passed).
       - name: Build (Windows)
         if: runner.os == 'Windows'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bunx tauri build -- --locked
 
       # macOS: Homebrew's libmpv, bundled into the app by scripts/bundle-libmpv.ts.
@@ -124,7 +128,9 @@ jobs:
           case "$RUNNER_OS" in
             Windows)
               cp "$b"/nsis/*_x64-setup.exe "$b"/nsis/*_x64-setup.exe.sig out/
-              cp "$b"/msi/*_x64_en-US.msi "$b"/msi/*_x64_en-US.msi.sig out/ ;;
+              cp "$b"/msi/*_x64_en-US.msi "$b"/msi/*_x64_en-US.msi.sig out/
+              # The exact sources of the bundled mpv.exe (docs/licensing.md).
+              cp src-tauri/vendor/mpv-sources/polarity-windows-mpv-sources.tar "out/Polarity_${VERSION}_x64_mpv-sources.tar" ;;
             macOS)
               cp "$b"/dmg/*_aarch64.dmg out/
               # Name the update archive per version and CPU, like the other files.
