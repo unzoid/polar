@@ -35,16 +35,26 @@ import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "../ui/Menu";
 type Me = Pick<Member, "name" | "avatar">;
 
 /** Not in a party: start one on what's playing, or join a friend's. */
-export function PartyStart({ onStart, me }: { onStart: () => void; me: Me }) {
+/** Without `onStart` (a file on this device, #204) a party can't start here, and it says why. */
+export function PartyStart({ onStart, me }: { onStart?: () => void; me: Me }) {
   return (
     <div className="party-pane">
-      <p className="party-lede">
-        Watch in sync with friends. Everyone plays from their own sources; pausing, seeking and changing episodes happen
-        for the whole room.
-      </p>
-      <Button variant="primary" className="party-start" onClick={onStart}>
-        <WatchParty size={18} /> Start a Watch Party
-      </Button>
+      {onStart ? (
+        <>
+          <p className="party-lede">
+            Watch in sync with friends. Everyone plays from their own sources; pausing, seeking and changing episodes
+            happen for the whole room.
+          </p>
+          <Button variant="primary" className="party-start" onClick={onStart}>
+            <WatchParty size={18} /> Start a Watch Party
+          </Button>
+        </>
+      ) : (
+        <p className="party-lede">
+          This file is on your device, so it can't be shared with a watch party. A party could only follow along if
+          everyone opened the same file on their own device.
+        </p>
+      )}
       <div className="party-or" aria-hidden>
         <span>or join one</span>
       </div>

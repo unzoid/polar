@@ -67,13 +67,14 @@ pub async fn mpv_load(
     probe_id: Option<u32>,
     headers: Option<std::collections::HashMap<String, String>>,
 ) -> Result<(), CmdError> {
-    // Web streams, or a finished download - never any other path on disk.
+    // Web streams, a finished download, or a file the user opened - never any other path on disk.
     let downloaded = app.state::<Arc<crate::downloads::Downloads>>().owns(&url);
-    if !is_web_url(&url) && !downloaded {
-        return Err(CmdError::Unsupported("only http(s) streams and downloads can be played".into()));
+    let opened = app.state::<Arc<crate::local_files::LocalFiles>>().owns(&url);
+    if !is_web_url(&url) && !downloaded && !opened {
+        return Err(CmdError::Unsupported("only http(s) streams, downloads and files you opened can be played".into()));
     }
-    // Ours as they are: a download, or the torrent engine's loopback link.
-    let local = downloaded || crate::torrent::owns(&app, &url);
+    // Ours as they are: a download, a file the user opened, or the torrent engine's loopback link.
+    let local = downloaded || opened || crate::torrent::owns(&app, &url);
     // A link that's not ready yet, or a placeholder clip in place of the video.
     let headers =
         if local { Vec::new() } else { polar_player::headers::playback_headers(&headers.unwrap_or_default()) };
@@ -83,6 +84,10 @@ pub async fn mpv_load(
     let mut options = String::new();
     if let Some(s) = start.filter(|s| *s > 1.0) {
         options = format!("start={s:.2}");
+    }
+    // A file the user opened: subtitles beside it ("Film.srt", "Film.en.srt") load with it.
+    if opened {
+        options = if options.is_empty() { "sub-auto=fuzzy".into() } else { format!("{options},sub-auto=fuzzy") };
     }
     // A new file is measured afresh (autocrop): drop the last one's crop.
     let load = state.mpv.loads.fetch_add(1, Ordering::SeqCst) + 1;

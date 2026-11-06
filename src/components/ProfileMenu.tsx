@@ -1,4 +1,5 @@
-import { Calendar, Edit, Profile, Settings, SignOut, WatchParty } from "./icons";
+import { Calendar, Edit, OpenFile, Profile, Settings, SignOut, WatchParty } from "./icons";
+import { canOpenFiles, setOpenFilesOpen } from "../lib/localFiles";
 import { partyAvailable, setJoinPartyOpen } from "../lib/party";
 import { useRouter } from "../lib/router";
 import { useAccount } from "../lib/account";
@@ -90,6 +91,11 @@ export function ProfileMenu() {
         {me && partyAvailable() && (
           <MenuItem icon={<WatchParty />} onClick={() => setJoinPartyOpen(true)}>
             Join Watch Party
+          </MenuItem>
+        )}
+        {canOpenFiles && (
+          <MenuItem icon={<OpenFile />} onClick={() => setOpenFilesOpen(true)}>
+            Open File…
           </MenuItem>
         )}
         {!settings?.showCalendar && (

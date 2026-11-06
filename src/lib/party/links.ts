@@ -41,17 +41,20 @@ export function checkLink(input: string): LinkCheck {
   return { ok: true, url: url.href };
 }
 
-/** A short, stable hash of the URL (two 32-bit FNV-1a passes), for ids. */
-export function linkId(url: string): string {
+/** A short, stable hash of `text` (two 32-bit FNV-1a passes), for ids that mustn't carry the text itself. */
+export function shortHash(text: string): string {
   let a = 0x811c9dc5;
   let b = 0x01000193;
-  for (let i = 0; i < url.length; i++) {
-    const c = url.charCodeAt(i);
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
     a = Math.imul(a ^ c, 0x01000193) >>> 0;
     b = Math.imul(b ^ c, 0x811c9dc5) >>> 0;
   }
-  return `${LINK_PREFIX}${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
+  return `${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
 }
+
+/** A link's id: the prefix and a hash of the URL. */
+export const linkId = (url: string): string => `${LINK_PREFIX}${shortHash(url)}`;
 
 /** What a link is called where a title would be: its host and file name ("media.example.com · talk.mp4"). */
 export function linkLabel(url: string): string {
