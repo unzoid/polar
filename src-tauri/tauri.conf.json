@@ -4,7 +4,7 @@
   "version": "0.17.0",
   "identifier": "app.getpolar.desktop",
   "build": {
-    "beforeDevCommand": "bun scripts/fetch-mpv.ts && bun run dev",
+    "beforeDevCommand": "bun scripts/fetch-mpv.ts --dev && bun run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "bun scripts/fetch-mpv.ts && bun run build",
     "frontendDist": "../dist"

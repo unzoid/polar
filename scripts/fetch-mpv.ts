@@ -8,7 +8,10 @@
 // your own: --from <its out folder>. No-op when vendor/mpv already holds this version, and off
 // Windows (macOS bundles libmpv with scripts/bundle-libmpv.ts).
 //
-//   bun scripts/fetch-mpv.ts [--from <dir>]
+// --dev (tauri dev): any mpv.exe already in vendor/mpv will do, so the dev server isn't held up by
+// a half-gigabyte download; only a missing one is fetched. Builds and releases still pin the version.
+//
+//   bun scripts/fetch-mpv.ts [--from <dir>] [--dev]
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -24,6 +27,7 @@ let from = fromAt >= 0 ? args[fromAt + 1] : undefined;
 if (fromAt >= 0 && !from) throw new Error("--from needs the out folder of a scripts/windows-mpv.sh build");
 
 if (process.platform !== "win32" && !from) process.exit(0);
+if (args.includes("--dev") && !from && existsSync(join(vendor, "mpv", "mpv.exe"))) process.exit(0);
 const version = mpvVersion(root);
 if (vendoredMpvVersion(root) === version) process.exit(0);
 // CI's Windows test builds have put this version's build or empty stand-ins there (scripts/vendor-mpv.sh).
