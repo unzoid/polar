@@ -9,7 +9,7 @@ import { glideScroll, glideTarget } from "../tv/follow";
 import { focusWhenReady } from "../tv/spatial";
 import { useBack } from "../tv/shell";
 import { playSound } from "../tv/sounds";
-import { isMenuKey } from "../tv/TvCardMenu";
+import { isMenuKey } from "../tv/menuKey";
 
 /**
  * A source's "i" panel (#229): everything the source carries, masked

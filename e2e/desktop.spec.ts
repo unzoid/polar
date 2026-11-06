@@ -649,3 +649,59 @@ test("the player's episode rail reaches every episode by wheel and paddles, and 
   await app.getByRole("button", { name: "Episodes", exact: true }).click();
   await expect(rail).toBeVisible();
 });
+
+test("a source's i button shows what the source carries with every key masked, on the title page and in the player (#229)", async ({ app }) => {
+  // Copy lands here instead of the system clipboard.
+  await app.evaluate(() => {
+    const w = window as unknown as { __copied: string };
+    w.__copied = "";
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (t: string) => void (w.__copied = t) } });
+  });
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Choose source", exact: true }).click();
+  const rows = app.locator(".sheet .stream-row-wrap");
+  const last = rows.last();
+  // Nothing on rows that aren't hovered or focused.
+  await expect(rows.first().locator(".stream-info")).toHaveCSS("opacity", "0");
+  await last.hover();
+  await expect(last.locator(".stream-info")).toHaveCSS("opacity", "1");
+  await expect(rows.first().locator(".stream-info")).toHaveCSS("opacity", "0");
+  await last.getByRole("button", { name: "Source info" }).click();
+
+  const panel = app.getByRole("dialog", { name: "Source Info" });
+  await expect(panel).toContainText("Open Mirror");
+  await expect(panel).toContainText("IMDb tt0000001 (tt0000001)");
+  await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
+  await expect(panel).toContainText("Request header Authorization");
+  await expect(panel).toContainText("Direct link");
+  expect(await panel.textContent()).not.toContain("TOKEN0000");
+  await panel.getByRole("button", { name: "Copy" }).click();
+  await expect(panel.getByRole("button", { name: "Copied" })).toBeVisible();
+  const copied = await app.evaluate(() => (window as unknown as { __copied: string }).__copied);
+  expect(copied).toContain("Request header Authorization: •••");
+  expect(copied).toContain("Mirror https://mirror.example.org/•••/film.mkv apikey=•••");
+  expect(copied).not.toContain("TOKEN0000");
+  // Esc closes the panel only, back on the row it came from.
+  await app.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(app.locator(".sheet")).toBeVisible();
+  await expect(last.locator(".stream-row")).toBeFocused();
+  await app.keyboard.press("Escape");
+  await expect(app.locator(".sheet")).toHaveCount(0);
+
+  // The player's list: the same panel, over its Sources.
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Sources", exact: true }).click();
+  const list = app.getByRole("radiogroup", { name: "Sources" });
+  const row = list.locator(".options-item-wrap").last();
+  await expect(list.locator(".options-item-wrap").first().locator(".options-info")).toHaveCSS("opacity", "0");
+  await row.hover();
+  await row.getByRole("button", { name: "Source info" }).click();
+  await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
+  expect(await panel.textContent()).not.toContain("TOKEN0000");
+  await app.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(list).toBeVisible();
+});
