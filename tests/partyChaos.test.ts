@@ -134,7 +134,9 @@ function runSeed(seed: number, opts: { members?: number; chaosMs?: number; fault
       const a = random();
       if (a < 0.4) m.media.pause();
       else if (a < 0.8) void m.media.play();
-      else m.media.currentTime = Math.max(0, m.media.currentTime + (random() - 0.4) * 300);
+      else if (a < 0.9) m.media.currentTime = Math.max(0, m.media.currentTime + (random() - 0.4) * 300);
+      // A small step (arrow keys, a nudge of the scrubber): paused, it's still the room's (#236).
+      else m.media.currentTime = Math.max(0, m.media.currentTime + (random() - 0.5) * 6);
     } else if (r < 0.5) {
       const back = 500 + random() * 8000;
       const notice = 1000 + random() * 20_000;
@@ -202,7 +204,10 @@ function runSeed(seed: number, opts: { members?: number; chaosMs?: number; fault
   const players = live.map((i) => members[i]).filter((m) => m.stop && m.media?.started);
   for (const m of players.slice(1)) {
     const gap = Math.abs(m.media!.currentTime - players[0].media!.currentTime);
-    if (gap > 1.5) problems.push(`players ${gap.toFixed(1)} s apart`);
+    // Paused, each player is within half a second of the room's frame (a pause lands where each engine was): a small seek
+    // left behind shows here (#236). Playing, the follower's band.
+    const paused = first?.playback?.paused && !m.media!.buffering;
+    if (gap > (paused ? 1 : 1.5)) problems.push(`players ${gap.toFixed(1)} s apart${paused ? " while paused" : ""}`);
   }
   // Supabase's presence limit (#227): over it, a member's channel is closed and it hears nothing until it reconnects.
   if (hub.closedByServer) problems.push(`the server closed a channel for too many presence updates ${hub.closedByServer} times`);
