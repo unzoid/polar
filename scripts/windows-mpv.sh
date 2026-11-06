@@ -74,12 +74,28 @@ grep -q -- "--default-toolchain $RUST_TOOLCHAIN" winbuild/toolchain/rustup.cmake
 	exit 1
 }
 
+# Built without libdvdcss: libdvdread (and libdvdnav and libbluray on top of it) read unencrypted
+# discs and folders only.
+sed -i '/^[ \t]*libdvdcss$/d' winbuild/packages/CMakeLists.txt
+sed -i -e '/^[ \t]*DEPENDS libdvdcss$/d' -e 's/-Dlibdvdcss=enabled/-Dlibdvdcss=disabled/' winbuild/packages/libdvdread.cmake
+rm -f winbuild/packages/libdvdcss.cmake
+if grep -rqw libdvdcss winbuild/packages --exclude=libdvdread.cmake || grep -q 'libdvdcss=enabled\|DEPENDS libdvdcss' winbuild/packages/libdvdread.cmake ||
+	! grep -q -- '-Dlibdvdcss=disabled' winbuild/packages/libdvdread.cmake; then
+	echo "windows-mpv.sh: couldn't take libdvdcss out of winbuild/packages" >&2
+	exit 1
+fi
+
 cmake -DTARGET_ARCH=$ARCH -DSINGLE_SOURCE_LOCATION="$work/src" -DRUSTUP_LOCATION="$work/rustup" \
 	-G Ninja -B build -S winbuild
 ninja -C build download
 # The toolchain's sources too (GCC, binutils, MinGW-w64), before anything is built.
 targets=$(ninja -C build -t targets all | sed -n 's/^\(gcc[^:]*-download\|mingw-w64[^:]*-download\|cppwinrt-download\|gendef-download\|widl-download\|winpthreads-download\): phony$/\1/p')
 [ -n "$targets" ] && ninja -C build $targets
+
+[ ! -e src/libdvdcss ] || {
+	echo "windows-mpv.sh: libdvdcss was downloaded; it must stay out of the build" >&2
+	exit 1
+}
 
 # Every clone at the commit the lock pins, checked before any patch is applied.
 : >"$out/windows-mpv.lock"
