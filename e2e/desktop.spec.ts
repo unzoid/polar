@@ -1,4 +1,5 @@
 import { card, clock, expect, test } from "./fixtures";
+import type { Locator } from "@playwright/test";
 
 // The desktop layout (also run in WebKit on CI). Titles come from src/lib/platform/fake/fixtures.ts.
 
@@ -609,16 +610,16 @@ test("the player's episode rail reaches every episode by wheel and paddles, and 
   expect(await lastShown()).toBe(true);
   await app.waitForTimeout(1500);
   expect(await lastShown()).toBe(true);
-  await expect(app.locator(".episode-rail-paddle[data-dir=next]")).toHaveCSS("opacity", "0");
+  await expect(app.locator(".episode-rail-viewport .row-paddle[data-dir=next]")).toHaveCSS("pointer-events", "none");
 
   // The paddle at the start pages back to the first episode.
-  const prev = app.locator(".episode-rail-paddle[data-dir=prev]");
+  const prev = app.locator(".episode-rail-viewport .row-paddle[data-dir=prev]");
   for (let i = 0; i < 10 && (await rail.evaluate((el) => el.scrollLeft)) > 4; i++) {
     await prev.click();
     await app.waitForTimeout(600);
   }
   expect(await rail.evaluate((el) => el.scrollLeft)).toBeLessThanOrEqual(4);
-  await expect(prev).toHaveCSS("opacity", "0");
+  await expect(prev).toHaveCSS("pointer-events", "none");
 
   // The arrow keys step card by card from the one playing, each brought into view.
   await expect(rail.locator('[aria-current="true"] > .episode-rail-main')).toBeFocused();
@@ -640,4 +641,64 @@ test("the player's episode rail reaches every episode by wheel and paddles, and 
   await app.locator(".episode-card-main:not([disabled])").first().click();
   await app.getByRole("button", { name: "Episodes", exact: true }).click();
   await expect(rail).toBeVisible();
+});
+
+test("the player's episode rail pages with Home's shelf paddles: blurred edge, shown on hover or keyboard focus, gone at the ends (#250)", async ({ app }) => {
+  // What makes a paddle look and act as it does, read from the next one in `viewport` while `shown` or not.
+  const look = (viewport: Locator) =>
+    viewport.locator(".row-paddle[data-dir=next]").evaluate((b) => {
+      const chevron = getComputedStyle(b.querySelector("svg")!);
+      const layers = [...b.querySelectorAll(".edge-blur i")].map((i) => getComputedStyle(i));
+      return {
+        width: getComputedStyle(b).width,
+        layers: layers.length,
+        blur: layers.map((l) => l.backdropFilter),
+        shown: chevron.opacity,
+        chevronShadow: chevron.filter,
+        tint: getComputedStyle(b.querySelector(".edge-blur")!, "::before").backgroundColor,
+      };
+    });
+  const away = () => app.mouse.move(2, 2);
+
+  // Home's first shelf, pointed at.
+  const shelf = app.locator(".row-viewport").first();
+  await expect(shelf).toBeVisible();
+  await shelf.hover();
+  await expect.poll(async () => (await look(shelf)).shown).toBe("1");
+  const home = await look(shelf);
+
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  await app.locator(".episode-card-main:not([disabled])").first().click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await app.getByRole("button", { name: "Episodes", exact: true }).click();
+  const rail = app.locator(".episode-rail-viewport");
+  await expect(rail.locator(".row-paddle .edge-blur")).toHaveCount(2);
+
+  // Pointed at: the same edge as Home's, blurred, its chevron shown.
+  await rail.locator(".episode-rail").hover();
+  await expect.poll(async () => (await look(rail)).shown).toBe("1");
+  expect(await look(rail)).toEqual(home);
+  expect(home.blur.every((b) => b.startsWith("blur("))).toBe(true);
+
+  // Not pointed at and no keyboard focus: hidden, and not blurring (#134).
+  await app.locator(".episode-rail-card[aria-current] .episode-rail-main").evaluate((b) => (b as HTMLElement).blur());
+  await away();
+  await expect.poll(async () => (await look(rail)).shown).toBe("0");
+  await expect.poll(async () => (await look(rail)).blur.every((b) => b === "none")).toBe(true);
+
+  // A card reached by the keys shows them.
+  await app.locator(".episode-rail-card").first().locator(".episode-rail-main").focus();
+  await app.keyboard.press("ArrowRight");
+  await expect.poll(async () => (await look(rail)).shown).toBe("1");
+
+  // At the start, the left one is gone and can't be clicked; it never takes the focus.
+  await rail.locator(".episode-rail").evaluate((el) => (el.scrollLeft = 0));
+  const prev = rail.locator(".row-paddle[data-dir=prev]");
+  await expect(prev).toHaveCSS("pointer-events", "none");
+  await expect(prev.locator("svg")).toHaveCSS("opacity", "0");
+  const focused = await app.evaluate(() => document.activeElement?.className);
+  await rail.locator(".row-paddle[data-dir=next]").click();
+  expect(await app.evaluate(() => document.activeElement?.className)).toBe(focused);
+  await expect(prev).toHaveCSS("pointer-events", "auto");
 });
