@@ -128,7 +128,7 @@ function DetailHero({
   return (
     <section className="detail-hero" {...gate}>
       <div className="detail-hero-main">
-        <TitleHeading name={item.name} logo={item.logo} look="detail" />
+        <TitleHeading name={item.name} logo={item.logo} logos={item.logos} backdrop={item.background} look="detail" />
         {item.description && <p className="detail-description t-callout">{item.description}</p>}
         <p className="detail-facts t-callout tabular">
           {item.imdbRating && <RatingRing value={item.imdbRating} imdbId={item.id} />}

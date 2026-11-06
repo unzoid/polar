@@ -18,6 +18,8 @@ export interface MetaPreview {
   poster?: string;
   background?: string;
   logo?: string;
+  /** All of the title's logos, `logo` first and the metadata language before the rest, to choose from by contrast (#215). */
+  logos?: string[];
   description?: string;
   releaseInfo?: string;
   imdbRating?: string;

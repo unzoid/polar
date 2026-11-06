@@ -195,11 +195,11 @@ impl Tmdb {
         Ok(items
             .into_iter()
             .zip(found)
-            .filter_map(|(item, found)| Some(item.into_preview(ty, found.imdb_id?, found.logo)))
+            .filter_map(|(item, found)| Some(item.into_preview(ty, found.imdb_id?, found.logos)))
             .collect())
     }
 
-    /// A list result's IMDb id and logo, from one details request with only
+    /// A list result's IMDb id and logos, from one details request with only
     /// English and language-free images, as [`Tmdb::meta`] picks its logo.
     async fn lookup(&self, ty: &str, tmdb_id: u64) -> Result<Lookup> {
         let key = (ty.chars().next().unwrap_or('m'), tmdb_id);
@@ -214,7 +214,7 @@ impl Tmdb {
             .await?;
         let found = Lookup {
             imdb_id: str_of(&d["external_ids"]["imdb_id"]).filter(|i| i.starts_with("tt")),
-            logo: pick_logo(&d["images"]["logos"]),
+            logos: pick_logos(&d["images"]["logos"]),
         };
         self.lookups.insert(key, found.clone());
         Ok(found)
@@ -426,17 +426,24 @@ fn pick_trailer(videos: &[Value]) -> Option<String> {
     videos.iter().filter(youtube).filter(|v| rank(v) < 3).min_by_key(|v| rank(v)).and_then(|v| str_of(&v["key"]))
 }
 
-/// The English logo from a details answer's `images.logos`, else the first
-/// (asked for as English or language-free only).
-fn pick_logo(logos: &Value) -> Option<String> {
-    let logos = logos.as_array()?;
-    logos
-        .iter()
-        .find(|l| l["iso_639_1"] == "en")
-        .or(logos.first())
-        .and_then(|l| str_of(&l["file_path"]))
+/// The logos from a details answer's `images.logos` (asked for as English or
+/// language-free only), English first, each group in TMDB's order. The first
+/// is the title's logo; the app may choose another that reads better on the
+/// backdrop (#215).
+fn pick_logos(logos: &Value) -> Vec<String> {
+    let Some(logos) = logos.as_array() else { return Vec::new() };
+    let english = logos.iter().filter(|l| l["iso_639_1"] == "en");
+    let others = logos.iter().filter(|l| l["iso_639_1"] != "en");
+    english
+        .chain(others)
+        .filter_map(|l| str_of(&l["file_path"]))
         .map(|p| format!("{IMG}/w500{p}"))
+        .take(MAX_LOGOS)
+        .collect()
 }
+
+/// More logos than this aren't kept: the app measures at most a few.
+const MAX_LOGOS: usize = 6;
 
 fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Meta {
     let is_series = ty == "series";
@@ -453,7 +460,7 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
         year(&d["release_date"])
     };
 
-    let logo = pick_logo(&d["images"]["logos"]);
+    let logos = pick_logos(&d["images"]["logos"]);
 
     let runtime = d["runtime"]
         .as_u64()
@@ -538,7 +545,8 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
             name: str_of(&d["title"]).or_else(|| str_of(&d["name"])).unwrap_or_default(),
             poster: str_of(&d["poster_path"]).map(|p| format!("{IMG}/w500{p}")),
             background: str_of(&d["backdrop_path"]).map(|p| format!("{IMG}/original{p}")),
-            logo,
+            logo: logos.first().cloned(),
+            logos,
             description: str_of(&d["overview"]),
             release_info,
             imdb_rating: d["vote_average"].as_f64().filter(|r| *r > 0.0).map(|r| format!("{r:.1}")),
@@ -582,14 +590,15 @@ struct Item {
 }
 
 impl Item {
-    fn into_preview(self, ty: &str, imdb_id: String, logo: Option<String>) -> MetaPreview {
+    fn into_preview(self, ty: &str, imdb_id: String, logos: Vec<String>) -> MetaPreview {
         MetaPreview {
             id: imdb_id,
             ty: ty.into(),
             name: self.title.or(self.name).unwrap_or_default(),
             poster: self.poster_path.map(|p| format!("{IMG}/w342{p}")),
             background: self.backdrop_path.map(|p| format!("{IMG}/w1280{p}")),
-            logo,
+            logo: logos.first().cloned(),
+            logos,
             description: self.overview.filter(|o| !o.is_empty()),
             release_info: self.release_date.or(self.first_air_date).and_then(|d| d.get(..4).map(str::to_owned)),
             imdb_rating: self.vote_average.filter(|r| *r > 0.0).map(|r| format!("{r:.1}")),
@@ -601,7 +610,7 @@ impl Item {
 #[derive(Clone)]
 struct Lookup {
     imdb_id: Option<String>,
-    logo: Option<String>,
+    logos: Vec<String>,
 }
 
 #[cfg(test)]
@@ -704,6 +713,12 @@ mod tests {
         // The row carries each title's English logo, as its page would, and none where TMDB has none.
         assert_eq!(page[1].logo.as_deref(), Some("https://image.tmdb.org/t/p/w500/en102.png"));
         assert_eq!(page[2].logo, None);
+        // And all its logos, English first, for the app to choose from by contrast (#215).
+        assert_eq!(
+            page[1].logos,
+            ["https://image.tmdb.org/t/p/w500/en102.png", "https://image.tmdb.org/t/p/w500/es102.png"]
+        );
+        assert!(page[2].logos.is_empty());
 
         let second = ids(tmdb.catalog("movie", "popular", 20, None).await.unwrap());
         assert_eq!(second[0], "tt207");
@@ -776,7 +791,7 @@ mod tests {
     fn a_search_result_names_its_genres() {
         let item: Item =
             serde_json::from_value(json!({"id": 1, "name": "Made Up Toon", "genre_ids": [16, 10759, 1]})).unwrap();
-        let preview = item.into_preview("series", "tt0000001".into(), None);
+        let preview = item.into_preview("series", "tt0000001".into(), Vec::new());
         assert_eq!(preview.genres, ["Animation", "Action"]);
     }
 }

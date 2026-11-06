@@ -83,7 +83,7 @@ export function TvDetail({ type, id, preview, entry }: { type: ContentType; id: 
         {trailer.node}
       </TvBackdrop>
       <div className="tv-detail-body" {...gate}>
-        <TitleHeading name={shown.name} logo={shown.logo} look="tv-detail" />
+        <TitleHeading name={shown.name} logo={shown.logo} logos={shown.logos} backdrop={shown.background} look="tv-detail" />
         <Facts facts={titleFacts(shown, [formatRuntime(meta?.runtime)])} />
         {shown.description && <p className="tv-detail-description">{shown.description}</p>}
         <Credits meta={meta} />
@@ -375,7 +375,7 @@ function EpisodesPanel({
   return (
     <div className="tv-panel tv-episodes" ref={ref} data-nav-scope role="dialog" aria-label="Episodes">
       <aside className="tv-episodes-side">
-        <TitleHeading name={meta.name} logo={meta.logo} look="tv-panel" />
+        <TitleHeading name={meta.name} logo={meta.logo} logos={meta.logos} look="tv-panel" />
         <div className="tv-seasons" ref={seasonList} data-nav-scroll="center" data-nav-memory data-nav-prefer-entry>
           {seasons.map((s) => (
             <button

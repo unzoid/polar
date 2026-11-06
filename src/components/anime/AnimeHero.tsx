@@ -43,7 +43,7 @@ export function AnimeHero({
   anime?: Anime;
   /** The franchise's logo (`franchiseArt`), the same on every season tab: this entry's name shows under it. */
   logo?: string;
-  /** The page's backdrop: the logo or name waits for it (#173). */
+  /** The page's backdrop: the logo or name waits for it (#173), and the logo is measured against it (#215). */
   background?: string;
   name: string;
   /** The id it plays from: undefined until known, null when there's none (the page's backdrop trailer is that title's). */
@@ -83,7 +83,7 @@ export function AnimeHero({
   return (
     <section className="detail-hero anime-hero" {...gate}>
       <div className="detail-hero-main">
-        <TitleHeading name={name} logo={logo} look="detail" />
+        <TitleHeading name={name} logo={logo} backdrop={background} look="detail" />
         {subtitle && <p className="anime-native t-callout">{subtitle}</p>}
         <p className="detail-facts anime-meta-line t-callout tabular">
           {score && (

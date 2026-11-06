@@ -261,6 +261,7 @@ impl RawMeta {
             poster: self.poster,
             background: self.background,
             logo: self.logo,
+            logos: Vec::new(),
             description: self.description,
             release_info: value_to_string(self.release_info).or_else(|| value_to_string(self.year)),
             imdb_rating: value_to_string(self.imdb_rating),

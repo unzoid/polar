@@ -106,6 +106,10 @@ pub struct MetaPreview {
     pub background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
+    /// All of the title's logos, `logo` first, when the source has several
+    /// (TMDB): the app chooses the one that reads on the backdrop (#215).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub logos: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

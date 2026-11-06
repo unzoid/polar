@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LOGO_SPOTS } from "../../lib/ui";
 import { TitleLogo } from "../TitleLogo";
 
 /** Where the heading sits; names its classes (`hero-logo` / `hero-title` and so on), so each layout keeps its CSS. */
@@ -9,13 +10,37 @@ export type HeadingLook = "hero" | "detail" | "tv-stage" | "tv-detail" | "tv-pan
  * else (or when it doesn't load) the name as the heading. The facts line and synopsis under it stay with each layout, built with
  * `joinFacts`/`kindFacts` from lib/format. Inside a `useArtGate` element the logo or name waits for the art (`art-after`).
  */
-export function TitleHeading({ name, logo, look }: { name: string; logo?: string; look: HeadingLook }) {
+export function TitleHeading({
+  name,
+  logo,
+  logos,
+  backdrop,
+  look,
+}: {
+  name: string;
+  logo?: string;
+  /** The title's other logos to choose from by contrast with `backdrop`, the picture behind the heading (#215). */
+  logos?: string[];
+  backdrop?: string;
+  look: HeadingLook;
+}) {
   // The panel's heading is a side heading (h2) and its logo isn't in the first screenful.
   const panel = look === "tv-panel";
   // A logo that doesn't load (a new title the art host has nothing for yet) leaves the name, never nothing (test report 1, item 10).
   const [failed, setFailed] = useState<string>();
   if (logo && failed !== logo)
-    return <TitleLogo src={logo} alt={name} className={`${look}-logo art-after`} loading={panel ? undefined : "eager"} onFail={() => setFailed(logo)} />;
+    return (
+      <TitleLogo
+        src={logo}
+        logos={logos}
+        backdrop={backdrop}
+        spot={LOGO_SPOTS[look]}
+        alt={name}
+        className={`${look}-logo art-after`}
+        loading={panel ? undefined : "eager"}
+        onFail={() => setFailed(logo)}
+      />
+    );
   if (panel) return <h2 className={`${look}-title art-after`}>{name}</h2>;
   // The desktop layouts set the display type style; TV's own classes size theirs.
   return (
