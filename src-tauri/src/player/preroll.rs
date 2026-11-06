@@ -1,12 +1,16 @@
 //! Autocrop's pre-roll probe (docs/autocrop.md §3): while the player
 //! buffers, a second mpv with no picture or sound measures keyframes over
-//! the film's opening, so the crop is right on the first frame.
+//! the film's opening, so the crop is right on the first frame. Then the
+//! lookahead (§4): another such probe reads keyframes ahead of the
+//! playhead, so a change of bars lands on the cut.
 //!
 //! mpv's JSON IPC can't carry `screenshot-raw`'s bytes, so each keyframe is
 //! written as an uncompressed PNG ([`polar_player::png`]) to this app's
 //! screenshot folder, read and deleted.
 
 /// A load's opening crop, handed from `mpv_load` to the autocrop loop.
+use tauri::AppHandle;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum Opening {
     /// The probe of this load is still running: hold the tracker back.
@@ -31,6 +35,13 @@ pub(super) async fn opening(url: String, fields: Vec<String>, start: f64) -> Opt
     imp::opening(url, fields, start).await
 }
 
+/// Read keyframes of `load` (`url` with header `fields`, opened with
+/// `bars` removed) ahead of the playhead into `Mpv::ahead`, while autocrop
+/// run `run` lasts and the lookahead is on for this load.
+pub(super) async fn ahead(app: AppHandle, run: u64, load: u64, url: String, fields: Vec<String>, bars: (i64, i64)) {
+    imp::ahead(app, run, load, url, fields, bars).await;
+}
+
 /// Kill any probe still running (the app is closing).
 pub(super) fn kill_all() {
     imp::kill_all();
@@ -38,7 +49,19 @@ pub(super) fn kill_all() {
 
 #[cfg(target_os = "macos")]
 mod imp {
+    use tauri::AppHandle;
+
     use super::Found;
+
+    pub(super) async fn ahead(
+        _app: AppHandle,
+        _run: u64,
+        _load: u64,
+        _url: String,
+        _fields: Vec<String>,
+        _bars: (i64, i64),
+    ) {
+    }
 
     /// libmpv runs inside the app here, with no second instance to probe with yet.
     pub(super) async fn opening(_url: String, _fields: Vec<String>, _start: f64) -> Option<Found> {
@@ -55,10 +78,12 @@ mod imp {
     use std::sync::{Arc, Mutex as StdMutex};
     use std::time::Duration;
 
-    use polar_player::bars::{detect, levels_for, Measured};
+    use polar_player::bars::{detect, levels_for, Levels, Measured};
     use polar_player::crop::{opening_bars, opening_points};
+    use polar_player::lookahead::{Schedule, PTS_SLACK};
     use polar_player::png::decode_stored;
     use serde_json::{json, Value};
+    use tauri::{AppHandle, Manager};
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf};
     use tokio::sync::mpsc;
 
@@ -66,6 +91,7 @@ mod imp {
     use crate::locks::Locked;
     use crate::player::ipc::{self, Stream};
     use crate::player::{kill_process, launch, mpv_binary, shots_dir, Process};
+    use crate::AppState;
 
     /// How long a load waits for the probe, at most; it uses what came by then.
     const BUDGET: Duration = Duration::from_millis(1500);
@@ -108,6 +134,8 @@ mod imp {
         reader: BufReader<ReadHalf<Stream>>,
         writer: WriteHalf<Stream>,
         next: u64,
+        /// Screenshots taken, to name the next one.
+        shots: u64,
         /// Events seen since the last [`Probe::forget`].
         events: Vec<String>,
     }
@@ -167,16 +195,13 @@ mod imp {
         }
     }
 
-    /// Open `url` in a probe and send a reading of each keyframe at
-    /// [`opening_points`], until done or `tx`'s receiver is gone. Starting
-    /// mpv isn't cut short (a process mid-start would be left running), so
-    /// the probe may outlast the load's wait by that much.
-    async fn probe(url: String, fields: Vec<String>, start: f64, tx: mpsc::UnboundedSender<Reading>) -> Option<()> {
+    /// A probe's mpv, started with the IPC endpoint and folder named `tag`.
+    async fn start(tag: &str) -> Option<Probe> {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let n = NEXT.fetch_add(1, Ordering::Relaxed);
         let bin = mpv_binary()?;
-        let pipe = ipc::endpoint(&format!("probe-{n}"));
-        let dir = shots_dir().join(format!("probe-{n}"));
+        let pipe = ipc::endpoint(&format!("{tag}-{n}"));
+        let dir = shots_dir().join(format!("{tag}-{n}"));
         std::fs::create_dir_all(&dir).ok()?;
         let args: Vec<String> = vec![
             format!("--input-ipc-server={pipe}"),
@@ -214,7 +239,70 @@ mod imp {
         let (reader, writer) = tokio::io::split(client);
         let child: Process = Arc::new(StdMutex::new(child));
         RUNNING.locked().push((n, child.clone()));
-        let mut p = Probe { n, child, dir, reader: BufReader::new(reader), writer, next: 0, events: Vec::new() };
+        Some(Probe { n, child, dir, reader: BufReader::new(reader), writer, next: 0, shots: 0, events: Vec::new() })
+    }
+
+    /// The video's frame size, display size and black levels, once `url` is open.
+    struct Video {
+        full: (i64, i64),
+        display: (i64, i64),
+        levels: Levels,
+        duration: Option<f64>,
+    }
+
+    impl Probe {
+        /// Open `url` (sent with header `fields`), paused on its first frame.
+        async fn open(&mut self, url: &str, fields: &[String]) -> Option<Video> {
+            self.command(json!(["set_property", "http-header-fields", fields])).await?;
+            self.forget();
+            self.command(json!(["loadfile", url, "replace"])).await?;
+            // Paused, mpv still shows the first frame: then the video's size is known.
+            if self.event(&["playback-restart", "end-file"]).await? != "playback-restart" {
+                return None;
+            }
+            let duration = self.command(json!(["get_property", "duration"])).await.and_then(|d| d.as_f64());
+            let params = self.command(json!(["get_property", "video-params"])).await?;
+            let int = |k: &str| params.get(k).and_then(Value::as_i64).filter(|n| *n > 0);
+            let (full, display) = ((int("w")?, int("h")?), (int("dw")?, int("dh")?));
+            let levels = levels_for(params.get("gamma").and_then(Value::as_str));
+            Some(Video { full, display, levels, duration })
+        }
+
+        /// Seek (`how`: mpv's seek flags) and wait for the frame: `Ok(true)`
+        /// once it's there, `Ok(false)` if mpv refused the seek, `Err` once
+        /// the file has ended or mpv is gone.
+        async fn seek(&mut self, to: f64, how: &str) -> Result<bool, ()> {
+            self.forget();
+            if self.command(json!(["seek", to, how])).await.is_none() {
+                return Ok(false);
+            }
+            match self.event(&["playback-restart", "end-file"]).await.as_deref() {
+                Some("playback-restart") => Ok(true),
+                _ => Err(()),
+            }
+        }
+
+        /// Our detector's reading of the frame shown now, scaled to the
+        /// video's pixels: `Some(None)` for a black frame, `None` if no
+        /// screenshot came.
+        async fn reading(&mut self, video: &Video) -> Option<Option<Measured>> {
+            self.shots += 1;
+            let path = self.dir.join(format!("{}.png", self.shots));
+            self.command(json!(["screenshot-to-file", path.to_string_lossy(), "video"])).await?;
+            let bytes = tokio::fs::read(&path).await.ok();
+            let _ = tokio::fs::remove_file(&path).await;
+            let img = bytes.as_deref().and_then(decode_stored)?;
+            let shot = (img.w as i64, img.h as i64);
+            Some(detect(&img.frame(), video.levels).map(|m| m.scaled(shot, video.full)))
+        }
+    }
+
+    /// Open `url` in a probe and send a reading of each keyframe at
+    /// [`opening_points`], until done or `tx`'s receiver is gone. Starting
+    /// mpv isn't cut short (a process mid-start would be left running), so
+    /// the probe may outlast the load's wait by that much.
+    async fn probe(url: String, fields: Vec<String>, start: f64, tx: mpsc::UnboundedSender<Reading>) -> Option<()> {
+        let mut p = self::start("probe").await?;
         tokio::select! {
             done = measure(&mut p, url, fields, start, &tx) => done,
             () = tx.closed() => None,
@@ -228,39 +316,115 @@ mod imp {
         start: f64,
         tx: &mpsc::UnboundedSender<Reading>,
     ) -> Option<()> {
-        p.command(json!(["set_property", "http-header-fields", fields])).await?;
-        p.forget();
-        p.command(json!(["loadfile", url, "replace"])).await?;
-        // Paused, mpv still shows the first frame: then the video's size is known.
-        if p.event(&["playback-restart", "end-file"]).await? != "playback-restart" {
-            return None;
-        }
-        let duration = p.command(json!(["get_property", "duration"])).await.and_then(|d| d.as_f64());
-        let params = p.command(json!(["get_property", "video-params"])).await?;
-        let int = |k: &str| params.get(k).and_then(Value::as_i64).filter(|n| *n > 0);
-        let (full, display) = ((int("w")?, int("h")?), (int("dw")?, int("dh")?));
-        let levels = levels_for(params.get("gamma").and_then(Value::as_str));
-
-        for (i, t) in opening_points(duration, start).into_iter().enumerate() {
-            p.forget();
-            if p.command(json!(["seek", t, "absolute+keyframes"])).await.is_none() {
+        let video = p.open(&url, &fields).await?;
+        for t in opening_points(video.duration, start) {
+            if !p.seek(t, "absolute+keyframes").await.ok()? {
                 continue;
             }
-            if p.event(&["playback-restart", "end-file"]).await? != "playback-restart" {
-                return None;
+            let Some(measured) = p.reading(&video).await else { continue };
+            tx.send((video.full, video.display, measured)).ok()?;
+        }
+        Some(())
+    }
+
+    /// The lookahead's first step forward from a keyframe, in seconds:
+    /// small, so it doesn't jump past the next keyframe, and doubled up to
+    /// [`MAX_STEP`] while mpv lands on the same one again.
+    const STEP: f64 = 0.1;
+    const MAX_STEP: f64 = 12.8;
+
+    /// Whether the lookahead of autocrop run `run` and `load` should go on.
+    fn wanted(app: &AppHandle, run: u64, load: u64) -> bool {
+        let mpv = &app.state::<AppState>().mpv;
+        let tune = *mpv.tuned.locked();
+        tune.autocrop
+            && tune.lookahead
+            && mpv.loads.load(Ordering::SeqCst) == load
+            && mpv.crop_events.locked().as_ref().is_some_and(|(r, _)| *r == run)
+    }
+
+    pub(super) async fn ahead(app: AppHandle, run: u64, load: u64, url: String, fields: Vec<String>, bars: (i64, i64)) {
+        let _ = read_ahead(&app, run, load, &url, &fields, bars).await;
+        let mpv = &app.state::<AppState>().mpv;
+        let mut slot = mpv.ahead.locked();
+        if mpv.loads.load(Ordering::SeqCst) == load {
+            *slot = None;
+        }
+    }
+
+    /// The probe follows the playhead: from the keyframe at or before it,
+    /// keyframe by keyframe up to [`AHEAD_SECS`](polar_player::lookahead::AHEAD_SECS)
+    /// ahead, and from the new place after a seek (back, or past what it
+    /// read). Live streams (no duration) have nothing ahead to read.
+    async fn read_ahead(
+        app: &AppHandle,
+        run: u64,
+        load: u64,
+        url: &str,
+        fields: &[String],
+        bars: (i64, i64),
+    ) -> Option<()> {
+        let mut p = self::start("ahead").await?;
+        let video = p.open(url, fields).await?;
+        video.duration?;
+        let mpv = &app.state::<AppState>().mpv;
+        *mpv.ahead.locked() = Some(Schedule::new(load, video.full, bars));
+        let mut last_head = f64::NAN;
+        let mut step = STEP;
+        let mut led = false;
+        while wanted(app, run, load) {
+            let head = f64::from_bits(mpv.playhead.load(Ordering::SeqCst));
+            if !head.is_finite() {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                continue;
             }
-            let path = p.dir.join(format!("{i}.png"));
-            let measured = match p.command(json!(["screenshot-to-file", path.to_string_lossy(), "video"])).await {
-                Some(_) => {
-                    let bytes = tokio::fs::read(&path).await.ok();
-                    let _ = tokio::fs::remove_file(&path).await;
-                    let Some(img) = bytes.as_deref().and_then(decode_stored) else { continue };
-                    let shot = (img.w as i64, img.h as i64);
-                    detect(&img.frame(), levels).map(|m| m.scaled(shot, full))
+            let (read, more) = mpv.ahead.locked().as_ref().map(|s| (s.read_to(), s.wants_more(head)))?;
+            // A seek moves the playhead back, or on by more than playing
+            // would; and once the reading led, the playhead passing it means
+            // the same (or reading too slowly): start again from there.
+            let jumped = head < last_head - 1.0 || head > last_head + 10.0;
+            let seeked = jumped || (led && read.is_some_and(|r| head > r + 1.0));
+            last_head = head;
+            let fresh = read.is_none() || seeked;
+            if fresh {
+                led = false;
+            }
+            let landed = if fresh {
+                if seeked {
+                    mpv.ahead.locked().as_mut()?.restart();
                 }
-                None => continue,
+                p.seek(head, "absolute+keyframes").await.ok()?
+            } else if more {
+                p.seek(step, "relative+keyframes").await.ok()?
+            } else {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                continue;
             };
-            tx.send((full, display, measured)).ok()?;
+            if !landed {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                continue;
+            }
+            let Some(pts) = p.command(json!(["get_property", "time-pos"])).await.and_then(|t| t.as_f64()) else {
+                continue;
+            };
+            if !fresh && read.is_some_and(|r| pts <= r + PTS_SLACK) {
+                // The same keyframe again: step further, or wait at the end of the index.
+                if step >= MAX_STEP {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                step = (step * 2.0).min(MAX_STEP);
+                continue;
+            }
+            step = STEP;
+            led |= pts >= head;
+            let Some(measured) = p.reading(&video).await else { continue };
+            let mut slot = mpv.ahead.locked();
+            let s = slot.as_mut()?;
+            s.keyframe(load, pts, measured);
+            if fresh && pts < head {
+                // Shown before the playhead got here: what it changed is the live tracker's.
+                s.take(load, head);
+            }
         }
         Some(())
     }

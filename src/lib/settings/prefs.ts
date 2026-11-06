@@ -52,6 +52,8 @@ export interface Prefs {
   deband: boolean;
   /** mpv: crop black bars burnt into the picture, so it fills wide screens. */
   autocrop: boolean;
+  /** mpv, with autocrop: read ahead so a change of bars lands on the cut. */
+  autocropLookahead: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
   /** Keep the last few searches. */
@@ -125,6 +127,7 @@ const DEFAULTS: Prefs = {
   hwdec: true,
   deband: false,
   autocrop: false,
+  autocropLookahead: true,
   buffer: "normal",
   saveRecentSearches: true,
   searchSuggestions: true,

@@ -21,6 +21,14 @@ pub struct Tune {
     /// file), so it fills a wide screen. See [`crate::crop`].
     #[serde(default)]
     pub autocrop: bool,
+    /// With autocrop: read keyframes ahead of the playhead so a change of
+    /// bars lands on the cut (docs/autocrop.md §4).
+    #[serde(default = "on")]
+    pub lookahead: bool,
+}
+
+fn on() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Copy, serde::Deserialize, PartialEq)]
@@ -41,6 +49,7 @@ impl Default for Tune {
             deband: false,
             buffer: BufferSize::Normal,
             autocrop: false,
+            lookahead: true,
         }
     }
 }
@@ -91,10 +100,19 @@ mod tests {
             deband: false,
             buffer: BufferSize::Large,
             autocrop: false,
+            lookahead: true,
         };
         assert!(t.audio_filters().starts_with("lavfi=[pan=stereo") && t.audio_filters().contains("dynaudnorm"));
         let off = Tune { dialogue_boost: false, volume_leveling: false, ..t };
         assert_eq!(off.audio_filters(), "");
         assert_eq!(t.cache(), (300, "768MiB"));
+    }
+
+    #[test]
+    fn lookahead_is_on_unless_sent_off() {
+        let page = r#"{"dialogueBoost":false,"volumeLeveling":false,"hwdec":true,"deband":false,"buffer":"normal","autocrop":true}"#;
+        assert!(serde_json::from_str::<Tune>(page).unwrap().lookahead);
+        let off = page.replace('}', r#","lookahead":false}"#);
+        assert!(!serde_json::from_str::<Tune>(&off).unwrap().lookahead);
     }
 }

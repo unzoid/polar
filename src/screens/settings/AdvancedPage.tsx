@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Reset } from "../../components/icons";
 import { api } from "../../lib/api";
 import { keys } from "../../lib/net";
-import { resetPrefs } from "../../lib/settings";
+import { resetPrefs, usePrefs } from "../../lib/settings";
 import { Button } from "../../components/ui/Button";
 import { errorMessage } from "../../lib/errors";
 import { Card, ExpandRow, useExpanded, type Expandable } from "../../components/settings/rows";
@@ -10,6 +10,7 @@ import { SettingRow } from "../../components/settings/SettingRow";
 
 export function AdvancedPage() {
   const expand = useExpanded();
+  const { autocrop } = usePrefs();
   const { data: hasMpv } = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
   return (
     <>
@@ -20,6 +21,7 @@ export function AdvancedPage() {
         <SettingRow id="hwdec" disabled={hasMpv === false} />
         <SettingRow id="deband" disabled={hasMpv === false} />
         <SettingRow id="autocrop" disabled={hasMpv === false} />
+        <SettingRow id="autocropLookahead" disabled={hasMpv === false || !autocrop} />
         <SettingRow id="buffer" />
       </Card>
       <Card title="Reset">

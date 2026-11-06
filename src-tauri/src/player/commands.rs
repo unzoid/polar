@@ -65,9 +65,11 @@ pub async fn mpv_load(
     }
     // A new file is measured afresh (autocrop): drop the last one's crop.
     let load = state.mpv.loads.fetch_add(1, Ordering::SeqCst) + 1;
+    state.mpv.playhead.store(f64::NAN.to_bits(), Ordering::SeqCst);
     state.mpv.request(json!(["set_property", "video-zoom", 0])).await.ok();
     // The add-on's headers for this source, or none left over from the last one.
     let fields = polar_player::headers::mpv_fields(&headers);
+    *state.mpv.source.locked() = Some((load, url.clone(), fields.clone()));
     // Autocrop: probe the opening while this load buffers, and start paused
     // until the probe is done or out of time (docs/autocrop.md §3).
     let probe = state.mpv.tuned.locked().autocrop.then(|| {

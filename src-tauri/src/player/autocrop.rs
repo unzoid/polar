@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
-use super::preroll::Opening;
+use super::preroll::{ahead, Opening};
 use super::Mpv;
 use crate::locks::Locked;
 use crate::AppState;
@@ -28,17 +28,21 @@ struct CropGeometry {
     window: (i64, i64),
     /// The cropdetect filter this video needs ([`cropdetect_for`]).
     filter: &'static str,
+    /// How long a frame lasts, in seconds (1/24 when mpv doesn't say).
+    frame: f64,
 }
 
 async fn crop_geometry(mpv: &Mpv) -> Option<CropGeometry> {
     let params = mpv.request(json!(["get_property", "video-params"])).await.ok()?;
     let osd = mpv.request(json!(["get_property", "osd-dimensions"])).await.ok()?;
+    let fps = mpv.request(json!(["get_property", "container-fps"])).await.ok().and_then(|f| f.as_f64());
     let int = |v: &Value, k: &str| v.get(k).and_then(Value::as_i64).filter(|n| *n > 0);
     Some(CropGeometry {
         size: (int(&params, "w")?, int(&params, "h")?),
         display: (int(&params, "dw")?, int(&params, "dh")?),
         window: (int(&osd, "w")?, int(&osd, "h")?),
         filter: cropdetect_for(params.get("gamma").and_then(Value::as_str)),
+        frame: 1.0 / fps.filter(|f| (1.0..=300.0).contains(f)).unwrap_or(24.0),
     })
 }
 
@@ -49,7 +53,9 @@ async fn crop_geometry(mpv: &Mpv) -> Option<CropGeometry> {
 /// switch the tracker believes on the frame it happens (readings run a
 /// frame ahead of the screen, as mpv filters a frame before showing it, so
 /// it lands on the cut) and for bars the film animates, eased (ease-out)
-/// for one believed a few frames late. While paused
+/// for one believed a few frames late. A change the lookahead
+/// ([`preroll::ahead`](super::preroll::ahead)) scheduled goes to the tracker
+/// as a cut on the frame it's due, ahead of that frame's reading. While paused
 /// no frames come and nothing changes, except finishing a move and keeping
 /// the zoom right for the window.
 pub(super) async fn autocrop(app: AppHandle, run: u64) {
@@ -86,14 +92,17 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
                 reading = cropdetect_reading(&data);
                 continue;
             }
-            Ok(Some((id, data))) if id == frame_id => data.is_number(),
+            Ok(Some((id, data))) if id == frame_id => data.as_f64(),
             Ok(Some(_)) => continue,
-            Err(_) => false, // nothing for 500 ms: paused
+            Err(_) => None, // nothing for 500 ms: paused
         };
         let load = mpv.loads.load(Ordering::SeqCst);
         // The window changes size (fullscreen) and the video rarely does:
         // re-read them 4 times a second, and on every idle tick.
-        if !frame || geometry.is_none_or(|(_, at)| at.elapsed() >= Duration::from_millis(250)) {
+        if let Some(t) = frame {
+            mpv.playhead.store(t.to_bits(), Ordering::SeqCst);
+        }
+        if frame.is_none() || geometry.is_none_or(|(_, at)| at.elapsed() >= Duration::from_millis(250)) {
             geometry = crop_geometry(mpv).await.map(|g| (g, Instant::now()));
         }
         let Some((g, _)) = geometry else {
@@ -113,23 +122,36 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
         }
         // The pre-roll probe's opening bars: wait for them (the load is
         // paused meanwhile), then start this load's tracker with them.
+        // Then the lookahead starts from those bars.
         if opened != load {
-            let mut slot = mpv.opening.locked();
-            match *slot {
-                Some(Opening::Probing(l)) if l == load => continue,
-                Some(Opening::Ready { load: l, full, bars }) if l == load => {
-                    tracker.open(load, full, bars);
-                    *slot = None;
-                    opened = load;
+            let bars = {
+                let mut slot = mpv.opening.locked();
+                match *slot {
+                    Some(Opening::Probing(l)) if l == load => continue,
+                    Some(Opening::Ready { load: l, full, bars }) if l == load => {
+                        tracker.open(load, full, bars);
+                        *slot = None;
+                        bars
+                    }
+                    _ => (0, 0),
                 }
-                _ => opened = load,
+            };
+            opened = load;
+            let source = mpv.source.locked().clone().filter(|(l, ..)| *l == load);
+            if let Some((_, url, fields)) = source.filter(|_| mpv.tuned.locked().lookahead) {
+                tauri::async_runtime::spawn(ahead(app.clone(), run, load, url, fields, bars));
             }
         }
-        if frame {
+        if let Some(t) = frame {
+            // The reading is of the next frame (mpv filters one ahead): so is the change.
+            let due = mpv.ahead.locked().as_mut().and_then(|s| s.take(load, t + g.frame));
+            if let Some(change) = due {
+                tracker.cut(load, g.size, change.bars);
+            }
             tracker.update(load, g.size, g.display, reading);
         }
         let target = zoom_for(tracker.bars(load), g.size, g.display, g.window);
-        let at_once = frame && tracker.on_cut();
+        let at_once = frame.is_some() && tracker.on_cut();
         if let Some(z) = zoom.next(load, g.window, target, at_once, clock.elapsed().as_secs_f64()) {
             if mpv.request(json!(["set_property", "video-zoom", z])).await.is_err() {
                 zoom.unsent();

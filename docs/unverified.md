@@ -419,6 +419,21 @@ against a real project.
   - HDR: whether software screenshots of PQ video are tone-mapped enough for the HDR levels to read the bars.
 - macOS has no probe yet (libmpv in the app, no second instance): films start uncropped there, as before.
 
+## Autocrop lookahead (docs/autocrop.md §4)
+
+- `lookahead::Schedule` and its hand-over to `CropTracker::cut` are tested in `crates/player`; the engine side
+  (`preroll::ahead`, a second probe that follows the playhead, and `take` per frame in the autocrop loop) only
+  type-checks here. To check on the Windows build with autocrop and "Look ahead for bar changes" on:
+  - that the probe's `seek 0.1 relative+keyframes` (doubled while it lands on the same keyframe) steps keyframe
+    by keyframe, and stays about 60 s ahead of the playhead (a scope film with an IMAX sequence: the crop
+    should jump on the cut frame into and out of it);
+  - frame-exact landing, with `--video-sync=display-resample` and without (§4);
+  - that it starts again after a seek back, a seek forward and a pause; that its mpv (`ahead-N`) is gone after
+    the next load, after switching it off, and when the app closes;
+  - cost, 10 minutes each on a 10 Mbit/s MKV and an HLS stream: extra bytes (the probe's `raw-input-rate`),
+    the probe's CPU time against playback alone. Then the defaults per device (§7).
+- Switching the lookahead on mid-file takes effect from the next file; macOS has no lookahead (no probe).
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The

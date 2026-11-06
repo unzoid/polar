@@ -7,7 +7,8 @@ animated bars (§5, `CropTracker::following`), eased moves (§6, `motion::Glide`
 and eases late changes, still with cropdetect's readings, which give no crisp edges. The
 pre-roll probe (§3) is wired in the desktop engine (`src-tauri/src/player/preroll.rs`) for
 mpv as its own process (Windows), not yet for libmpv in the app (macOS); it type-checks here and is untested with a real mpv
-(docs/unverified.md). Designed here and waiting on the engine work: the lookahead (§4).
+(docs/unverified.md). The lookahead (§4) is wired there too, by range requests from a second
+probe (way 2), untested with a real mpv and not yet measured.
 The aim is crop changes the viewer doesn't notice: a change on a cut jumps on the cut frame,
 and ease-out is the default for the rest.
 
@@ -121,7 +122,7 @@ defaults per device class.
 extra bytes received (from mpv's `raw-input-rate` on both instances), probe CPU time (process
 CPU against playback alone), on phones battery drain over 30 minutes against the same run
 without lookahead (Android `BatteryManager`, iOS `UIDevice.batteryLevel`), and how many crop
-changes landed on the cut frame. The lookahead gets its own setting (Settings → Player, under
+changes landed on the cut frame. The lookahead gets its own setting (Settings → Advanced, under
 Autocrop: "Look ahead for bar changes"), on by default where the measured cost is small, off by
 default on phones on mobile data if it isn't.
 
@@ -139,8 +140,18 @@ due change to `CropTracker::cut` before that frame's reading, so `on_cut` is tru
 jumps. A change believed only after its frame was shown is dropped, never applied late; an axis
 whose bars the frame before already had is left alone (they changed between keyframes); picture
 in the new bars still un-crops on the next reading. `restart` after a seek; `wants_more` keeps
-the reading within `AHEAD_SECS` (60 s, inside mpv's 90 s cache). The engine side (reading
-keyframes from the dump or by range requests) and the measurements are still to do.
+the reading within `AHEAD_SECS` (60 s, inside mpv's 90 s cache).
+
+**In the desktop engine** (`src-tauri/src/player/preroll.rs`, `ahead`): way 2 first, as it
+needs nothing of the main player's cache. Once a load has its opening bars, the autocrop loop
+starts a second probe (same options as §3) that seeks to the keyframe at or before the
+playhead, then steps `seek 0.1 relative+keyframes` (doubling the step while mpv lands on the
+same keyframe), reads each keyframe with our detector and feeds `Schedule`. It waits while
+`AHEAD_SECS` are read, starts again after a seek (the playhead moves back, jumps on, or passes
+what was read), and stops with the next load, with autocrop or with its setting (Settings →
+Advanced, "Look ahead for bar changes", on by default). The autocrop loop hands `take(pts of the
+next frame)` (`container-fps`) to `CropTracker::cut` before that frame's reading. Live streams
+(no duration) get no lookahead. Way 1 (the dump) and the measurements are still to do.
 
 ## 5. Animated bars: follow the picture
 
@@ -199,8 +210,8 @@ past those two:
 
 - a change the lookahead missed, or one that falls between keyframes, so it is only seen live
   a few frames late;
-- no lookahead: switched off (phones, §4), or not built yet (the desktop today: every change
-  cropdetect believes after 2, 4 or 12 frames is late and eased);
+- no lookahead: switched off (phones, §4, or the setting), a live stream, or macOS (no probe):
+  every change cropdetect believes after 2, 4 or 12 frames is late and eased;
 - right after a seek, before the lookahead has caught up;
 - above all, the detector correcting its own misread: a dark or fading shot read as wider
   bars, then the picture lighting up again.

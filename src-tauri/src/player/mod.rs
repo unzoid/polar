@@ -48,6 +48,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use autocrop::CROP_OBSERVE_BASE;
 use ipc::Stream as IpcStream;
 
+use polar_player::lookahead::Schedule;
 use polar_player::tune::Tune;
 
 use crate::locks::Locked;
@@ -163,6 +164,13 @@ pub struct Mpv {
     /// The current load's opening crop from the pre-roll probe, for the
     /// autocrop loop to start its tracker with.
     opening: StdMutex<Option<preroll::Opening>>,
+    /// The current load's link and header fields, for the lookahead's probe.
+    source: StdMutex<Option<(u64, String, Vec<String>)>>,
+    /// The lookahead's bar changes ahead of the playhead (docs/autocrop.md §4).
+    ahead: StdMutex<Option<Schedule>>,
+    /// The `time-pos` of the frame shown last, as `f64` bits (NaN: none
+    /// yet this load), from the autocrop loop for the lookahead.
+    playhead: AtomicU64,
     /// The running mpv process, also held by its `Conn`; see [`Mpv::kill`].
     process: StdMutex<Option<Process>>,
 }
