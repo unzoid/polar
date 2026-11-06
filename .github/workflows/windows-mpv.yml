@@ -174,3 +174,12 @@ jobs:
             windows-mpv/out/polarity-windows-mpv-sources.tar
           compression-level: 0
           retention-days: 90
+      # Just the player and its licence texts, for dev builds (fetch-mpv.ts --dev, #186): a tenth of
+      # the full one, which is mostly the source archive only releases need.
+      - name: Keep mpv.exe on its own
+        if: github.ref == 'refs/heads/master' || steps.built.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-mpv-bin-${{ steps.version.outputs.key }}
+          path: windows-mpv/out/mpv
+          retention-days: 90

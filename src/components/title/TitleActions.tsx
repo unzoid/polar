@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { PlayRequest } from "../../lib/playback";
-import type { MetaPreview, Video } from "../../lib/types";
+import type { MetaPreview } from "../../lib/types";
 import { DownloadButton } from "../DownloadButton";
 import { Play, Reset, Sources, Trailer } from "../icons";
 import { PlaylistButton } from "../Playlists";
@@ -27,11 +27,9 @@ export type TitleActionsProps = {
   onTrailer?: () => void;
   /** Shows the Library button for this item. */
   item?: MetaPreview;
-  /** With `item`: also the playlist and download buttons. */
+  /** With `item`: also the playlist and (a movie's) download buttons. A show's downloads live with its episodes. */
   playlist?: boolean;
   download?: boolean;
-  /** A show's download: the episode Play would play (test report 1, item 18). */
-  downloadVideo?: Video;
   /** Trailing buttons of the page's own (the backdrop trailer's mute). */
   children?: ReactNode;
 };
@@ -53,7 +51,6 @@ export function TitleActions({
   item,
   playlist,
   download,
-  downloadVideo,
   children,
 }: TitleActionsProps) {
   // A phone: Play across the width, then one row of round buttons under it, each glyph alone
@@ -89,7 +86,7 @@ export function TitleActions({
       <IconButton variant="glass" disabled={!request} onClick={() => request && picker.choose(request)} label="Choose source" title="Choose source">
         <Sources size={19} />
       </IconButton>
-      {item && (download || downloadVideo) && <DownloadButton key={downloadVideo?.id} item={item} video={downloadVideo} labelled={!phone} />}
+      {item && download && <DownloadButton item={item} labelled={!phone} />}
       {children}
     </div>
   );

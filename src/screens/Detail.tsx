@@ -78,7 +78,7 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
         onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
       >
         {phone && art}
-        <DetailHero item={shown} meta={meta} onSheet={onSheet} trailer={trailer} phone={phone} />
+        <DetailHero item={shown} meta={meta} onSheet={onSheet} trailer={trailer} />
         {type === "series" && meta && <SeriesBody meta={meta} onSheet={onSheet} />}
         {type === "movie" && meta && (
           <section className="about">
@@ -98,13 +98,11 @@ function DetailHero({
   meta,
   onSheet,
   trailer,
-  phone,
 }: {
   item: MetaPreview;
   meta?: Meta;
   onSheet: (open: boolean) => void;
   trailer: { visible: boolean; muted: boolean; toggleMute: () => void };
-  phone: boolean;
 }) {
   const picker = useSourcePicker(onSheet);
 
@@ -147,10 +145,7 @@ function DetailHero({
           item={item}
           playlist
           download={item.type === "movie"}
-          downloadVideo={isSeries && next?.video && isReleased(next.video) ? next.video : undefined}
         >
-          {/* A phone downloads a whole season from the season bar below; here it was a second wide pill. */}
-          {isSeries && meta && !phone && <BatchDownload item={meta} videos={downloadableEpisodes(meta.videos)} />}
           {trailer.visible && (
             <IconButton
               variant="glass"

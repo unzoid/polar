@@ -28,6 +28,7 @@ export function useSkipSegments({
   videoId,
   started,
   autoSkip,
+  autoSkipDelay,
   media,
   preferFile,
   seekTo,
@@ -38,6 +39,8 @@ export function useSkipSegments({
   started: boolean;
   /** Which segments to skip without asking (Settings → Playback). */
   autoSkip: { intro: boolean; recap: boolean };
+  /** Seconds the skip button counts down before an auto-skip; 0 = at once. */
+  autoSkipDelay: number;
   /** The playhead, and where the file's own chapters come from (mpv only). */
   media: MediaLike | null;
   /** Trust the file's chapter names over IntroDB where it has them. */
@@ -95,22 +98,41 @@ export function useSkipSegments({
   );
 
   // Auto-skip intros and recaps (never credits: those lead into "Up next").
+  // With a delay, the skip button counts down first (its fill) and the skip
+  // lands when that runs out; pressing it, or leaving the segment, ends it.
   const skipIntro = autoSkip.intro;
   const skipRecap = autoSkip.recap;
+  const [counting, setCounting] = useState<string | null>(null);
+  const key = active ? `${active.kind}@${active.span.start}` : null;
+  const autoLabel = active?.kind === "intro" ? "Intro skipped" : "Recap skipped";
   useEffect(() => {
-    if (!started || !active || active.kind === "credits") return;
+    if (!started || !active || !key || active.kind === "credits") return;
     if (!(active.kind === "intro" ? skipIntro : skipRecap)) return;
-    const key = `${active.kind}@${active.span.start}`;
     if (autoSkipped.current.has(key)) return;
     autoSkipped.current.add(key);
+    if (autoSkipDelay > 0) return setCounting(key);
     skipTo(active);
-    onAutoSkipped(active.kind === "intro" ? "Intro skipped" : "Recap skipped");
-  }, [skipIntro, skipRecap, started, active, skipTo, onAutoSkipped]);
+    onAutoSkipped(autoLabel);
+  }, [skipIntro, skipRecap, started, active, key, autoSkipDelay, autoLabel, skipTo, onAutoSkipped]);
+
+  const countdown = key && counting === key ? autoSkipDelay : 0;
+  const finishCountdown = useCallback(() => {
+    if (!countdown) return;
+    setCounting(null);
+    skipTo(active);
+    onAutoSkipped(autoLabel);
+  }, [countdown, active, autoLabel, skipTo, onAutoSkipped]);
 
   return {
     segments,
     active,
-    skipActive: useCallback(() => skipTo(active), [skipTo, active]),
+    /** Seconds the button counts down before skipping on its own, or 0. */
+    countdown,
+    finishCountdown,
+    skipActive: useCallback(() => {
+      setCounting(null);
+      skipTo(active);
+    }, [skipTo, active]),
   };
 }
 
@@ -177,11 +199,19 @@ export function SkipButton({
   active,
   onSkip,
   chromeVisible,
+  countdown = 0,
+  paused = false,
+  onCountdownEnd,
   glyph,
 }: {
   active: ActiveSkip | null;
   onSkip: () => void;
   chromeVisible: boolean;
+  /** Seconds until it skips on its own: the button fills left to right meanwhile (0 = no countdown). */
+  countdown?: number;
+  /** Playback paused: the countdown holds where it is. */
+  paused?: boolean;
+  onCountdownEnd?: () => void;
   /** The controller button that skips (TV mode), shown in place of the icon. */
   glyph?: ReactNode;
 }) {
@@ -199,7 +229,8 @@ export function SkipButton({
     const t = setTimeout(() => setAlone(null), SKIP_ALONE_MS);
     return () => clearTimeout(t);
   }, [segment]);
-  const visible = !!active && (chromeVisible || alone === segment);
+  // A running countdown keeps it up: the skip it announces mustn't happen unseen.
+  const visible = !!active && (chromeVisible || alone === segment || countdown > 0);
   // Skipped, ended or hidden with focus on it: focus goes back to the player, its keys keep working.
   const button = useRef<HTMLButtonElement>(null);
   useHandFocus(button, !visible);
@@ -219,6 +250,18 @@ export function SkipButton({
       }}
       title={withShortcut("Skip", "skip")}
     >
+      {countdown > 0 && (
+        // CSS times it (linear, holds while paused); its end is the skip. Keyed per
+        // segment so a new countdown starts from empty.
+        <span
+          key={segment}
+          className="skip-countdown"
+          data-paused={paused}
+          style={{ animationDuration: `${countdown}s` }}
+          onAnimationEnd={onCountdownEnd}
+          aria-hidden
+        />
+      )}
       {shown?.label ?? "Skip"}
       {glyph ?? <SkipForward size={18} fill="currentColor" strokeWidth={2.25} />}
     </button>

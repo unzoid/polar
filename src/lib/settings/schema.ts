@@ -197,6 +197,16 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "autoSkipRecaps", page: "playback", title: "Skip recaps", keywords: "previously on auto skip recap" },
   {
+    id: "autoSkipDelay",
+    page: "playback",
+    title: "Wait before skipping",
+    caption: "The Skip button fills up for this long first, so you can still watch the intro",
+    keywords: "auto skip intro recap countdown timer delay seconds",
+    bind: p("autoSkipDelay"),
+    control: { kind: "number", min: 0, max: 15, unit: "sec", zero: "Don't wait" },
+    tv: "Skip Countdown",
+  },
+  {
     id: "preferFileChapters",
     page: "playback",
     title: "Use the file's own chapters for intros",

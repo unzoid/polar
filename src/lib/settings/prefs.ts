@@ -36,6 +36,8 @@ export interface Prefs {
   padPlayerVolume: boolean;
   /** Take intro, recap and credits from the file's own chapters before IntroDB. */
   preferFileChapters: boolean;
+  /** Seconds the Skip button counts down before an automatic intro or recap skip; 0 = skip at once. */
+  autoSkipDelay: number;
 
   // This machine's screen, speakers and GPU:
   /** Interface zoom, 1 = 100%. */
@@ -140,6 +142,7 @@ const DEFAULTS: Prefs = {
   padRepeat: "normal",
   padPlayerVolume: true,
   preferFileChapters: true,
+  autoSkipDelay: 5,
   uiScale: 1,
   pauseOnMinimize: false,
   discordPresence: "off",
@@ -204,6 +207,7 @@ export function readPrefs(v: unknown): Partial<Prefs> {
 /** The ones that follow the profile rather than the machine (account/settingsSync.ts). */
 export const SYNCED_PREFS = [
   "preferFileChapters",
+  "autoSkipDelay",
   "saveRecentSearches",
   "searchSuggestions",
   "matureContent",
