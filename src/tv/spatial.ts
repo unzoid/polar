@@ -168,7 +168,12 @@ export function nearest(from: HTMLElement, candidates: HTMLElement[], dir: Dir, 
   return nearestOf(from, candidates, dir, accept);
 }
 
-function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir, accept?: (el: HTMLElement, box: DOMRect) => boolean) {
+function nearestOf(
+  from: HTMLElement,
+  candidates: HTMLElement[],
+  dir: Dir,
+  accept?: (el: HTMLElement, box: DOMRect) => boolean,
+): HTMLElement | null {
   const a = from.getBoundingClientRect();
   const horizontal = dir === "left" || dir === "right";
   // At the end of a shelf (or the navbar), left/right stops — it never jumps to another row.
@@ -184,6 +189,47 @@ function nearestOf(from: HTMLElement, candidates: HTMLElement[], dir: Dir, accep
       bestScore = s;
       best = el;
     }
+  }
+  return horizontal || !best ? best : adjacentRow(from, best, candidates, dir, accept);
+}
+
+/**
+ * Up or down to a card in another shelf (`data-nav-row`) lands in the shelf next to this one, on its
+ * nearest card (#42): the sideways cost in score() would otherwise let a further shelf whose cards
+ * line up beat a shorter one in between. Shelves nearer than the winner's are tried nearest first;
+ * one with nothing `accept` takes is passed over.
+ */
+function adjacentRow(
+  from: HTMLElement,
+  best: HTMLElement,
+  candidates: HTMLElement[],
+  dir: Dir,
+  accept?: (el: HTMLElement, box: DOMRect) => boolean,
+): HTMLElement | null {
+  const bestRow = best.closest("[data-nav-row]");
+  if (!bestRow || bestRow.contains(from)) return best;
+  const a = from.getBoundingClientRect();
+  const distance = (row: Element) => {
+    const r = row.getBoundingClientRect();
+    if (dir === "down") return r.top >= (a.top + a.bottom) / 2 ? r.top - a.bottom : Infinity;
+    return r.bottom <= (a.top + a.bottom) / 2 ? a.top - r.bottom : Infinity;
+  };
+  const limit = distance(bestRow);
+  // Each shelf's box is read once; null: not nearer than the winner's.
+  const nearer = new Map<Element, { distance: number; cards: HTMLElement[] } | null>();
+  for (const el of candidates) {
+    const row = el.closest("[data-nav-row]");
+    if (!row || row === bestRow || row.contains(from)) continue;
+    if (!nearer.has(row)) {
+      const d = distance(row);
+      nearer.set(row, d < limit ? { distance: d, cards: [] } : null);
+    }
+    nearer.get(row)?.cards.push(el);
+  }
+  const rows = [...nearer.values()].filter((r) => r !== null).sort((x, y) => x.distance - y.distance);
+  for (const row of rows) {
+    const hit = nearestOf(from, row.cards, dir, accept);
+    if (hit) return hit;
   }
   return best;
 }

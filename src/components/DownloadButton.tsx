@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   downloadFraction,
-  localStream,
   canRevealDownloads,
   pauseDownload,
   removeDownload,
@@ -13,9 +12,9 @@ import {
   type Download as DownloadRecord,
 } from "../lib/library";
 import { episodeCode } from "../lib/format";
-import { useRouter } from "../lib/router";
 import type { MetaPreview, Video } from "../lib/types";
-import { AlertCircle, Download, Folder, Pause, Play, Reset, Trash } from "./icons";
+import { useConfirmDelete, TrashLid } from "./ConfirmDeleteButton";
+import { AlertCircle, Download, Folder, Pause, Reset, Trash } from "./icons";
 import { Sheet } from "./Sheet";
 import { Spinner } from "./Spinner";
 import { StreamList } from "./StreamList";
@@ -25,9 +24,11 @@ import { MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger }
 /**
  * The download control, as on Netflix and Apple TV: an arrow to start; while
  * it's coming down, a ring that fills (a small square in the middle says
- * "tap to stop"); once it's here, a check. Starting asks which source, in the
- * same list as Sources, so you choose the quality and size you're saving.
- * Every other state opens a short menu - pause, resume, play, delete.
+ * "tap to stop"). Starting asks which source, in the same list as Sources, so
+ * you choose the quality and size you're saving. Once it's here: Show in Folder
+ * (desktop) and a two-step Delete side by side;
+ * playing it is the title's own Play, which picks the download first. Every
+ * other state opens a short menu - pause, resume, cancel.
  */
 export function DownloadButton({
   item,
@@ -97,6 +98,8 @@ export function DownloadButton({
         {glyph(failed ? <AlertCircle size={size} /> : <Download size={size} />)}
       </button>
     );
+  } else if (d.state === "done") {
+    control = <DownloadedActions d={d} className={className} size={size} />;
   } else {
     control = <DownloadMenu d={d} className={className} onRetry={() => setChoosing(true)} glyph={glyph(<DownloadGlyph d={d} size={size} />)} />;
   }
@@ -109,17 +112,44 @@ export function DownloadButton({
   );
 }
 
+/** A finished download: Show in Folder where there is a file manager, and Delete (click twice). */
+function DownloadedActions({ d, className, size }: { d: DownloadRecord; className: string; size: number }) {
+  const { armed, props } = useConfirmDelete(() => void removeDownload(d.id));
+  const what = d.episode != null ? "Episode" : "Movie";
+  return (
+    <>
+      {canRevealDownloads && (
+        <button
+          className={`${className} download-reveal`}
+          data-download="done"
+          onClick={() => void revealDownload(d.id)}
+          aria-label={`Show Downloaded ${what} in Folder`}
+          title="Show in Folder"
+        >
+          <Folder size={size} />
+        </button>
+      )}
+      <button
+        className={`${className} confirm-delete`}
+        data-download="done"
+        aria-label={armed ? `Click again to delete the downloaded ${what.toLowerCase()}` : `Delete Downloaded ${what}`}
+        title={armed ? "Click again to delete" : `Delete Download${d.quality ? ` (${d.quality})` : ""}`}
+        {...props}
+      >
+        <TrashLid size={size} />
+      </button>
+    </>
+  );
+}
+
 function DownloadMenu({ d, className, glyph, onRetry }: { d: DownloadRecord; className: string; glyph: ReactNode; onRetry: () => void }) {
-  const { navigate } = useRouter();
   const fraction = downloadFraction(d);
   const label =
-    d.state === "done"
-      ? "Downloaded"
-      : d.state === "failed"
-        ? `Download failed${d.error ? `: ${d.error}` : ""}`
-        : d.state === "paused"
-          ? `Download paused${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`
-          : `Downloading${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`;
+    d.state === "failed"
+      ? `Download failed${d.error ? `: ${d.error}` : ""}`
+      : d.state === "paused"
+        ? `Download paused${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`
+        : `Downloading${fraction != null ? `, ${Math.round(fraction * 100)}%` : ""}`;
 
   return (
     <MenuRoot modal={false}>
@@ -128,14 +158,6 @@ function DownloadMenu({ d, className, glyph, onRetry }: { d: DownloadRecord; cla
       </MenuTrigger>
       <MenuPopup side="bottom" align="center" sideOffset={8} collisionPadding={12} aria-label="Download">
         <MenuHeader title={label.split(":")[0]} detail={d.quality} />
-        {d.state === "done" && (
-          <MenuItem
-            icon={<Play fill="currentColor" />}
-            onClick={() => navigate({ name: "player", type: d.type, metaId: d.metaId, videoId: d.id, stream: localStream(d) })}
-          >
-            Play Download
-          </MenuItem>
-        )}
         {d.state === "downloading" && (
           <MenuItem icon={<Pause fill="currentColor" />} onClick={() => void pauseDownload(d.id)}>
             Pause Download
@@ -158,7 +180,7 @@ function DownloadMenu({ d, className, glyph, onRetry }: { d: DownloadRecord; cla
         )}
         <MenuSeparator />
         <MenuItem icon={<Trash />} onClick={() => void removeDownload(d.id)}>
-          {d.state === "done" ? "Delete Download" : "Cancel Download"}
+          Cancel Download
         </MenuItem>
       </MenuPopup>
     </MenuRoot>

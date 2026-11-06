@@ -3187,7 +3187,10 @@ dependencies = [
  "cc",
  "futures",
  "gilrs",
+ "jni 0.21.1",
  "keyring",
+ "libc",
+ "ndk-context",
  "polar-addon",
  "polar-anime",
  "polar-index",
@@ -3228,6 +3231,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

@@ -112,16 +112,7 @@ export const SETTINGS: SettingDef[] = [
   { id: "email", page: "account", title: "Email", keywords: "sign in address sync cloud" },
   { id: "profiles", page: "account", title: "Profiles", keywords: "switch who's watching" },
   { id: "manageProfiles", page: "account", title: "Manage profiles", keywords: "edit add remove avatar" },
-  {
-    id: "syncEpisodeHistory",
-    page: "account",
-    title: "Sync every episode",
-    caption: "Off: the account keeps where you are in each title. Needs a server set up for it",
-    keywords: "history progress episodes server database",
-    bind: p("syncEpisodeHistory"),
-    control: toggle,
-  },
-  { id: "syncSecrets", page: "account", title: "Sync API keys and addons", keywords: "encrypt encrypted passphrase keys addons secret" },
+  { id: "secrets", page: "account", title: "API keys and addons", keywords: "sync encrypt encrypted passphrase keys addons secret" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback
@@ -965,6 +956,25 @@ export const SETTINGS: SettingDef[] = [
     bind: p("autocrop"),
     control: toggle,
     tv: "Crop Black Bars",
+  },
+  {
+    id: "autocropLookahead",
+    page: "advanced",
+    title: "Look ahead for bar changes",
+    caption: "Reads a little of the video ahead, so a change of black bars happens exactly on the scene cut. Uses some extra data.",
+    keywords: "autocrop crop black bars lookahead scene cut",
+    bind: p("autocropLookahead"),
+    control: toggle,
+  },
+  {
+    id: "autocropEveryFrame",
+    page: "advanced",
+    title: "Check every frame for black bars",
+    caption:
+      "Reads every frame for bars, not only when they seem to change, so bars that move with the picture are followed exactly. For powerful computers: uses more CPU and writes about 150 MB a second to disk for 1080p video (600 MB for 4K).",
+    keywords: "autocrop crop black bars every frame detector cpu disk",
+    bind: p("autocropEveryFrame"),
+    control: toggle,
   },
   {
     id: "buffer",

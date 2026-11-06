@@ -116,23 +116,28 @@ function stripEmpty(s?: SkipSegments): Partial<SkipSegments> {
   return Object.fromEntries(Object.entries(s).filter(([, v]) => v != null)) as Partial<SkipSegments>;
 }
 
-const INTRO_NAME =/^(intro(duction)?|opening( credits| sequence| titles?)?|op\d*|title sequence|main titles?)$/i;
+const OPENING_NAME = /^(opening( credits| sequence| titles?)?|op\d*|title sequence|main titles?)$/i;
+/** Only the intro when nothing is named as the opening: anime releases often call the cold open "Intro". */
+const INTRO_NAME = /^intro(duction)?$/i;
 const RECAP_NAME = /^(recap|previously( on)?\b.*)$/i;
 const OUTRO_NAME = /^(outro|ending( credits)?|ed\d*|end credits|closing credits|credits)$/i;
 
 /** Intro, recap and credits as the file itself labels them: a chapter runs until the next one starts. */
 function segmentsFromChapters(chapters: MpvChapter[], duration: number): Partial<SkipSegments> {
   const out: Partial<SkipSegments> = {};
+  let opening: Span | undefined;
   chapters.forEach((c, i) => {
     const name = c.title?.trim().replace(/^\d+[.)\s-]+/, "").trim();
     if (!name) return;
     const end = chapters[i + 1]?.time ?? (Number.isFinite(duration) ? duration : NaN);
     if (!(end > c.time)) return;
     const span = { start: c.time, end };
-    if (!out.intro && INTRO_NAME.test(name)) out.intro = span;
-    else if (!out.recap && RECAP_NAME.test(name)) out.recap = span;
-    else if (!out.outro && OUTRO_NAME.test(name)) out.outro = span;
+    if (OPENING_NAME.test(name)) opening ??= span;
+    else if (INTRO_NAME.test(name)) out.intro ??= span;
+    else if (RECAP_NAME.test(name)) out.recap ??= span;
+    else if (OUTRO_NAME.test(name)) out.outro ??= span;
   });
+  if (opening) out.intro = opening;
   return out;
 }
 

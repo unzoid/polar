@@ -6,6 +6,7 @@ import { keys, useAddons } from "../../lib/net";
 import { errorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded } from "../../components/settings/rows";
+import { useSecretsNote } from "../../components/settings/secretsNote";
 
 const hintsTried = new Set<string>();
 
@@ -14,6 +15,7 @@ export function AddonsPage() {
   const { data: addons } = useAddons();
   const [url, setUrl] = useState("");
   const expand = useExpanded();
+  const note = useSecretsNote();
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: keys.addons });
@@ -41,7 +43,7 @@ export function AddonsPage() {
   return (
     <>
       {!!addons?.length && (
-        <Card title="Installed">
+        <Card title="Installed" footer={note}>
           {addons.map((a) => (
             <ExpandRow key={a.manifest.id} icon={Puzzle} title={a.manifest.name} {...expand(a.manifest.id)}>
               {a.manifest.description && <p className="settings-expand-text">{a.manifest.description}</p>}
@@ -64,7 +66,7 @@ export function AddonsPage() {
         </Card>
       )}
       {addons && !addons.length && (
-        <Card title="Installed">
+        <Card title="Installed" footer={note}>
           <p className="settings-card-pad settings-expand-text">No add-ons yet. Titles have no sources to play until you install one.</p>
         </Card>
       )}

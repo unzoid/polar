@@ -10,8 +10,9 @@ import { AccountError, type AccountBackend, type AccountUser, type Profile, type
 import { parsePresence } from "../party/messages";
 import { normalizeAvatar } from "./avatars";
 import { fromHex, toHex } from "../library/playlistCodec";
-import { decodeEntries, encodeEntries, newestAt, type ProgressEntry } from "./progressCodec";
+import { decodeEntries, encodeEntries, newestAt, type EntryToPack } from "./progressCodec";
 import { keychainStorage } from "../platform/keychain";
+import { warnFailed } from "../errors";
 
 const PAGE = 1000;
 /** Re-read a little before the cursor: rows committed out of order still arrive. */
@@ -20,13 +21,10 @@ const PULL_OVERLAP_MS = 10_000;
 const LIBRARY_COLUMNS = "meta_id, kind, added_at, updated_at, synced_at";
 const PROGRESS_COLUMNS = "meta_id, kind, entries, updated_at, synced_at";
 const LINK_COLUMNS = "anilist, canonical, mal, kitsu, updated_at, synced_at";
+/** How long the server's answer to "do you keep every episode?" holds before a push asks again. */
+const EVERY_EPISODE_TTL_MS = 10 * 60_000;
 
-export interface SupabaseOptions {
-  /** Push every changed episode, not only each title's newest (the server must run supabase/optional/per_episode_progress.sql). */
-  everyEpisode?: () => boolean;
-}
-
-export function createSupabaseBackend(url: string, key: string, options: SupabaseOptions = {}): AccountBackend {
+export function createSupabaseBackend(url: string, key: string): AccountBackend {
   const db = createClient(url, key, {
     auth: {
       persistSession: true,
@@ -39,6 +37,7 @@ export function createSupabaseBackend(url: string, key: string, options: Supabas
   });
 
   const toUser = (u: User): AccountUser => ({ id: u.id, email: u.email ?? "" });
+  const everyEpisode = serverKeepsEveryEpisode(async () => await db.rpc("polar_every_episode"));
 
   return {
     name: "supabase",
@@ -169,16 +168,18 @@ export function createSupabaseBackend(url: string, key: string, options: Supabas
           const { error } = await db.from("library").upsert(rows, { onConflict: "profile_id,meta_id" });
           if (error) throw dbError(error);
         }
-        for (const rows of chunks(toProgressRows(profileId, progress, options.everyEpisode?.() ?? false), 500)) {
+        const all = progress.length > 0 && (await everyEpisode());
+        const { rows: progressRows, unsent } = toProgressRows(profileId, progress, all);
+        for (const rows of chunks(progressRows, 500)) {
           const { error } = await db.from("progress").upsert(rows, { onConflict: "profile_id,meta_id" });
           if (error) throw dbError(error);
         }
         for (const rows of chunks(links.map((l) => toLinkRow(profileId, l)), 500)) {
           const { error } = await db.from("anime_links").upsert(rows, { onConflict: "profile_id,anilist" });
-          if (error && isMissingTable(error)) return { links: false };
+          if (error && isMissingTable(error)) return { links: false, unsent };
           if (error) throw dbError(error);
         }
-        return { links: true };
+        return { links: true, unsent };
       },
     },
 
@@ -313,16 +314,19 @@ const STARTED_S = 30;
  * Progress as `progress` rows, one per title. Unless `everyEpisode`, a row holds only the title's
  * newest entry watched past the start (what Continue Watching needs), so a few seconds of another
  * episode never take the place of the one being watched (test report 1, item 4); a title with no
- * such entry sends nothing. Other episodes stay on this device.
+ * such entry sends nothing. Other episodes stay on this device. A title whose entries can't be
+ * packed is left out and listed in `unsent`, so it never holds back the others (#94).
  */
 export function toProgressRows(profileId: string, progress: Progress[], everyEpisode: boolean) {
   const titles = new Map<string, Progress[]>();
   for (const p of progress) {
     if (everyEpisode || p.position > STARTED_S) titles.set(p.metaId, [...(titles.get(p.metaId) ?? []), p]);
   }
-  return [...titles].map(([metaId, list]) => {
+  const rows = [];
+  const unsent: string[] = [];
+  for (const [metaId, list] of titles) {
     const newest = list.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
-    const entries: ProgressEntry[] = (everyEpisode ? list : [newest]).map((p) => ({
+    const entries: EntryToPack[] = (everyEpisode ? list : [newest]).map((p) => ({
       videoId: p.videoId,
       season: p.season,
       episode: p.episode,
@@ -330,14 +334,20 @@ export function toProgressRows(profileId: string, progress: Progress[], everyEpi
       duration: p.duration,
       updatedAt: p.updatedAt,
     }));
-    return {
-      profile_id: profileId,
-      meta_id: metaId,
-      kind: newest.type === "series" ? SERIES : 0,
-      entries: toHex(encodeEntries(metaId, entries)),
-      updated_at: newestAt(entries),
-    };
-  });
+    try {
+      rows.push({
+        profile_id: profileId,
+        meta_id: metaId,
+        kind: newest.type === "series" ? SERIES : 0,
+        entries: toHex(encodeEntries(metaId, entries)),
+        updated_at: newestAt(entries),
+      });
+    } catch (e) {
+      warnFailed("sync: packing a title's progress")(e);
+      unsent.push(metaId);
+    }
+  }
+  return { rows, unsent };
 }
 
 /**
@@ -392,6 +402,31 @@ function* chunks<T>(items: T[], size: number) {
 
 /** A table this version expects hasn't been migrated onto the server yet. */
 const isMissingTable = (e: PostgrestError) => e.code === "PGRST205" || e.code === "42P01";
+const isMissingFunction = (e: { code: string }) => e.code === "PGRST202" || e.code === "42883";
+
+/**
+ * Whether the server keeps every episode: `polar_every_episode()` exists only while
+ * supabase/optional/per_episode_progress.sql is in (docs/supabase-storage.md §3.4), so upgrading or
+ * downgrading the database changes what every app sends within `ttl`, with no setting. An error
+ * other than a missing function keeps the last answer and asks again on the next push.
+ */
+export function serverKeepsEveryEpisode(
+  ask: () => Promise<{ data: unknown; error: { code: string } | null }>,
+  now = Date.now,
+  ttl = EVERY_EPISODE_TTL_MS,
+): () => Promise<boolean> {
+  let keeps = false;
+  let askedAt = -Infinity;
+  return async () => {
+    if (now() - askedAt < ttl) return keeps;
+    const { data, error } = await ask();
+    if (!error || isMissingFunction(error)) {
+      keeps = !error && data === true;
+      askedAt = now();
+    }
+    return keeps;
+  };
+}
 
 function authError(e: AuthError): AccountError {
   switch (e.code) {

@@ -1,7 +1,7 @@
 /**
- * API keys and add-on links sealed with a passphrase, for the `syncSecrets` option (off; docs/
- * supabase-storage.md §3.7). The account only ever holds the sealed text: without the passphrase,
- * typed on each device and never sent, it is random bytes.
+ * API keys and add-on links sealed with the optional passphrase (docs/supabase-storage.md §3.7).
+ * Once it's set, the account only holds the sealed text: without the passphrase, typed on each
+ * device and never sent, it is random bytes.
  *
  *   "s1." + base64(salt 16 B) + "." + base64(nonce 12 B) + "." + base64(AES-256-GCM ciphertext + tag)
  *   key = PBKDF2-SHA-256(passphrase, salt, 600,000 rounds), OWASP's figure for SHA-256

@@ -52,6 +52,10 @@ export interface Prefs {
   deband: boolean;
   /** mpv: crop black bars burnt into the picture, so it fills wide screens. */
   autocrop: boolean;
+  /** mpv, with autocrop: read ahead so a change of bars lands on the cut. */
+  autocropLookahead: boolean;
+  /** mpv, with autocrop, Windows and Linux: our detector reads every frame (macOS always does). */
+  autocropEveryFrame: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
   /** Keep the last few searches. */
@@ -62,16 +66,6 @@ export interface Prefs {
   autoDownloadUpdates: boolean;
   /** The TV mode button in the navbar (Settings → Controls & TV). */
   showTvButton: boolean;
-  /**
-   * Sync every episode's position, not only each title's newest. Off: the account keeps one entry per
-   * title. Only worth turning on once the server runs supabase/optional/per_episode_progress.sql.
-   */
-  syncEpisodeHistory: boolean;
-  /**
-   * Sync API keys and add-on links sealed with a passphrase typed on each device (account/secrets.ts).
-   * Off: they stay on this device and a new device asks for them again.
-   */
-  syncSecrets: boolean;
 
   /** Ecchi anime (AniList's adult titles never show): as is, blurred, or left out. Synced. */
   matureContent: "show" | "blur" | "hide";
@@ -125,13 +119,13 @@ const DEFAULTS: Prefs = {
   hwdec: true,
   deband: false,
   autocrop: false,
+  autocropLookahead: true,
+  autocropEveryFrame: false,
   buffer: "normal",
   saveRecentSearches: true,
   searchSuggestions: true,
   autoDownloadUpdates: true,
   showTvButton: true,
-  syncEpisodeHistory: false,
-  syncSecrets: false,
   matureContent: "show",
   animeEnabled: true,
   animeHiddenShelves: "",

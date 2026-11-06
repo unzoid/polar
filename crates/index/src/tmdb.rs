@@ -1,8 +1,9 @@
 //! Primary source: TMDB, normalised to IMDb-keyed addon types.
 //!
-//! TMDB list endpoints don't include IMDb ids, so each result is resolved via
-//! `external_ids`, a few at a time. Mappings never change and are cached for a
-//! day, so only the first view of a catalog pays for it. A catalog is one list
+//! TMDB list endpoints don't include IMDb ids or logos, so each result is
+//! resolved by one details request carrying both (`external_ids` and `images`
+//! appended), a few at a time. Answers are cached for a day, so only the first
+//! view of a catalog pays for it. A catalog is one list
 //! read on page by page as `skip` grows ([`Run`]), so titles left out for
 //! lacking an IMDb id or repeated by a drifting list never shift later pages.
 
@@ -22,7 +23,7 @@ use crate::{curate, IndexError, Result, PAGE_SIZE};
 const API: &str = "https://api.themoviedb.org/3";
 const IMG: &str = "https://image.tmdb.org/t/p";
 /// Requests to TMDB in flight at once, across every shelf: Home opens about a
-/// dozen catalogs together, each needing 20 `external_ids` lookups.
+/// dozen catalogs together, each needing 20 lookups.
 const IN_FLIGHT: usize = 12;
 /// Tries per request when TMDB answers 429 or a 5xx.
 const TRIES: u32 = 4;
@@ -38,7 +39,8 @@ pub struct Tmdb {
     key: String,
     language: String,
     limit: Semaphore,
-    imdb_ids: TtlCache<(char, u64), Option<String>>,
+    /// Per TMDB id: its IMDb id (none: left out of lists) and title logo.
+    lookups: TtlCache<(char, u64), Lookup>,
     /// One growing list per catalog (type, id, genre), so a page asked for by
     /// `skip` is a slice of the same sequence whatever the earlier pages held.
     runs: TtlCache<String, Arc<Mutex<Run>>>,
@@ -69,7 +71,7 @@ impl Tmdb {
             key: key.trim().to_owned(),
             language: language.unwrap_or_else(|| "en-US".into()),
             limit: Semaphore::new(IN_FLIGHT),
-            imdb_ids: TtlCache::new(Duration::from_secs(24 * 60 * 60), 20_000),
+            lookups: TtlCache::new(Duration::from_secs(24 * 60 * 60), 20_000),
             runs: TtlCache::new(Duration::from_secs(60 * 60), 256),
         }
     }
@@ -181,27 +183,41 @@ impl Tmdb {
         self.previews(ty, list.results).await
     }
 
-    /// List results with their IMDb ids; titles TMDB has none for are left
-    /// out. Any lookup that fails fails the whole list, so a thinned list is
-    /// never cached.
+    /// List results with their IMDb ids and logos; titles TMDB has no IMDb id
+    /// for are left out. Any lookup that fails fails the whole list, so a
+    /// thinned list is never cached.
     async fn previews(&self, ty: &str, items: Vec<Item>) -> Result<Vec<MetaPreview>> {
         // By value, not `&Item`: a closure over a borrow makes the future not
         // `Send` enough for axum (rust-lang/rust#64552).
         let tmdb_ids: Vec<u64> = items.iter().map(|item| item.id).collect();
-        let ids: Vec<Option<String>> =
-            stream::iter(tmdb_ids).map(|id| self.imdb_id(ty, id)).buffered(IN_FLIGHT).try_collect().await?;
-        Ok(items.into_iter().zip(ids).filter_map(|(item, imdb)| Some(item.into_preview(ty, imdb?))).collect())
+        let found: Vec<Lookup> =
+            stream::iter(tmdb_ids).map(|id| self.lookup(ty, id)).buffered(IN_FLIGHT).try_collect().await?;
+        Ok(items
+            .into_iter()
+            .zip(found)
+            .filter_map(|(item, found)| Some(item.into_preview(ty, found.imdb_id?, found.logo)))
+            .collect())
     }
 
-    async fn imdb_id(&self, ty: &str, tmdb_id: u64) -> Result<Option<String>> {
+    /// A list result's IMDb id and logo, from one details request with only
+    /// English and language-free images, as [`Tmdb::meta`] picks its logo.
+    async fn lookup(&self, ty: &str, tmdb_id: u64) -> Result<Lookup> {
         let key = (ty.chars().next().unwrap_or('m'), tmdb_id);
-        if let Some(hit) = self.imdb_ids.get(&key) {
+        if let Some(hit) = self.lookups.get(&key) {
             return Ok(hit);
         }
-        let ids: ExternalIds = self.get(&format!("/{}/{tmdb_id}/external_ids", tmdb_kind(ty)), &[]).await?;
-        let imdb = ids.imdb_id.filter(|i| i.starts_with("tt"));
-        self.imdb_ids.insert(key, imdb.clone());
-        Ok(imdb)
+        let d: Value = self
+            .get(
+                &format!("/{}/{tmdb_id}", tmdb_kind(ty)),
+                &[("append_to_response", "external_ids,images"), ("include_image_language", "en,null")],
+            )
+            .await?;
+        let found = Lookup {
+            imdb_id: str_of(&d["external_ids"]["imdb_id"]).filter(|i| i.starts_with("tt")),
+            logo: pick_logo(&d["images"]["logos"]),
+        };
+        self.lookups.insert(key, found.clone());
+        Ok(found)
     }
 
     pub async fn meta(&self, ty: &str, imdb_id: &str) -> Result<Meta> {
@@ -410,6 +426,18 @@ fn pick_trailer(videos: &[Value]) -> Option<String> {
     videos.iter().filter(youtube).filter(|v| rank(v) < 3).min_by_key(|v| rank(v)).and_then(|v| str_of(&v["key"]))
 }
 
+/// The English logo from a details answer's `images.logos`, else the first
+/// (asked for as English or language-free only).
+fn pick_logo(logos: &Value) -> Option<String> {
+    let logos = logos.as_array()?;
+    logos
+        .iter()
+        .find(|l| l["iso_639_1"] == "en")
+        .or(logos.first())
+        .and_then(|l| str_of(&l["file_path"]))
+        .map(|p| format!("{IMG}/w500{p}"))
+}
+
 fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Meta {
     let is_series = ty == "series";
     let release_info = if is_series {
@@ -425,14 +453,7 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
         year(&d["release_date"])
     };
 
-    let logo = d["images"]["logos"].as_array().and_then(|logos| {
-        logos
-            .iter()
-            .find(|l| l["iso_639_1"] == "en")
-            .or(logos.first())
-            .and_then(|l| str_of(&l["file_path"]))
-            .map(|p| format!("{IMG}/w500{p}"))
-    });
+    let logo = pick_logo(&d["images"]["logos"]);
 
     let runtime = d["runtime"]
         .as_u64()
@@ -561,14 +582,14 @@ struct Item {
 }
 
 impl Item {
-    fn into_preview(self, ty: &str, imdb_id: String) -> MetaPreview {
+    fn into_preview(self, ty: &str, imdb_id: String, logo: Option<String>) -> MetaPreview {
         MetaPreview {
             id: imdb_id,
             ty: ty.into(),
             name: self.title.or(self.name).unwrap_or_default(),
             poster: self.poster_path.map(|p| format!("{IMG}/w342{p}")),
             background: self.backdrop_path.map(|p| format!("{IMG}/w1280{p}")),
-            logo: None,
+            logo,
             description: self.overview.filter(|o| !o.is_empty()),
             release_info: self.release_date.or(self.first_air_date).and_then(|d| d.get(..4).map(str::to_owned)),
             imdb_rating: self.vote_average.filter(|r| *r > 0.0).map(|r| format!("{r:.1}")),
@@ -577,9 +598,10 @@ impl Item {
     }
 }
 
-#[derive(Deserialize)]
-struct ExternalIds {
+#[derive(Clone)]
+struct Lookup {
     imdb_id: Option<String>,
+    logo: Option<String>,
 }
 
 #[cfg(test)]
@@ -591,8 +613,9 @@ mod tests {
 
     /// A stand-in for TMDB on 127.0.0.1. `/movie/popular`: 3 pages of 20,
     /// page 2 repeating two titles of page 1 (lists drift as popularity
-    /// moves), page 1 refused once with 429. `external_ids`: no IMDb id for
-    /// multiples of 5, a 500 every time for 305.
+    /// moves), page 1 refused once with 429. Details: no IMDb id for multiples
+    /// of 5, a 500 every time for 305; even ids have logos (a Spanish one
+    /// listed before the English one), odd ids none.
     async fn fake_tmdb() -> (String, Arc<AtomicUsize>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
@@ -628,13 +651,25 @@ mod tests {
                                 ids.iter().map(|id| json!({ "id": id, "title": format!("T{id}") })).collect();
                             ("200 OK", json!({ "results": results, "total_pages": 3 }).to_string())
                         }
-                    } else if let Some(id) = path.strip_prefix("/movie/").and_then(|p| p.strip_suffix("/external_ids"))
-                    {
-                        let id: u64 = id.parse().unwrap();
+                    } else if let Some(id) = path.strip_prefix("/movie/").and_then(|id| id.parse::<u64>().ok()) {
+                        assert!(query.contains("append_to_response=external_ids%2Cimages"), "{query}");
+                        assert!(query.contains("include_image_language=en%2Cnull"), "{query}");
+                        let imdb = if id % 5 == 0 { Value::Null } else { json!(format!("tt{id}")) };
+                        let logos = if id % 2 == 0 {
+                            json!([
+                                { "iso_639_1": "es", "file_path": format!("/es{id}.png") },
+                                { "iso_639_1": "en", "file_path": format!("/en{id}.png") },
+                            ])
+                        } else {
+                            json!([])
+                        };
                         match id {
                             305 => ("500 Internal Server Error", String::new()),
-                            id if id % 5 == 0 => ("200 OK", json!({ "imdb_id": null }).to_string()),
-                            id => ("200 OK", json!({ "imdb_id": format!("tt{id}") }).to_string()),
+                            id => (
+                                "200 OK",
+                                json!({ "id": id, "external_ids": { "imdb_id": imdb }, "images": { "logos": logos } })
+                                    .to_string(),
+                            ),
                         }
                     } else {
                         ("404 Not Found", String::new())
@@ -665,6 +700,10 @@ mod tests {
         // Page 1 keeps 16 (no id for 100, 105, 110, 115); the rest come from page 2.
         assert_eq!(first[..3], ["tt101", "tt102", "tt103"]);
         assert_eq!(first[16..], ["tt202", "tt203", "tt204", "tt206"]);
+        let page = tmdb.catalog("movie", "popular", 0, None).await.unwrap();
+        // The row carries each title's English logo, as its page would, and none where TMDB has none.
+        assert_eq!(page[1].logo.as_deref(), Some("https://image.tmdb.org/t/p/w500/en102.png"));
+        assert_eq!(page[2].logo, None);
 
         let second = ids(tmdb.catalog("movie", "popular", 20, None).await.unwrap());
         assert_eq!(second[0], "tt207");
@@ -737,7 +776,7 @@ mod tests {
     fn a_search_result_names_its_genres() {
         let item: Item =
             serde_json::from_value(json!({"id": 1, "name": "Made Up Toon", "genre_ids": [16, 10759, 1]})).unwrap();
-        let preview = item.into_preview("series", "tt0000001".into());
+        let preview = item.into_preview("series", "tt0000001".into(), None);
         assert_eq!(preview.genres, ["Animation", "Action"]);
     }
 }

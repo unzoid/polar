@@ -10,8 +10,8 @@ import type { SyncChanges } from "./backend";
 export interface PushDeps {
   /** Local changes not yet on the server (`api.syncChanges`). */
   changes(space: string): Promise<LocalChanges>;
-  /** To the server; resolves to whether the links were stored. */
-  push(space: string, changes: SyncChanges): Promise<{ links: boolean }>;
+  /** To the server; resolves to whether the links were stored and the titles whose progress wasn't sent. */
+  push(space: string, changes: SyncChanges): Promise<{ links: boolean; unsent: string[] }>;
   /** These reached the server (`api.syncMarkPushed`). */
   markPushed(space: string, pushed: Pushed): Promise<void>;
 }
@@ -19,7 +19,8 @@ export interface PushDeps {
 /**
  * One space's changes up to the server. What was sent is marked pushed by the time it carried, so
  * an edit made meanwhile goes next time; rows the server kept a newer copy of come back on the
- * pull. Links a server without their table couldn't take stay unpushed and go again.
+ * pull. Links a server without their table couldn't take, and progress of titles that couldn't be
+ * sent, stay unpushed and go again.
  */
 export async function pushSpace(space: string, deps: PushDeps): Promise<LocalChanges> {
   const local = await deps.changes(space);
@@ -28,9 +29,10 @@ export async function pushSpace(space: string, deps: PushDeps): Promise<LocalCha
   if (!library.length && !progress.length && !links.length) return local;
   const stored = await deps.push(space, { library, progress, links });
   if (!stored.links) links = [];
+  const unsent = new Set(stored.unsent);
   await deps.markPushed(space, {
     library: library.map((i) => [i.id, i.updatedAt]),
-    progress: progress.map((p) => [p.videoId, p.updatedAt]),
+    progress: progress.filter((p) => !unsent.has(p.metaId)).map((p) => [p.videoId, p.updatedAt]),
     links: links.map((l) => [l.anilist, l.updatedAt]),
   });
   return local;

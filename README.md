@@ -79,9 +79,10 @@ only your user account can read it, and Windows keeps app data per user, but it 
 other programs running as you can read your keys. Your sign-in session is kept in the system's
 keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service such as GNOME Keyring
 or KWallet on Linux), under `app.getpolar.desktop`; where there is none, the app keeps it itself, as
-before. Signed in to an account, your settings sync but keys and add-on
-URLs stay on each device, unless you turn on Settings → Account → Sync API keys and addons, which
-sends them encrypted with a passphrase you type on each device.
+before. Signed in to an account, your settings, keys and add-on URLs sync between your devices.
+Keys and add-on URLs are protected by your sign-in but stored readable on the server, unless you set
+a passphrase in Settings → Account → API keys and addons: then they travel encrypted, and each
+device asks for the passphrase once.
 
 When something goes wrong, `polar.log` says what: `%LOCALAPPDATA%\app.getpolar.desktop\logs` on Windows,
 `~/Library/Logs/app.getpolar.desktop` on macOS, `~/.local/share/app.getpolar.desktop/logs` on Linux. It

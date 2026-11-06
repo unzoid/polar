@@ -111,6 +111,38 @@ opening fullscreen in TV mode; the D-pad moving focus; Back closing the top laye
 the app; leaving TV mode from the TV menu lasting until the app is closed, and TV mode back at the next start. On
 a phone, TV mode must stay off unless chosen. Fire TV: `UiModeManager` reports TV there too (untested).
 
+## Android player: libmpv (T-044)
+
+Never built or run here (no Android SDK or NDK). Type-checked with clippy for `aarch64-linux-android`; the
+certificate bundle and the MediaCodec mapping are tested (`polar-player`: `certs`, `tune`); the build script's
+source archive and `SOURCES.txt` steps were tried on a stand-in folder, its build steps weren't.
+CI job `android` builds libmpv and FFmpeg with `scripts/android-mpv.sh` (mpv-android's build scripts, pinned
+versions, about an hour the first time, then cached) and keeps `android-mpv-sources` (the sources archive) next to
+the APK; the emulator smoke test fails if the APK carries libmpv and the app hasn't loaded it.
+What to look for on a phone or the emulator, with the `android-debug-apk` artifact: the loading screen says
+"Player: mpv"; an MKV with HEVC video and AC3 or DTS audio plays with picture and sound; ASS and PGS subtitles show;
+the page's controls draw over the picture and the picture fills the screen behind them in both orientations;
+Home and back to the app: the picture comes back (the surface is given back to mpv) and playback goes on;
+an HTTPS stream plays (mbedTLS reads `cacert.pem`, made from `/system/etc/security/cacerts`); subtitles use
+Roboto; hardware decoding (Settings → Advanced) on and off both play; autocrop (MediaCodec copied back) works;
+a TV box with 2 GB of memory plays a 4K file (the cache is 64 MiB there). Not built: Picture in picture,
+background audio, the media session (lock screen controls).
+The same job builds an unsigned release APK and app bundle (`android-release-unsigned`), minified by R8:
+`proguard-rules.pro` keeps `MpvSurface`'s native methods and `polarDevice`; check that a release build, signed with
+any key for testing, starts and plays like the debug one.
+
+## macOS release: sources of the bundled libraries
+
+`scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself
+never ran here. To check, on the Mac that makes releases, with `brew install mpv` up to date:
+1. `bun scripts/bundle-libmpv.ts`, then `bun -e 'import { packMacSources } from "./scripts/macSources"; packMacSources("src-tauri/vendor/libmpv/formulae.json", "mpv-sources.tar", "mpv-sources-work")'`.
+2. `tar -tf mpv-sources.tar` lists `SOURCES.txt`, one `recipes/<formula>.rb` per keg in `formulae.json`, and under
+   `sources/` a source archive for each (plus resources and patches some formulae use, e.g. a `.patch` or `.diff`).
+3. `SOURCES.txt`'s versions match `BUNDLED.txt`'s. If Homebrew has a newer version of any of them, step 1 stops
+   and says which: `brew upgrade`, then build again.
+4. A formula built with Rust or Go fetches its crates or modules while building, which `brew fetch` doesn't
+   download: if `formulae.json` lists one, say so (those need adding by hand).
+
 ## Saving in the background (R4, H8/M4)
 
 `polar.json` is now written by a background thread about a second after a change,
@@ -250,24 +282,27 @@ devices.
    names are in.
 3. A device that had the titles before keeps its own names, pictures and every episode's position
    after pulling (only the newest episode per title is on the server).
-4. Optional: run `supabase/optional/per_episode_progress.sql`, turn on Settings → Account → Sync
-   every episode on both devices, play different episodes of one show on each: both keep both.
-   `per_episode_progress_off.sql` goes back.
+4. Optional: run `supabase/optional/per_episode_progress.sql`, wait ten minutes (or restart both
+   apps), play different episodes of one show on each: both keep both, with no setting on either.
+   `per_episode_progress_off.sql` goes back the same way.
 5. A version older than this one, signed in after the migration: library and progress no longer
    sync for it (expected, cut over at once); updating it pushes what it has.
 
 ## Settings sync without keys and add-on links (T-029, I-009)
 
 Settings documents now carry only what a profile changed from the defaults (`settings_defaults`
-command, not run here: src-tauri only type-checks) and never API keys or add-on links. Tested here
+command, not run here: src-tauri only type-checks), and keys and add-on links apart (#89). Tested here
 as pure functions (`tests/settingsDoc.test.ts`, `tests/secrets.test.ts`); not run in the app.
 
 1. Two devices, one profile: change Seek step on one; the other takes it after a sync. Set it back to
    the default on the first: the second goes back too.
-2. A TMDB key or an add-on added on one device does not appear on the other.
-3. Settings → Account → Sync API keys and addons → Turn On, same passphrase on both: a key set on one
-   arrives on the other, add-ons follow. Another passphrase on the second: it says the keys were
-   sealed with another passphrase and keeps its own; the first device's keys stay on the server.
+2. #89: a TMDB key or an add-on added on one device appears on the other after a sync. Services and
+   Add-ons pages and Settings → Account → API keys and addons say they're stored readable on the
+   server; the Supabase table editor shows them in `profile_settings.data.secrets`.
+3. #89: set a passphrase on the first device: `data` now has `sealed` and no `secrets`; the second
+   device says "Locked" and asks for it, keeping its own keys meanwhile; a wrong one says it doesn't
+   open them; the right one brings the keys. Change it on one device: the other asks again. Remove it
+   (confirm): both show "Not encrypted" and `data.secrets` is back.
 4. Sign out on a device that had its own keys and add-ons before signing in: they are back as they were.
 
 ## Sync leftovers: dirty set, per-key settings merge, playlists (T-053, R2)
@@ -281,7 +316,7 @@ against a real project.
 
 1. Two devices, one profile, both offline: change Seek step on one and Subtitle size on the other, then
    go online. Both end with both changes (before, the later device's whole document won).
-2. Add an add-on on a device signing in to an existing profile for the first time (sealed sync on): it stays.
+2. Add an add-on on a device signing in to an existing profile for the first time: it stays.
 3. Update the app on a device that already had an account: the first round pushes only what changed since
    its last push before the update (no full re-upload); after that, a pull is not pushed back (Supabase
    logs: no library/progress upserts right after a pull with nothing changed here).
@@ -289,7 +324,7 @@ against a real project.
    progress still goes up.
 5. 100 playlists: New Playlist disappears from Library, the card menu, the title page and TV; delete one
    and it comes back.
-6. Settings → Account says "too large to sync" only when sealed add-on links push the document past the
+6. Settings → Account says "too large to sync" only when add-on links push the document past the
    server's 16 KB; removing some makes it sync again without a restart.
 
 ## Platform layer (T-030, docs/ARCHITECTURE.md)
@@ -395,6 +430,62 @@ against a real project.
   add-on subtitle without a language is listed as "Unknown language".
 - Shortcuts synced between a Mac and a PC: Ctrl+K set on Windows arrives as ⌘K on the Mac. Tested as functions
   only; check by changing a ⌘ shortcut on one machine and looking at Settings → Controls on the other.
+
+## Eased autocrop moves (docs/autocrop.md §6)
+
+- `crop::CropZoom` and `CropTracker::on_cut` are tested in `crates/player`; their wiring in
+  `src-tauri/src/player/autocrop.rs` only type-checks here (no mpv, no WebKitGTK). Unknown: whether mpv shows
+  a `video-zoom` sent on every frame smoothly (no dropped or doubled steps), and whether a jump lands on the
+  cut frame itself, with `--video-sync=display-resample` and without. To check: play a film with bars that change
+  mid-shot on the desktop build and watch the crop settle.
+
+## Autocrop pre-roll probe (docs/autocrop.md §3)
+
+- `crop::opening_points`, `crop::opening_bars`, `CropTracker::open`, the PNG reader (`polar_player::png`) and
+  the detector on RGB screenshots are tested in `crates/player`; the probe itself
+  (`src-tauri/src/player/preroll.rs`) and its wiring in `mpv_load` and the autocrop loop only type-check here
+  (no mpv binary may run on this machine). Unknown, to check on the Windows build with autocrop on:
+  - that `screenshot-to-file … video` works with `--vo=null --screenshot-sw=yes` and writes a PNG with stored
+    (uncompressed) data at `--screenshot-png-compression=0` (if not, the probe finds nothing and playback starts
+    uncropped, as before: no harm, but no gain);
+  - how many of the 8 keyframes arrive within the 1.5 s budget on a typical stream (log line
+    `autocrop pre-roll: N readings` at debug level), and that a scope film's first frame is already cropped;
+  - that the probe's mpv is gone after each load (Task Manager) and its `probe-N` folder removed;
+  - HDR: whether software screenshots of PQ video are tone-mapped enough for the HDR levels to read the bars.
+- macOS has no probe yet (libmpv in the app, no second instance): films start uncropped there, as before.
+
+## Autocrop lookahead (docs/autocrop.md §4)
+
+- `lookahead::Schedule` and its hand-over to `CropTracker::cut` are tested in `crates/player`; the engine side
+  (`preroll::ahead`, a second probe that follows the playhead, and `take` per frame in the autocrop loop) only
+  type-checks here. To check on the Windows build with autocrop and "Look ahead for bar changes" on:
+  - that the probe's `seek 0.1 relative+keyframes` (doubled while it lands on the same keyframe) steps keyframe
+    by keyframe, and stays about 60 s ahead of the playhead (a scope film with an IMAX sequence: the crop
+    should jump on the cut frame into and out of it);
+  - frame-exact landing, with `--video-sync=display-resample` and without (§4);
+  - that it starts again after a seek back, a seek forward and a pause; that its mpv (`ahead-N`) is gone after
+    the next load, after switching it off, and when the app closes;
+  - cost, 10 minutes each on a 10 Mbit/s MKV and an HLS stream: extra bytes (the probe's `raw-input-rate`),
+    the probe's CPU time against playback alone. Then the defaults per device (§7).
+- Switching the lookahead on mid-file takes effect from the next file; macOS has no lookahead (no probe).
+
+## Our autocrop detector on the desktop (docs/autocrop.md §2)
+
+- `sampler::Sampler` (which reading feeds the tracker, when to take a screenshot) is tested in `crates/player`;
+  the engine side (`take_shot` in `src-tauri/src/player/autocrop.rs`) type-checks for Linux and Windows here,
+  and the macOS side (`polar_mpv_frame` in `src-tauri/src/macos/mpv_view.m`, `mac::Frames`) builds only on CI's
+  macOS runner. To check with autocrop on, on a scope film with bars changing (an IMAX sequence) and a film
+  that moves its own bars:
+  - Windows, default: the log's `autocrop:` lines show screenshots only around changes (none on a still
+    letterbox); a change of bars lands within a frame or two of its cut; moving bars are followed frame by
+    frame. Check that `screenshot-to-file … video` is the frame unzoomed (with the crop applied, our readings
+    still find the bars rather than full frame).
+  - Windows, "Check every frame for black bars" on: the log's screenshots per second and MB/s written, and mpv's
+    and Polarity's CPU in Task Manager against autocrop with the setting off, on a 1080p and a 4K file. Put
+    the numbers in docs/autocrop.md §2 and the setting's caption.
+  - macOS: every frame read in memory (`screenshot-raw video` through a weak client): the log's screenshots per
+    second (no MB written), CPU against autocrop off; a change lands within a frame or two of its cut; nothing
+    hangs when playback stops or the window hides mid-read; hardware decoding stays zero-copy.
 
 ## Windows mpv.exe built from pinned sources (`scripts/windows-mpv.sh`, CI job `windows-mpv`)
 

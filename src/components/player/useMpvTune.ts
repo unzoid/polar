@@ -11,7 +11,7 @@ import type { MpvMedia } from "./mpvMedia";
  * (polar_player `Tune`).
  */
 export function useMpvTune(mpv: MpvMedia | null) {
-  const { dialogueBoost, volumeLeveling, hwdec, deband, autocrop, buffer } = usePrefs();
+  const { dialogueBoost, volumeLeveling, hwdec, deband, autocrop, autocropLookahead, autocropEveryFrame, buffer } = usePrefs();
 
   useEffect(() => {
     if (!mpv) return;
@@ -20,7 +20,16 @@ export function useMpvTune(mpv: MpvMedia | null) {
       const track = mpv.tracks.find((t) => t.type === "audio" && t.id === mpv.aid);
       const surround = (track?.["demux-channel-count"] ?? 0) > 2;
       void call("mpv_tune", {
-        tune: { dialogueBoost: dialogueBoost && surround, volumeLeveling, hwdec, deband, autocrop, buffer },
+        tune: {
+          dialogueBoost: dialogueBoost && surround,
+          volumeLeveling,
+          hwdec,
+          deband,
+          autocrop,
+          lookahead: autocropLookahead,
+          everyFrame: autocropEveryFrame,
+          buffer,
+        },
       }).catch(warnFailed("mpv_tune"));
     };
     apply();
@@ -30,5 +39,5 @@ export function useMpvTune(mpv: MpvMedia | null) {
       mpv.removeEventListener("loadedmetadata", apply);
       mpv.removeEventListener("tracks", apply);
     };
-  }, [mpv, dialogueBoost, volumeLeveling, hwdec, deband, autocrop, buffer]);
+  }, [mpv, dialogueBoost, volumeLeveling, hwdec, deband, autocrop, autocropLookahead, autocropEveryFrame, buffer]);
 }

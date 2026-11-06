@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { decodeEntries, encodeEntries, newestAt, type ProgressEntry } from "../src/lib/account/progressCodec";
+import { decodeEntries, encodeEntries, newestAt, type EntryToPack, type ProgressEntry } from "../src/lib/account/progressCodec";
 
 const T = 1_762_000_000_000;
 
@@ -17,6 +17,23 @@ describe("progress entries codec", () => {
       { videoId: "kitsu:1:5", episode: 5, position: 9, duration: 10, updatedAt: T - 3 },
     ];
     expect(byId(roundTrip("tt0000105", entries))).toEqual(byId(entries));
+  });
+
+  test("a film from the native store (season and episode null) packs as one without them, and stays the same", () => {
+    // Rust writes a missing Option as null (#94).
+    const native: EntryToPack[] = [
+      { videoId: "tt0000106", season: null, episode: null, position: 60, duration: 7200, updatedAt: T },
+      { videoId: "tt0000106:extra", season: null, episode: null, position: 5, duration: 10, updatedAt: T - 1 },
+    ];
+    const bytes = encodeEntries("tt0000106", native);
+    const film = [
+      { videoId: "tt0000106", position: 60, duration: 7200, updatedAt: T },
+      { videoId: "tt0000106:extra", position: 5, duration: 10, updatedAt: T - 1 },
+    ];
+    expect(bytes).toEqual(encodeEntries("tt0000106", film));
+    const back = decodeEntries("tt0000106", bytes, T)!;
+    expect(byId(back)).toEqual(byId(film));
+    expect(encodeEntries("tt0000106", back)).toEqual(bytes);
   });
 
   test("numbers that differ from the id's are kept as given", () => {

@@ -227,6 +227,15 @@ insert into playlists(id,profile_id,user_id,name,items,updated_at) values ('0000
     expect(entriesOf(r)).toHaveLength(4);
   });
 
+  test("the app can ask whether the server keeps every episode, and only signed-in users can", async () => {
+    await as(db, A);
+    expect((await db.query<{ on: boolean }>("select public.polar_every_episode() as on")).rows[0].on).toBe(true);
+    await as(db, null);
+    await db.exec("set role anon");
+    expect(await fails(db, "select public.polar_every_episode()")).toBe(true);
+    await as(db, null);
+  });
+
   test("turning per-episode mode off keeps the newest entry, and one-entry mode is back", async () => {
     await as(db, null);
     await db.exec(sqlFile("optional/per_episode_progress_off.sql"));
@@ -235,5 +244,7 @@ insert into playlists(id,profile_id,user_id,name,items,updated_at) values ('0000
     await as(db, A);
     await push(PA, "tt0000105", 1, [ep(2, 2, 7, T + 30_000), ep(1, 1, 7, T + 29_000)]);
     expect(entriesOf(await row("tt0000105"))).toHaveLength(1);
+    // The app's question has no answer any more: it sends each title's newest again.
+    expect(await fails(db, "select public.polar_every_episode()")).toBe(true);
   });
 });

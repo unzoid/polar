@@ -8,7 +8,7 @@ const entry = (videoId: string, updatedAt = 1) => ({ videoId, updatedAt }) as un
 const link = (anilist: number, updatedAt = 1) => ({ anilist, updatedAt }) as unknown as AnimeLink;
 
 /** A device with spaces of unpushed rows, and a server that takes them unless told otherwise. */
-function fake(spaces: Record<string, Partial<LocalChanges>>, server: { down?: Set<string>; noLinks?: boolean } = {}) {
+function fake(spaces: Record<string, Partial<LocalChanges>>, server: { down?: Set<string>; noLinks?: boolean; unsent?: string[] } = {}) {
   const pushed: Record<string, LocalChanges[keyof LocalChanges][]> = {};
   const marked: Record<string, Pushed> = {};
   const deps: PushDeps = {
@@ -19,7 +19,7 @@ function fake(spaces: Record<string, Partial<LocalChanges>>, server: { down?: Se
     async push(space, changes) {
       if (server.down?.has(space)) throw new Error("offline");
       pushed[space] = [changes.library, changes.progress, changes.links];
-      return { links: !server.noLinks };
+      return { links: !server.noLinks, unsent: server.unsent ?? [] };
     },
     async markPushed(space, receipt) {
       marked[space] = receipt;
@@ -49,6 +49,15 @@ describe("pushSpace", () => {
     await pushSpace("a", deps);
     expect(pushed.a).toBeUndefined();
     expect(marked.a).toBeUndefined();
+  });
+
+  test("progress of a title the backend couldn't send stays unpushed; the rest is marked (#94)", async () => {
+    const titled = (metaId: string, videoId: string) => ({ ...entry(videoId), metaId }) as Progress;
+    const progress = [titled("tt2", "tt2:1:1"), titled("tt5", "tt5"), titled("tt5", "tt5:x")];
+    const { deps, marked } = fake({ a: { library: [item("tt1")], progress } }, { unsent: ["tt5"] });
+    await pushSpace("a", deps);
+    expect(marked.a).toEqual({ library: [["tt1", 1]], progress: [["tt2:1:1", 1]], links: [] });
+    expect(await unpushedCount(["a"], deps.changes)).toBe(2);
   });
 
   test("a server without the links table leaves the links unpushed", async () => {

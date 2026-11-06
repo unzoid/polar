@@ -64,23 +64,30 @@ pub struct AnimeMapping {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct SeasonNumbers {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "first", skip_serializing_if = "Option::is_none")]
     pub tvdb: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "first", skip_serializing_if = "Option::is_none")]
     pub tmdb: Option<u32>,
 }
 
-/// An entry as the file has it.
+/// An entry as the file has it. Any id may come as one value or a list
+/// (a film's TMDB id is a list, a show's a number); a list gives its first.
 #[derive(Deserialize)]
 struct Raw {
     #[serde(rename = "type")]
     ty: Option<String>,
+    #[serde(default, deserialize_with = "first")]
     anilist_id: Option<u32>,
+    #[serde(default, deserialize_with = "first")]
     mal_id: Option<u32>,
+    #[serde(default, deserialize_with = "first")]
     kitsu_id: Option<u32>,
+    #[serde(default, deserialize_with = "first")]
     anidb_id: Option<u32>,
+    #[serde(default, deserialize_with = "all")]
     imdb_id: Option<Vec<String>>,
     themoviedb_id: Option<RawTmdb>,
+    #[serde(default, deserialize_with = "first")]
     tvdb_id: Option<u32>,
     season: Option<SeasonNumbers>,
     episode_offset: Option<SeasonNumbers>,
@@ -88,8 +95,34 @@ struct Raw {
 
 #[derive(Deserialize)]
 struct RawTmdb {
+    #[serde(default, deserialize_with = "first")]
     tv: Option<u32>,
+    #[serde(default, deserialize_with = "first")]
     movie: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum OneOrMany<T> {
+    One(T),
+    Many(Vec<T>),
+}
+
+impl<T> OneOrMany<T> {
+    fn into_vec(self) -> Vec<T> {
+        match self {
+            OneOrMany::One(v) => vec![v],
+            OneOrMany::Many(v) => v,
+        }
+    }
+}
+
+fn first<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u32>, D::Error> {
+    Ok(all(d)?.and_then(|v| v.into_iter().next()))
+}
+
+fn all<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Option<Vec<T>>, D::Error> {
+    Ok(Option::<OneOrMany<T>>::deserialize(d)?.map(OneOrMany::into_vec))
 }
 
 impl From<Raw> for AnimeMapping {
@@ -117,16 +150,22 @@ struct Index {
     mal: HashMap<u32, usize>,
     kitsu: HashMap<u32, usize>,
     imdb: HashMap<String, usize>,
+    /// Entries that didn't parse.
+    skipped: usize,
 }
 
 impl Index {
     /// Entries that don't parse are skipped, so one odd entry can't cost
-    /// the rest. `None` if the file isn't a JSON list at all.
+    /// the rest, and counted in a warning, so a change of format can't
+    /// empty the index unnoticed. `None` if the file isn't a JSON list at all.
     fn parse(bytes: &[u8]) -> Option<Self> {
         let list: Vec<serde_json::Value> = serde_json::from_slice(bytes).ok()?;
         let mut index = Index::default();
         for v in list {
-            let Ok(raw) = serde_json::from_value::<Raw>(v) else { continue };
+            let Ok(raw) = serde_json::from_value::<Raw>(v) else {
+                index.skipped += 1;
+                continue;
+            };
             let m = AnimeMapping::from(raw);
             let i = index.entries.len();
             for (map, id) in
@@ -146,6 +185,9 @@ impl Index {
                 }
             }
             index.entries.push(m);
+        }
+        if index.skipped > 0 {
+            tracing::warn!("anime lists: {} entries skipped", index.skipped);
         }
         (!index.entries.is_empty()).then_some(index)
     }
@@ -343,6 +385,28 @@ mod tests {
         assert_eq!(index.find(&AnimeKey::Imdb("tt0000109".into())).unwrap().anilist_id, Some(20623));
         assert_eq!(index.find(&AnimeKey::Anilist(1)).unwrap().themoviedb_id, Some(9));
         assert!(Index::parse(b"{}").is_none() && Index::parse(b"[]").is_none());
+    }
+
+    /// Entries in the shape the live file has them: a film's TMDB id is a
+    /// list, a show's a number.
+    const LIVE: &str = r#"[
+        {"type":"MOVIE","anidb_id":9001,"anilist_id":90001,"imdb_id":["tt0000201"],"kitsu_id":9101,"mal_id":90101,"themoviedb_id":{"movie":[900201]}},
+        {"type":"MOVIE","anilist_id":90002,"imdb_id":["tt0000202","tt0000203"],"themoviedb_id":{"movie":[900202,900203]}},
+        {"type":"TV","anidb_id":9003,"anilist_id":90003,"imdb_id":["tt0000204"],"themoviedb_id":{"tv":900204},"tvdb_id":900304,"season":{"tvdb":1,"tmdb":1},"episode_offset":{"tvdb":0,"tmdb":0}},
+        {"type":"SPECIAL","anilist_id":90004,"themoviedb_id":{"movie":[]}}
+    ]"#;
+
+    #[test]
+    fn films_with_a_list_of_tmdb_ids() {
+        let index = Index::parse(LIVE.as_bytes()).unwrap();
+        assert_eq!(index.skipped, 0);
+        let film = index.find(&AnimeKey::Anilist(90001)).unwrap();
+        assert_eq!((film.imdb_id.as_deref(), film.themoviedb_id), (Some("tt0000201"), Some(900201)));
+        assert_eq!(index.find(&AnimeKey::Imdb("tt0000201".into())), Some(film));
+        assert_eq!(index.find(&AnimeKey::Anilist(90002)).unwrap().themoviedb_id, Some(900202));
+        assert_eq!(index.find(&AnimeKey::Anilist(90003)).unwrap().themoviedb_id, Some(900204));
+        assert_eq!(index.find(&AnimeKey::Anilist(90004)).unwrap().themoviedb_id, None);
+        assert_eq!(Index::parse(LIST.as_bytes()).unwrap().skipped, 1);
     }
 
     #[test]

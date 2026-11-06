@@ -4,9 +4,9 @@
  * what the profile changed from the defaults; two devices' edits merge per key against the copy
  * they last agreed on (critique H3).
  *
- * What stays on the device: API keys and add-on links (I-009; with the `syncSecrets` option on they
- * travel sealed with a passphrase), the metadata source, volume, TV mode and its sounds, controller
- * alerts.
+ * API keys and add-on links travel too (#89): as they are, readable by the server under row-level
+ * security, or sealed with a passphrase set in Settings → Account. What stays on the device: the
+ * metadata source, volume, TV mode and its sounds, controller alerts.
  *
  * Settings are global in the Rust store, so entering a profile first puts
  * back the copy this device last synced for it (`restore`), then `syncSettings`
@@ -22,7 +22,23 @@ import { getPrefs, PREF_DEFAULTS, readPrefs, setPrefs, SYNCED_PREFS } from "../s
 import type { Settings } from "../types";
 import { AccountError, type AccountBackend } from "./backend";
 import { keys } from "../net/queryKeys";
-import { changedFrom, firstDoc, fromWire, mergeDocs, sameDoc, SECRET_KEYS, stable, synced, toWire, withDefaults, withUnknown, type Doc } from "./settingsDoc";
+import {
+  changedFrom,
+  firstDoc,
+  fromWire,
+  openedDoc,
+  mergeDocs,
+  sameDoc,
+  sealing,
+  SECRET_KEYS,
+  stable,
+  synced,
+  toWire,
+  withDefaults,
+  withUnknown,
+  type Doc,
+  type Lock,
+} from "./settingsDoc";
 import type { Secrets } from "./secrets";
 
 interface Saved {
@@ -37,20 +53,49 @@ interface Saved {
 const storageKey = (space: string) => `polar.settingsSync.${space}`;
 const passphraseKey = (space: string) => `polar.secretsPassphrase.${space}`;
 
-/** The passphrase for this profile's sealed keys on this device, while `syncSecrets` is on. */
-function passphrase(space: string): string | null {
-  return getPrefs().syncSecrets ? localStorage.getItem(passphraseKey(space)) || null : null;
+/** This profile's passphrase on this device. Before #89 it was the bare passphrase. */
+function readLock(space: string): Lock {
+  const raw = localStorage.getItem(passphraseKey(space));
+  if (!raw) return {};
+  const v = storedJson(localStorage, passphraseKey(space));
+  if (!isRecord(v)) return { passphrase: raw };
+  const text = (x: unknown) => (typeof x === "string" && x ? x : undefined);
+  const pending = v.pending === "set" || v.pending === "remove" ? v.pending : undefined;
+  return { passphrase: text(v.passphrase), previous: text(v.previous), pending };
 }
-
-/** Settings → Account: the passphrase for sealed keys and add-on links, kept on this device only. */
-export function setSecretsPassphrase(space: string, value: string | null) {
-  if (value) storeLocal(passphraseKey(space), value);
+function writeLock(space: string, lock: Lock) {
+  if (lock.passphrase) storeLocal(passphraseKey(space), JSON.stringify(lock));
   else localStorage.removeItem(passphraseKey(space));
 }
-export const hasSecretsPassphrase = (space: string) => !!localStorage.getItem(passphraseKey(space));
 
-/** Set while the account holds sealed keys this device couldn't open: Settings → Account says so. */
-export let secretsLocked = false;
+/** Settings → Account: a new passphrase for this account's keys and add-on links; the next round seals them with it. */
+export function setSecretsPassphrase(space: string, value: string) {
+  const was = readLock(space);
+  writeLock(space, { passphrase: value, previous: was.passphrase ?? was.previous, pending: "set" });
+}
+/** Settings → Account: the passphrase the account's keys are already sealed with, typed on this device. */
+export function unlockSecrets(space: string, value: string) {
+  writeLock(space, { passphrase: value });
+}
+/** Settings → Account, confirmed: the next round sends the keys back as they are, for every device. */
+export function removeSecretsPassphrase(space: string) {
+  const was = readLock(space);
+  writeLock(space, { ...was, pending: "remove" });
+}
+
+/**
+ * How this account's keys and add-on links travel, as Settings → Account says it: as they are,
+ * sealed with this device's passphrase, or sealed with one this device doesn't have (`locked`).
+ */
+export function secretsState(space: string): "plain" | "sealed" | "locked" {
+  if (locked.has(space)) return "locked";
+  const lock = readLock(space);
+  return lock.passphrase && lock.pending !== "remove" ? "sealed" : "plain";
+}
+
+/** Profiles whose account holds sealed keys this device couldn't open: Settings → Account asks for the passphrase. */
+const locked = new Set<string>();
+const setLocked = (space: string, yes: boolean) => void (yes ? locked.add(space) : locked.delete(space));
 
 /**
  * The document the server refused as too large (critique M7), as sent: not tried again until it
@@ -106,8 +151,8 @@ let defaultsNow: Record<string, unknown> | null = null;
 /** The store's defaults, asked once (they only change with the app). */
 const settingsDefaults = () => (defaults ??= api.settingsDefaults().then((d) => (defaultsNow = d as unknown as Record<string, unknown>)));
 
-/** This device's settings as a document; `space` decides whether keys and add-on links go in sealed. */
-async function current(space: string, saved: Saved | null): Promise<Doc> {
+/** This device's settings as a document, its keys and add-on links in plain text. */
+async function current(saved: Saved | null, missing = saved?.missing ?? []): Promise<Doc> {
   const [settings, base] = await Promise.all([api.settings(), settingsDefaults()]);
   const prefs = getPrefs();
   const doc: Doc = withUnknown(
@@ -122,7 +167,7 @@ async function current(space: string, saved: Saved | null): Promise<Doc> {
     saved?.doc,
     knows,
   );
-  if (passphrase(space)) doc.secrets = await ownSecrets(settings, saved?.missing ?? []);
+  doc.secrets = await ownSecrets(settings, missing);
   if (saved?.doc.unopened) doc.unopened = saved.doc.unopened;
   return doc;
 }
@@ -144,7 +189,6 @@ async function apply(doc: Doc): Promise<string[]> {
     queryClient.setQueryData(["settings"], await saveSynced(doc.settings, doc.secrets));
     applyBindingOverrides(doc.keybinds);
     setPrefs(withDefaults(doc.prefs, Object.fromEntries(SYNCED_PREFS.map((k) => [k, PREF_DEFAULTS[k]]))), { quiet: true });
-    secretsLocked = !!doc.unopened && getPrefs().syncSecrets;
     return doc.secrets ? await applyAddons(doc.secrets.addons) : [];
   } finally {
     applying = false;
@@ -196,6 +240,7 @@ export function restoreSettings(space: string): Promise<void> {
     const saved = load(space);
     if (!saved) return;
     const missing = await apply(saved.doc);
+    setLocked(space, !!saved.doc.unopened);
     save(space, { ...saved, missing });
   })().finally(() => {
     if (restoring.get(space) === run) restoring.delete(space);
@@ -224,9 +269,7 @@ export function markDeviceSettings() {
 export async function keepDeviceSettings(space: string) {
   if (localStorage.getItem(OWNER_KEY) === DEVICE) {
     const missing = load(DEVICE)?.missing ?? [];
-    const doc = await current(DEVICE, null);
-    doc.secrets = await ownSecrets(await api.settings(), missing);
-    save(DEVICE, { doc, at: 0, missing });
+    save(DEVICE, { doc: await current(null, missing), at: 0, missing });
   }
   storeLocal(OWNER_KEY, space);
 }
@@ -256,25 +299,34 @@ export async function syncSettings(space: string, backend: AccountBackend, isAct
     }
     if (!isActive()) return;
     const saved = load(space);
-    const local = await current(space, saved);
-    const theirs = remote && (await fromWire(remote.data, passphrase(space), readDoc));
+    const local = await current(saved);
+    let lock = readLock(space);
+    const theirs = remote && (await fromWire(remote.data, [lock.passphrase, lock.previous].filter((p) => !!p) as string[], readDoc));
+    const { seal, forget } = sealing(lock, remote?.data ?? null);
+    if (forget) writeLock(space, (lock = {}));
 
     let next: Doc;
     if (!remote || !theirs) next = local;
     else if (!saved) next = firstDoc(local, theirs);
+    else if (saved.doc.unopened && !theirs.unopened) next = openedDoc(saved.doc, local, theirs);
     else if (remote.updatedAt > saved.at) next = mergeDocs(saved.doc, local, theirs);
-    else if (!sameDoc(local, saved.doc)) next = local;
+    else if (!sameDoc(local, saved.doc) || lock.pending) next = local;
     else return;
 
     let missing = saved?.missing ?? [];
     if (theirs && !sameDoc(next, local)) missing = await apply(next);
-    secretsLocked = !!next.unopened && getPrefs().syncSecrets;
-    if (remote && theirs && sameDoc(next, theirs) && next.unopened === theirs.unopened) {
+    setLocked(space, !!next.unopened);
+    // Written: a passphrase set here is in force, one removed here is gone.
+    const settled = () => lock.pending && writeLock(space, lock.pending === "set" ? { passphrase: lock.passphrase } : {});
+    const sealedThere = typeof remote?.data.sealed === "string";
+    const sealsNow = !!next.unopened || (!!next.secrets && !!seal);
+    if (remote && theirs && sameDoc(next, theirs) && next.unopened === theirs.unopened && sealedThere === sealsNow && !lock.pending) {
       save(space, { doc: next, at: remote.updatedAt, missing });
+      settled();
       return;
     }
 
-    const data = await toWire(next, passphrase(space));
+    const data = await toWire(next, seal);
     const sent = stable(data);
     if (sent === refused) return;
     // Later than anything stored, even a time another device's clock put ahead.
@@ -290,6 +342,7 @@ export async function syncSettings(space: string, backend: AccountBackend, isAct
     refused = null;
     if (stored !== null) {
       save(space, { doc: next, at: stored, missing });
+      settled();
       return;
     }
     // The server kept a newer document: merge with that one.

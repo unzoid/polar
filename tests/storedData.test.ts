@@ -160,7 +160,7 @@ describe("pulled rows (critique M9)", () => {
       watched("tt2:1:4", 1, 4, 120),
       { ...watched("tt3", undefined, undefined, 5), metaId: "tt3", type: "movie" as const },
     ];
-    const rows = toProgressRows("p1", list, false);
+    const rows = toProgressRows("p1", list, false).rows;
     expect(rows.map((r) => [r.meta_id, r.kind, r.updated_at])).toEqual([
       ["tt2", 1, 120],
       ["tt3", 0, 5],
@@ -168,7 +168,7 @@ describe("pulled rows (critique M9)", () => {
     expect(fromProgressRow(rows[0])).toEqual([
       { metaId: "tt2", type: "series", name: "", videoId: "tt2:1:4", season: 1, episode: 4, position: 312, duration: 1400, updatedAt: 120 },
     ]);
-    const all = fromProgressRow(toProgressRows("p1", list, true)[0])!;
+    const all = fromProgressRow(toProgressRows("p1", list, true).rows[0])!;
     expect(all.map((p) => [p.videoId, p.updatedAt])).toEqual([
       ["tt2:1:3", 99],
       ["tt2:1:4", 120],
@@ -177,20 +177,35 @@ describe("pulled rows (critique M9)", () => {
 
   test("progress: a few seconds of another episode never becomes the title's one row (test report 1, item 4)", () => {
     const list = [watched("tt2:1:2", 1, 2, 100), { ...watched("tt2:2:1", 2, 1, 200), position: 12 }, { ...watched("tt4:1:1", 1, 1, 300), metaId: "tt4", position: 3 }];
-    const rows = toProgressRows("p1", list, false);
+    const rows = toProgressRows("p1", list, false).rows;
     expect(rows.map((r) => [r.meta_id, r.updated_at])).toEqual([["tt2", 100]]);
     expect(fromProgressRow(rows[0])!.map((p) => p.videoId)).toEqual(["tt2:1:2"]);
     // Every episode, when asked for, still means every one.
-    expect(toProgressRows("p1", list, true).map((r) => r.meta_id)).toEqual(["tt2", "tt4"]);
+    expect(toProgressRows("p1", list, true).rows.map((r) => r.meta_id)).toEqual(["tt2", "tt4"]);
+  });
+
+  test("progress: films as the native store gives them (season, episode null) push and come back as films (#94)", () => {
+    const film = { ...watched("tt3", undefined, undefined, 5), metaId: "tt3", type: "movie" as const, season: null, episode: null } as unknown as Progress;
+    const { rows, unsent } = toProgressRows("p1", [watched("tt2:1:3", 1, 3, 99), film], false);
+    expect(unsent).toEqual([]);
+    expect(rows.map((r) => r.meta_id)).toEqual(["tt2", "tt3"]);
+    expect(fromProgressRow(rows[1])).toEqual([{ metaId: "tt3", type: "movie", name: "", videoId: "tt3", position: 312, duration: 1400, updatedAt: 5 }]);
+  });
+
+  test("progress: a title that can't be packed is left out and named; the others still go (#94)", () => {
+    const bad = { ...watched("tt5", -1, undefined, 7), metaId: "tt5", type: "movie" as const };
+    const { rows, unsent } = toProgressRows("p1", [watched("tt2:1:3", 1, 3, 99), bad], true);
+    expect(rows.map((r) => r.meta_id)).toEqual(["tt2"]);
+    expect(unsent).toEqual(["tt5"]);
   });
 
   test("progress rows: unknown entries, kinds and numbers beyond a u32 are left out", () => {
-    const row = toProgressRows("p1", [watched("tt2:1:3", 1, 3, 99)], false)[0];
+    const row = toProgressRows("p1", [watched("tt2:1:3", 1, 3, 99)], false).rows[0];
     expect(fromProgressRow({ ...row, entries: "\\x02" })).toBeUndefined();
     expect(fromProgressRow({ ...row, entries: "zz" })).toBeUndefined();
     expect(fromProgressRow({ ...row, kind: 5 })).toBeUndefined();
     expect(fromProgressRow({ ...row, updated_at: "x" })).toBeUndefined();
-    const huge = toProgressRows("p1", [watched("tt2:1:3", 2 ** 33, 3, 99)], false)[0];
+    const huge = toProgressRows("p1", [watched("tt2:1:3", 2 ** 33, 3, 99)], false).rows[0];
     expect(fromProgressRow(huge)).toEqual([]);
   });
 

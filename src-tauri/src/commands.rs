@@ -519,12 +519,7 @@ pub async fn ratings(state: State<'_, AppState>, ty: String, id: String) -> Resu
 /// A title's trailer as a playable file (IMDb), or none.
 #[tauri::command]
 pub async fn trailer(imdb_id: String) -> Option<crate::trailers::Trailer> {
-    let found = crate::trailers::imdb_trailer(&imdb_id).await;
-    // The backdrop plays it through the `trailer` protocol, to read its frames for bars.
-    if let Some(t) = &found {
-        crate::trailer_proxy::allow(&t.url);
-    }
-    found
+    crate::trailers::imdb_trailer(&imdb_id).await
 }
 
 /// An anime's filler and recap episodes by MAL id (Jikan, then

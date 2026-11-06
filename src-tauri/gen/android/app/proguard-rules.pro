@@ -19,3 +19,12 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Called by name from Rust and from the page: MpvSurface's native methods
+# (src-tauri/src/player/android.rs) and the polarDevice interface (MainActivity.kt).
+-keepclasseswithmembernames class app.getpolar.desktop.MpvSurface {
+    native <methods>;
+}
+-keepclassmembers class app.getpolar.desktop.PolarDevice {
+    @android.webkit.JavascriptInterface <methods>;
+}

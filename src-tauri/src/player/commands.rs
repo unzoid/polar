@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use polar_player::allow::{check_command, check_property, is_web_url};
-use polar_player::crop::CROPDETECT;
+use polar_player::crop::{zoom_for, CROPDETECT};
 use polar_player::tune::Tune;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, State, WebviewWindow};
@@ -16,20 +16,24 @@ use super::autocrop::autocrop;
 use super::mpv_binary;
 #[cfg(target_os = "macos")]
 use super::mpv_library;
+use super::preroll::{opening, Opening};
 use crate::commands::CmdError;
 use crate::locks::Locked;
 use crate::AppState;
 
 /// Whether mpv can be the player here: it must be installed and able to draw
-/// into our window, which only Windows (`--wid`) and macOS (libmpv) can do so
-/// far (see [`window_id`]). Elsewhere the player uses the webview's `<video>`.
+/// into our window, which only Windows (`--wid`), macOS and Android (libmpv in
+/// the app) can do so far (see [`window_id`]). Elsewhere the player uses the
+/// webview's `<video>`.
 #[tauri::command]
 pub fn mpv_available() -> bool {
     #[cfg(target_os = "macos")]
     return mpv_library().is_some();
     #[cfg(windows)]
     return mpv_binary().is_some();
-    #[cfg(not(any(windows, target_os = "macos")))]
+    #[cfg(target_os = "android")]
+    return super::android::available();
+    #[cfg(not(any(windows, target_os = "macos", target_os = "android")))]
     false
 }
 
@@ -63,14 +67,59 @@ pub async fn mpv_load(
         options = format!("start={s:.2}");
     }
     // A new file is measured afresh (autocrop): drop the last one's crop.
-    state.mpv.loads.fetch_add(1, Ordering::SeqCst);
+    let load = state.mpv.loads.fetch_add(1, Ordering::SeqCst) + 1;
+    state.mpv.playhead.store(f64::NAN.to_bits(), Ordering::SeqCst);
     state.mpv.request(json!(["set_property", "video-zoom", 0])).await.ok();
     // The add-on's headers for this source, or none left over from the last one.
     let fields = polar_player::headers::mpv_fields(&headers);
-    state.mpv.request(json!(["set_property", "http-header-fields", fields])).await.map_err(CmdError::Player)?;
-    state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await.map_err(CmdError::Player)?;
+    *state.mpv.source.locked() = Some((load, url.clone(), fields.clone()));
+    // Autocrop: probe the opening while this load buffers, and start paused
+    // until the probe is done or out of time (docs/autocrop.md §3).
+    let probe = state.mpv.tuned.locked().autocrop.then(|| {
+        *state.mpv.opening.locked() = Some(Opening::Probing(load));
+        tauri::async_runtime::spawn(opening(url.clone(), fields.clone(), start.unwrap_or(0.0)))
+    });
+    let loaded = load_paused(&state, &url, fields, &options, probe.is_some()).await;
+    let found = match probe {
+        Some(task) if loaded.is_ok() => task.await.ok().flatten(),
+        // The probe stops by itself once its wait is over.
+        _ => None,
+    };
+    if let Some(f) = found {
+        if let Ok(osd) = state.mpv.request(json!(["get_property", "osd-dimensions"])).await {
+            let int = |k: &str| osd.get(k).and_then(Value::as_i64).filter(|n| *n > 0);
+            if let (Some(w), Some(h)) = (int("w"), int("h")) {
+                let zoom = zoom_for(f.bars, f.full, f.display, (w, h));
+                state.mpv.request(json!(["set_property", "video-zoom", zoom])).await.ok();
+            }
+        }
+    }
+    {
+        let mut slot = state.mpv.opening.locked();
+        if matches!(*slot, Some(Opening::Probing(l)) if l == load) {
+            *slot = found.map(|f| Opening::Ready { load, full: f.full, bars: f.bars });
+        }
+    }
+    loaded?;
     state.mpv.request(json!(["set_property", "pause", false])).await.map_err(CmdError::Player)?;
     state.mpv.set_visible(true).await;
+    Ok(())
+}
+
+/// Send the headers and load `url`, paused if `paused` (else playing from
+/// the next `pause` change on).
+async fn load_paused(
+    state: &AppState,
+    url: &str,
+    fields: Vec<String>,
+    options: &str,
+    paused: bool,
+) -> Result<(), CmdError> {
+    state.mpv.request(json!(["set_property", "http-header-fields", fields])).await.map_err(CmdError::Player)?;
+    if paused {
+        state.mpv.request(json!(["set_property", "pause", true])).await.map_err(CmdError::Player)?;
+    }
+    state.mpv.request(json!(["loadfile", url, "replace", -1, options])).await.map_err(CmdError::Player)?;
     Ok(())
 }
 
@@ -103,13 +152,22 @@ pub async fn mpv_tune(app: AppHandle, state: State<'_, AppState>, tune: Tune) ->
         mpv.request(json!(["set_property", "af", tune.audio_filters()])).await?;
     }
     if was.hwdec_mode() != tune.hwdec_mode() {
-        mpv.request(json!(["set_property", "hwdec", tune.hwdec_mode()])).await?;
+        #[cfg(target_os = "android")]
+        let mode = tune.android_hwdec();
+        #[cfg(not(target_os = "android"))]
+        let mode = tune.hwdec_mode();
+        mpv.request(json!(["set_property", "hwdec", mode])).await?;
     }
-    if was.autocrop != tune.autocrop {
-        if tune.autocrop {
+    // cropdetect runs unless our detector reads every frame (Tune::cropdetect).
+    if was.cropdetect() != tune.cropdetect() {
+        if tune.cropdetect() {
             mpv.request(json!(["vf", "add", CROPDETECT])).await?;
         } else {
             mpv.request(json!(["vf", "remove", "@autocrop"])).await?;
+        }
+    }
+    if was.autocrop != tune.autocrop {
+        if !tune.autocrop {
             mpv.request(json!(["set_property", "video-zoom", 0])).await?;
         }
         // Dialogue placed and sized by the window rather than the (zoomed)

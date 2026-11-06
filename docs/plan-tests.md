@@ -33,8 +33,8 @@ Ranked by what a failure costs a user:
 2. **Playback**: picking and probing a stream, the add-on protocol, resume position, next
    episode, the mpv allow-lists (what the web view may ask the player to do).
 3. **Identity**: one item per show in search, library, history and Continue Watching.
-4. **Secrets**: keys and add-on links never leave the device unless sealed; the sealed format
-   opens with the right passphrase only.
+4. **Secrets**: keys and add-on links travel in `secrets`, or only sealed once a passphrase is set;
+   the sealed format opens with the right passphrase only.
 5. **The shell starts**: the window opens, the first screen renders, an error boundary catches
    a crash.
 

@@ -39,6 +39,24 @@ test("each section opens", async ({ app }) => {
   await expect(card(app, "Night Ferry")).toBeVisible();
 });
 
+test("the Calendar is in the profile menu only while it isn't a navbar tab (#92)", async ({ app }) => {
+  const nav = app.getByRole("navigation", { name: "Primary" });
+  const profile = app.getByRole("button", { name: /^Profile/ });
+  await expect(nav.getByRole("button", { name: "Calendar", exact: true })).toHaveCount(0);
+  await profile.click();
+  await expect(app.getByRole("menuitem", { name: "Calendar" })).toBeVisible();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Browsing", exact: true }).click();
+  await settings.getByRole("switch", { name: /^Show the Calendar/ }).click();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "Calendar", exact: true })).toBeVisible();
+  await profile.click();
+  await expect(app.getByRole("menuitem", { name: "Settings" })).toBeVisible();
+  await expect(app.getByRole("menuitem", { name: "Calendar" })).toHaveCount(0);
+});
+
 test("search finds movies and series", async ({ app }) => {
   await app.getByRole("button", { name: "Search", exact: true }).click();
   await app.keyboard.type("orchard");
@@ -69,6 +87,35 @@ test("a title page adds to and removes from the Library", async ({ app }) => {
   await expect(card(app, "Northbound")).toHaveCount(0);
 });
 
+test("a wheel turn down a show's page lands its season tabs below the navbar's blur (#20)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  await expect(app.getByRole("heading", { level: 1, name: "Fieldwork" })).toBeVisible();
+  const tabs = app.locator(".seasons-bar");
+  await expect(tabs).toBeVisible();
+  await app.locator(".detail-hero").hover();
+  await app.mouse.wheel(0, 120);
+  // The glide has landed when the tabs stop moving.
+  let last = NaN;
+  await expect.poll(async () => {
+    const y = (await tabs.boundingBox())!.y;
+    const still = y === last;
+    last = y;
+    return still;
+  }, { intervals: [300] }).toBe(true);
+  const band = await app.locator(".navbar-fade").boundingBox();
+  expect(last).toBeLessThan(400);
+  expect(last).toBeGreaterThanOrEqual(band!.y + band!.height);
+
+  // Back from the player, the page is where it was when the episode started.
+  await app.locator(".episode-card-main:not([disabled])").first().click();
+  const player = app.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  await app.keyboard.press("Escape");
+  await expect(player).toHaveCount(0);
+  expect((await tabs.boundingBox())!.y).toBe(last);
+});
+
 test("an episode's Sources and Download buttons show alike, on a dark fill, without hovering (#18)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
   await card(app, "Fieldwork").click();
@@ -87,6 +134,36 @@ test("an episode's Sources and Download buttons show alike, on a dark fill, with
   expect(sources.opacity).toBe("1");
   expect(sources.color).toBe("rgb(255, 255, 255)");
   expect(sources.alpha).toBeGreaterThanOrEqual(0.5);
+});
+
+test("a downloaded episode offers Show in Folder and Delete as buttons, and Play takes the download (#25)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const ep = app.locator(".episode-card:has(.episode-card-main:not([disabled]))").first();
+  await ep.getByRole("button", { name: "Download Episode" }).click();
+  await app.locator(".sheet .stream-row").first().click();
+  await expect(app.locator(".sheet")).toHaveCount(0);
+
+  const reveal = ep.getByRole("button", { name: "Show Downloaded Episode in Folder" });
+  const del = ep.getByRole("button", { name: "Delete Downloaded Episode" });
+  await expect(reveal).toBeVisible();
+  await expect(del).toBeVisible();
+  await expect(ep.locator("[aria-haspopup]")).toHaveCount(0);
+  // Side by side on the still, left of Sources, not on top of each other.
+  const [r, d, s] = await Promise.all([reveal, del, ep.locator(".episode-sources")].map((b) => b.boundingBox()));
+  expect(r!.x + r!.width).toBeLessThanOrEqual(d!.x);
+  expect(d!.x + d!.width).toBeLessThanOrEqual(s!.x);
+
+  await ep.locator(".episode-card-main").click();
+  await expect(app.locator(".player video")).toHaveAttribute("src", /\/downloads\/.+\.mkv$/);
+  await app.keyboard.press("Escape");
+  await expect(app.locator(".player")).toHaveCount(0);
+
+  // Delete asks for a second click.
+  await del.click();
+  const armed = ep.getByRole("button", { name: "Click again to delete the downloaded episode" });
+  await armed.click();
+  await expect(ep.getByRole("button", { name: "Download Episode" })).toBeVisible();
 });
 
 test("a movie plays in the built-in player, pauses and closes", async ({ app }) => {

@@ -35,6 +35,8 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
       # As in ci.yml, plus WebKitWebDriver and a virtual display for tauri-driver.
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
@@ -104,6 +106,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: android-emulator
+          save-if: ${{ github.ref == 'refs/heads/master' }}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.4
@@ -112,10 +115,25 @@ jobs:
       - name: Install the Android platform
         run: |
           sdk="$(sed -n 's/.*compileSdk = \([0-9]*\).*/\1/p' src-tauri/gen/android/app/build.gradle.kts)"
-          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-$sdk"
+          # From API 37 on, platform packages carry a minor version (platforms;android-37.0).
+          pkg="platforms;android-$sdk"; [ "$sdk" -ge 37 ] && pkg="$pkg.0"
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$pkg"
+      # The runner image's newest NDK is a shell variable there, not part of the workflow's `env`
+      # context (so `${{ env.ANDROID_NDK_LATEST_HOME }}` is empty); hand it to the later steps.
+      - name: Use the runner's NDK
+        run: echo "NDK_HOME=${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:?the runner image has no Android NDK}}" >> "$GITHUB_ENV"
+      # libmpv as ci.yml's android job last built it (not built here: without it the app plays
+      # through the web view and the smoke test runs all the same).
+      - name: Restore libmpv
+        id: libmpv
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/libmpv/out
+          key: android-libmpv-${{ hashFiles('scripts/android-mpv.sh') }}
+      - name: Put libmpv in the app
+        if: steps.libmpv.outputs.cache-hit == 'true'
+        run: cp -R "$RUNNER_TEMP/libmpv/out/jniLibs" "$RUNNER_TEMP/libmpv/out/assets" src-tauri/gen/android/app/src/main/
       - name: Build
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
         run: bun run tauri android build --ci --debug --apk --target x86_64
       # The emulator needs KVM, which GitHub's Linux runners have but don't open to the runner user.
       - name: Open KVM
