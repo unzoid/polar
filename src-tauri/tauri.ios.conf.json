@@ -3,7 +3,19 @@
   "bundle": {
     "iOS": {
       "minimumSystemVersion": "17.0",
-      "frameworks": ["OpenGLES", "AVFoundation", "vendor/ios/Libmpv.xcframework"]
+      "frameworks": [
+        "OpenGLES",
+        "AVFoundation",
+        "vendor/ios/frameworks/Libavcodec.xcframework",
+        "vendor/ios/frameworks/Libavfilter.xcframework",
+        "vendor/ios/frameworks/Libavformat.xcframework",
+        "vendor/ios/frameworks/Libavutil.xcframework",
+        "vendor/ios/frameworks/Libfribidi.xcframework",
+        "vendor/ios/frameworks/Libmpv.xcframework",
+        "vendor/ios/frameworks/Libplacebo.xcframework",
+        "vendor/ios/frameworks/Libswresample.xcframework",
+        "vendor/ios/frameworks/Libswscale.xcframework"
+      ]
     },
     "resources": {
       "vendor/ios/licenses/": "licenses/mpv/"

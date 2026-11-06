@@ -45,7 +45,7 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
    `bun run tauri ios init` and `bun run tauri ios dev` or `build`.
 2. **Player** (built, #29): libmpv inside the app, drawing through its render API with OpenGL ES
    into a view behind the web view (`src-tauri/src/ios/mpv_view.m`, the iOS twin of
-   `macos/mpv_view.m`; `player/apple.rs` drives both), built as one dynamic framework (§7). Its
+   `macos/mpv_view.m`; `player/apple.rs` drives both), built as dynamic frameworks (§7). Its
    control connection is a socket pair (`--input-ipc-client`), since the app's folder paths can be
    too long for a socket file. Audio plays through an audio session for video playback (sound with
    the silent switch on). Drawing stops while the app is in the background. Without the framework,
@@ -101,7 +101,7 @@ in its row of ARCHITECTURE §3. Tasks T-042 to T-050 in the work plan follow thi
 | Platform | mpv | FFmpeg | TLS | Linking |
 |---|---|---|---|---|
 | Android | as `mpv-android` builds it (GPL) | `--enable-gpl --enable-version3` | mbedTLS | shared libraries in the APK |
-| iOS, iPadOS | `-Dgpl=false` (LGPLv2.1+) | without `--enable-gpl` or `--enable-version3` (LGPLv2.1+) | Secure Transport | every library static inside one dynamic library, `Libmpv.framework` (an xcframework), embedded and signed by Xcode, loaded at run time (`scripts/ios-mpv.sh`) |
+| iOS, iPadOS | `-Dgpl=false` (LGPLv2.1+) | without `--enable-gpl` or `--enable-version3` (LGPLv2.1+) | Secure Transport | each LGPL library (mpv, FFmpeg's, libplacebo, FriBidi) a dynamic framework of its own, the others (dav1d, libass, FreeType, HarfBuzz) static inside them; embedded and signed by Xcode, libmpv loaded at run time (`scripts/ios-mpv.sh`) |
 
 Each release, on both platforms, carries:
 

@@ -7,15 +7,18 @@
 #
 # Needs: Xcode (xcrun, xcodebuild), meson, ninja, pkg-config, git, python3.
 #
-# Every library is built static and linked into one dynamic library, libmpv, wrapped as
-# Libmpv.framework: the app loads it at run time (player/apple.rs), and anyone can replace it
-# with one built from the sources archive. Writes into <work dir>/out:
-#   Libmpv.xcframework                  the framework for each platform built
+# Each LGPL library (mpv, FFmpeg's libraries, libplacebo, FriBidi) is a dynamic library of its
+# own, wrapped as a framework the app embeds (Libmpv.framework, Libavcodec.framework, ...), so
+# anyone can replace it with one built from the sources archive; the app loads libmpv at run
+# time (player/apple.rs) and libmpv loads the rest. The others (dav1d, FreeType, HarfBuzz,
+# libass; BSD, FTL, MIT, ISC) are linked statically into the library that uses them.
+# Writes into <work dir>/out:
+#   frameworks/<Name>.xcframework       each framework, for each platform built
 #   licenses/                           licence texts and BUNDLED.txt
 #   polarity-ios-mpv-sources.tar.xz     every source, this script, SOURCES.txt (versions, how
 #                                       each is configured)
-# and copies the framework and licences into src-tauri/vendor/ios, where tauri.ios.conf.json
-# takes them from. The sources archive goes with every release that carries an iOS build.
+# and copies the frameworks and licences into src-tauri/vendor/ios, where tauri.ios.conf.json
+# takes them from (its list must name every framework in FRAMEWORKS below). The sources archive goes with every release that carries an iOS build.
 #
 # Written for the bash 3.2 macOS ships, too.
 set -euo pipefail
@@ -31,6 +34,10 @@ src="$work/src"
 
 # The oldest iOS the app runs on (tauri.ios.conf.json, bundle.iOS.minimumSystemVersion).
 IOS_MIN=17.0
+
+# The frameworks this build makes, as tauri.ios.conf.json lists them; the build stops if it made
+# others.
+FRAMEWORKS="Libavcodec Libavfilter Libavformat Libavutil Libfribidi Libmpv Libplacebo Libswresample Libswscale"
 
 # Pinned versions: the same as the Android build's where both have the library.
 FFMPEG_TAG=n9.0.2
@@ -75,7 +82,8 @@ MPV_OPTS="-Dlibmpv=true -Dcplayer=false -Dgpl=false -Dtests=false -Dmanpage-buil
 	echo "Sources of libmpv and FFmpeg in Polarity's iOS app"
 	echo
 	echo "Built by Polarity's scripts/ios-mpv.sh (included) for iOS $IOS_MIN and later (${platforms[*]}),"
-	echo "each library static, all linked into one dynamic library, libmpv (Libmpv.framework)."
+	echo "mpv, FFmpeg's libraries, libplacebo and FriBidi as dynamic libraries (one framework each);"
+	echo "dav1d, FreeType, HarfBuzz and libass static, inside the libraries that use them."
 	echo "Both mpv and FFmpeg are built under the LGPL, version 2.1 or later."
 	echo
 	echo "Libraries (folder: version, git commit, origin):"
@@ -110,7 +118,6 @@ system_lib() {
 	esac
 }
 
-frameworks=()
 for platform in "${platforms[@]}"; do
 	case $platform in
 		device) sdk=iphoneos target="arm64-apple-ios$IOS_MIN" subsystem=ios plist_platform=iPhoneOS ;;
@@ -164,13 +171,13 @@ for platform in "${platforms[@]}"; do
 	# shellcheck disable=SC2086
 	meson_build freetype $FREETYPE_OPTS
 	# shellcheck disable=SC2086
-	meson_build fribidi $FRIBIDI_OPTS
+	library=shared meson_build fribidi $FRIBIDI_OPTS
 	# shellcheck disable=SC2086
 	meson_build harfbuzz $HARFBUZZ_OPTS
 	# shellcheck disable=SC2086
 	meson_build libass $LIBASS_OPTS
 	# shellcheck disable=SC2086
-	meson_build libplacebo $LIBPLACEBO_OPTS
+	library=shared meson_build libplacebo $LIBPLACEBO_OPTS
 
 	rm -rf "$build/ffmpeg"
 	mkdir -p "$build/ffmpeg"
@@ -178,7 +185,7 @@ for platform in "${platforms[@]}"; do
 	(cd "$build/ffmpeg" && "$src/ffmpeg/configure" --prefix="$prefix" \
 		--enable-cross-compile --target-os=darwin --arch=aarch64 --cc="$cc" --cxx="$cxx" --sysroot="$sysroot" \
 		--extra-cflags="$flags" --extra-ldflags="$flags" --pkg-config=pkg-config --pkg-config-flags=--static \
-		--enable-static --disable-shared --enable-pic $FFMPEG_OPTS | tee "$build/ffmpeg-configure.txt")
+		--enable-shared --disable-static --enable-pic $FFMPEG_OPTS | tee "$build/ffmpeg-configure.txt")
 	# An LGPLv2.1 build only: stop if an option above ever pulled FFmpeg up to GPL or (L)GPLv3.
 	if ! grep -q '^License: LGPL version 2.1 or later' "$build/ffmpeg-configure.txt"; then
 		echo "FFmpeg isn't configured as LGPL version 2.1 or later:" >&2
@@ -194,44 +201,83 @@ for platform in "${platforms[@]}"; do
 		meson_build mpv $MPV_OPTS -Dprefer_static=true \
 		-Dc_link_args="-lc++" -Dobjc_link_args="-lc++"
 
-	dylib=$(ls "$prefix"/lib/libmpv.*.dylib | head -n 1)
-	fw="$out/$platform/Libmpv.framework"
-	rm -rf "$fw"
-	mkdir -p "$fw"
-	cp "$dylib" "$fw/Libmpv"
-	install_name_tool -id @rpath/Libmpv.framework/Libmpv "$fw/Libmpv"
+	# Each dynamic library as a framework: lib<name>.<version>.dylib becomes Lib<name>.framework/Lib<name>,
+	# found through @rpath (the app's Frameworks folder), and the libraries refer to each other that way.
+	mkdir -p "$out/$platform"
+	names="$build/install-names.txt"
+	: >"$names"
+	made=""
+	for lib in "$prefix"/lib/*.dylib; do
+		[ -L "$lib" ] && continue
+		stem=$(basename "$lib")
+		stem=${stem%%.*}
+		name="$(echo "${stem:0:1}" | tr '[:lower:]' '[:upper:]')${stem:1}"
+		fw="$out/$platform/$name.framework"
+		rm -rf "$fw"
+		mkdir -p "$fw"
+		cp "$lib" "$fw/$name"
+		echo "$(otool -D "$lib" | tail -n 1) @rpath/$name.framework/$name" >>"$names"
+		made="$made $name"
+		# The version of the source it came from: its own folder (libplacebo, fribidi, mpv), else FFmpeg's.
+		for dir in "$src/$stem" "$src/${stem#lib}" "$src/ffmpeg"; do
+			[ -d "$dir" ] && break
+		done
+		version=$(git -C "$dir" describe --tags | sed 's/^[vn]//; s/[^0-9.].*//')
+		cat >"$fw/Info.plist" <<-EOF
+			<?xml version="1.0" encoding="UTF-8"?>
+			<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+			<plist version="1.0">
+			<dict>
+				<key>CFBundleDevelopmentRegion</key><string>en</string>
+				<key>CFBundleExecutable</key><string>$name</string>
+				<key>CFBundleIdentifier</key><string>app.getpolar.desktop.$(echo "$stem" | tr '[:upper:]' '[:lower:]')</string>
+				<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+				<key>CFBundleName</key><string>$name</string>
+				<key>CFBundlePackageType</key><string>FMWK</string>
+				<key>CFBundleShortVersionString</key><string>$version</string>
+				<key>CFBundleVersion</key><string>$version</string>
+				<key>CFBundleSupportedPlatforms</key><array><string>$plist_platform</string></array>
+				<key>MinimumOSVersion</key><string>$IOS_MIN</string>
+			</dict>
+			</plist>
+		EOF
+	done
+	if [ "$(echo $made | tr ' ' '\n' | sort | tr '\n' ' ')" != "$(echo $FRAMEWORKS | tr ' ' '\n' | sort | tr '\n' ' ')" ]; then
+		echo "made the frameworks$made, not the expected $FRAMEWORKS (update FRAMEWORKS and tauri.ios.conf.json)" >&2
+		exit 1
+	fi
 	missing=0
-	for need in $(otool -L "$fw/Libmpv" | tail -n +2 | awk '{print $1}'); do
-		if [ "$need" != "@rpath/Libmpv.framework/Libmpv" ] && ! system_lib "$need"; then
-			echo "libmpv needs $need, which isn't part of iOS" >&2
-			missing=1
-		fi
+	for name in $FRAMEWORKS; do
+		bin="$out/$platform/$name.framework/$name"
+		install_name_tool -id "@rpath/$name.framework/$name" "$bin"
+		while read -r old new; do
+			install_name_tool -change "$old" "$new" "$bin"
+		done <"$names"
+		# Next to each other in the app's Frameworks folder.
+		install_name_tool -add_rpath @loader_path/.. "$bin"
+		for need in $(otool -L "$bin" | tail -n +2 | awk '{print $1}'); do
+			case "$need" in
+				@rpath/*.framework/*) [ -d "$out/$platform/$(basename "$need").framework" ] && continue ;;
+			esac
+			if ! system_lib "$need"; then
+				echo "$name needs $need, which isn't part of iOS or this build" >&2
+				missing=1
+			fi
+		done
 	done
 	[ $missing -eq 0 ] || exit 1
-	version=$(git -C "$src/mpv" describe --tags | sed 's/^v//')
-	cat >"$fw/Info.plist" <<-EOF
-		<?xml version="1.0" encoding="UTF-8"?>
-		<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-		<plist version="1.0">
-		<dict>
-			<key>CFBundleDevelopmentRegion</key><string>en</string>
-			<key>CFBundleExecutable</key><string>Libmpv</string>
-			<key>CFBundleIdentifier</key><string>app.getpolar.desktop.libmpv</string>
-			<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-			<key>CFBundleName</key><string>Libmpv</string>
-			<key>CFBundlePackageType</key><string>FMWK</string>
-			<key>CFBundleShortVersionString</key><string>$version</string>
-			<key>CFBundleVersion</key><string>$version</string>
-			<key>CFBundleSupportedPlatforms</key><array><string>$plist_platform</string></array>
-			<key>MinimumOSVersion</key><string>$IOS_MIN</string>
-		</dict>
-		</plist>
-	EOF
-	frameworks+=(-framework "$fw")
 done
 
-rm -rf "$out/Libmpv.xcframework"
-xcodebuild -create-xcframework "${frameworks[@]}" -output "$out/Libmpv.xcframework"
+
+rm -rf "$out/frameworks"
+mkdir -p "$out/frameworks"
+for name in $FRAMEWORKS; do
+	args=()
+	for platform in "${platforms[@]}"; do
+		args+=(-framework "$out/$platform/$name.framework")
+	done
+	xcodebuild -create-xcframework "${args[@]}" -output "$out/frameworks/$name.xcframework"
+done
 
 licenses="$out/licenses"
 rm -rf "$licenses"
@@ -249,9 +295,11 @@ cp "$src/harfbuzz/COPYING" "$licenses/HarfBuzz-COPYING.txt"
 cp "$src/fribidi/COPYING" "$licenses/FriBidi-COPYING.txt"
 {
 	echo "This app carries libmpv and FFmpeg (LGPL version 2.1 or later), with the libraries they use,"
-	echo "built for iOS into Libmpv.framework from the sources in polarity-ios-mpv-sources.tar.xz,"
-	echo "published with each release of the app. The framework is loaded at run time and can be"
-	echo "replaced with one built from those sources (scripts/ios-mpv.sh in the archive)."
+	echo "built for iOS from the sources in polarity-ios-mpv-sources.tar.xz, published with each release"
+	echo "of the app. Each LGPL library is a framework of its own in the app (Libmpv, Libavcodec,"
+	echo "Libavfilter, Libavformat, Libavutil, Libswresample, Libswscale, Libplacebo, Libfribidi), loaded"
+	echo "at run time, and can be replaced with one built from those sources (scripts/ios-mpv.sh in the"
+	echo "archive). dav1d, FreeType, HarfBuzz and libass are linked into them."
 	echo
 	sed -n '/^Libraries/,/^$/p' "$work/SOURCES.txt"
 } >"$licenses/BUNDLED.txt"
@@ -259,5 +307,5 @@ cp "$src/fribidi/COPYING" "$licenses/FriBidi-COPYING.txt"
 vendor="$root/src-tauri/vendor/ios"
 rm -rf "$vendor"
 mkdir -p "$vendor"
-cp -R "$out/Libmpv.xcframework" "$out/licenses" "$vendor/"
-echo "Libmpv.xcframework for ${platforms[*]} is in $vendor; sources: $out/polarity-ios-mpv-sources.tar.xz"
+cp -R "$out/frameworks" "$out/licenses" "$vendor/"
+echo "The frameworks for ${platforms[*]} are in $vendor/frameworks; sources: $out/polarity-ios-mpv-sources.tar.xz"

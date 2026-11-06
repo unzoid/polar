@@ -258,7 +258,7 @@ jobs:
       - name: Put libmpv in the app
         run: |
           mkdir -p src-tauri/vendor/ios
-          cp -R "$RUNNER_TEMP/ios-libmpv/out/Libmpv.xcframework" "$RUNNER_TEMP/ios-libmpv/out/licenses" src-tauri/vendor/ios/
+          cp -R "$RUNNER_TEMP/ios-libmpv/out/frameworks" "$RUNNER_TEMP/ios-libmpv/out/licenses" src-tauri/vendor/ios/
       - name: Generate the Xcode project
         run: |
           bun run tauri ios init --ci
