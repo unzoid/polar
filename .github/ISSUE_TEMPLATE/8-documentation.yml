@@ -1,0 +1,21 @@
+name: Documentation
+description: The README, CONTRIBUTING or another document is wrong, unclear or missing something.
+labels: [documentation]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Which document
+      description: The file, and the section if it's long.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong or missing
+    validations:
+      required: true
+  - type: textarea
+    id: better
+    attributes:
+      label: What it should say

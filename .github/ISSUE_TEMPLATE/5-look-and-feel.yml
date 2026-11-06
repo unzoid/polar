@@ -1,0 +1,29 @@
+name: Looks or feels off
+description: It works, but the design, wording, animation, layout or feel could be better. Decided by taste, not by a right answer.
+labels: [subjective]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What feels off
+      description: Where it is and what bothers you about it.
+    validations:
+      required: true
+  - type: textarea
+    id: better
+    attributes:
+      label: What would feel better
+      description: A description, a sketch, or another app that does it well.
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Interface
+      multiple: true
+      options:
+        - Desktop
+        - TV mode
+        - Phone
+  - type: textarea
+    id: shots
+    attributes:
+      label: Screenshots or a short video

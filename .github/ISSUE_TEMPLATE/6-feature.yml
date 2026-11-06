@@ -1,0 +1,35 @@
+name: Idea or feature request
+description: Something Polarity doesn't do yet.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Polarity is a player for media you're entitled to watch: it ships and suggests no sources, so requests for content or for specific add-ons can't be taken.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you want to do
+      description: The situation and what is missing, rather than only the solution. "I watch on two devices and ...".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+      description: What you'd see and press. Mention apps that do it well.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Which devices it matters on
+      multiple: true
+      options:
+        - Desktop (Windows, macOS, Linux)
+        - TV
+        - Phone or tablet
+        - All
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Sketches, screenshots, links to documentation of a service it would use.
