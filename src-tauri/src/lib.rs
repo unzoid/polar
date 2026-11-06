@@ -14,7 +14,6 @@ mod seekr;
 mod store;
 mod streamcheck;
 mod sync;
-mod trailer_proxy;
 mod trailers;
 
 use std::sync::{Arc, Mutex, RwLock};
@@ -161,7 +160,7 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    trailer_proxy::register(tauri::Builder::default())
+    tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             logging::init(&app.path().app_log_dir()?, app.path().home_dir().ok().as_deref());
