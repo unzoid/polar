@@ -254,3 +254,13 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   await expect(settings.getByText("Added 1 title to your library and 1 progress entry.")).toBeVisible();
   await expect(addon).toHaveCount(0);
 });
+
+test("the title page's Download button names what it downloads (#26)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Series", exact: true }).click();
+  await card(app, "Fieldwork").click();
+  const actions = app.locator(".detail-actions");
+  await expect(actions.getByRole("button", { name: "Download S1 E1", exact: true })).toHaveText("Download S1 E1");
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
+});
