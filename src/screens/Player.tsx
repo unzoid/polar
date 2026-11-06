@@ -263,7 +263,7 @@ export function Player({
   const playingStream = source.state.status === "ready" ? source.state.stream : undefined;
   const hint = useMemo(() => streamHint(playingStream), [playingStream]);
   const partyMedia = { type, metaId, videoId, label: heading || undefined };
-  usePartySync({ media, current: partyMedia, started, buffering, hint });
+  usePartySync({ media, current: partyMedia, started, buffering, hint, leaving });
   const startHere = () => {
     const v = videoRef.current;
     if (!party && profile && v) startParty({ ...partyMedia, hint }, v.currentTime, v.paused, profile);
