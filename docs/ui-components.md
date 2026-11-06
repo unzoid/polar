@@ -180,7 +180,7 @@ markup rather than a shared component.
 | `TvStage`, `TvBackdrop`, `TvAmbient`, `StageProvider` | `tv/TvStage.tsx:334,376,410,281` | Focus-driven hero. |
 | `TvDetail`, `Actions`/`ActionPill`, panels | `tv/TvDetail.tsx:37,129,297`; panels at `:192,253,345,454,485` | Vertical pill column; Episodes, Details, Sources, Playlists and Name panels. |
 | `TitleDetails`, `Cast`, `ScoreCards`, `ScoreChips`, `FormatBadges` | `components/TitleDetails.tsx:19,109,145,185,219` | Shared by Detail and TV. |
-| `Trailer` / `TrailerHost`, `useBackdropTrailer`, `AmbientWash`, `TitleLogo`, `Img`, `EdgeBlur` | `components/*` | Media helpers. `TrailerHost` is a hand-made `role=dialog`. |
+| `Trailer` / `TrailerHost`, `useBackdropTrailer`, `AmbientWash`, `TitleLogo`, `Img`, `EdgeBlur` | `components/*` | Media helpers. `TrailerHost` is a hand-made `role=dialog`. A card frame or hero spreads `useArtGate(art)` (lib/ui): its `.art-after` logo, name and scrim stay hidden until the art is in, failed, or has been in view for 1.2 s. |
 
 ### 2.4 Menus, popovers, sheets, dialogs
 

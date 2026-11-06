@@ -6,7 +6,7 @@ import { useEntryShown, type EntryAt } from "../lib/anime";
 import { episodeCode, formatRemaining } from "../lib/format";
 import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/net";
 import { useRouter } from "../lib/router";
-import { useCardIntent } from "../lib/ui";
+import { useArtGate, useCardIntent } from "../lib/ui";
 import type { Shape, Shelf } from "../lib/catalog";
 import type { MetaPreview, Progress } from "../lib/types";
 import { StageProvider, TvStage, useStage, useStageSeed } from "./TvStage";
@@ -68,6 +68,8 @@ export function TvCard({
   // Art that won't load falls back to the title, not an empty frame; better art arriving gets a fresh try.
   const preferred = shape === "poster" ? (item.poster ?? item.background) : (item.background ?? item.poster);
   const { shown: art, onError: onArtError } = useCardArt(preferred);
+  // The logo and name wait for the art (#173).
+  const gate = useArtGate(art, artFallbacks);
   // An anime shown by its entry opens that entry (TvAnimeDetail takes it on to the title's page with just its episodes).
   const open = onOpen ?? (() => navigate(shownEntry ? { name: "anime-detail", id: shownEntry.anilist } : { name: "detail", type: item.type, id: item.id, preview: item }));
 
@@ -100,7 +102,7 @@ export function TvCard({
         openCardMenu({ item: stored, entry, anchor: e.currentTarget });
       }}
     >
-      <span className="tv-card-frame">
+      <span className="tv-card-frame" {...gate}>
         {art ? (
           <Img src={art} fallbacks={artFallbacks} alt="" className="tv-card-img" onFail={onArtError} />
         ) : (
@@ -108,8 +110,8 @@ export function TvCard({
         )}
         {shape === "landscape" && art && (
           <>
-            <span className="tv-card-scrim" />
-            <LogoOrName logo={item.logo} alt="" logoClass="tv-card-logo" name={<span className="tv-card-name">{item.name}</span>} />
+            <span className="tv-card-scrim art-after" />
+            <LogoOrName logo={item.logo} alt="" logoClass="tv-card-logo" name={<span className="tv-card-name art-after">{item.name}</span>} />
           </>
         )}
         {chip && <span className="tv-card-chip">{chip}</span>}

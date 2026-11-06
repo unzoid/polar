@@ -124,7 +124,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
         onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
       >
         {phone && backdrop}
-        <AnimeHero item={shown} anime={anime} logo={art.logo} name={title(shown.title)} onImdb={onImdb} trailer={trailer} />
+        <AnimeHero item={shown} anime={anime} logo={art.logo} background={art.background} name={title(shown.title)} onImdb={onImdb} trailer={trailer} />
         {loaded && <Body anime={loaded} franchise={franchise} switching={!anime} />}
       </div>
     </div>

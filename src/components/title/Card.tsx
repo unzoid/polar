@@ -1,4 +1,5 @@
 import { useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
+import { useArtGate } from "../../lib/ui";
 import { Img } from "../Img";
 import { TitleLogo } from "../TitleLogo";
 import { Skeleton } from "../ui/Skeleton";
@@ -14,7 +15,7 @@ type CardProps = Omit<HTMLAttributes<HTMLElement>, "title"> & {
   fallback?: ReactNode;
   /** Extra class on the frame (`anime-card-frame`, `card-frame-resume`). */
   frameClass?: string;
-  /** Drawn over the art, in order: scrim, title on the art, badges, progress. */
+  /** Drawn over the art, in order: scrim, title on the art, badges, progress. `.art-after` ones wait for the art (useArtGate). */
   children?: ReactNode;
   /**
    * Buttons on the art (Continue Watching's resume). A button can't sit inside a button, so with actions the card
@@ -55,9 +56,10 @@ export function Card({
   className,
   ...root
 }: CardProps) {
+  const gate = useArtGate(art, artFallbacks);
   const body = (
     <>
-      <div className={frameClass ? `card-frame ${frameClass}` : "card-frame"}>
+      <div className={frameClass ? `card-frame ${frameClass}` : "card-frame"} {...gate}>
         <CardArt src={art} fallbacks={artFallbacks} fallback={fallback} />
         {children}
         {actions}
@@ -111,20 +113,20 @@ export function CardArt({ src, fallbacks, fallback }: { src?: string; fallbacks?
   );
 }
 
-/** The scrim and the title on landscape art: the logo when there is one and it loads, else the name. */
+/** The scrim and the title on landscape art: the logo when there is one and it loads, else the name. Both wait for the art. */
 export function ArtTitle({ name, logo }: { name: string; logo?: string }) {
   return (
     <>
-      <div className="card-art-scrim" />
-      <LogoOrName logo={logo} alt={name} logoClass="card-logo" name={<span className="card-art-title t-title2">{name}</span>} />
+      <div className="card-art-scrim art-after" />
+      <LogoOrName logo={logo} alt={name} logoClass="card-logo" name={<span className="card-art-title t-title2 art-after">{name}</span>} />
     </>
   );
 }
 
-/** A card's logo, or `name` while there's none or it doesn't load; a new `logo` gets a fresh try. */
+/** A card's logo, or `name` while there's none or it doesn't load; a new `logo` gets a fresh try. The logo waits for the art (`art-after`). */
 export function LogoOrName({ logo, alt, logoClass, name }: { logo?: string; alt: string; logoClass: string; name: ReactNode }) {
   const { shown, onError } = useCardArt(logo);
-  return shown ? <TitleLogo src={shown} alt={alt} className={logoClass} onFail={onError} /> : name;
+  return shown ? <TitleLogo src={shown} alt={alt} className={`${logoClass} art-after`} onFail={onError} /> : name;
 }
 
 /** A stripe along the bottom of the art for how far in you are (0–1). */
