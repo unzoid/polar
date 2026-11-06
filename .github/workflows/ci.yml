@@ -200,8 +200,9 @@ jobs:
           path: windows-mpv/out/windows-mpv.lock
           if-no-files-found: ignore
           retention-days: 14
-      # Every package's step logs (the job prints the failed one's) and CMake's
-      # record of its checks, with the commands they ran.
+      # Every package's step logs (the job prints the failed one's), CMake's,
+      # autoconf's and FFmpeg's records of their checks, with the commands they
+      # ran and the compiler's errors.
       - name: Keep the build logs
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -211,6 +212,8 @@ jobs:
             windows-mpv/ninja.log
             windows-mpv/build/**/*-stamp/*.log
             windows-mpv/build/**/CMakeFiles/CMakeConfigureLog.yaml
+            windows-mpv/build/**/config.log
+            windows-mpv/src/*/config.log
           if-no-files-found: ignore
           retention-days: 14
       - name: Keep mpv.exe and its sources

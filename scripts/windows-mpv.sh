@@ -102,6 +102,11 @@ build() {
 			echo "==== windows-mpv.sh: last 100 lines of $f"
 			tail -n 100 "$f"
 		done
+		# autoconf's own record of a failed configure, with the compiler's error.
+		f="build/${dir%-stamp/}-build/config.log"
+		[ -s "$f" ] || continue
+		echo "==== windows-mpv.sh: last 150 lines of $f"
+		tail -n 150 "$f"
 	done
 	return 1
 }
@@ -155,8 +160,15 @@ for f in winbuild/packages/*.cmake winbuild/toolchain/*.cmake winbuild/toolchain
 done
 [ $bad -eq 0 ] || exit 1
 
-if [ "${2:-}" = toolchain ]; then
+# The toolchain as upstream's CI builds it: clang and lld first, as a target of their own (MinGW-w64's
+# CRT and the other toolchain targets don't depend on it, yet are compiled with it), then the rest.
+toolchain() {
+	build llvm
 	build llvm-clang
+}
+
+if [ "${2:-}" = toolchain ]; then
+	toolchain
 	exit 0
 fi
 
@@ -166,7 +178,7 @@ mkdir -p stage
 tar -cf - --exclude=.git -C "$work" src | xz -T0 >stage/sources.tar.xz
 ls src >stage/packed.txt
 
-build llvm-clang
+toolchain
 build mpv mpv-packaging
 
 # Anything downloaded during the build isn't in the sources archive.
