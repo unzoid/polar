@@ -2,6 +2,7 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
 import * as fx from "./fixtures";
 import type { Download } from "../../library/downloads";
+import type { AnimeLink } from "../../library/identity";
 import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
 
 /**
@@ -15,6 +16,7 @@ import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
 
 const library: LibraryItem[] = [...fx.library];
 const progress: Progress[] = [...fx.progress];
+const animeLinks = new Map<number, AnimeLink>();
 // A download finishes the moment it starts; the file is only a name.
 let downloads: Download[] = [];
 // `fake.html?theme=black` and the like start with that setting changed.
@@ -69,8 +71,12 @@ const commands: Record<string, (a: Args) => unknown> = {
   },
   continue_watching: () => progress,
   watch_history: () => progress,
-  anime_links: () => [],
-  link_anime: () => false,
+  anime_links: () => [...animeLinks.values()],
+  link_anime: (a) => {
+    const link = (a as { link: Omit<AnimeLink, "updatedAt"> }).link;
+    animeLinks.set(link.anilist, { ...link, updatedAt: Date.now() });
+    return true;
+  },
   anime_ids: () => null,
   anime_episode_flags: () => ({ filler: [], recap: [] }),
   anime_cache: () => ({ path: "~/.cache/polar/anime", bytes: 1_843_200 }),
