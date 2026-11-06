@@ -238,6 +238,33 @@
 .srcf-addon {
   margin-left: auto;
 }
+/* A phone: the quality switch has the first row; the add-on dropdown and Filters share the
+   second, the dropdown taking what Filters leaves, rather than drifting to the right on their own. */
+:root[data-form="phone"] .srcf-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.625rem;
+}
+:root[data-form="phone"] .srcf-bar > :first-child {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 100%;
+}
+:root[data-form="phone"] .srcf-bar > :first-child:empty {
+  display: none;
+}
+:root[data-form="phone"] .srcf-addon {
+  min-width: 0;
+  max-width: none;
+  margin-left: 0;
+}
+/* Without an add-on choice, Filters starts the row. */
+:root[data-form="phone"] .srcf-bar > .srcf-filters:nth-child(2) {
+  justify-self: start;
+}
+:root[data-form="phone"] .srcf-bar > .srcf-active {
+  grid-column: 1 / -1;
+}
 /* As wide as its label (up to a point), never so narrow "All add-ons" is cut. */
 .srcf-addon {
   flex: 0 1 auto;

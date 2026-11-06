@@ -991,3 +991,151 @@
     animation-name: fade-in;
   }
 }
+
+/* --- Phone: a title page as phone apps lay one out (Infuse, Apple TV). The page scrolls as one:
+   the art is the top of it (Detail.tsx puts it inside the scroller) and leaves as you scroll,
+   instead of staying behind the page while the text fades over it. Under the art, centred: the
+   title treatment, the facts, Play across the width, a row of round buttons, then the synopsis.
+   The episodes follow straight after, with no window-high gap to scroll through first. */
+:root[data-form="phone"] .detail {
+  --art-h: min(64svh, 150vw);
+}
+:root[data-form="phone"] .detail-bg {
+  inset: 0 0 auto 0;
+  height: var(--art-h);
+}
+:root[data-form="phone"] .detail-bg-blur,
+:root[data-form="phone"] .detail-fold {
+  display: none;
+}
+/* Dark enough at the top for the bar's icons, and into the page's own black at the bottom, where the title sits. */
+:root[data-form="phone"] .detail-bg-scrim {
+  background:
+    linear-gradient(to bottom, rgb(0 0 0 / 0.45), transparent 22%),
+    linear-gradient(to top, var(--bg) 0%, rgb(0 0 0 / 0.72) 22%, transparent 52%);
+}
+:root[data-form="phone"] .detail .detail-hero {
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 1rem;
+  padding: calc(var(--art-h) - 9rem) var(--gutter) 1.75rem;
+}
+:root[data-form="phone"] :is(.detail-hero-main, .detail-credits) {
+  animation: none;
+}
+:root[data-form="phone"] .detail-hero-main {
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+/* The synopsis goes under the buttons, as on a phone's title page; the rest keeps its order. */
+:root[data-form="phone"] .detail-hero-main > .detail-description {
+  order: 1;
+  align-self: stretch;
+  margin-top: 0.25rem;
+  text-align: left;
+  -webkit-line-clamp: 3;
+}
+:root[data-form="phone"] .detail-hero-main > .anime-unavailable {
+  order: 2;
+}
+:root[data-form="phone"] .detail-logo {
+  max-width: 82%;
+  max-height: 112px;
+  margin-bottom: 0.25rem;
+  object-position: center bottom;
+}
+:root[data-form="phone"] .detail-facts {
+  justify-content: center;
+}
+:root[data-form="phone"] .detail-actions {
+  align-self: stretch;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+:root[data-form="phone"] .detail-actions > .detail-play {
+  flex: 1 0 100%;
+  min-width: 0;
+  height: 50px;
+  font-size: var(--fs-lg);
+}
+:root[data-form="phone"] .detail-actions > .btn.btn-icon {
+  width: 48px;
+  height: 48px;
+}
+:root[data-form="phone"] .detail-credits {
+  max-width: none;
+  font-size: var(--fs-sm);
+}
+
+/* Narrow screens (#151): the season picker gets a row of its own, and Download Season and the
+   row/list switch go under it. Beside them the picker was squeezed to its first letter. */
+@media (max-width: 600px) {
+  .seasons-bar {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+  }
+  .seasons-picker,
+  .seasons-bar > .seasons-tabs {
+    flex: 1 0 100%;
+  }
+  .seasons-bar > .segmented {
+    margin-left: auto;
+  }
+  /* The season dropdown (always one on a phone: SeasonPicker.tsx) a size down, a long name ellipsized. */
+  :is(.seasons-picker, .seasons-tabs) .select-trigger[data-size="large"] {
+    max-width: 100%;
+    min-height: 42px;
+    font-size: 1.25rem;
+  }
+  :is(.seasons-picker, .seasons-tabs) .select-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* A listed episode's Download and Sources sit on its still's top corner, as on a card in a row:
+     at the row's end they ran over the title and synopsis. */
+  .episode-card[data-layout="list"] .episode-card-main,
+  .episode-card[data-layout="list"]:has(.download-reveal) .episode-card-main {
+    padding-right: 0.25rem;
+  }
+  .episode-card[data-layout="list"] .btn.btn-icon:is(.episode-sources, .episode-download) {
+    top: calc(0.75rem + 4px);
+    width: 28px;
+    height: 28px;
+    margin-top: 0;
+  }
+  .episode-card[data-layout="list"] .episode-sources {
+    right: auto;
+    left: calc(0.25rem + 8.5rem - 32px);
+  }
+  .episode-card[data-layout="list"] .episode-download {
+    right: auto;
+    left: calc(0.25rem + 8.5rem - 64px);
+  }
+  .episode-card[data-layout="list"] .btn.btn-icon.episode-download.download-reveal {
+    right: auto;
+    left: calc(0.25rem + 8.5rem - 96px);
+  }
+}
+/* The smallest phones put the still above the text, full width: the buttons go to its right corner. */
+@media (max-width: 400px) {
+  .episode-card[data-layout="list"] .episode-sources {
+    left: auto;
+    right: calc(0.25rem + 4px);
+  }
+  .episode-card[data-layout="list"] .episode-download {
+    left: auto;
+    right: calc(0.25rem + 36px);
+  }
+  .episode-card[data-layout="list"] .btn.btn-icon.episode-download.download-reveal {
+    left: auto;
+    right: calc(0.25rem + 68px);
+  }
+}

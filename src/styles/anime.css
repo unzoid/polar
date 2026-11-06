@@ -521,6 +521,27 @@
   flex-direction: column;
   gap: 0.125rem;
 }
+/* A phone: the staff in a sideways strip of two rows, as the cast is, instead of one long column
+   (a show credits dozens) that pushed the details screens away. */
+:root[data-form="phone"] .anime-staff {
+  grid-template-columns: none;
+  grid-template-rows: repeat(2, auto);
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(10rem, 46%);
+  gap: 0.875rem 1.25rem;
+  margin-right: calc(-1 * var(--gutter));
+  padding-right: var(--gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+:root[data-form="phone"] .anime-staff::-webkit-scrollbar {
+  display: none;
+}
+:root[data-form="phone"] .anime-staff-item > * {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 /* Details */
 .anime-rankings {

@@ -23,7 +23,7 @@ import {
 } from "../lib/anime";
 import { useMeta } from "../lib/net";
 import { usePrefs } from "../lib/settings";
-import { useFoldSnap } from "../lib/ui";
+import { useFoldSnap, useFormFactor } from "../lib/ui";
 import type { EpisodeLayout } from "../lib/types";
 
 /**
@@ -60,6 +60,8 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
 
   const scroller = useRef<HTMLDivElement>(null);
   useFoldSnap(scroller, !!shown);
+  // A phone's page scrolls as one, the art at its top (Detail.tsx).
+  const phone = useFormFactor().form === "phone";
 
   // The IMDb trailer behind the page, as a show's page has (test report 1, item 17): one IMDb id
   // covers the whole franchise and its trailer is the first season's, so only on the first entry.
@@ -99,6 +101,14 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
 
   const art = franchiseArt({ imdb: franchiseImdb, meta, metaLoading, first: animeArt(first ?? shown, firstZip) });
   const franchise = seasons && { seasons, active: activeId, select: setActiveId, loading: seasonsLoading };
+  const backdrop = (
+    <div className="detail-bg" aria-hidden>
+      <Img src={art.background} alt="" loading="eager" className="detail-bg-sharp" />
+      {trailer.node}
+      <Img src={art.background} alt="" loading="eager" className="detail-bg-blur" />
+      <div className="detail-bg-scrim" />
+    </div>
+  );
 
   return (
     <div
@@ -107,17 +117,13 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
       data-trailer={trailer.visible}
       style={{ "--cover": shown.coverImage.color ?? undefined } as React.CSSProperties}
     >
-      <div className="detail-bg" aria-hidden>
-        <Img src={art.background} alt="" loading="eager" className="detail-bg-sharp" />
-        {trailer.node}
-        <Img src={art.background} alt="" loading="eager" className="detail-bg-blur" />
-        <div className="detail-bg-scrim" />
-      </div>
+      {!phone && backdrop}
       <div
         className="scroll detail-scroll"
         ref={scroller}
         onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
       >
+        {phone && backdrop}
         <AnimeHero item={shown} anime={anime} logo={art.logo} name={title(shown.title)} onImdb={onImdb} trailer={trailer} />
         {loaded && <Body anime={loaded} franchise={franchise} switching={!anime} />}
       </div>

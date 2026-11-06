@@ -235,7 +235,7 @@ markup rather than a shared component.
 | Element | Where | Notes |
 |---|---|---|
 | Player root, chrome auto-hide, click surface | `screens/Player.tsx` (root, click surface), `components/player/usePlayerChrome.ts` (auto-hide) | State through `data-*` on `.player`. |
-| Top bar, centre transport, bottom bar | `screens/Player.tsx` | Volume slider, `SkipIcon` (`components/player/icons.tsx`), `ActionButton` row; the clock is `PlayerClock` (`components/player/PlayerClock.tsx`). |
+| Top bar, centre transport, bottom bar | `screens/Player.tsx` | Volume slider, `SkipTransport` (`components/player/SkipTransport.tsx`), `EpisodeRail` (`components/player/EpisodeRail.tsx`), `ActionButton` row; the clock is `PlayerClock` (`components/player/PlayerClock.tsx`). |
 | Up Next card | `screens/Player.tsx` (`.next-up`) | `.next-up`, motion slide. |
 | Start-up screen, step log, copy details | `components/player/PlayerStatus.tsx` | `PlayerStatus`, `StartSteps`, `CopyDetails` (T-022). |
 | `OptionsOverlay` + `Row` | `components/player/OptionsOverlay.tsx:54,172` | Speed, Tracks, Party, Episodes, Sources. |
@@ -293,7 +293,7 @@ screen.
 | U29 | Search screen | `Search` + NavBar suggestions vs `TvSearch`; debounce 180/250 ms; genre lists in 3 places | — | `useSearch()` (one debounce, one genre list in `lib/catalog/genres.ts`) | Both layouts |
 | U30 | Entrance animation | 8 keyframes for one effect, 3 plain fades | Distance 4–10 px | `@keyframes enter` with `--enter-y` and `--enter-blur` custom properties; one `fade-in` | Distances become per-use variables |
 | U31 | Module-store hosts | `CardMenu.tsx:32-77`, `Trailer.tsx:24-41`, `TvCardMenu` store, ~15 lib stores (M30) | — | `createStore()` in lib | — |
-| U32 | Icons | `PlaylistIcon` = `LayoutList`; `ExternalGlyph` vs `ArrowUpRight`; hand SVGs in `WindowControls`, `Updates`, `SkipIcon`, `Tomato`/`Splat` | — | Everything through `components/icons.tsx` | Same glyphs |
+| U32 | Icons | `PlaylistIcon` = `LayoutList`; `ExternalGlyph` vs `ArrowUpRight`; hand SVGs in `WindowControls`, `Updates`, `SkipTransport`, `Tomato`/`Splat` | — | Everything through `components/icons.tsx` | Same glyphs |
 
 ## 4. Target component set
 

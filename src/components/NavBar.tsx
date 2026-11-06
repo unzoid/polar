@@ -1,7 +1,7 @@
 import logo from "../assets/polarity-white.png";
 import { ChevronDown, ChevronLeft, Close, Search, Speed, Tv } from "./icons";
 import { addRecentSearch, clearRecentSearches, FOCUS_SEARCH_EVENT, setSearchText, useRecentSearches, useSearchText } from "../lib/catalog";
-import { setTvMode } from "../tv/tvMode";
+import { setTvMode, tvModeAvailable } from "../tv/tvMode";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
@@ -84,7 +84,7 @@ export function NavBar() {
         <UpdatePill />
         <NavParty />
         <SearchBox />
-        {showTvButton && (
+        {showTvButton && tvModeAvailable && (
           <button className="navbar-icon pressable" aria-label="TV mode" title="TV mode" onClick={() => setTvMode(true)}>
             <Tv size={23} />
           </button>
@@ -306,13 +306,21 @@ const SUGGESTED_ANIME = ["Isekai", "Shounen", "Slice of Life", "Mecha", "Iyashik
 /** The recent searches shown above the genres. */
 const RECENT_SHOWN = 3;
 
+/** The suggestions panel's width, and the least room it keeps from the window's edges. */
+const SUGGEST_W = 440;
+const SUGGEST_MARGIN = 16;
+
 /** Under the empty field: your last searches, then genres to search by, one click from their titles. */
 function SearchSuggestions({ pick, under }: { pick: (text: string) => void; under: HTMLElement | null }) {
   const { animeEnabled } = usePrefs();
   const recent = useRecentSearches().slice(0, RECENT_SHOWN);
   if (!under) return null;
-  // The field clips everything inside it (its open/close sweep), so this sits on the body.
+  // The field clips everything inside it (its open/close sweep), so this sits on the body: under
+  // the field's right edge, moved in from the left edge where the window is narrower than it
+  // (a phone: the panel ran off the screen's left side).
   const r = under.getBoundingClientRect();
+  const width = Math.min(SUGGEST_W, window.innerWidth - 2 * SUGGEST_MARGIN);
+  const right = Math.min(window.innerWidth - r.right, window.innerWidth - SUGGEST_MARGIN - width);
   const chips = (list: string[]) =>
     list.map((g) => (
       <Chip key={g} tabIndex={-1} onClick={() => pick(g)}>
@@ -323,7 +331,7 @@ function SearchSuggestions({ pick, under }: { pick: (text: string) => void; unde
     // Keeps focus in the field, so it doesn't blur (and close) on the way.
     <div
       className="search-suggest"
-      style={{ top: r.bottom + 8, right: window.innerWidth - r.right }}
+      style={{ top: r.bottom + 8, right, width }}
       onMouseDown={(e) => e.preventDefault()}
     >
       {recent.length > 0 && (
