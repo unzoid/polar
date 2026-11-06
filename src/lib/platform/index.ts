@@ -8,5 +8,6 @@ export * from "./bridge";
 export * from "./device";
 export * from "./formFactor";
 export * from "./keychain";
+export * from "./nativeTabs";
 export * from "./updates";
 export * from "./window";

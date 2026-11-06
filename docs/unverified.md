@@ -197,6 +197,35 @@ To check on an iPhone (notched, iOS 17 or later) and an iPad:
    windows resized: the tablet layout; under 600 px wide the player shows glyph-only actions and the title
    beside Back. With a keyboard and a trackpad: Escape is Back, the shortcuts work, hover shows on cards.
 
+## iOS tab bar (#174)
+
+The sections (Home, Series, Movies, Anime, Library, and Calendar when it's on) are iOS's own tab bar: a
+`UITabBarController` becomes the window's root and Tauri's view controller, the web view with the video
+behind it, moves into the current tab (`ios/tabs.m`). The web app sends the tabs, the current one and
+whether the bar shows (`native_tabs`); a tab the user picks comes back as `native://tab` and opens that
+section, the current one picked again goes back to its top. The web-drawn tabs hide. CI builds with Xcode
+26 or later, so iOS 26 draws the bar in Liquid Glass; iOS 17 to 25 get the classic bar; an iPad on iOS 18
+or later gets the tab bar that opens into a sidebar. Only the web side ran here (unit tests, the Rust for
+iOS type-checked); the Objective-C was written from Apple's documentation and is compiled only by CI.
+
+To check on an iPhone and an iPad on iOS 26, and an iPhone on iOS 17 or 18:
+1. The tab bar shows the sections with their icons; the current one is marked; tapping one opens it;
+   tapping the current one on a title page goes back to the section's top. Back (the edge swipe), a title
+   opened from search and joining a watch party move the marked tab with them; search marks none.
+2. iOS 26: the floating glass bar; content scrolls under it and the last row of a page clears it. Whether it
+   shrinks while scrolling: the pages scroll inside the web view, not the web view itself, so probably not.
+3. Older iOS: the classic bar, the last row clears it.
+4. The bar hides while the player, Settings or a sheet is open and comes back when they close; the player's
+   bottom controls sit by the home indicator, not above an empty space where the bar was (iOS 17 most of
+   all).
+5. Settings → Browsing → Show the Calendar: a sixth tab; on an iPhone the bar shows More with the rest.
+6. iPad: the bar at the top, its sidebar button opens the sidebar with the same tabs; Split View, Slide Over
+   and Stage Manager sizes; the web top bar (logo, search, profile) doesn't sit under the tab bar.
+7. VoiceOver reads the tabs and the current one; Larger Text grows the labels; Reduce Transparency turns the
+   glass solid.
+8. Status bar: light text over the dark app; hidden in the player, back after (`ios/system_bars.m` now goes
+   through the tab bar controller).
+
 ## macOS release: sources of the bundled libraries
 
 `scripts/macSources.ts` was tested only against a stand-in `brew` (`tests/macSources.test.ts`); Homebrew itself

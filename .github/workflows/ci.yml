@@ -358,6 +358,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The iOS 26 SDK gives the system controls (the tab bar, src-tauri/src/ios/tabs.m) their Liquid
+      # Glass look on iOS 26; the app still runs from iOS 17 (tauri.ios.conf.json).
+      - name: Use Xcode 26 or later
+        run: |
+          xcode=$(ls -d /Applications/Xcode_[0-9]*.app | grep -iv beta | sort -V | tail -1)
+          case "$(basename "$xcode")" in Xcode_2[6-9]*|Xcode_[3-9][0-9]*) ;; *) echo "::error::no Xcode 26 or later here"; ls -d /Applications/Xcode*.app; exit 1 ;; esac
+          sudo xcode-select -s "$xcode"
+          echo "$xcode: iOS SDK $(xcrun --sdk iphoneos --show-sdk-version)"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch
         with:
           toolchain: stable

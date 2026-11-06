@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { dismissDepth, dismissTop, handleDismissKey, onDismissed, pushDismiss } from "../src/lib/ui/dismiss";
+import { dismissDepth, dismissTop, handleDismissKey, onDismissDepth, onDismissed, pushDismiss } from "../src/lib/ui/dismiss";
 
 const key = (k: string, init: { defaultPrevented?: boolean; isComposing?: boolean } = {}) => {
   const e = { key: k, defaultPrevented: !!init.defaultPrevented, isComposing: !!init.isComposing, stopped: false };
@@ -66,4 +66,17 @@ test("Back without Escape closes the top layer and tells the listeners; nothing 
   handleDismissKey(key("Escape"));
   expect(told).toBe(2);
   offTold();
+});
+
+test("opening and closing a layer tells the depth listeners", () => {
+  let heard = 0;
+  const stop = onDismissDepth(() => heard++);
+  const close = pushDismiss(() => {});
+  expect(heard).toBe(1);
+  close();
+  close(); // already closed: nothing changes
+  expect(heard).toBe(2);
+  stop();
+  pushDismiss(() => {})();
+  expect(heard).toBe(2);
 });
