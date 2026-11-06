@@ -118,6 +118,8 @@ export interface PartyLink {
   send(message: Record<string, unknown>): void;
   /** Update how this member appears to the others. */
   track(presence: PartyPresence): void;
+  /** Drop this connection and open a new one: it stopped carrying messages without saying so. */
+  reconnect(): void;
   close(): void;
 }
 

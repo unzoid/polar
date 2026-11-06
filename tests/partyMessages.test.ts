@@ -19,9 +19,17 @@ test("versions must be safe integers, so nobody wins every tie for good", () => 
   expect(parseMessage(state({ v: "4" }))).toBeNull();
 });
 
-test("a timeline speaks for its sender only", () => {
-  expect(parseMessage({ ...state(), from: "b" })).toBeNull();
+test("a timeline from someone else is a relay: parsed, and left to the room to judge (#203)", () => {
+  expect(parseMessage({ ...state(), from: "b" })).toMatchObject({ t: "state", from: "b", tl: { by: "a" } });
   expect(parseMessage({ ...state(), from: undefined })).toBeNull();
+});
+
+test("a ping carries its sender's entry number, when it's a real one", () => {
+  expect(parseMessage({ t: "ping", from: "a", sent: 1, seq: 4 })).toEqual({ t: "ping", from: "a", sent: 1, seq: 4 });
+  expect(parseMessage({ t: "ping", from: "a", sent: 1, seq: -1 })).toEqual({ t: "ping", from: "a", sent: 1 });
+  expect(parseMessage({ t: "ping", from: "a", sent: 1, seq: 1.5 })).toEqual({ t: "ping", from: "a", sent: 1 });
+  expect(parseMessage({ t: "presence", from: "a", to: "b" })).toEqual({ t: "presence", from: "a", to: "b" });
+  expect(parseMessage({ t: "presence", from: "a" })).toBeNull();
 });
 
 test("wrong shapes are dropped", () => {

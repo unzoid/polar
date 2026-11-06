@@ -24,10 +24,16 @@
  *   room's copy stays out of date. A member missing from presence without a
  *   "bye" is kept for a moment (as Disconnected) before being shown as gone,
  *   so a blip on the server never splits the room.
+ * - Presence isn't the only sign of life (#203): everyone pings every few
+ *   seconds, so a member heard from lately is shown as connected whatever
+ *   presence says, and is asked to send its entry again until presence agrees.
+ *   A member whose own pings stop coming back reconnects by itself.
+ * - Every device keeps a party log (log.ts) for "Copy party log".
  */
 import type { PartyLink, PartyPresence } from "../account/backend";
 import type { AccountBackend } from "../account/backend";
-import { DEFAULT_RULES, OUT_MAX, parseMessage, roundTrip, takesOver, type PartyMedia, type Refusal, type RoomRules, type Timeline } from "./messages";
+import { createPartyLog, tag } from "./log";
+import { DEFAULT_RULES, OUT_MAX, parseMessage, roundTrip, takesOver, V_JUMP_MAX, type PartyMedia, type PartyMessage, type Refusal, type RoomRules, type Timeline } from "./messages";
 
 export interface Playback extends Timeline {
   /** clock.now() at which `position` was current here. */
@@ -108,6 +114,20 @@ export interface PartyDeps {
 /** A waiter the room gives up holding for, so one bad connection can't stall everyone. */
 const HOLD_MAX_MS = 30_000;
 const HEARTBEAT_MS = 10_000;
+/** Everyone pings this often: the round trip, and a sign of life to the others. */
+export const PING_MS = 5000;
+/** Heard from this lately: connected, whatever presence says. */
+export const LIVE_MS = 12_000;
+/** In presence but not heard from for this long: its connection is gone, whatever presence says. */
+export const GHOST_MS = 20_000;
+/**
+ * This many of my own pings in a row not back: the connection is dead without
+ * saying so. Counted in pings, not time, so a device waking from sleep doesn't
+ * take its own nap for a dead connection.
+ */
+export const ECHO_MISSES = 3;
+/** While the room is known to exist (someone's in it), a join waits this long for the host's answer. */
+const JOIN_GIVE_UP_MS = 30_000;
 const DUTY_MS = 2000;
 const JOIN_TIMEOUT_MS = 8000;
 const NOTE_MS = 3500;
@@ -119,6 +139,7 @@ export const HEAL_MS = 3000;
 export const GONE_MS = 6000;
 /** Further behind the room than this is worth showing ("4 s behind"). */
 export const BEHIND_SHOWN = 2;
+const UNREACHABLE = "Couldn't reach the watch party. Check your connection.";
 const NOT_SET_UP = "Watch parties aren't set up on this server yet. Apply the watch_parties migration in Supabase.";
 const REFUSED: Record<Refusal, string> = {
   locked: "This watch party is locked. Ask the host to unlock it.",
@@ -147,12 +168,34 @@ export function createPartyRoom(deps: PartyDeps) {
   let cancelJoinTimeout: (() => void) | null = null;
   let noteId = 0;
   let presenceSeen = false;
+  /** A relayed timeline that came before the first presence list (see `relayTakes`). */
+  let earlyRelay: Record<string, unknown> | null = null;
   /** The members the server last listed, me as the server has me. */
   let listed: Member[] = [];
   /** Members missing from presence who didn't say bye, and since when. */
   const missing = new Map<string, { member: Member; since: number }>();
   /** Since when the server's copy of my entry has been out of date (or absent). */
   let staleSince: number | null = null;
+  /** In presence but silent so long they're taken as gone (see GHOST_MS), until heard from again. */
+  const ghosts = new Set<string>();
+  /** Members who said bye: a presence list that still has them is out of date (ids aren't reused). */
+  const left = new Set<string>();
+  /** Someone else was seen in the room, so it exists (for what a failed join says). */
+  let roomSeen = false;
+  /** When each other member was last heard from (any message). */
+  const heard = new Map<string, number>();
+  /** The newest entry number each member's pings say it has. */
+  const pinged = new Map<string, number>();
+  /** When each member was last asked to send its presence entry again. */
+  const asked = new Map<string, number>();
+  /** When I last sent my entry again because someone asked (or the host still has me knocking). */
+  let lastRenew = -Infinity;
+  /** My pings sent since one last came back (or the connection opened). */
+  let unanswered = 0;
+  /** When I last asked the room for its timeline. */
+  let lastHello = -Infinity;
+  /** When the join started, for how long it may wait. */
+  let joinStarted = 0;
   /** When we last answered an out-of-date timeline with ours. */
   let lastAnswer = -Infinity;
   /** Host: joiners answered (let in or turned away), and when, so a lost answer is sent again. */
@@ -168,6 +211,8 @@ export function createPartyRoom(deps: PartyDeps) {
 
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((l) => l());
+  const log = createPartyLog();
+  const say = (text: string) => log.add(clock.now(), text);
 
   function later(fn: () => void, ms: number) {
     const cancel = clock.after(() => {
@@ -244,6 +289,8 @@ export function createPartyRoom(deps: PartyDeps) {
       rules: { ...DEFAULT_RULES, v: 1 },
     });
     rulesBy = self.id;
+    log.reset(clock.wall(), clock.now());
+    say(`started a party as ${tag(self.id)}; ${describeTimeline(state.playback!)}`);
     connect(code);
     emit();
     return code;
@@ -261,16 +308,20 @@ export function createPartyRoom(deps: PartyDeps) {
     // Waiting from the start: the room holds until this player is up.
     self = { id: deps.newId(), name: me.name, avatar: me.avatar, joinedAt: clock.wall(), waiting: true, knock: true, seq: 1 };
     state = fresh(code, self, { knocking: true });
+    log.reset(clock.wall(), clock.now());
+    say(`joining as ${tag(self.id)}`);
     const joined = new Promise<void>((resolve, reject) => (pendingJoin = { resolve, reject }));
     connect(code);
     placeInLine = true;
-    cancelJoinTimeout = later(() => failJoin("There's no watch party with that code."), JOIN_TIMEOUT_MS);
+    joinStarted = clock.now();
+    cancelJoinTimeout = later(joinTimedOut, JOIN_TIMEOUT_MS);
     emit();
     return joined;
   }
 
   /** Leave Party: gone for everyone at once, and the party UI goes away here. */
   function leaveParty() {
+    if (self) say("left the party");
     if (self && link) link.send({ t: "bye", from: self.id });
     cancels.forEach((c) => c());
     cancels.clear();
@@ -281,6 +332,14 @@ export function createPartyRoom(deps: PartyDeps) {
     self = null;
     rtts = [];
     listed = [];
+    earlyRelay = null;
+    heard.clear();
+    asked.clear();
+    pinged.clear();
+    left.clear();
+    ghosts.clear();
+    roomSeen = false;
+    lastRenew = -Infinity;
     missing.clear();
     staleSince = null;
     waitingSince.clear();
@@ -296,6 +355,7 @@ export function createPartyRoom(deps: PartyDeps) {
 
   /** Out of the party for a reason the viewer is told about (removed, ended). */
   function exitWith(text: string) {
+    say(`out of the party: ${text}`);
     leaveParty();
     exit = { id: ++exitId, text };
     emit();
@@ -327,6 +387,7 @@ export function createPartyRoom(deps: PartyDeps) {
       lag: myLag(),
     };
     update({ playback: { ...next, at: clock.now() } });
+    say(`sent ${describeTimeline(next)}`);
     link?.send({ t: "state", from: self.id, tl: next });
     hostDuty();
     return true;
@@ -380,6 +441,7 @@ export function createPartyRoom(deps: PartyDeps) {
     const rules = { ...state.rules, ...patch, v: state.rules.v + 1 };
     rulesBy = self.id;
     update({ rules });
+    sayRules(rules, self.id);
     sendRules();
     refreshMembers();
     hostDuty();
@@ -403,6 +465,7 @@ export function createPartyRoom(deps: PartyDeps) {
   function admit(id: string) {
     if (!self || !isHost()) return;
     answered.set(id, { at: clock.now() });
+    say(`let ${tag(id)} in`);
     link?.send({ t: "admit", from: self.id, to: id });
   }
 
@@ -410,6 +473,7 @@ export function createPartyRoom(deps: PartyDeps) {
   function deny(id: string) {
     if (!self || !isHost()) return;
     answered.set(id, { at: clock.now(), refuse: "denied" });
+    say(`turned ${tag(id)} away`);
     link?.send({ t: "refuse", from: self.id, to: id, why: "denied" });
     refreshMembers();
   }
@@ -431,9 +495,11 @@ export function createPartyRoom(deps: PartyDeps) {
       onMessage: receive,
       onPresence: presence,
       onStatus: (s, detail) => {
+        say(`connection: ${s}${detail?.setup ? " (the server refuses watch parties)" : ""}`);
         if (s === "error") {
-          const message = detail?.setup ? NOT_SET_UP : "Couldn't reach the watch party. Check your connection.";
-          if (pendingJoin) return failJoin(message);
+          // Refused outright: no use waiting. A dropped connection comes back by itself (the library
+          // rejoins), so a join waits for it, until JOIN_TIMEOUT_MS says it couldn't get there.
+          if (pendingJoin && detail?.setup) return failJoin(NOT_SET_UP);
           // Refused outright: retrying can't help, so stop and say why.
           if (detail?.setup) {
             link?.close();
@@ -442,20 +508,45 @@ export function createPartyRoom(deps: PartyDeps) {
           update({ status: "error", error: detail?.setup ? NOT_SET_UP : undefined });
           return;
         }
+        unanswered = 0;
+        // Nobody could be heard while I was cut off: their silence counts from now.
+        for (const m of listed) heard.set(m.id, Math.max(heard.get(m.id) ?? 0, clock.now()));
+        if (ghosts.size) {
+          ghosts.clear();
+          refreshMembers();
+        }
         update({ status: "live", error: undefined });
         ping();
         // Ask for the timeline (again, after a reconnect: messages may have been missed).
-        if (self) link?.send({ t: "hello", from: self.id });
+        hello();
       },
     });
-    cancels.add(clock.every(ping, HEARTBEAT_MS));
+    unanswered = 0;
+    cancels.add(clock.every(ping, PING_MS));
     cancels.add(clock.every(heartbeat, HEARTBEAT_MS));
     cancels.add(clock.every(duty, DUTY_MS));
+  }
+
+  /**
+   * No answer yet. With nobody in the room, there's no such party; with
+   * someone there, the host's answer or my connection is slow: wait longer.
+   */
+  function joinTimedOut() {
+    cancelJoinTimeout = null;
+    if (!state?.knocking && state?.playback) return;
+    const someone = roomSeen;
+    if (someone && clock.now() - joinStarted < JOIN_GIVE_UP_MS) {
+      say("no answer from the host yet: still waiting");
+      cancelJoinTimeout = later(joinTimedOut, JOIN_TIMEOUT_MS);
+      return;
+    }
+    failJoin(someone || state?.status !== "live" ? UNREACHABLE : "There's no watch party with that code.");
   }
 
   function failJoin(message: string) {
     const p = pendingJoin;
     if (!p) return;
+    say(`join failed: ${message}`);
     pendingJoin = null;
     leaveParty();
     p.reject(new Error(message));
@@ -472,13 +563,30 @@ export function createPartyRoom(deps: PartyDeps) {
     if (!state?.knocking) return;
     cancelJoinTimeout?.();
     cancelJoinTimeout = null;
+    say("let in");
     update({ knocking: false });
     track({ knock: false });
     joined();
   }
 
+  function hello() {
+    if (!self || !link) return;
+    lastHello = clock.now();
+    link.send({ t: "hello", from: self.id });
+  }
+
   function ping() {
-    if (self) link?.send({ t: "ping", from: self.id, sent: clock.now() });
+    if (!self || !link || !state) return;
+    // My pings stopped coming back: the connection died without a word. Open a new one.
+    if (state.status === "live" && unanswered >= ECHO_MISSES) {
+      say(`my last ${unanswered} pings haven't come back: reconnecting`);
+      unanswered = 0;
+      update({ status: "error" });
+      link.reconnect();
+      return;
+    }
+    link.send({ t: "ping", from: self.id, sent: clock.now(), seq: self.seq ?? 0 });
+    unanswered++;
   }
 
   /** The host re-sends the rules and timeline now and then, so a missed message heals. */
@@ -491,6 +599,11 @@ export function createPartyRoom(deps: PartyDeps) {
 
   function sendRules() {
     if (state && self && state.rules.v > 0) link?.send({ t: "rules", from: self.id, rules: state.rules });
+  }
+  /** Who's let in, given up on, removed: said in the log each time it changes, not on each heartbeat. */
+  function sayRules(rules: RoomRules, by: string) {
+    const flags = [rules.locked && "locked", rules.approve && "approve", rules.control === "host" && "host-only", !rules.wait && "no-wait"].filter(Boolean);
+    say(`rules v${rules.v} from ${tag(by)}: host ${rules.host ? tag(rules.host) : "first in line"}${flags.length ? `, ${flags.join(", ")}` : ""}${rules.out.length ? `, removed ${rules.out.map(tag).join(" ")}` : ""}`);
   }
 
   function sendTimeline() {
@@ -512,12 +625,31 @@ export function createPartyRoom(deps: PartyDeps) {
     const from = msg.from;
     // Removed members aren't heard, whatever they send.
     if (state.rules.out.includes(from) && from !== self.id) return;
+    if (from !== self.id) {
+      if (left.has(from)) return;
+      roomSeen = true;
+      sayHeard(msg);
+      // A sign of life: someone missing from presence but still talking is shown as connected.
+      const wasGhost = ghosts.delete(from);
+      if (wasGhost) say(`${tag(from)} heard from again`);
+      const wasLost = isLost(from) || wasGhost;
+      heard.set(from, clock.now());
+      if (wasLost) refreshMembers();
+    } else unanswered = 0;
     switch (msg.t) {
       case "ping": {
         const rtt = from === self.id ? roundTrip(msg.sent, clock.now()) : undefined;
         if (rtt !== undefined) rtts = [...rtts.slice(-4), rtt];
+        // Its entry here is older than the one it has: the update never reached me. Ask for it again.
+        if (from !== self.id && msg.seq) {
+          pinged.set(from, msg.seq);
+          askIfStale(from);
+        }
         return;
       }
+      case "presence":
+        if (msg.to === self.id && from !== self.id) renew(`${tag(from)} asked`);
+        return;
       case "hello":
         // Whoever has the timeline answers, the rules first (a joiner tells from them
         // that it has to be let in); ties resolve themselves (same version).
@@ -529,6 +661,9 @@ export function createPartyRoom(deps: PartyDeps) {
       case "bye": {
         if (from === self.id) return;
         const who = state.members.find((m) => m.id === from);
+        left.add(from);
+        heard.delete(from);
+        pinged.delete(from);
         listed = listed.filter((m) => m.id !== from);
         missing.delete(from);
         if (who && !state.quiet) {
@@ -541,12 +676,16 @@ export function createPartyRoom(deps: PartyDeps) {
       case "rules": {
         const cur = state.rules;
         const rules = msg.rules;
-        if (rules.v < cur.v || (rules.v === cur.v && from <= rulesBy)) return;
         // From the host, or from whoever the rules name as host; a joiner with none yet takes the first.
         const fromHost = from === state.hostId || from === rules.host || cur.v === 0;
+        // Newer, or from a host other than whoever set ours: the role changed hands, and its rules are the room's
+        // even if it never got the last ones (versions only order one host's changes).
+        const handedOver = from === state.hostId && from !== rulesBy && presenceSeen;
+        if (!handedOver && (rules.v < cur.v || (rules.v === cur.v && from <= rulesBy))) return;
         if (!fromHost || (presenceSeen && !inRoom(from) && from !== self.id)) return;
         if (rules.out.includes(self.id)) return exitWith(KICKED);
         const removed = state.members.filter((m) => rules.out.includes(m.id) && !cur.out.includes(m.id));
+        if (rules.v !== cur.v || from !== rulesBy) sayRules(rules, from);
         rulesBy = from;
         update({ rules });
         if (state.knocking) {
@@ -562,7 +701,10 @@ export function createPartyRoom(deps: PartyDeps) {
         return;
       }
       case "admit":
-        if (msg.to === self.id && inRoom(from) && from !== self.id) letIn();
+        if (msg.to !== self.id || !inRoom(from) || from === self.id) return;
+        // Let in again: the host's copy of my entry still has me knocking.
+        if (!state.knocking) renew("the host still has me knocking");
+        letIn();
         return;
       case "refuse":
         if (msg.to === self.id && state.knocking && inRoom(from) && from !== self.id) failJoin(REFUSED[msg.why]);
@@ -583,17 +725,25 @@ export function createPartyRoom(deps: PartyDeps) {
         if (from === self.id) return; // applied when it was made
         const tl = msg.tl;
         const cur = state.playback;
-        if (!takesOver(cur, tl, presenceSeen ? state.members : null, state.hostId, state.rules.control === "host")) {
+        const relay = tl.by !== from;
+        // Whose relay counts depends on who's here: kept until the first presence list says.
+        if (relay && !presenceSeen) return void (earlyRelay = raw);
+        const takes = relay ? relayTakes(from, cur, tl) : takesOver(cur, tl, presenceSeen ? state.members : null, state.hostId, state.rules.control === "host");
+        if (!takes) {
           // The sender missed our newer action (a dropped message): send ours, or each
           // side would follow its own timeline from here on, the host's heartbeat included.
           const ahead = cur && (cur.v > tl.v || (cur.v === tl.v && cur.by > tl.by));
+          if (cur && (tl.v !== cur.v || tl.by !== cur.by)) say(`not taken: ${describeTimeline(tl)} (ours v${cur.v} by ${tag(cur.by)})`);
           if (ahead && !state.knocking && clock.now() - lastAnswer >= ANSWER_MS) {
             lastAnswer = clock.now();
+            say(`answered with ours, v${cur.v}`);
             sendTimeline();
           }
           return;
         }
         const next: Playback = { ...tl, at: clock.now() - (tl.lag + myLag()) * 1000 };
+        if (!cur || tl.v !== cur.v || tl.by !== cur.by)
+          say(`took ${describeTimeline(tl)}${relay ? `, passed on by ${tag(from)}` : ""}${cur && cur.media.videoId !== tl.media.videoId ? ", another video" : ""}`);
         if (cur && (tl.v !== cur.v || tl.by !== cur.by)) describe(cur, next);
         update({ playback: next });
         // A room with no rules is on an app from before joins were answered: in already.
@@ -605,8 +755,54 @@ export function createPartyRoom(deps: PartyDeps) {
     }
   }
 
+  /** Send my entry again (someone's copy of it is missing or stale), at most once per HEAL_MS. */
+  function renew(why: string) {
+    if (!self || clock.now() - lastRenew < HEAL_MS) return;
+    lastRenew = clock.now();
+    say(`sent my entry again: ${why}`);
+    track({});
+  }
+
+  /** Ask a member to send its presence entry again, at most once per HEAL_MS each. */
+  function askForEntry(id: string, why: string) {
+    if (!self || clock.now() - (asked.get(id) ?? -Infinity) < HEAL_MS) return;
+    asked.set(id, clock.now());
+    say(`asked ${tag(id)} for its entry: ${why}`);
+    link?.send({ t: "presence", from: self.id, to: id });
+  }
+
+  /** My copy of its entry is older than the one its pings say it has: the update never reached me. */
+  function askIfStale(id: string) {
+    const entry = listed.find((m) => m.id === id);
+    const theirs = pinged.get(id) ?? 0;
+    if (entry && (entry.seq ?? 0) < theirs) askForEntry(id, `my copy of ${tag(id)}'s entry is #${entry.seq ?? 0}, it's on #${theirs}`);
+  }
+
+  /** Shown as Disconnected: missing from presence and not heard from lately, or in it but silent for long. */
+  function isLost(id: string) {
+    const quiet = clock.now() - (heard.get(id) ?? -Infinity);
+    return missing.has(id) ? quiet >= LIVE_MS : quiet >= GHOST_MS;
+  }
+
+  /**
+   * A timeline passed on by someone other than its author: taken from the host
+   * (who vouches for the room's timeline anyway), or, when everyone controls
+   * playback, from anyone in the room about an author who's no longer here to
+   * send it. Nobody else can put words in another member's mouth.
+   */
+  function relayTakes(from: string, cur: Playback | null, tl: Timeline) {
+    if (!state || !inRoom(from)) return false;
+    const host = from === state.hostId;
+    if (!host && (state.rules.control !== "everyone" || inRoom(tl.by))) return false;
+    if (!cur) return true;
+    if (tl.v < cur.v || (tl.v === cur.v && tl.by < cur.by)) return false;
+    return host || tl.v - cur.v <= V_JUMP_MAX;
+  }
+
   function presence(list: Member[]) {
     if (!state || !self) return;
+    list = list.filter((m) => !left.has(m.id));
+    if (list.some((m) => m.id !== self!.id)) roomSeen = true;
     // Who hosts next goes by `joinedAt`. Each member's clock sets its own, and clocks
     // differ, so on joining take the place after everyone already there instead.
     if (placeInLine) {
@@ -614,7 +810,10 @@ export function createPartyRoom(deps: PartyDeps) {
       const last = Math.max(0, ...list.filter((m) => m.id !== self!.id).map((m) => m.joinedAt));
       if (self.joinedAt <= last) track({ joinedAt: last + 1 });
     }
+    say(`presence: ${list.map(describeEntry).join(", ") || "empty"}`);
     const now = clock.now();
+    // Silence is counted from when a member first shows up, until it's heard from.
+    for (const m of list) if (m.id !== self.id && !heard.has(m.id)) heard.set(m.id, now);
     const before = new Map(listed.map((m) => [m.id, m]));
     const after = new Set(list.map((m) => m.id));
     const out = state.rules.out;
@@ -627,12 +826,21 @@ export function createPartyRoom(deps: PartyDeps) {
         if (joined.length) deps.chime("join");
       }
       // Gone without a bye: wait a moment before believing it.
-      for (const m of listed) if (!after.has(m.id) && !m.knock && m.id !== self.id && !missing.has(m.id)) missing.set(m.id, { member: m, since: now });
+      for (const m of listed)
+        if (!after.has(m.id) && !m.knock && m.id !== self.id && !missing.has(m.id)) {
+          say(`${tag(m.id)} missing from presence without a bye`);
+          missing.set(m.id, { member: m, since: now });
+        }
     }
-    for (const id of after) missing.delete(id);
+    for (const id of after) if (missing.delete(id)) say(`${tag(id)} back in presence`);
     presenceSeen = true;
     listed = list;
     refreshMembers();
+    if (earlyRelay) {
+      const raw = earlyRelay;
+      earlyRelay = null;
+      receive(raw);
+    }
     hostDuty();
   }
 
@@ -650,8 +858,10 @@ export function createPartyRoom(deps: PartyDeps) {
     if (!presenceSeen || upToDate) staleSince = null;
     else staleSince ??= clock.now();
     const out = state.rules.out;
-    const others = listed.filter((m) => m.id !== me.id && !missing.has(m.id) && !out.includes(m.id));
-    const lost = [...missing.values()].filter((x) => !out.includes(x.member.id)).map((x) => ({ ...x.member, lost: true }));
+    const others = listed
+      .filter((m) => m.id !== me.id && !missing.has(m.id) && !ghosts.has(m.id) && !out.includes(m.id))
+      .map((m) => (isLost(m.id) ? { ...m, lost: true } : m));
+    const lost = [...missing.values()].filter((x) => !out.includes(x.member.id)).map((x) => (isLost(x.member.id) ? { ...x.member, lost: true } : x.member));
     const members = [...others.filter((m) => !m.knock), ...lost, me].sort((a, b) => a.joinedAt - b.joinedAt || a.id.localeCompare(b.id));
     const knockers = others.filter((m) => m.knock && answered.get(m.id)?.refuse === undefined);
     // The host is whoever it handed the role to, while really there; else the first who is.
@@ -660,6 +870,7 @@ export function createPartyRoom(deps: PartyDeps) {
     const hostId = (named ?? present[0])?.id ?? null;
     const before = state.hostId;
     update({ members, knockers, hostId });
+    if (before !== hostId) say(`host is now ${hostId === me.id ? "me" : tag(hostId)}`);
     if (presenceSeen && before && hostId && before !== hostId) {
       const who = members.find((m) => m.id === hostId) ?? null;
       note(who, "is now the host");
@@ -670,21 +881,45 @@ export function createPartyRoom(deps: PartyDeps) {
   function duty() {
     if (!state || !self) return;
     const now = clock.now();
+    // Still without the room's timeline (the answers were lost): ask again.
+    if (!state.playback && state.status === "live" && now - lastHello >= HEAL_MS) {
+      say("no timeline yet: asked again");
+      hello();
+    }
     if (staleSince != null && now - staleSince >= HEAL_MS && link) {
       staleSince = now;
+      say(`the server's copy of my entry is out of date: sent again (#${self.seq ?? 0})`);
       link.track(self);
     }
     let gone = false;
     for (const [id, { member, since }] of missing) {
-      if (now - since < GONE_MS) continue;
+      // Shown as Disconnected for GONE_MS first: from leaving presence, or from last being heard.
+      if (!isLost(id) || now - Math.max(since, (heard.get(id) ?? -Infinity) + LIVE_MS) < GONE_MS) continue;
+      say(`${tag(id)} gone: missing from presence, not heard from for ${Math.round((now - (heard.get(id) ?? since)) / 1000)} s`);
       missing.delete(id);
+      heard.delete(id);
       if (!state.quiet && !state.rules.out.includes(id)) note(member, "left");
       gone = true;
     }
-    if (gone) {
-      if (!state.quiet) deps.chime("leave");
-      refreshMembers();
+    // In presence, but silent for so long that its entry is a leftover (its leave never reached me).
+    for (const m of state.status === "live" ? listed : []) {
+      if (m.id === self.id || missing.has(m.id) || ghosts.has(m.id) || now - (heard.get(m.id) ?? now) < GHOST_MS + GONE_MS) continue;
+      say(`${tag(m.id)} gone: in presence, but not heard from for ${Math.round((now - heard.get(m.id)!) / 1000)} s`);
+      ghosts.add(m.id);
+      if (!state.quiet && !m.knock && !state.rules.out.includes(m.id)) note(m, "left");
+      gone = true;
     }
+    if (gone && !state.quiet) deps.chime("leave");
+    // Someone talking that my presence list lacks (or has only as it was): ask for its entry again.
+    for (const id of pinged.keys()) askIfStale(id);
+    for (const [id, at] of heard) {
+      if (now - at >= LIVE_MS || state.rules.out.includes(id) || id === self.id) continue;
+      if (listed.some((m) => m.id === id) && !missing.has(id)) continue;
+      askForEntry(id, "talking, but missing from my presence list");
+    }
+    const shownLost = state.members.filter((m) => m.lost).map((m) => m.id);
+    const nowLost = state.members.filter((m) => m.id !== self!.id && isLost(m.id)).map((m) => m.id);
+    if (gone || shownLost.sort().join() !== nowLost.sort().join()) refreshMembers();
     hostDuty();
   }
 
@@ -697,6 +932,8 @@ export function createPartyRoom(deps: PartyDeps) {
     if (!state || !self || !p || !isHost()) return;
     // Hosting because the named host left: say so in the rules, so everyone agrees.
     if (state.rules.host && state.rules.host !== self.id) return setRules({ host: self.id });
+    // Hosting without ever having had the rules (the message was lost): make some, or there are none to pass on.
+    if (state.rules.v === 0) return setRules({});
     const clockNow = clock.now();
     // Joiners still knocking, those turned away for a lock included: a lost answer is sent again.
     const knocking = listed.filter((m) => m.knock && !state!.rules.out.includes(m.id) && answered.get(m.id)?.refuse !== "denied");
@@ -705,6 +942,7 @@ export function createPartyRoom(deps: PartyDeps) {
       if (a && clockNow - a.at < DUTY_MS) continue; // answered; again if it's still knocking
       if (state.rules.locked) {
         answered.set(k.id, { at: clockNow, refuse: "locked" });
+        say(`turned ${tag(k.id)} away: locked`);
         link?.send({ t: "refuse", from: self.id, to: k.id, why: "locked" });
       } else if (a || !state.rules.approve) admit(k.id);
     }
@@ -728,6 +966,44 @@ export function createPartyRoom(deps: PartyDeps) {
     if (Math.abs(next.position - expectedPosition(prev)) > 3) note(who, `jumped to ${deps.formatTime(next.position)}`);
   }
 
+  /** A timeline as the log says it: version, author, play state, position; never what's on. */
+  function describeTimeline(tl: Timeline) {
+    return `v${tl.v} by ${tag(tl.by)}: ${tl.paused ? "paused" : "playing"}${tl.held ? ", held" : ""} at ${tl.position.toFixed(1)} s`;
+  }
+
+  function describeEntry(m: Member) {
+    const flags = [m.knock && "knocking", m.waiting && "loading", m.away && "away", m.buffering && "buffering"].filter(Boolean);
+    return `${tag(m.id)}${m.id === self?.id ? " (me)" : ""} #${m.seq ?? 0}${flags.length ? ` ${flags.join(" ")}` : ""}`;
+  }
+
+  /** Messages from others, as the log has them (timelines and rules are said where they're taken). */
+  function sayHeard(msg: PartyMessage) {
+    const from = tag(msg.from);
+    switch (msg.t) {
+      case "hello":
+      case "bye":
+      case "end":
+        return say(`${msg.t} from ${from}`);
+      case "admit":
+      case "kick":
+        return say(`${msg.t} ${tag(msg.to)} from ${from}`);
+      case "refuse":
+        return say(`refuse ${tag(msg.to)} (${msg.why}) from ${from}`);
+    }
+  }
+
+  /** The log to copy, with who's in as this device sees it now; `about`: lines first (app version, platform). */
+  function partyLog(about: string[] = []) {
+    const summary = state
+      ? [
+          `Now: me ${tag(state.me)}, host ${tag(state.hostId)}, ${state.status}${state.knocking ? ", knocking" : ""}; round trip ${rtts.length ? `${Math.min(...rtts)} ms` : "not measured"}`,
+          `Members: ${state.members.map((m) => `${tag(m.id)} ${memberStatus(m, state!.playback)}`).join(", ")}`,
+          ...(state.playback ? [`Timeline: ${describeTimeline(state.playback)}`] : []),
+        ]
+      : ["Now: not in a party"];
+    return log.text([...about, ...summary]);
+  }
+
   function note(who: Member | null, text: string, system = false) {
     if (!state) return;
     const n: PartyNote = system ? { id: ++noteId, who, text, system } : { id: ++noteId, who, text };
@@ -737,6 +1013,7 @@ export function createPartyRoom(deps: PartyDeps) {
 
   return {
     getParty: () => state,
+    partyLog,
     getExit: () => exit,
     /** The viewer has read why the party ended. */
     dismissExit() {

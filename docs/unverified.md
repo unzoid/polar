@@ -711,6 +711,24 @@ on two devices, check:
 - TV mode: the question shows and works with a remote (Play focused, Back is Not Now). There's no
   link field in TV mode.
 
+## Watch party reliability (#203)
+
+The party log, the heals and their harness: `lib/party/log.ts`, `lib/party/room.ts`, the reconnect in
+`lib/account/supabase.ts`. Tested on a fake Realtime server that drops, delays and reorders messages, drops
+connections loudly and silently, splits and loses presence updates, and forgets entries
+(`tests/partyChaos.ts`): 60 random runs per test run (`PARTY_SEEDS=n` for more; 3,000 run here, one went to
+8.5 s against the 8 s bound under heavy loss), and each problem it found as a named case
+(`tests/partyChaosCases.test.ts`). Not run against Supabase Realtime. To check, with two signed-in devices
+(A starts, B joins), on the same build:
+1. B joins: within a few seconds both show both as Watching (never Disconnected while both are online).
+2. Pull B's network for 30 s and plug it back: B's party shows "Reconnecting…", then both show both as
+   connected again within about 10 s, on the same position and play state.
+3. Put B to sleep (laptop lid, phone locked) for a minute and wake it: same as 2, and no "left"/"joined" notes
+   on A if B came back within a few seconds.
+4. Party menu → Copy Party Log on both: the logs line up (same member tags, same timeline versions), and
+   carry no names, party code, titles or links.
+5. If something goes wrong anyway, keep both logs: they show which messages and presence lists each side got.
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,

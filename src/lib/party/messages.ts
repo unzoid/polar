@@ -70,7 +70,8 @@ export const DEFAULT_RULES: RoomRules = { v: 0, host: null, locked: false, contr
 export type Refusal = "locked" | "denied";
 
 export type PartyMessage =
-  | { t: "ping"; from: string; sent: number }
+  /** `seq`: the sender's newest presence entry, so a stale copy of it shows (#203). */
+  | { t: "ping"; from: string; sent: number; seq?: number }
   | { t: "hello"; from: string }
   | { t: "bye"; from: string }
   | { t: "state"; from: string; tl: Timeline }
@@ -83,6 +84,8 @@ export type PartyMessage =
   | { t: "kick"; from: string; to: string }
   /** Host: the party is over for everyone. */
   | { t: "end"; from: string }
+  /** "Your presence entry is missing or out of date here: send it again" (#203). */
+  | { t: "presence"; from: string; to: string }
   /** Where this member's player is, for "3 s behind". */
   | { t: "at"; from: string; videoId: string; position: number; paused: boolean; lag: number };
 
@@ -180,21 +183,24 @@ export function parseMessage(x: unknown): PartyMessage | null {
   if (!from) return null;
   switch (x.t) {
     case "ping":
-      return finite(x.sent) ? { t: "ping", from, sent: x.sent } : null;
+      if (!finite(x.sent)) return null;
+      return Number.isSafeInteger(x.seq) && (x.seq as number) > 0 ? { t: "ping", from, sent: x.sent, seq: x.seq as number } : { t: "ping", from, sent: x.sent };
     case "hello":
     case "bye":
       return { t: x.t, from };
     case "state": {
+      // From someone other than its author it's passed on (the host's heartbeat, an answer to
+      // a newcomer): room.ts decides whose it takes (`relayTakes`).
       const tl = parseTimeline(x.tl);
-      // A timeline speaks for its sender only.
-      return tl && tl.by === from ? { t: "state", from, tl } : null;
+      return tl ? { t: "state", from, tl } : null;
     }
     case "rules": {
       const rules = parseRules(x.rules);
       return rules ? { t: "rules", from, rules } : null;
     }
     case "admit":
-    case "kick": {
+    case "kick":
+    case "presence": {
       const to = id(x.to);
       return to ? { t: x.t, from, to } : null;
     }

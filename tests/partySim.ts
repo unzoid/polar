@@ -2,7 +2,7 @@
 // real room (room.ts) and a real follower (partyFollower.ts) on a fake engine,
 // talking through a fake Realtime server, all on one simulated clock.
 import { expect } from "bun:test";
-import type { PartyHandlers, PartyPresence } from "../src/lib/account/backend";
+import type { AccountBackend, PartyHandlers, PartyPresence } from "../src/lib/account/backend";
 import { parsePresence } from "../src/lib/party/messages";
 import { createPartyRoom, memberStatus, type PartyClock, type PartyRoom, type PartyState } from "../src/lib/party/room";
 import { createPartyFollower } from "../src/components/player/partyFollower";
@@ -73,6 +73,11 @@ export class Hub {
           current = p;
           this.sim.after(() => this.track(id, p), lag);
         },
+        reconnect: () =>
+          this.sim.after(() => {
+            this.track(id, current);
+            handlers.onStatus("joined");
+          }, lag * 2),
         close: () =>
           this.sim.after(() => {
             this.clients.delete(id);
@@ -195,25 +200,37 @@ export interface Member {
   stop?: () => void;
 }
 
-export function setup() {
+/** What a member's room talks through: the plain fake server, or the fault-injecting one (partyChaos.ts). */
+export interface SimServer {
+  party: AccountBackend["party"];
+  setLag(id: string, ms: number): void;
+}
+
+export function setup<H extends SimServer = Hub>(makeHub: (sim: Sim) => H = (sim) => new Hub(sim) as unknown as H) {
   const sim = new Sim();
-  const hub = new Hub(sim);
+  const hub = makeHub(sim);
   let n = 0;
-  const member = (): Member => {
+  /** `freshIds`: each join after the first gets a new id, as the app's do (member-2, member-2-2, …). */
+  const member = (lag?: number, { freshIds = false } = {}): Member => {
     const id = `member-${++n}`;
-    hub.setLag(id, 30 + n * 25);
+    let joins = 0;
+    hub.setLag(id, lag ?? 30 + n * 25);
     const room = createPartyRoom({
       party: () => hub.party,
       clock: sim,
       chime: () => {},
       formatTime: (s) => `${s}`,
-      newId: () => id,
+      newId: () => {
+        const next = freshIds && joins++ ? `${id}-${joins}` : id;
+        hub.setLag(next, lag ?? 30 + n * 25);
+        return next;
+      },
       randomBytes: (k) => new Uint8Array(k).fill(7),
     });
     return { room, media: null };
   };
   /** Open the player on the room's video: what Player.tsx and usePartySync do. */
-  const watch = (m: Member, start: number, engine: ConstructorParameters<typeof FakeMedia>[1] = {}) => {
+  const watch = (m: Member, start: number, engine: ConstructorParameters<typeof FakeMedia>[1] = {}, loadMs?: number) => {
     const media = new FakeMedia(sim, engine);
     m.media = media;
     const f = createPartyFollower({
@@ -241,7 +258,7 @@ export function setup() {
       stopTicks();
       m.room.setPartyAway(true);
     };
-    media.load(start);
+    media.load(start, loadMs);
     return media;
   };
   return { sim, hub, member, watch };
