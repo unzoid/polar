@@ -4,6 +4,7 @@
 export * from "./anilist";
 export * from "./aniskip";
 export * from "./anizip";
+export * from "./baseTitle";
 export * from "./episodeFlags";
 export * from "./entries";
 export * from "./entryCard";
