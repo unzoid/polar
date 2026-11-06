@@ -220,6 +220,24 @@ impl Space {
         true
     }
 
+    /// Whether `link` has to be kept (#102). Most say only what the anime id lists already say
+    /// (`listed`, the IMDb id the lists give the entry), which every device works out the same way;
+    /// those are left out, saving a row and a sync write each. Kept: a link that differs from the
+    /// lists (a title search, a Kitsu-only show, a correction, a choice), one this profile already
+    /// has (so it stays current), and any for a show with library items or progress under its ids,
+    /// so a later change in the lists can't move what's already there.
+    pub fn needs_link(&self, link: &AnimeLink, listed: Option<&str>) -> bool {
+        if self.links.contains_key(&link.anilist) || listed != Some(link.canonical.as_str()) {
+            return true;
+        }
+        let ids: Vec<String> =
+            std::iter::once(link.canonical.clone()).chain(link.aliases().into_iter().map(|(alias, _)| alias)).collect();
+        let used = |id: &str| ids.iter().any(|i| i == id);
+        self.library.keys().any(|k| used(k))
+            || self.removed.keys().any(|k| used(k))
+            || self.progress.values().any(|p| used(&p.meta_id))
+    }
+
     /// Moves every library item and progress row kept under an alias onto
     /// its canonical id. The same links give the same result on every device.
     ///
@@ -349,6 +367,32 @@ pub(crate) mod tests {
 
     pub fn link(anilist: u32, canonical: &str, kitsu: Option<u32>, at: u64) -> AnimeLink {
         AnimeLink { canonical: canonical.into(), anilist, mal: None, kitsu, updated_at: at }
+    }
+
+    #[test]
+    fn a_link_the_lists_already_give_is_kept_only_once_the_show_is_used() {
+        let mut s = Space::default();
+        let plain = link(7, "tt0000001", Some(70), 1);
+        // The lists say the same, and nothing is kept under the show's ids: nothing to store.
+        assert!(!s.needs_link(&plain, Some("tt0000001")));
+        // The lists say another title, or none (a title search, a Kitsu-only show): stored.
+        assert!(s.needs_link(&plain, Some("tt0000002")));
+        assert!(s.needs_link(&plain, None));
+        assert!(s.needs_link(&link(7, "kitsu:70", None, 1), Some("tt0000001")));
+        // In the library, with progress, or saved under one of its other ids: stored.
+        s.library_toggle(item("tt0000001", 0), 10);
+        assert!(s.needs_link(&plain, Some("tt0000001")));
+        s.library_toggle(item("tt0000001", 0), 20);
+        let mut s = Space::default();
+        s.progress_save(vec![progress("tt0000001", "tt0000001:1:1", 0, 10.0)], 30);
+        assert!(s.needs_link(&plain, Some("tt0000001")));
+        let mut s = Space::default();
+        s.library_toggle(item("kitsu:70", 0), 10);
+        assert!(s.needs_link(&plain, Some("tt0000001")));
+        // One the profile already has stays current.
+        let mut s = Space::default();
+        assert!(s.link_anime(link(7, "tt0000001", None, 1)));
+        assert!(s.needs_link(&plain, Some("tt0000001")));
     }
 
     #[test]
