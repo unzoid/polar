@@ -485,6 +485,11 @@ against a real project.
   the keychain. On Linux without a Secret Service: keys stay in the file and the text says so. With the keyring
   locked and the prompt dismissed at start: the text says the keychain couldn't be read, and a key typed then is in
   the file and still there after the next start with the keyring open.
+- The web view's own copy (settings sync's last agreed keys and links, links not installed yet, the passphrase)
+  moves from its storage into `polar.sync.<profile>` entries the first time a profile is used
+  (`src/lib/account/localSecrets.ts`, tested in tests/settingsSync.test.ts with a keychain in memory). To check:
+  signed in with a passphrase set by an older build, start this one: still "Encrypted" in Settings → Account, no
+  passphrase prompt, and a `polar.sync.<id>` entry in the keychain.
 - Going back to an older build after this one moved them: the older build sees no keys and add-ons without links;
   enter them again there.
 - Phones: no keyring store is wired (`keyring` isn't built for Android/iOS); keys stay in the app's private data file.

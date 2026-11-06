@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AddonsPage } from "../../src/screens/settings/AddonsPage";
-import { AccountContext, type Account } from "../../src/lib/account";
+import { AccountContext, forgetSettings, type Account } from "../../src/lib/account";
 import { api } from "../../src/lib/api";
 import { keys } from "../../src/lib/net";
 import type { InstalledAddon } from "../../src/lib/types";
@@ -17,6 +17,7 @@ let installed: string[] = [];
 
 afterEach(() => {
   api.installAddon = real;
+  forgetSettings("p1");
   localStorage.clear();
 });
 
@@ -71,7 +72,7 @@ test("Set a Passphrase seals first, then saves", async () => {
   });
   await click(byText(container, "button", "Set and Save"));
   expect(installed).toEqual([keyed]);
-  expect(JSON.parse(localStorage.getItem("polar.secretsPassphrase.p1")!)).toMatchObject({ passphrase: "correct horse", pending: "set" });
+  expect(JSON.parse(localStorage.getItem("polar.sync.p1")!).lock).toMatchObject({ passphrase: "correct horse", pending: "set" });
   await unmount();
 });
 

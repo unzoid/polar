@@ -2,7 +2,7 @@
 //! Credential Manager on Windows, the Secret Service on Linux. The web view's auth client
 //! stores its session through these commands (src/lib/platform/keychain.ts); where there is no
 //! keychain, or it refuses, the commands fail and the web view keeps the session itself, as
-//! before. Keys and links are taken out of polarity.json by the saver ([`open_vault`],
+//! before; settings sync keeps its copy of the keys the same way (`polar.sync.<profile>`). Keys and links are taken out of polarity.json by the saver ([`open_vault`],
 //! [`take_secrets`], laid out by `polar_library::vault`); the web view can't read them here.
 //!
 //! How a value is split to fit is `polar_library::keychain`; this file only talks to the
@@ -22,9 +22,10 @@ use crate::AppState;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 const SERVICE: &str = "app.getpolar.desktop";
 
-/// What the web view may keep here: the auth client's own keys, nothing else.
+/// What the web view may keep here: the auth client's own keys and settings sync's copy of the
+/// keys and passphrase (src/lib/account/localSecrets.ts), nothing else; never [`vault::NAME`].
 fn allowed(name: &str) -> bool {
-    name.starts_with("polar.auth")
+    (name.starts_with("polar.auth") || name.starts_with("polar.sync."))
         && name.len() <= 64
         && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b'_')
 }
@@ -173,12 +174,15 @@ mod tests {
     use super::allowed;
 
     #[test]
-    fn only_the_auth_clients_names() {
+    fn only_the_web_views_own_names() {
         assert!(allowed("polar.auth"));
         assert!(allowed("polar.auth-code-verifier"));
         assert!(allowed("polar.auth-user"));
         assert!(!allowed("polar.settings"));
         assert!(!allowed(polar_library::vault::NAME));
+        assert!(allowed("polar.sync.local"));
+        assert!(allowed("polar.sync.00000000-0000-4000-8000-000000000000"));
+        assert!(!allowed("polar.syncx"));
         assert!(!allowed("tmdb"));
         assert!(!allowed("polar.auth\u{0}x"));
         assert!(!allowed("polar.auth/../x"));

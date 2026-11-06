@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../../lib/api";
-import { copySetup, SECRET_KEYS, setupSources, useAccount } from "../../lib/account";
+import { copySetup, SECRET_KEYS, setupSources, setupSourcesReady, useAccount } from "../../lib/account";
 import { errorMessage } from "../../lib/errors";
 import { useAddons, useSettings } from "../../lib/net";
 import { usePrefs } from "../../lib/settings";
@@ -23,15 +23,19 @@ export function CopySetup() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [failed, setFailed] = useState(0);
-
   const profile = account.profile;
-  if (!profile || shareAddonsAndKeys || !settings || !addons || !bundled) return null;
+  const others = account.profiles.map((p) => p.id);
+  const { data: readable } = useQuery({
+    queryKey: ["setup-sources", profile?.id, others],
+    queryFn: () => setupSourcesReady(profile!.id, others),
+    enabled: !!profile,
+    staleTime: Infinity,
+  });
+
+  if (!profile || shareAddonsAndKeys || !settings || !addons || !bundled || !readable) return null;
   const own = settings as unknown as Record<string, unknown>;
   const empty = !SECRET_KEYS.some((k) => own[k]) && addons.every((a) => bundled.includes(a.manifestUrl));
-  const sources = setupSources(
-    profile.id,
-    account.profiles.map((p) => p.id),
-  );
+  const sources = setupSources(profile.id, others);
   if (!empty || !sources.length) return null;
   const name = (id: string) => account.profiles.find((p) => p.id === id)?.name ?? "Guest";
 
