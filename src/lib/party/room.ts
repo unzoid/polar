@@ -41,9 +41,11 @@ export type Member = PartyPresence & {
 
 export interface PartyNote {
   id: number;
-  /** Who did it; null for the room itself ("Only the host controls playback"). */
+  /** Who did it, if we know. */
   who: Member | null;
   text: string;
+  /** The room speaking, not a member ("Only the host controls playback"): shown as the text alone. */
+  system?: boolean;
 }
 
 /** Where a member's player said it was. */
@@ -311,7 +313,7 @@ export function createPartyRoom(deps: PartyDeps) {
       const tried = patch.paused !== undefined || patch.position !== undefined || (patch.media && patch.media.videoId !== cur.media.videoId);
       if (tried && clock.now() - lastControlNote > NOTE_MS) {
         lastControlNote = clock.now();
-        note(null, "Only the host controls playback in this party.");
+        note(null, "Only the host controls playback in this party.", true);
       }
       return false;
     }
@@ -726,9 +728,9 @@ export function createPartyRoom(deps: PartyDeps) {
     if (Math.abs(next.position - expectedPosition(prev)) > 3) note(who, `jumped to ${deps.formatTime(next.position)}`);
   }
 
-  function note(who: Member | null, text: string) {
+  function note(who: Member | null, text: string, system = false) {
     if (!state) return;
-    const n = { id: ++noteId, who, text };
+    const n: PartyNote = system ? { id: ++noteId, who, text, system } : { id: ++noteId, who, text };
     update({ notes: [...state.notes.slice(-2), n] });
     later(() => state && update({ notes: state.notes.filter((x) => x.id !== n.id) }), NOTE_MS);
   }

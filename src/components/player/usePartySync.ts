@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   expectedPosition,
   getParty,
   partyAct,
+  reportPosition,
   setPartyAway,
   setPartyBuffering,
   setPartyWaiting,
@@ -15,6 +16,8 @@ import { createPartyFollower, FOLLOW_MS } from "./partyFollower";
 
 /** A stall shorter than this (a catch-up seek loading) isn't worth showing the room. */
 const BUFFERING_SHOWN_MS = 1000;
+/** How often this player tells the room where it is, for "4 s behind". */
+const REPORT_MS = 5000;
 
 /**
  * Keeps this player on the watch party's timeline (partyFollower.ts), and
@@ -48,9 +51,13 @@ export function usePartySync({
 
   // A different video here than the room's: this player is where the viewer
   // went (episode picker, next, autoplay) — take the room along, from the top.
+  // Where only the host controls playback, a member can't: it watches this on
+  // its own, away from the room (which doesn't wait for it), until "Go to the
+  // current stream" or the room's next video brings it back.
+  const [onOwn, setOnOwn] = useState(false);
   useEffect(() => {
     const p = getParty()?.playback;
-    if (p && p.media.videoId !== videoId) partyAct({ media: current, position: 0, paused: false });
+    if (p && p.media.videoId !== videoId && !partyAct({ media: current, position: 0, paused: false })) setOnOwn(true);
     // Once per player: each video is a fresh mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -71,9 +78,10 @@ export function usePartySync({
   // room for it made each catch-up seek a new hold, and play/pause in between
   // went nowhere.
   const onRoomVideo = !!roomMedia;
+  const own = onOwn && !onRoomVideo;
   useEffect(() => {
-    if (inParty && !leaving) setPartyWaiting(!onRoomVideo || !started);
-  }, [inParty, onRoomVideo, started, leaving]);
+    if (inParty && !leaving && !own) setPartyWaiting(!onRoomVideo || !started);
+  }, [inParty, onRoomVideo, started, leaving, own]);
 
   // A stall that lasts is shown to the others as Buffering, not waited for.
   useEffect(() => {
@@ -85,11 +93,12 @@ export function usePartySync({
 
   // In the player, or out browsing (the party goes on; the room stops waiting for
   // you). Away from the moment Back is pressed, not when the fade-out ends.
+  const away = leaving || own;
   useEffect(() => {
     if (!inParty) return;
-    setPartyAway(leaving);
+    setPartyAway(away);
     return () => setPartyAway(true);
-  }, [inParty, leaving]);
+  }, [inParty, away]);
 
   // Seeks land on the exact frame asked for: a keyframe seek can land seconds
   // short, which reads as drift and seeks again — the room rubber-banding.
@@ -132,6 +141,21 @@ export function usePartySync({
       media.removeEventListener("seeking", onSeeking);
     };
   }, [media, inParty, videoId, leaving]);
+
+  // Where this player is, now and then, so the others see if it falls behind.
+  useEffect(() => {
+    if (!media || !inParty || leaving || !onRoomVideo || !started) return;
+    const report = () => reportPosition(videoId, media.currentTime, media.paused);
+    report();
+    const t = window.setInterval(report, REPORT_MS);
+    return () => window.clearInterval(t);
+  }, [media, inParty, leaving, onRoomVideo, started, videoId]);
+
+  // Sync now (party menu): straight to the room's position.
+  const resync = party?.resync ?? 0;
+  useEffect(() => {
+    if (resync) follower.current?.jump();
+  }, [resync]);
 
   // A new timeline is followed at once, not at the next tick.
   useEffect(() => follower.current?.tick(), [pb?.v, pb?.by]);

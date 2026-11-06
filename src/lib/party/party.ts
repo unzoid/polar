@@ -115,3 +115,21 @@ export function useJoinPartyOpen() {
     () => joinOpen,
   );
 }
+
+// --- Party menu (TV mode's panel; the desktop opens it from the top bar) -----
+
+let menuOpen = false;
+const menuListeners = new Set<() => void>();
+export function setPartyMenuOpen(open: boolean) {
+  menuOpen = open;
+  menuListeners.forEach((l) => l());
+}
+export function usePartyMenuOpen() {
+  return useSyncExternalStore(
+    (l) => {
+      menuListeners.add(l);
+      return () => menuListeners.delete(l);
+    },
+    () => menuOpen,
+  );
+}

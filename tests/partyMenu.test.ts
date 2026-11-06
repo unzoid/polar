@@ -231,3 +231,16 @@ test("muted: no join or leave notes, but actions still show", async () => {
   expect(notes).not.toContain("joined");
   expect(notes).toContain("paused");
 });
+
+test("Sync now puts a player that's slightly off straight back on the room's position", async () => {
+  const s = partyOfTwo();
+  s.sim.run(5000);
+  // 1.5 s off: inside what the follower only nudges toward, slowly.
+  const room = () => s.b.room.expectedPosition(s.b.room.getParty()!.playback!);
+  s.mb.currentTime = room() - 1.5;
+  s.sim.run(600);
+  expect(Math.abs(s.mb.currentTime - room())).toBeGreaterThan(1);
+  s.b.follower!.jump();
+  s.sim.run(1500);
+  expect(Math.abs(s.mb.currentTime - room())).toBeLessThan(0.35);
+});

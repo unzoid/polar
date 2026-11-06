@@ -191,6 +191,7 @@ export const MEDIA = { type: "series" as const, metaId: "tt0000155", videoId: "t
 export interface Member {
   room: PartyRoom;
   media: FakeMedia | null;
+  follower?: ReturnType<typeof createPartyFollower>;
   stop?: () => void;
 }
 
@@ -225,6 +226,7 @@ export function setup() {
       started: () => media.started,
       buffering: () => media.buffering,
     });
+    m.follower = f;
     media.addEventListener("play", f.onPlayPause);
     media.addEventListener("pause", f.onPlayPause);
     media.addEventListener("seeking", f.onSeeking);
