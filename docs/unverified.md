@@ -627,6 +627,26 @@ on the fake backend. AniList can't be reached here, so with the setting on, chec
 - TV mode: the same cards; a card opens the show's page with only that season's episodes.
 - Switching the setting off and on loses no progress or library items.
 
+## Watching a link together (#136)
+
+Checked here: unit tests (`tests/partyLinks.test.ts`: which links pass, their ids, the room's message
+rules), component tests (`tests/dom/partyLink.test.tsx`: the confirmation, the form turning a page
+down and starting a party on a file) and the readiness check's HLS/DASH answers (`crates/addon` probe
+tests). The fake shell has no account, so no party runs end to end here. With two signed-in profiles
+on two devices, check:
+- Player → Watch Party → Watch a Link: paste a direct `.mp4` link. A party starts on it (or, in one,
+  the room switches to it); your player opens it at once.
+- The other device shows "<name> put on a link" with the full address, before anything loads. Play
+  opens it in sync; Not Now leaves the player (out browsing, the room doesn't wait for you).
+- Joining a party that's on a link: the same question first.
+- Pause, seek and drift correction work as for a title. No Sources or Episodes button, no title
+  page behind Back, nothing in Continue Watching, no Discord status.
+- An HLS (`.m3u8`) and a DASH (`.mpd`) link both play; a link to a web page says it's a page, not a
+  video; a link that answers 403 or 404 says so.
+- The profile menu's Join Watch Party dialog: "or watch a link together" starts a party on a link.
+- TV mode: the question shows and works with a remote (Play focused, Back is Not Now). There's no
+  link field in TV mode.
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,

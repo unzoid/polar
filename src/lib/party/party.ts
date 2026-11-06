@@ -4,7 +4,8 @@
  *
  * Stream URLs never leave the device (add-on links can carry API keys): only
  * a hint — the release name — so others pick the same file from their own
- * add-ons.
+ * add-ons. The one exception is a link someone pastes to watch together
+ * (links.ts): that URL is the room's, shown to everyone first.
  */
 import { useSyncExternalStore } from "react";
 import { backend } from "../account";

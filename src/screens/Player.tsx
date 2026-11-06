@@ -69,10 +69,10 @@ import { playContext, stillFor } from "../lib/anime";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
-import { getParty, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
+import { getParty, isLinkId, linkLabel, linkMedia, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
-import { PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
+import { LinkForm, PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { PartyActions, PartyHostControls } from "../components/party/PartyMenu";
 import { WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
@@ -114,7 +114,10 @@ export function Player({
   const tv = useTvMode();
   // With a controller in TV mode, controls show the button that triggers them.
   const pad = usePadGlyph(tv);
-  const { data: meta } = useMeta(type, metaId);
+  // A link pasted into a watch party (#136): no title behind it, so no title page, episodes, sources,
+  // progress or lookups by id; it plays the URL it came with.
+  const link = isLinkId(metaId) ? stream?.url : undefined;
+  const { data: meta } = useMeta(type, metaId, !isLinkId(metaId));
   const { data: settings } = useSettings();
   const { touch } = useFormFactor();
   // Engine: embedded mpv when installed (plays every codec, AC3/DTS audio, every
@@ -237,7 +240,7 @@ export function Player({
   const { data: seekTrack } = useQuery({
     queryKey: keys.seekr(videoId, durationS),
     queryFn: () => api.seekPreviews(videoId, durationS * 1000),
-    enabled: !!settings?.seekPreviews && !!settings?.seekrKey && durationS > 0,
+    enabled: !!settings?.seekPreviews && !!settings?.seekrKey && durationS > 0 && !link,
     staleTime: Infinity,
     retry: false,
   });
@@ -263,13 +266,14 @@ export function Player({
     }
     return { next: n, skipped };
   }, [meta, type, videoId, animeSkipFiller]);
-  const title = meta?.name ?? "";
+  const title = link ? stream?.name || linkLabel(link) : (meta?.name ?? "");
   const heading = current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
 
   // --- Watch party ------------------------------------------------------------
   const playingStream = source.state.status === "ready" ? source.state.stream : undefined;
-  const hint = useMemo(() => streamHint(playingStream), [playingStream]);
-  const partyMedia = { type, metaId, videoId, label: heading || undefined };
+  // A link is its own file: no release name for others to look for.
+  const hint = useMemo(() => (link ? undefined : streamHint(playingStream)), [link, playingStream]);
+  const partyMedia = link ? linkMedia(link) : { type, metaId, videoId, label: heading || undefined };
   usePartySync({ media, current: partyMedia, started, buffering, hint, leaving });
   const startHere = () => {
     const v = videoRef.current;
@@ -535,6 +539,7 @@ export function Player({
     preferFile: preferFileChapters,
     seekTo,
     onAutoSkipped,
+    online: !link,
   });
 
   // A phone or tablet has no window to make fullscreen: its button fits the picture inside the
@@ -691,8 +696,11 @@ export function Player({
         case "nextEpisode":
           if (next) playVideo(next.id);
           return true;
-        case "tracks":
         case "sources":
+          if (link) return false;
+          toggleOptions(action);
+          return true;
+        case "tracks":
         case "speed":
           toggleOptions(action);
           return true;
@@ -827,11 +835,11 @@ export function Player({
             state={source.state}
             error={error}
             logo={meta?.logo}
-            name={meta?.name}
+            name={link ? title : meta?.name}
             background={meta?.background}
             steps={steps}
             backend={engine === "html" ? "built-in" : (engine ?? "not chosen yet")}
-            onSources={() => setOptions("sources")}
+            onSources={link ? undefined : () => setOptions("sources")}
           />
         )}
       </AnimatePresence>
@@ -967,7 +975,7 @@ export function Player({
             <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
           <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={() => setOptions("tracks")} />
-          <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />
+          {!link && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
           {canParty && !airplay.casting && (
             <ActionButton
               icon={<WatchParty size={22} />}
@@ -1103,12 +1111,12 @@ export function Player({
           open={options === "party"}
           onClose={() => setOptions(null)}
           media={media}
-          columns={
-            party
+          columns={[
+            ...(party
               ? [
                   {
                     title: "Watch Party",
-                    size: "medium",
+                    size: "medium" as const,
                     options: [],
                     onSelect: () => {},
                     content: (
@@ -1118,13 +1126,33 @@ export function Player({
                       </div>
                     ),
                   },
-                  { title: "Watching", size: "medium", options: [], onSelect: () => {}, content: <PartyMembers party={party} /> },
+                  { title: "Watching", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyMembers party={party} /> },
                   ...(party.hostId === party.me
                     ? [{ title: "Host", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyHostControls party={party} /> }]
                     : []),
                 ]
-              : [{ title: "Watch Party", size: "medium", options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={startHere} /> }]
-          }
+              : [{ title: "Watch Party", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={startHere} /> }]),
+            // TV mode: no pasting on a remote; links others put on still play there.
+            ...(tv
+              ? []
+              : [
+                  {
+                    title: "Watch a Link",
+                    size: "medium" as const,
+                    options: [],
+                    onSelect: () => {},
+                    content: (
+                      <div className="party-pane">
+                        <p className="party-lede">
+                          {party ? "Put a video file or stream from the web on for everyone." : "Start a party on a video file or stream from the web."}{" "}
+                          Everyone's app opens the link itself, after seeing it.
+                        </p>
+                        <LinkForm me={profile!} onDone={() => setOptions(null)} />
+                      </div>
+                    ),
+                  },
+                ]),
+          ]}
         />
       )}
 

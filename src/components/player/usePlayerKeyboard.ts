@@ -23,6 +23,8 @@ export function usePlayerKeyboard(enabled: boolean, onAction: (action: Action | 
       if (e.target instanceof HTMLInputElement) return;
       // A dropdown has the keyboard while it's focused or open (arrows, Space, Esc are its own).
       if ((e.target as HTMLElement).closest?.("[aria-haspopup=listbox], [role=listbox], .srcf-popover")) return;
+      // A watch party's link question (PartyHost) is over the player and holds focus: its keys are its own.
+      if ((e.target as HTMLElement).closest?.(".party-link-confirm")) return;
       const action = isBack(e) ? "escape" : actionFor(e, "player");
       if (action && latest.current.onAction(action)) {
         e.preventDefault();
