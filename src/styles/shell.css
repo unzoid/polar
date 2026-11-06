@@ -459,6 +459,28 @@
   margin-right: 0;
   padding: 0 0.5rem;
 }
+/* The bar's ends line up with the page's content edges (--gutter, which keeps clear of a camera
+   cutout held sideways): the wordmark and the avatar pad their glyphs by about half a rem. */
+:root[data-form="phone"] .navbar {
+  padding-left: calc(var(--gutter) - 0.5rem);
+  padding-right: calc(var(--gutter) - 0.375rem);
+}
+:root[data-form="phone"] .navbar-actions {
+  margin-right: 0;
+}
+/* Held sideways the tab bar is far wider than its five tabs: they sit together in the middle
+   rather than spread a whole screen apart. */
+@media (orientation: landscape) {
+  :root[data-form="phone"] .navbar-links {
+    justify-content: center;
+    gap: 0.5rem;
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+  :root[data-form="phone"] .navbar-link {
+    padding: 0 1.125rem;
+  }
+}
 :root[data-form="phone"] .brand-logo {
   height: 30px;
 }

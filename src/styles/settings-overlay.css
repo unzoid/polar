@@ -884,6 +884,13 @@
 :root[data-form="phone"] .t3s-page {
   padding-top: 0.5rem;
 }
+/* Dropdowns a finger's height (menu.css sizes their lists), with room above them. */
+:root[data-form="phone"] .t3s .settings-row .select-trigger {
+  margin-top: 0.25rem;
+  padding: 0 0.75rem 0 0.875rem;
+  border-radius: 10px;
+  font-size: 16px;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .t3s .switch::after {

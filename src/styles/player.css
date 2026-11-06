@@ -1667,6 +1667,11 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 .options-column[data-size="full"] .options-head {
   margin: 0 0 1.25rem;
 }
+/* The season dropdown has the top left, so Close goes to the top right, as in streaming apps. */
+.options-overlay:has(.options-column[data-size="full"]) .options-close {
+  left: auto;
+  right: max(1.25rem, var(--safe-right));
+}
 /* The rail scrolls itself; the list's vertical fades would dim its cards' text. */
 .options-column[data-size="full"] .options-list {
   overflow: visible;
