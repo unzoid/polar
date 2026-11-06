@@ -1094,6 +1094,8 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "releaseNotes", page: "about", title: "Release notes", keywords: "changelog what's new" },
   { id: "credits", page: "about", title: "Data sources", keywords: "credits attribution tmdb anilist thetvdb licence" },
+  { id: "privacyPolicy", page: "about", title: "Privacy Policy", keywords: "privacy data gdpr personal delete export" },
+  { id: "termsOfUse", page: "about", title: "Terms of Use", keywords: "terms conditions rules legal" },
   { id: "animeCache", page: "about", title: "Anime data", keywords: "cache clear filler recap anime-lists ids storage disk anilist shelves" },
 ];
 
