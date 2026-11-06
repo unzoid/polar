@@ -15,7 +15,7 @@
 //
 // Signing key: ~/.tauri/polar.key (or TAURI_SIGNING_PRIVATE_KEY). Back it up:
 // without it, installed copies can't verify — and so won't take — new builds.
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -94,6 +94,11 @@ if (mpv !== mpvVersion(root)) {
 const sourcesFrom = join(root, "src-tauri", "vendor", "mpv-sources", "polarity-windows-mpv-sources.tar");
 const sources = join(bundle, `Polarity_${version}_x64_mpv-sources.tar`);
 copyFileSync(sourcesFrom, sources);
+// The player with its licence texts, for development builds without a signed-in gh (scripts/fetch-mpv.ts, #186).
+const playerZip = join(bundle, `Polarity_${version}_x64_mpv.zip`);
+rmSync(playerZip, { force: true });
+const zipped = spawnSync(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe"), ["-a", "-cf", playerZip, "-C", join(root, "src-tauri", "vendor", "mpv"), "."], { stdio: "inherit" });
+if (zipped.status !== 0) throw new Error("couldn't pack the player's zip");
 const download = (file: string) => `https://github.com/${REPO}/releases/download/v${version}/${file.split(/[\\/]/).pop()}`;
 const sig = (file: string) => readFileSync(`${file}.sig`, "utf8").trim();
 const nsis = { signature: sig(setup), url: download(setup) };
@@ -128,6 +133,6 @@ run("gh", [
   "--title", `"Polarity ${version}"`,
   "--notes-file", `"${bodyPath}"`,
   ...(flags.has("--draft") ? ["--draft"] : []),
-  `"${setup}"`, `"${msi}"`, `"${feedPath}"`, `"${sources}"`,
+  `"${setup}"`, `"${msi}"`, `"${feedPath}"`, `"${sources}"`, `"${playerZip}"`,
 ]);
 console.log(`\nReleased Polarity ${version}. Commit the version bump: git commit -am "Release ${version}"`);
