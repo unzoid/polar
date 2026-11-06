@@ -831,7 +831,9 @@
   display: block;
   flex: 1;
 }
+/* The narrow-window rail hides every span in a row (its labels): the avatar is one, so it's shown again here. */
 :root[data-form="phone"] .t3s-nav-item > .avatar {
+  display: grid;
   flex: none;
   width: 24px !important;
   border-radius: 6px !important;
