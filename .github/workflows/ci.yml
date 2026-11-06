@@ -109,23 +109,149 @@ jobs:
       # Debug builds (tests, clippy) don't embed the frontend, so no `dist` is
       # needed. On Windows tauri-build does need the bundled mpv files listed in
       # tauri.windows.conf.json; macOS loads an installed libmpv at runtime.
-      - name: Cache bundled mpv
+      # The mpv.exe job windows-mpv built for this version, or empty stand-ins
+      # while it hasn't yet: nothing here plays video.
+      - name: Version of the Windows mpv
         if: runner.os == 'Windows'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: src-tauri/vendor/mpv
-          key: mpv-${{ runner.os }}-${{ hashFiles('scripts/fetch-mpv.ts') }}
-      - if: runner.os == 'Windows'
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: 1.4.4
-      - name: Fetch bundled mpv
+        id: mpv
+        shell: bash
+        run: echo "key=$(cat scripts/windows-mpv.sh scripts/windows-mpv.lock | tr -d '\r' | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - name: Restore the Windows mpv
         if: runner.os == 'Windows'
-        run: bun scripts/fetch-mpv.ts # no-op when the cache restored the files
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: windows-mpv/out
+          key: windows-mpv-${{ steps.mpv.outputs.key }}
+          enableCrossOsArchive: true
+      - name: Put mpv in the app
+        if: runner.os == 'Windows'
+        shell: bash
+        run: scripts/vendor-mpv.sh windows-mpv/out
       - run: cargo test --workspace --locked
       - run: cargo build -p polar-index --features server --locked
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  # mpv.exe for the Windows app, built from pinned sources in the image
+  # scripts/windows-mpv.Dockerfile describes (mpv-winbuild-cmake's packages from
+  # the Arch Linux Archive on a fixed day; scripts/windows-mpv.sh,
+  # docs/licensing.md): once per version of the script and its lock, then
+  # restored from the cache. The first build also makes the clang toolchain
+  # (LLVM, about two hours), kept on its own so a run cut off by the time limit
+  # goes on from there. The artifact (mpv.exe, licence texts, the exact sources)
+  # is what scripts/fetch-mpv.ts takes for Windows builds and releases.
+  windows-mpv:
+    name: Windows mpv (pinned build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Where the build sees the checkout: the path of the container jobs before,
+      # which the work folder's cache (CMake, the toolchain) has written in. The
+      # build runs as the runner's user, so the caches can read what it wrote.
+      W: /__w/${{ github.event.repository.name }}/${{ github.event.repository.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Version
+        id: version
+        run: echo "key=$(cat scripts/windows-mpv.sh scripts/windows-mpv.lock | tr -d '\r' | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - name: Restore this build
+        id: built
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: windows-mpv/out
+          key: windows-mpv-${{ steps.version.outputs.key }}
+          enableCrossOsArchive: true
+      # The build image, made once per version of its Dockerfile.
+      - name: Restore the build image
+        id: image
+        if: steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: windows-mpv-image.tar.zst
+          key: windows-mpv-image-${{ hashFiles('scripts/windows-mpv.Dockerfile') }}
+      - name: Make the build image
+        if: steps.built.outputs.cache-hit != 'true' && steps.image.outputs.cache-hit != 'true'
+        run: |
+          docker build -t windows-mpv -f scripts/windows-mpv.Dockerfile scripts
+          docker save windows-mpv | zstd -T0 -10 -o windows-mpv-image.tar.zst
+      - name: Keep the build image
+        if: steps.built.outputs.cache-hit != 'true' && steps.image.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: windows-mpv-image.tar.zst
+          key: windows-mpv-image-${{ hashFiles('scripts/windows-mpv.Dockerfile') }}
+      - name: Load the build image
+        if: steps.built.outputs.cache-hit != 'true'
+        run: |
+          docker image inspect windows-mpv >/dev/null 2>&1 || zstd -dc windows-mpv-image.tar.zst | docker load
+          rm -f windows-mpv-image.tar.zst
+      - name: Restore the work folder
+        if: steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: windows-mpv
+          key: windows-mpv-work-${{ steps.version.outputs.key }}
+          restore-keys: windows-mpv-work-
+      - name: Build the toolchain
+        if: steps.built.outputs.cache-hit != 'true'
+        run: docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:$W" -w "$W" windows-mpv scripts/windows-mpv.sh windows-mpv toolchain
+      - name: Keep the work folder
+        if: steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: windows-mpv
+          key: windows-mpv-work-${{ steps.version.outputs.key }}
+      - name: Build mpv
+        if: steps.built.outputs.cache-hit != 'true'
+        run: docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:$W" -w "$W" windows-mpv scripts/windows-mpv.sh windows-mpv
+      - name: Keep this build
+        if: steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: windows-mpv/out
+          key: windows-mpv-${{ steps.version.outputs.key }}
+          enableCrossOsArchive: true
+      # When a repository isn't pinned (or not as the lock says): what the run
+      # cloned, to review and copy into scripts/windows-mpv.lock.
+      - name: Keep the list of what was cloned
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-mpv-lock
+          path: windows-mpv/out/windows-mpv.lock
+          if-no-files-found: ignore
+          retention-days: 14
+      # Every package's step logs (the job prints the failed one's), CMake's,
+      # autoconf's and FFmpeg's records of their checks, with the commands they
+      # ran and the compiler's errors.
+      - name: Keep the build logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-mpv-logs
+          path: |
+            windows-mpv/ninja.log
+            windows-mpv/build/**/*-stamp/*.log
+            windows-mpv/build/**/CMakeFiles/CMakeConfigureLog.yaml
+            windows-mpv/build/**/config.log
+            windows-mpv/src/*/config.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Keep mpv.exe and its sources
+        if: github.ref == 'refs/heads/master' || steps.built.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-mpv-${{ steps.version.outputs.key }}
+          path: |
+            windows-mpv/out/mpv
+            windows-mpv/out/polarity-windows-mpv-sources.tar
+          compression-level: 0
+          retention-days: 90
 
   # The Android app (src-tauri/gen/android, docs/plan-mobile.md §2) as a debug
   # APK for the emulator (x86_64) and phones (aarch64), and as an unsigned

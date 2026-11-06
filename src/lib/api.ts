@@ -19,6 +19,7 @@ import type {
   StreamsResult,
   SearchResults,
   SubtitleOption,
+  VideoFile,
   SeekTrack,
   SkipSegments,
   LocalChanges,
@@ -72,8 +73,9 @@ export const api = {
     call<string>("stream_probe", { url, probeId, headers }),
   /** One look at a source's link ahead of time (#21): ready to play, or why not. */
   streamReady: (url: string, headers: Record<string, string> | null = null) => call<Readiness>("stream_ready", { url, headers }),
-  subtitles: (type: ContentType, videoId: string) =>
-    call<SubtitleOption[]>("subtitles", { ty: type, videoId }),
+  /** `file`: the playing stream's size and name, when its add-on gave them (subtitle add-ons match on them). */
+  subtitles: (type: ContentType, videoId: string, file: VideoFile = {}) =>
+    call<SubtitleOption[]>("subtitles", { ty: type, videoId, videoSize: file.size ?? null, filename: file.name ?? null }),
   subtitleVtt: (url: string) => call<string>("subtitle_vtt", { url }),
   seekPreviews: (videoId: string, durationMs: number) =>
     call<SeekTrack | null>("seek_previews", { videoId, durationMs }),

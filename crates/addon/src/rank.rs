@@ -51,10 +51,10 @@ static DV: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(DV|DoVi|Dolby\
 static CAM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\b(CAM|CAMRIP|HDCAM|TS|TELESYNC|HDTS|TC)\b").unwrap());
 
 pub fn parse_quality(stream: &Stream) -> StreamQuality {
-    let text = [&stream.name, &stream.title, &stream.description]
+    // The file's name (`behaviorHints.filename`) says what the rows may leave out.
+    let text = [stream.name.as_deref(), stream.title.as_deref(), stream.description.as_deref(), file_name(stream)]
         .into_iter()
         .flatten()
-        .map(String::as_str)
         .collect::<Vec<_>>()
         .join(" ");
 
@@ -67,14 +67,17 @@ pub fn parse_quality(stream: &Stream) -> StreamQuality {
         _ => 480,
     });
 
-    let size_bytes = SIZE.captures(&text).and_then(|c| {
-        let n: f64 = c[1].replace(',', ".").parse().ok()?;
-        let unit = match c[2].to_ascii_uppercase().as_str() {
-            "TB" => 1e12,
-            "GB" => 1e9,
-            _ => 1e6,
-        };
-        Some((n * unit) as u64)
+    // The add-on's exact size (`behaviorHints.videoSize`) before the rounded one in its text.
+    let size_bytes = video_size(stream).or_else(|| {
+        SIZE.captures(&text).and_then(|c| {
+            let n: f64 = c[1].replace(',', ".").parse().ok()?;
+            let unit = match c[2].to_ascii_uppercase().as_str() {
+                "TB" => 1e12,
+                "GB" => 1e9,
+                _ => 1e6,
+            };
+            Some((n * unit) as u64)
+        })
     });
 
     let lower = text.to_ascii_lowercase();
@@ -102,6 +105,17 @@ pub fn parse_quality(stream: &Stream) -> StreamQuality {
     }
 }
 
+/// `behaviorHints.filename`: the video file's name, when the add-on knows it.
+fn file_name(stream: &Stream) -> Option<&str> {
+    let name = stream.behavior_hints.as_ref()?.get("filename")?.as_str()?.trim();
+    (!name.is_empty()).then_some(name)
+}
+
+/// `behaviorHints.videoSize`: the video file's size in bytes, when the add-on knows it.
+fn video_size(stream: &Stream) -> Option<u64> {
+    stream.behavior_hints.as_ref()?.get("videoSize")?.as_u64().filter(|n| *n > 0)
+}
+
 /// "[Group] Show - 01 (1080p).mkv": anime groups lead in brackets.
 static GROUP_LEAD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[([^\]\[]{2,24})\]").unwrap());
 /// "Movie.2024.1080p.WEB-DL.H.264-GROUP[tag].mkv": other groups trail a dash.
@@ -114,11 +128,15 @@ const NOT_GROUPS: &[&str] =
 
 /// Who made or carried the file (see `StreamQuality::source`).
 fn release_source(stream: &Stream) -> Option<String> {
-    let release = [&stream.title, &stream.description]
+    let release = [stream.title.as_deref(), stream.description.as_deref()]
         .into_iter()
         .flatten()
-        .find_map(|t| t.lines().next().map(str::trim).filter(|l| !l.is_empty()))
-        .unwrap_or_default();
+        .find_map(|t| t.lines().next().map(str::trim).filter(|l| !l.is_empty()));
+    // A row that only says "Film (2010)" leaves the file's name to say who made it.
+    [release, file_name(stream)].into_iter().flatten().find_map(group_of)
+}
+
+fn group_of(release: &str) -> Option<String> {
     GROUP_LEAD
         .captures(release)
         .map(|c| c[1].trim().to_string())
@@ -512,6 +530,34 @@ mod tests {
         // "-DL" ends WEB-DL, it isn't a group; nothing else to go on.
         assert_eq!(src("Show.S01E01.1080p.WEB-DL"), None);
         assert_eq!(src("Show S01E01 1080p WEB-DL\n💾 1 GB"), None);
+    }
+
+    fn hinted(title: &str, hints: serde_json::Value) -> Stream {
+        Stream { behavior_hints: Some(hints), ..stream("Addon", title) }
+    }
+
+    #[test]
+    fn the_file_name_and_size_hints_fill_in_what_the_row_leaves_out() {
+        let q = parse_quality(&hinted(
+            "Film (2010)",
+            serde_json::json!({ "filename": "Film.2010.1080p.BluRay.x265-ACME.mkv", "videoSize": 4_512_345_678u64 }),
+        ));
+        assert_eq!(q.resolution, Some(1080));
+        assert_eq!(q.codec, Some("HEVC"));
+        assert_eq!(q.size_bytes, Some(4_512_345_678));
+        assert_eq!(q.source.as_deref(), Some("ACME"));
+        assert_eq!(label(&q), "1080p · HEVC · 4.5 GB");
+    }
+
+    #[test]
+    fn the_exact_size_wins_over_the_rounded_one() {
+        let size = |hints| parse_quality(&hinted("Film.2010.720p.WEB\n💾 4.4 GB", hints)).size_bytes;
+        assert_eq!(size(serde_json::json!({ "videoSize": 4_412_345_678u64 })), Some(4_412_345_678));
+        // Nothing usable in the hint: the row's own size.
+        assert_eq!(size(serde_json::json!({ "videoSize": 0 })), Some(4_400_000_000));
+        assert_eq!(size(serde_json::json!({ "videoSize": "big" })), Some(4_400_000_000));
+        assert_eq!(size(serde_json::json!({ "videoSize": -1 })), Some(4_400_000_000));
+        assert_eq!(size(serde_json::json!({ "filename": "  " })), Some(4_400_000_000));
     }
 
     #[test]

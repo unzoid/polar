@@ -8,16 +8,23 @@
 //!
 //! Episodes are matched by air date, which survives every numbering scheme;
 //! the season/episode numbers only decide between episodes of the same day,
-//! or stand in when one side has no date.
+//! or stand in when one side has no date or the dates are a few days apart.
 
 use std::collections::HashSet;
 
 use crate::Video;
 
+/// How far apart the same season and episode may be dated and still match;
+/// under half a week, so a weekly show's neighbours never do.
+const EARLY_DAYS: i64 = 3;
+
 /// TMDB's `videos` renumbered onto IMDb's (`imdb`, from Cinemeta).
 ///
 /// * A TMDB episode aired within a day of an IMDb one takes that one's id,
 ///   season and episode; its own title, still, overview and rating stay.
+/// * Failing that, the same season and episode up to [`EARLY_DAYS`] apart
+///   match: one side often has the streaming release, the other the later TV
+///   date. The merged episode carries the earlier of the two dates.
 /// * Without a usable date on either side, the same season and episode match.
 /// * IMDb episodes nothing matched are added as Cinemeta has them, so every
 ///   episode an addon can resolve is listed.
@@ -43,7 +50,7 @@ pub fn renumber(videos: Vec<Video>, imdb: &[Video]) -> Vec<Video> {
                     id: r.id.clone(),
                     season: r.season,
                     episode: r.episode,
-                    released: v.released.or_else(|| r.released.clone()),
+                    released: earliest(v.released, r.released.clone()),
                     thumbnail: v.thumbnail.or_else(|| r.thumbnail.clone()),
                     overview: v.overview.or_else(|| r.overview.clone()),
                     rating: v.rating.or_else(|| r.rating.clone()),
@@ -81,12 +88,25 @@ fn pick(v: &Video, imdb: &[Video], used: &[bool]) -> Option<usize> {
         if let Some((i, ..)) = near.iter().min_by_key(|(_, r, gap)| (*gap, r.season, r.episode)) {
             return Some(*i);
         }
-        // Dated here; only an undated IMDb episode can still be it.
+        // Dated here; only the same numbers a few days off, or undated, can still be it.
         return free()
-            .find(|(_, r)| same_number(r) && r.released.as_deref().and_then(day_number).is_none())
+            .find(|(_, r)| {
+                same_number(r)
+                    && r.released.as_deref().and_then(day_number).is_none_or(|d| (d - day).abs() <= EARLY_DAYS)
+            })
             .map(|(i, _)| i);
     }
     free().find(|(_, r)| same_number(r)).map(|(i, _)| i)
+}
+
+/// The earlier of two air dates; a date that doesn't parse loses to one that does.
+fn earliest(a: Option<String>, b: Option<String>) -> Option<String> {
+    match (a.as_deref().and_then(day_number), b.as_deref().and_then(day_number)) {
+        (Some(x), Some(y)) if y < x => b,
+        (Some(_), _) => a,
+        (None, Some(_)) => b,
+        (None, None) => a.or(b),
+    }
 }
 
 /// Days since 1970-01-01 of an ISO date or date-time (`2008-01-20`,
@@ -187,6 +207,34 @@ mod tests {
         // is another episode: B is left out, 1:2 listed as IMDb has it. C: IMDb's
         // 1:3 has no date, so the numbers decide.
         assert_eq!(ids(&out), [("tt1:1:1", "A"), ("tt1:1:2", "2"), ("tt1:1:3", "C")]);
+    }
+
+    #[test]
+    fn released_early_on_streaming_matches_the_later_tv_date_and_keeps_the_earlier() {
+        // TMDB has the Friday streaming release, IMDb the Sunday broadcast; and the other way round.
+        let tmdb = vec![ep(1, 1, Some("2020-01-03"), "A"), ep(1, 2, Some("2020-01-12"), "B")];
+        let imdb =
+            vec![ep(1, 1, Some("2020-01-05T00:00:00.000Z"), "1"), ep(1, 2, Some("2020-01-09T00:00:00.000Z"), "2")];
+        let out = renumber(tmdb, &imdb);
+        assert_eq!(ids(&out), [("tt1:1:1", "A"), ("tt1:1:2", "B")]);
+        assert_eq!(out[0].released.as_deref(), Some("2020-01-03"));
+        assert_eq!(out[1].released.as_deref(), Some("2020-01-09T00:00:00.000Z"));
+    }
+
+    #[test]
+    fn same_numbers_a_week_apart_are_different_episodes() {
+        let tmdb = vec![ep(1, 2, Some("2020-01-01"), "B")];
+        let imdb = vec![ep(1, 2, Some("2020-01-08"), "2")];
+        assert_eq!(ids(&renumber(tmdb, &imdb)), [("tt1:1:2", "2")]);
+    }
+
+    #[test]
+    fn the_earlier_date_wins() {
+        let s = |d: &str| Some(d.to_owned());
+        assert_eq!(earliest(s("2020-01-05"), s("2020-01-03T00:00:00.000Z")), s("2020-01-03T00:00:00.000Z"));
+        assert_eq!(earliest(s("2020-01-03"), s("2020-01-05")), s("2020-01-03"));
+        assert_eq!(earliest(s("soon"), s("2020-01-05")), s("2020-01-05"));
+        assert_eq!(earliest(None, s("soon")), s("soon"));
     }
 
     #[test]

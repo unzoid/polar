@@ -475,14 +475,26 @@ pub struct SubtitleOption {
     addon: String,
 }
 
-/// External subtitles from every installed addon that serves them.
+/// External subtitles from every installed addon that serves them. `video_size` and `filename`
+/// are the playing stream's hints, when it has them: add-ons match subtitles to the file by them.
 #[tauri::command]
-pub async fn subtitles(state: State<'_, AppState>, ty: String, video_id: String) -> Result<Vec<SubtitleOption>> {
+pub async fn subtitles(
+    state: State<'_, AppState>,
+    ty: String,
+    video_id: String,
+    video_size: Option<u64>,
+    filename: Option<String>,
+) -> Result<Vec<SubtitleOption>> {
     let addons: Vec<InstalledAddon> =
         installed(&state).into_iter().filter(|a| a.manifest.serves("subtitles", &ty, &video_id)).collect();
     let client = &state.addons;
+    let file = polar_addon::VideoFile {
+        size: video_size.filter(|n| *n > 0),
+        name: filename.map(|n| n.trim().to_owned()).filter(|n| !n.is_empty()),
+    };
+    let file = &file;
     let results = join_all(addons.iter().map(|a| async {
-        let res = tokio::time::timeout(ADDON_TIMEOUT, client.subtitles(&a.manifest_url, &ty, &video_id)).await;
+        let res = tokio::time::timeout(ADDON_TIMEOUT, client.subtitles(&a.manifest_url, &ty, &video_id, file)).await;
         (a.manifest.name.clone(), res)
     }))
     .await;

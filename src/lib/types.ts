@@ -120,8 +120,19 @@ export interface StreamQuality {
   source?: string | null;
 }
 
+/** The playing file's size and name, from its stream's `behaviorHints` (`videoSize`, `filename`). */
+export interface VideoFile {
+  size?: number;
+  name?: string;
+}
+
 /** Whether a source's link would start now (#21), from one look at it ahead of time. */
-export type Readiness = { state: "ready"; ms: number } | { state: "notReady"; reason: string } | { state: "unchecked" };
+export type Readiness =
+  | { state: "ready"; ms: number }
+  | { state: "notReady"; reason: string }
+  /** No answer within the check's few seconds: may still play (a server can take a while to open a file). */
+  | { state: "slow"; ms: number }
+  | { state: "unchecked" };
 
 export interface RankedStream {
   stream: Stream;

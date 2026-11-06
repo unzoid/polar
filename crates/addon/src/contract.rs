@@ -128,6 +128,7 @@ fn field_names_match_contract() {
     add("StreamQuality", keys(&StreamQuality::default()));
     add("Readiness.ready", keys(&Readiness::Ready { ms: 1 }));
     add("Readiness.notReady", keys(&Readiness::NotReady { reason: "r".into() }));
+    add("Readiness.slow", keys(&Readiness::Slow { ms: 1 }));
     add("Readiness.unchecked", keys(&Readiness::Unchecked));
     add(
         "RankedStream",

@@ -37,40 +37,69 @@ export interface StremioAddon {
 export interface StremioExport {
   items: StremioItem[];
   addons: StremioAddon[];
-  /** Titles Polarity can't show: other types, or ids from other add-ons' own catalogs. */
-  unsupported: number;
+  /** Titles Polarity can't show, by why: what the preview and the summary explain. */
+  skipped: Skipped;
+}
+
+export interface Skipped {
+  /** Ids from other add-ons' own catalogs: not IMDb or Kitsu. */
+  ids: number;
+  /** Other kinds of item: channels, TV, other. */
+  types: number;
+  /** Entries without an id. */
+  unreadable: number;
 }
 
 type Json = Record<string, unknown>;
 const isObject = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+/** Stremio writes ISO dates; some copies of the data hold milliseconds. */
 const time = (v: unknown) => {
-  const t = typeof v === "string" ? Date.parse(v) : NaN;
-  return Number.isFinite(t) ? t : 0;
+  const t = typeof v === "string" ? Date.parse(v) : typeof v === "number" ? v : NaN;
+  return Number.isFinite(t) && t > 0 ? t : 0;
 };
 
-/** Ids Polarity plays: IMDb titles and Kitsu anime. */
-const SUPPORTED_ID = /^(tt\d+|kitsu:\d+)$/;
+/** Ids Polarity plays, IMDb titles and Kitsu anime, in the form Polarity keeps them. */
+function supportedId(id: string): string | undefined {
+  const imdb = /^tt(\d+)$/i.exec(id);
+  if (imdb) return `tt${imdb[1]}`;
+  const kitsu = /^kitsu:(\d+)$/i.exec(id);
+  return kitsu ? `kitsu:${kitsu[1]}` : undefined;
+}
 
-function readItem(raw: unknown): StremioItem | "unsupported" | null {
-  if (!isObject(raw)) return null;
-  // The export wraps each library item as { _id, _mtime, d: <item>, user_id }.
+/** An entry's type; when it's missing, what the item played says: the title itself (a movie) or one of its episodes. */
+function itemType(item: Json, id: string, state: Json): string | undefined {
+  const type = str(item.type)?.toLowerCase();
+  if (type) return type;
+  const video = str(state.video_id);
+  if (video === id) return "movie";
+  if (video?.startsWith(`${id}:`)) return "series";
+  return undefined;
+}
+
+type Read = StremioItem | keyof Skipped;
+
+function readItem(raw: Json): Read {
+  // The export wraps each library item as { _id, _mtime, d: <item>, user_id }; some copies keep the title's id
+  // only on the wrapper (`__id`).
   const item = isObject(raw.d) ? raw.d : raw;
-  const id = str(item._id);
-  if (!id) return null;
-  const type = item.type;
-  if ((type !== "movie" && type !== "series") || !SUPPORTED_ID.test(id)) return "unsupported";
+  const given = str(item._id) ?? str(raw.__id);
+  if (!given) return "unreadable";
   const state = isObject(item.state) ? item.state : {};
-  const changed = time(item._mtime);
+  const type = itemType(item, given, state);
+  if (type !== "movie" && type !== "series") return "types";
+  const id = supportedId(given);
+  if (!id) return "ids";
+  const changed = time(item._mtime) || time(raw._mtime) || time(raw._mtimestamp);
   const lastWatched = time(state.lastWatched) || changed;
   const removed = item.removed === true;
   const offset = num(state.timeOffset);
-  const videoId = str(state.video_id) ?? (type === "movie" ? id : undefined);
+  const videoId = str(state.video_id) ?? (type === "movie" ? given : undefined);
   // Stremio's own rule for Continue Watching: not removed (or only there because it was played), started.
   const resume =
     (!removed || item.temp === true) && offset > 0 && videoId
-      ? { videoId, position: offset / 1000, duration: num(state.duration) / 1000 }
+      ? { videoId: videoId.replace(given, id), position: offset / 1000, duration: num(state.duration) / 1000 }
       : undefined;
   return {
     id,
@@ -82,8 +111,41 @@ function readItem(raw: unknown): StremioItem | "unsupported" | null {
     lastWatched,
     resume,
     watchedMovie: type === "movie" && (num(state.timesWatched) > 0 || num(state.flaggedWatched) > 0),
-    watched: type === "series" ? str(state.watched) : undefined,
+    watched: type === "series" ? str(state.watched)?.replace(given, id) : undefined,
   };
+}
+
+/** An object that is a library entry: wrapped (`d`), or an item with its id and what it is or how far it was played. */
+const isEntry = (v: Json) => isObject(v.d) || (typeof v._id === "string" && ("type" in v || isObject(v.state) || "removed" in v));
+
+/** Where the library can sit besides `library`: Stremio keeps recently played titles in a bucket of their own. */
+const LIBRARY_KEYS = ["library", "library_recent", "libraryRecent", "items"];
+
+/**
+ * Every library entry in the file, wherever it sits: a list, a list under `library`, or Stremio's own buckets
+ * (`{ uid, items: { <id>: <item> } }`, recent titles apart). Undefined when the file has no library at all.
+ */
+function libraryEntries(data: unknown): Json[] | undefined {
+  if (Array.isArray(data)) return data.filter(isObject);
+  if (!isObject(data)) return undefined;
+  const found: Json[] = [];
+  let any = false;
+  const walk = (v: unknown, depth: number) => {
+    if (depth > 3) return;
+    const values = Array.isArray(v) ? v : isObject(v) ? Object.values(v) : [];
+    for (const x of values) {
+      if (!isObject(x)) continue;
+      if (isEntry(x)) found.push(x);
+      else walk(x, depth + 1);
+    }
+  };
+  for (const key of LIBRARY_KEYS) {
+    const v = data[key];
+    if (!Array.isArray(v) && !isObject(v)) continue;
+    any = true;
+    walk(v, 0);
+  }
+  return any ? found : undefined;
 }
 
 function readAddon(raw: unknown, installed: Set<string>): StremioAddon | null {
@@ -108,17 +170,17 @@ export function parseStremioExport(text: string, installed: Iterable<string> = [
   } catch {
     throw new Error("This file isn't JSON.");
   }
-  const library = Array.isArray(data) ? data : isObject(data) ? data.library : undefined;
+  const library = libraryEntries(data);
   const rawAddons = isObject(data) ? (isObject(data.addons) ? data.addons.addons : data.addons) : undefined;
-  if (!Array.isArray(library) && !Array.isArray(rawAddons)) throw new Error("This file isn't a Stremio export: it has no library or add-ons.");
+  if (!library && !Array.isArray(rawAddons)) throw new Error("This file isn't a Stremio export: it has no library or add-ons.");
 
   const byId = new Map<string, StremioItem>();
-  let unsupported = 0;
-  for (const raw of Array.isArray(library) ? library : []) {
+  const skipped: Skipped = { ids: 0, types: 0, unreadable: 0 };
+  for (const raw of library ?? []) {
     const item = readItem(raw);
-    if (item === "unsupported") unsupported++;
+    if (typeof item === "string") skipped[item]++;
     // The same title twice: the one changed last.
-    else if (item && (byId.get(item.id)?.lastWatched ?? -1) <= item.lastWatched) byId.set(item.id, item);
+    else if ((byId.get(item.id)?.lastWatched ?? -1) <= item.lastWatched) byId.set(item.id, item);
   }
   const have = new Set(installed);
   const addons: StremioAddon[] = [];
@@ -126,7 +188,7 @@ export function parseStremioExport(text: string, installed: Iterable<string> = [
     const addon = readAddon(raw, have);
     if (addon && !addons.some((a) => a.id === addon.id)) addons.push(addon);
   }
-  return { items: [...byId.values()], addons, unsupported };
+  return { items: [...byId.values()], addons, skipped };
 }
 
 /** Stremio's watched field: the anchor video, the length up to it, and the zlib-compressed bits. */

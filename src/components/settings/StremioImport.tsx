@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { sync } from "../../lib/account";
 import { errorMessage } from "../../lib/errors";
-import { needsMeta, parseStremioExport, planImport, watchedCount, type ImportChoice, type StremioExport } from "../../lib/library";
+import { needsMeta, parseStremioExport, planImport, watchedCount, type ImportChoice, type Skipped, type StremioExport } from "../../lib/library";
 import { concurrency, keys, useAddons } from "../../lib/net";
 import type { Meta } from "../../lib/types";
 import { ActionRow, Card, RowText, ToggleRow } from "./rows";
@@ -16,6 +16,7 @@ import { ActionRow, Card, RowText, ToggleRow } from "./rows";
 interface Preview {
   exp: StremioExport;
   library: number;
+  libraryMovies: number;
   resume: number;
   movies: number;
   episodes: number;
@@ -27,10 +28,35 @@ interface Summary {
   addons: number;
   addonsFailed: number;
   unmatched: number;
-  unsupported: number;
+  skipped: Skipped;
 }
 
 const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+const and = (parts: string[]) => (parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`);
+
+/** Why titles in the file can't be imported, so a 0 can be explained ("2 titles from other catalogs"). */
+export function skippedText(s: Skipped): string | undefined {
+  const parts = [
+    s.ids && `${count(s.ids, "title")} from other catalogs (not IMDb or Kitsu ids)`,
+    s.types && `${count(s.types, "item")} that aren't movies or shows`,
+    s.unreadable && `${count(s.unreadable, "entry", "entries")} without an id`,
+  ].filter((p): p is string => !!p);
+  return parts.length ? and(parts) : undefined;
+}
+
+/** What the Import button will do with the choices made: "Import 1 movie, 2 shows, 1 title in progress and 2 add-ons". */
+export function planText(p: Omit<Preview, "exp">, choice: ImportChoice, addons: number): string {
+  const shows = p.library - p.libraryMovies;
+  const parts = [
+    choice.library && p.libraryMovies && count(p.libraryMovies, "movie"),
+    choice.library && shows && count(shows, "show"),
+    choice.resume && p.resume && `${count(p.resume, "title")} in progress`,
+    choice.watched && p.movies && count(p.movies, "watched movie"),
+    choice.watched && p.episodes && count(p.episodes, "watched episode"),
+    addons && count(addons, "add-on"),
+  ].filter((x): x is string => !!x);
+  return parts.length ? `Import ${and(parts)}` : "Nothing chosen to import";
+}
 
 async function preview(text: string, installed: string[]): Promise<Preview> {
   const exp = parseStremioExport(text, installed);
@@ -38,6 +64,7 @@ async function preview(text: string, installed: string[]): Promise<Preview> {
   return {
     exp,
     library: exp.items.filter((i) => i.inLibrary).length,
+    libraryMovies: exp.items.filter((i) => i.inLibrary && i.type === "movie").length,
     resume: exp.items.filter((i) => i.resume).length,
     movies: exp.items.filter((i) => i.watchedMovie).length,
     episodes: episodes.reduce((a, b) => a + b, 0),
@@ -100,7 +127,7 @@ export function StremioImport() {
       }
       for (const key of [keys.library, keys.progressAll, keys.continue, keys.history, keys.addons, keys.streamsAll]) qc.invalidateQueries({ queryKey: key });
       sync.schedule();
-      setSummary({ ...added, addons: installed, addonsFailed: failed, unmatched: plan.unmatched, unsupported: loaded.exp.unsupported });
+      setSummary({ ...added, addons: installed, addonsFailed: failed, unmatched: plan.unmatched, skipped: loaded.exp.skipped });
       setLoaded(null);
     } catch (e) {
       setError(errorMessage(e));
@@ -118,6 +145,9 @@ export function StremioImport() {
     });
   const busy = step != null;
   const nothing = loaded && !(choice.library && loaded.library) && !(choice.resume && loaded.resume) && !(choice.watched && (loaded.movies || loaded.episodes)) && !picked.size;
+  const skipped = loaded && skippedText(loaded.exp.skipped);
+  const offered = loaded?.exp.addons ?? [];
+  const all = offered.length > 0 && offered.every((a) => picked.has(a.id));
 
   return (
     <>
@@ -166,19 +196,14 @@ export function StremioImport() {
               disabled={busy || !(loaded.movies || loaded.episodes)}
               onChange={(v) => setChoice((c) => ({ ...c, watched: v }))}
             />
-            <ActionRow
-              title="Import"
-              caption={step ?? "Shows are looked up one by one to match their episodes."}
-              label="Import"
-              variant="primary"
-              disabled={!!nothing}
-              pending={busy}
-              pendingLabel="Importing…"
-              onClick={() => void run()}
-            />
+            {skipped && (
+              <div className="settings-row">
+                <RowText title="Not imported" caption={`${skipped}: Polarity can't show these.`} />
+              </div>
+            )}
           </>
         )}
-        {error && <p className="settings-error">{error}</p>}
+        {!loaded && error && <p className="settings-error">{error}</p>}
         {summary && (
           <div className="settings-row">
             <RowText title="Imported" caption={describe(summary)} />
@@ -186,14 +211,31 @@ export function StremioImport() {
         )}
       </Card>
 
-      {loaded && !!loaded.exp.addons.length && (
+      {loaded && !!offered.length && (
         <Card
           title="Add-ons in the file"
           footer="Installed only if you turn them on. Their links can hold your own keys or settings: after installing, they sync like the add-ons you add yourself."
         >
-          {loaded.exp.addons.map((a) => (
+          <ToggleRow title="All add-ons" caption={count(offered.length, "add-on")} checked={all} disabled={busy} onChange={(v) => setPicked(new Set(v ? offered.map((a) => a.id) : []))} />
+          {offered.map((a) => (
             <ToggleRow key={a.id} title={a.name} caption={a.description} checked={picked.has(a.id)} disabled={busy} onChange={(v) => toggle(a.id, v)} />
           ))}
+        </Card>
+      )}
+
+      {loaded && (
+        <Card footer="Shows are looked up one by one to match their episodes.">
+          <ActionRow
+            title={planText(loaded, choice, picked.size)}
+            caption={step ?? undefined}
+            label="Import"
+            variant="primary"
+            disabled={!!nothing}
+            pending={busy}
+            pendingLabel="Importing…"
+            onClick={() => void run()}
+          />
+          {error && <p className="settings-error">{error}</p>}
         </Card>
       )}
     </>
@@ -204,7 +246,7 @@ function describe(s: Summary) {
   const added = [`Added ${count(s.library, "title")} to your library and ${count(s.progress, "progress entry", "progress entries")}`];
   if (s.addons) added.push(`installed ${count(s.addons, "add-on")}`);
   const skipped = [
-    s.unsupported && `${count(s.unsupported, "title")} from other catalogs`,
+    skippedText(s.skipped),
     s.unmatched && `the watched episodes of ${count(s.unmatched, "show")} that couldn't be matched`,
     s.addonsFailed && `${count(s.addonsFailed, "add-on")} that didn't answer`,
   ].filter(Boolean);

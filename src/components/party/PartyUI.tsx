@@ -5,6 +5,7 @@ import {
   CODE_LENGTH,
   joinParty,
   leaveParty,
+  memberStatus,
   normalizeCode,
   type Member,
   type PartyState,
@@ -82,8 +83,9 @@ export function PartyInvite({ party }: { party: PartyState }) {
   );
 }
 
-/** Who's here, and who the room is waiting on. */
+/** Who's here, and what each is doing: the same words on every screen. */
 export function PartyMembers({ party }: { party: PartyState }) {
+  const statusOf = (m: Member) => memberStatus(m, party.playback);
   return (
     <ul className="party-members party-swap">
       <AnimatePresence initial={false} mode="popLayout">
@@ -104,10 +106,10 @@ export function PartyMembers({ party }: { party: PartyState }) {
                 {m.id === party.me && <span className="muted"> (You)</span>}
               </span>
               <span className="party-member-detail">
-                {m.away ? "Browsing" : m.waiting ? "Loading…" : m.id === party.hostId ? "Host" : "Watching"}
+                {m.id === party.hostId ? `Host · ${statusOf(m)}` : statusOf(m)}
               </span>
             </span>
-            {m.waiting && !m.away && <Spinner size={16} label="Loading" />}
+            {(m.waiting || m.buffering) && !m.away && <Spinner size={16} label={statusOf(m)} />}
           </motion.li>
         ))}
       </AnimatePresence>

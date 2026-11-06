@@ -1,6 +1,6 @@
 import { storeLocal } from "../lib/errors";
 import { useSyncExternalStore } from "react";
-import { appWindow, inShell, isTvDevice } from "../lib/platform";
+import { appWindow, inShell, isDesktop, isTvDevice } from "../lib/platform";
 
 /**
  * TV mode: the whole app goes fullscreen with a 10-foot interface driven by
@@ -15,7 +15,13 @@ const KEY = "polar.tvMode";
  */
 export const startsInTvMode = (stored: string | null, tvDevice: boolean) => tvDevice || stored === "1";
 
-let on = startsInTvMode(localStorage.getItem(KEY), isTvDevice);
+/**
+ * Where TV mode exists: a computer (plugged into a TV) and a TV. A phone or tablet has neither the
+ * remote nor the screen for it, so nothing there offers it or starts in it (#141).
+ */
+export const tvModeAvailable = isDesktop || isTvDevice;
+
+let on = tvModeAvailable && startsInTvMode(localStorage.getItem(KEY), isTvDevice);
 const listeners = new Set<() => void>();
 
 function apply() {
@@ -44,7 +50,7 @@ if (inShell) {
 }
 
 export function setTvMode(next: boolean) {
-  if (next === on) return;
+  if (next === on || (next && !tvModeAvailable)) return;
   on = next;
   storeLocal(KEY, next ? "1" : "0");
   apply();

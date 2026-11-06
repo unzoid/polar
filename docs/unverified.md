@@ -389,6 +389,26 @@ against a real project.
 - A source that needs a Cookie or Authorization header still fails to play (only downloads send those); on Linux
   the built-in player can't send any header.
 
+## Links served over HTTP or WebDAV (#139, docs/stream-links.md)
+
+- Tested here: the link check against local servers (`crates/addon/src/probe.rs`): a login in
+  the link or in the redirect's new link is sent as Basic auth, a file server without it is
+  refused at once with 401, a first byte at 600 ms of a 2 s limit still plays (the defaults are
+  20 s and 25 s), a link that doesn't answer within the source list's 3 s reads "Slow to
+  answer"; `videoSize`/`filename` in the source list (`rank.rs`) and in the subtitles request
+  (`crates/addon/tests/addon_server.rs`). Not run: mpv, the built-in player, the app.
+- To check on Windows, macOS and Android with mpv: start `scripts/open-films-addon.ts` with
+  `--file`, `--auth user:secret --slow 10 --host 0.0.0.0` (docs/stream-links.md) and add it by
+  the computer's network address. Play Big Buck Bunny: the loading screen shows the 302 and a
+  206 after about 10 s, without the login; the video plays, seeks without starting over (the
+  script's server answers Range), and resumes from where it stopped after leaving the player.
+  The source row shows the file's exact size. Then without `--auth`/`--slow`, to see nothing
+  changed for a plain link.
+- The built-in player with a login in the link: Chromium-based web views (WebView2 on Windows
+  without mpv, Android System WebView in an APK without libmpv) are expected to refuse video
+  links with a login in them; WebKitGTK (Linux) and WKWebView (iOS) not known. Same check as
+  above in each; if it fails, the loading screen ends with the player's error.
+
 ## Log file (R4 M14)
 
 - The rotation (`crates/library/src/logfile.rs`) is tested here; the app's wiring (`src-tauri/src/logging.rs`) is
@@ -515,6 +535,21 @@ against a real project.
   - macOS: every frame read in memory (`screenshot-raw video` through a weak client): the log's screenshots per
     second (no MB written), CPU against autocrop off; a change lands within a frame or two of its cut; nothing
     hangs when playback stops or the window hides mid-read; hardware decoding stays zero-copy.
+
+## Windows mpv.exe built from pinned sources (`scripts/windows-mpv.sh`, CI job `windows-mpv`)
+
+- Until this change the Windows app shipped shinchiro's prebuilt `mpv.exe`; now CI builds it with the same
+  scripts at a fixed commit, every library at the commit `scripts/windows-mpv.lock` gives it, and the release
+  attaches the exact sources. The build only runs in CI (in the Arch Linux image of `scripts/windows-mpv.Dockerfile`); nothing
+  here has run it. The `mpv.exe` that ships is a different build, so it needs a check on a Windows PC. It is
+  winbuild's clang build for plain x86-64 (no AVX2 needed), with libc++ linked in and the Universal CRT
+  (part of Windows 10 and 11), so it should also start on an older x86-64 PC.
+- Get it: once CI's `windows-mpv` job has passed on the commit, `bun scripts/fetch-mpv.ts` on the PC (GitHub CLI
+  signed in) puts it into `src-tauri/vendor/mpv`; then `bun run tauri dev`, or a release build.
+- Check: a film and an episode play with picture and sound, hardware decoding on (Settings → Playback), seeking,
+  subtitles (an embedded track and an add-on one), audio track switching, HDR on an HDR screen, autocrop on a
+  letterboxed film, and a stream over HTTPS. `licenses/mpv/BUNDLED.txt` in the installed app lists the libraries,
+  and the release lists `Polarity_<version>_x64_mpv-sources.tar` among its files.
 
 ## Torrent sources (#47)
 

@@ -1,52 +1,66 @@
-// Downloads a pinned mpv build into src-tauri/vendor/mpv so the Windows
-// installer can ship it next to polar.exe (player.rs looks there first).
-// No-op when the files are already present. Run: bun scripts/fetch-mpv.ts
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+// Puts the mpv.exe the Windows app bundles into src-tauri/vendor/mpv (player.rs looks there first,
+// tauri.windows.conf.json bundles it with its licence texts) and the exact sources it was built
+// from into src-tauri/vendor/mpv-sources (release.ts attaches them to the release).
+//
+// Both come from ci.yml's windows-mpv job (scripts/windows-mpv.sh), which builds them once per
+// version of that script and scripts/windows-mpv.lock and keeps them as the artifact
+// windows-mpv-<version>, downloaded here with the GitHub CLI (gh, signed in). Or from a build of
+// your own: --from <its out folder>. No-op when vendor/mpv already holds this version, and off
+// Windows (macOS bundles libmpv with scripts/bundle-libmpv.ts).
+//
+//   bun scripts/fetch-mpv.ts [--from <dir>]
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { mpvVersion, vendoredMpvVersion } from "./windowsMpv";
 
-const TAG = "20261101";
-const ARCHIVE = "mpv-x86_64-20261101-git-48fca90e8c.7z";
-const SHA256 = "7a887a10b74c1a4a7e8c29ead8300cfc610c466c4686bf9dcb92ca2f224ba110";
-const URL = `https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/${TAG}/${ARCHIVE}`;
-const LICENSE_URL = "https://raw.githubusercontent.com/mpv-player/mpv/master/LICENSE.GPL";
-const COPYRIGHT_URL = "https://raw.githubusercontent.com/mpv-player/mpv/master/Copyright";
-const FILES = ["mpv.exe", "d3dcompiler_43.dll"];
+const REPO = "unzoid/polarity";
+const root = join(import.meta.dir, "..");
+const vendor = join(root, "src-tauri", "vendor");
+const args = process.argv.slice(2);
+const fromAt = args.indexOf("--from");
+let from = fromAt >= 0 ? args[fromAt + 1] : undefined;
+if (fromAt >= 0 && !from) throw new Error("--from needs the out folder of a scripts/windows-mpv.sh build");
 
-const out = join(import.meta.dir, "..", "src-tauri", "vendor", "mpv");
-const wanted = [...FILES, "LICENSE.GPL.txt", "COPYRIGHT.txt"];
-if (wanted.every((f) => existsSync(join(out, f)))) process.exit(0);
-// Only the Windows build ships mpv; on macOS the app uses an installed one (brew install mpv).
-if (process.platform !== "win32") process.exit(0);
+if (process.platform !== "win32" && !from) process.exit(0);
+const version = mpvVersion(root);
+if (vendoredMpvVersion(root) === version) process.exit(0);
+// CI's Windows test builds have put this version's build or empty stand-ins there (scripts/vendor-mpv.sh).
+if (process.env.CI && existsSync(join(vendor, "mpv", "mpv.exe"))) process.exit(0);
 
-async function get(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`GET ${url}: ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+function gh(ghArgs: string[]): string {
+  // No shell: gh is an executable, and the --jq filter must reach it whole.
+  const r = spawnSync("gh", ghArgs, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  if (r.error || r.status !== 0) throw new Error(`gh ${ghArgs.join(" ")} failed: is the GitHub CLI installed and signed in (gh auth login)?`);
+  return r.stdout.trim();
 }
 
-console.log(`Fetching mpv ${TAG}…`);
-const archive = await get(URL);
-const hash = createHash("sha256").update(archive).digest("hex");
-if (hash !== SHA256) throw new Error(`mpv archive hash mismatch: ${hash}`);
+let download: string | undefined;
+if (!from) {
+  const name = `windows-mpv-${version}`;
+  console.log(`Fetching ${name} from CI…`);
+  const run = gh(["api", `repos/${REPO}/actions/artifacts?name=${name}&per_page=20`, "--jq", ".artifacts[] | select(.expired | not) | .workflow_run.id"]).split(
+    "\n",
+  )[0];
+  if (!run) {
+    throw new Error(
+      `CI hasn't built ${name} (or it expired): wait for ci.yml's windows-mpv job on a commit with this scripts/windows-mpv.lock, ` +
+        "or build it with scripts/windows-mpv.sh and pass --from <its out folder>",
+    );
+  }
+  download = mkdtempSync(join(tmpdir(), "polarity-mpv-"));
+  gh(["run", "download", run, "-R", REPO, "-n", name, "-D", download]);
+  from = download;
+}
 
-mkdirSync(out, { recursive: true });
-const tmp = join(tmpdir(), ARCHIVE);
-writeFileSync(tmp, archive);
-// Windows' built-in tar (bsdtar) reads .7z.
-const tar = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "bsdtar";
-const r = spawnSync(tar, ["-xf", tmp, "-C", out, ...FILES], { stdio: "inherit" });
-rmSync(tmp, { force: true });
-if (r.status !== 0) throw new Error("extracting mpv failed");
-
-writeFileSync(join(out, "LICENSE.GPL.txt"), await get(LICENSE_URL));
-writeFileSync(
-  join(out, "COPYRIGHT.txt"),
-  Buffer.concat([
-    Buffer.from(`Bundled mpv build: ${URL}\nSource: https://github.com/mpv-player/mpv\nBuild scripts: https://github.com/shinchiro/mpv-winbuild-cmake\n\n`),
-    await get(COPYRIGHT_URL),
-  ]),
-);
-console.log("mpv ready in src-tauri/vendor/mpv");
+const built = readFileSync(join(from, "mpv", "VERSION"), "utf8").trim();
+if (built !== version) throw new Error(`${from} holds mpv build ${built}, not ${version} (scripts/windows-mpv.sh and its lock)`);
+rmSync(join(vendor, "mpv"), { recursive: true, force: true });
+rmSync(join(vendor, "mpv-sources"), { recursive: true, force: true });
+mkdirSync(join(vendor, "mpv"), { recursive: true });
+mkdirSync(join(vendor, "mpv-sources"), { recursive: true });
+for (const f of readdirSync(join(from, "mpv"))) copyFileSync(join(from, "mpv", f), join(vendor, "mpv", f));
+copyFileSync(join(from, "polarity-windows-mpv-sources.tar"), join(vendor, "mpv-sources", "polarity-windows-mpv-sources.tar"));
+if (download) rmSync(download, { recursive: true, force: true });
+console.log(`mpv ${version} ready in src-tauri/vendor/mpv`);
