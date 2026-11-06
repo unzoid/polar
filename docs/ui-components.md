@@ -57,7 +57,7 @@ relative to `src/`; each primitive's CSS is `styles/ui/<name>.css`, the title pa
 | Component | Props | Use it for |
 |---|---|---|
 | `Card` | `shape` poster/landscape, `art` + `fallback`, children on the art, `actions`, `title`, `detail`, `keepCaption`, `trailing`, `hint` | Every title card on desktop. With `actions` it's a focusable `role="link"` |
-| `CardArt`, `useCardArt(src)`, `ArtTitle`, `ProgressBar`, `CardSkeleton` | | Art that falls back when missing or broken and retries a new `src` (`useCardArt` for frames drawn elsewhere: `TvCard`, `Still`); logo-or-name on landscape art; the progress stripe; a card's skeleton |
+| `CardArt`, `useCardArt(src)`, `ArtTitle`, `LogoOrName`, `ProgressBar`, `CardSkeleton` | | Art that falls back when missing or broken and retries a new `src` (`useCardArt` for frames drawn elsewhere: `TvCard`, `Still`); logo-or-name on landscape art, the name also when the logo doesn't load (`LogoOrName` alone for `TvCard`); the progress stripe; a card's skeleton |
 | `Shelf` | `title`, `shape`, `action`, `items`, `skeletons`, `card(item)` | A titled row of cards with skeletons until `items` arrive |
 | `PosterGrid` | `pager`, `stale`, `skeletons`, cards as children | Infinite poster grids |
 | `TitleHeading` | `name`, `logo`, `look` hero/detail/tv-stage/tv-detail/tv-panel | The logo or the name as a heading |

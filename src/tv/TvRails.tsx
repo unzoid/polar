@@ -1,8 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { CardRating } from "../components/ImdbBadge";
 import { Img } from "../components/Img";
-import { TitleLogo } from "../components/TitleLogo";
-import { ProgressBar, useCardArt } from "../components/title/Card";
+import { LogoOrName, ProgressBar, useCardArt } from "../components/title/Card";
 import { episodeCode, formatRemaining } from "../lib/format";
 import { prefetchMeta, preloadImage, useCatalog, useContinueWatching, useRecommend } from "../lib/net";
 import { useRouter } from "../lib/router";
@@ -104,7 +103,7 @@ export function TvCard({
         {shape === "landscape" && art && (
           <>
             <span className="tv-card-scrim" />
-            {item.logo ? <TitleLogo src={item.logo} alt="" className="tv-card-logo" /> : <span className="tv-card-name">{item.name}</span>}
+            <LogoOrName logo={item.logo} alt="" logoClass="tv-card-logo" name={<span className="tv-card-name">{item.name}</span>} />
           </>
         )}
         {chip && <span className="tv-card-chip">{chip}</span>}

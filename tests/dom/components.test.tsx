@@ -122,6 +122,24 @@ test("Img: a picture that fails moves on to the next; none left, it's gone (test
   expect(page.container.querySelector("h1")!.textContent).toBe("Iron Wheel Race");
 });
 
+test("Card logos: a logo that doesn't load leaves the name on the art, on the desktop and TV cards (#95)", async () => {
+  const { act } = await import("react");
+  const { ArtTitle, LogoOrName } = await import("../../src/components/title/Card");
+  const fail = (img: Element | null) => act(async () => void img!.dispatchEvent(new Event("error")));
+  const { container } = await render(<ArtTitle name="Iron Wheel Race" logo="https://x.test/card-logo.png" />);
+  expect(container.querySelector(".card-art-title")).toBeNull();
+  await fail(container.querySelector("img.card-logo"));
+  expect(container.querySelector("img")).toBeNull();
+  expect(container.querySelector(".card-art-title")!.textContent).toBe("Iron Wheel Race");
+
+  // TV's card: the same logo again is known broken, so the name comes at once.
+  const tv = await render(<LogoOrName logo="https://x.test/card-logo.png" alt="" logoClass="tv-card-logo" name={<span className="tv-card-name">Iron Wheel Race</span>} />);
+  expect(tv.container.querySelector(".tv-card-name")!.textContent).toBe("Iron Wheel Race");
+  // No logo: the name.
+  const none = await render(<ArtTitle name="Iron Wheel Race" />);
+  expect(none.container.querySelector(".card-art-title")!.textContent).toBe("Iron Wheel Race");
+});
+
 test("TitleActions: while what Play would play is unknown, Play is busy, not just greyed out (re-test N4)", async () => {
   const { TitleActions } = await import("../../src/components/title/TitleActions");
   const picker = { play: () => {}, choose: () => {} } as never;
