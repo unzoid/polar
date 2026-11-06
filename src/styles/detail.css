@@ -632,8 +632,9 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Past slim bars inside the picture, under the page's edge gradients. */
+  transform: scale(1.08);
   pointer-events: none;
-  transition: transform 400ms var(--ease-in-out);
 }
 .detail-mute {
   animation: fade-in var(--dur-base) var(--ease-std);

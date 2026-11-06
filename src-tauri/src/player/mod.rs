@@ -10,6 +10,8 @@
 //!     its own process drawing into our HWND (`--wid`). On macOS a window
 //!     handle can't be shared with another process, so libmpv runs inside the
 //!     app and draws into a layer under the webview (`macos/mpv_view.m`).
+//!     On Android libmpv also runs inside the app, drawing into a surface
+//!     behind the webview ([`android`]).
 //!   * We drive it over its JSON IPC (a named pipe on Windows, a Unix socket
 //!     elsewhere): commands go in with a
 //!     `request_id`, replies and property changes come back as lines.
@@ -24,6 +26,10 @@
 //! `mpv_*` commands, [`autocrop`] the black-bar zoom, [`preroll`] its probe of
 //! the opening, [`ipc`] the transport.
 
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(target_os = "android")]
+pub use android::preload;
 mod autocrop;
 mod commands;
 mod ipc;
@@ -34,10 +40,10 @@ pub use commands::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Child;
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "android")))]
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
@@ -98,25 +104,42 @@ type Pending = Arc<StdMutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>
 /// The mpv process, shared so it can be killed while the connection is busy (see [`Mpv::kill`]).
 type Process = Arc<StdMutex<Child>>;
 
+static SCRATCH: OnceLock<PathBuf> = OnceLock::new();
+
+/// Use `dir` for mpv's control socket and snapshots instead of the system's temporary folder,
+/// which apps can't write to on Android.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub fn set_scratch_dir(dir: PathBuf) {
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = SCRATCH.set(dir);
+}
+
+/// Where mpv's control socket and snapshots go.
+fn scratch_dir() -> PathBuf {
+    SCRATCH.get().cloned().unwrap_or_else(std::env::temp_dir)
+}
+
 /// This app's own folder for mpv's screenshots and snapshots: one per running app, so two
 /// copies (or another user's, in a shared `/tmp`) never write over each other's files.
 pub(super) fn shots_dir() -> PathBuf {
-    std::env::temp_dir().join(format!("polar-mpv-{}", std::process::id()))
+    scratch_dir().join(format!("polar-mpv-{}", std::process::id()))
 }
 
-/// What runs mpv: its own process, or (macOS) libmpv inside the app.
+/// What runs mpv: its own process, or (macOS, Android) libmpv inside the app.
 enum Engine {
-    #[cfg_attr(target_os = "macos", allow(dead_code))]
+    #[cfg_attr(any(target_os = "macos", target_os = "android"), allow(dead_code))]
     Process(Process),
     #[cfg(target_os = "macos")]
     InApp(mac::Player),
+    #[cfg(target_os = "android")]
+    InApp(android::Player),
 }
 
 impl Engine {
     fn alive(&mut self) -> bool {
         match self {
             Engine::Process(child) => matches!(child.locked().try_wait(), Ok(None)),
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "android"))]
             Engine::InApp(_) => true,
         }
     }
@@ -124,7 +147,7 @@ impl Engine {
     fn kill(self) {
         match self {
             Engine::Process(child) => kill_process(&child),
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "android"))]
             Engine::InApp(player) => drop(player),
         }
     }
@@ -185,7 +208,7 @@ fn kill_process(child: &Process) {
 const MPV_EXE: &str = if cfg!(windows) { "mpv.exe" } else { "mpv" };
 
 /// mpv: next to our binary (bundled), on PATH, or a standard install.
-#[cfg_attr(target_os = "macos", allow(dead_code))]
+#[cfg_attr(any(target_os = "macos", target_os = "android"), allow(dead_code))]
 pub fn mpv_binary() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
@@ -377,7 +400,7 @@ mod mac {
 }
 
 /// The native view mpv draws into (`--wid`).
-#[cfg_attr(target_os = "macos", allow(dead_code))]
+#[cfg_attr(any(target_os = "macos", target_os = "android"), allow(dead_code))]
 fn window_id(window: &WebviewWindow) -> Result<String, String> {
     #[cfg(windows)]
     {
@@ -394,7 +417,7 @@ fn window_id(window: &WebviewWindow) -> Result<String, String> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "android")))]
 /// Rendering: Direct3D 11 on Windows (lighter than Vulkan, zero-copy with
 /// d3d11va); elsewhere mpv's own choice for the platform.
 fn gpu_args() -> Vec<String> {
@@ -476,10 +499,18 @@ impl Mpv {
         if let Some(fonts) = bundled_fonts(app) {
             base.push(format!("--sub-fonts-dir={}", fonts.display()));
         }
+        // Phones and TV boxes: MediaCodec decoding (not in mpv's auto-safe list) and a cache
+        // that fits in their memory, as mpv-android sizes it.
+        #[cfg(target_os = "android")]
+        base.extend([
+            format!("--hwdec={}", polar_player::tune::android_hwdec("auto-safe")),
+            "--demuxer-max-bytes=64MiB".into(),
+            "--demuxer-max-back-bytes=16MiB".into(),
+        ]);
         let (engine, client) = start_engine(window, base, &pipe).await?;
         *self.process.locked() = match &engine {
             Engine::Process(child) => Some(child.clone()),
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "android"))]
             Engine::InApp(_) => None,
         };
         let (reader, writer) = tokio::io::split(client);
@@ -545,7 +576,7 @@ impl Mpv {
     }
 
     /// Show or hide the video layer (macOS, where it's ours to manage; on
-    /// Windows mpv's child window simply sits under the page).
+    /// Windows mpv's child window and on Android its surface simply sit under the page).
     async fn set_visible(&self, visible: bool) {
         #[cfg(target_os = "macos")]
         if let Some(Conn { engine: Engine::InApp(player), .. }) = self.conn.lock().await.as_ref() {
@@ -581,7 +612,7 @@ impl Mpv {
 }
 
 /// Start mpv for `window` with `base` options and connect to its IPC.
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "android")))]
 async fn start_engine(
     window: &WebviewWindow,
     mut base: Vec<String>,
@@ -618,11 +649,34 @@ async fn start_engine(window: &WebviewWindow, base: Vec<String>, pipe: &str) -> 
     let player = tokio::task::spawn_blocking(move || mac::Player::start(&lib, nswindow, &options))
         .await
         .map_err(|e| e.to_string())??;
-    // The IPC server is up once mpv_initialize has returned, but give it a moment.
+    Ok((Engine::InApp(player), connect_in_app(pipe).await?))
+}
+
+/// Android: libmpv in-process, drawing into the surface behind the webview ([`android`]).
+#[cfg(target_os = "android")]
+async fn start_engine(window: &WebviewWindow, base: Vec<String>, pipe: &str) -> Result<(Engine, IpcStream), String> {
+    let config = window.app_handle().path().app_data_dir().map_err(|e| e.to_string())?.join("mpv");
+    let options: Vec<(String, String)> = base
+        .iter()
+        .map(String::as_str)
+        .chain(MODERN_ARGS.iter().copied())
+        .filter_map(|a| a.strip_prefix("--")?.split_once('='))
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+    let player = tokio::task::spawn_blocking(move || android::Player::start(&config, &options))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok((Engine::InApp(player), connect_in_app(pipe).await?))
+}
+
+/// Connect to the IPC socket of a libmpv running in the app. It's up once mpv_initialize has
+/// returned, but give it a moment.
+#[cfg(any(target_os = "macos", target_os = "android"))]
+async fn connect_in_app(pipe: &str) -> Result<IpcStream, String> {
     let started = Instant::now();
     loop {
         match ipc::connect(pipe).await {
-            Ok(client) => return Ok((Engine::InApp(player), client)),
+            Ok(client) => return Ok(client),
             Err(_) if started.elapsed() < Duration::from_secs(5) => tokio::time::sleep(Duration::from_millis(15)).await,
             Err(e) => return Err(format!("mpv didn't open its control socket: {e}")),
         }
@@ -632,7 +686,7 @@ async fn start_engine(window: &WebviewWindow, base: Vec<String>, pipe: &str) -> 
 /// Spawn mpv and connect to its IPC pipe. `Ok(None)` means mpv exited before
 /// the pipe appeared (only reported when `modern` is set, so the caller can
 /// retry without the newer options).
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "android")))]
 async fn launch(
     bin: &PathBuf,
     base: &[String],

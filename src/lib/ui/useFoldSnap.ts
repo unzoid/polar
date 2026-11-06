@@ -35,14 +35,20 @@ export function useFoldSnap(scroller: RefObject<HTMLElement | null>, ready: bool
     let frame = 0;
     /** Which way the running (or just landed) glide went: the lock holds only that way. */
     let heading: boolean | null = null;
-    const navHeight = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 76;
-    let nav = navHeight();
+    // How far down the navigation bar's blur reaches, from the top of the scroller (#20): the
+    // season tabs land below it, not washed out inside it. Without the band (phone), the bar.
+    const clearance = () => {
+      const band = document.querySelector(".navbar-fade")?.getBoundingClientRect();
+      if (band?.height) return band.bottom - el.getBoundingClientRect().top;
+      return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 76;
+    };
+    let clear = clearance();
 
     const fold = () => {
       const h = el.querySelector<HTMLElement>(hero);
       if (!h) return 0;
-      // Where the page below the hero starts, just clear of the navigation bar.
-      const target = h.offsetTop + h.offsetHeight - nav - 8;
+      // Where the page below the hero starts, just clear of the navigation bar and its blur.
+      const target = h.offsetTop + h.offsetHeight - clear - 8;
       return Math.max(0, Math.min(target, el.scrollHeight - el.clientHeight));
     };
 
@@ -52,7 +58,7 @@ export function useFoldSnap(scroller: RefObject<HTMLElement | null>, ready: bool
     const go = (down: boolean) => {
       cancelAnimationFrame(frame);
       heading = down;
-      nav = navHeight();
+      clear = clearance();
       const to = () => (down ? fold() : 0);
       if (prefersReducedMotion()) {
         lockedUntil = performance.now() + LOCK_MS;

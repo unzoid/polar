@@ -112,6 +112,16 @@ impl Tune {
     }
 }
 
+/// [`Tune::hwdec_mode`] for mpv on Android, whose `auto-safe` list leaves MediaCodec out:
+/// MediaCodec straight to the screen, or copied back to memory when frames must be read.
+pub fn android_hwdec(mode: &str) -> &str {
+    match mode {
+        "auto-safe" => "mediacodec,mediacodec-copy",
+        "auto-copy-safe" => "mediacodec-copy",
+        other => other,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +169,13 @@ mod tests {
             assert_eq!(on.sampling(), Sampling::AroundChanges);
             assert_eq!(on.hwdec_mode(), "auto-copy-safe");
         }
+    }
+
+    #[test]
+    fn android_uses_mediacodec() {
+        let on = Tune::default();
+        assert_eq!(android_hwdec(on.hwdec_mode()), "mediacodec,mediacodec-copy");
+        assert_eq!(android_hwdec(Tune { autocrop: true, ..on }.hwdec_mode()), "mediacodec-copy");
+        assert_eq!(android_hwdec(Tune { hwdec: false, ..on }.hwdec_mode()), "no");
     }
 }

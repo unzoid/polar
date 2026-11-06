@@ -47,7 +47,7 @@ pub(super) fn kill_all() {
     imp::kill_all();
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "android"))]
 mod imp {
     use tauri::AppHandle;
 
@@ -63,7 +63,7 @@ mod imp {
     ) {
     }
 
-    /// libmpv runs inside the app here, with no second instance to probe with yet.
+    /// libmpv runs inside the app on macOS and Android, with no second instance to probe with yet.
     pub(super) async fn opening(_url: String, _fields: Vec<String>, _start: f64) -> Option<Found> {
         None
     }
@@ -71,7 +71,7 @@ mod imp {
     pub(super) fn kill_all() {}
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "android")))]
 mod imp {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};

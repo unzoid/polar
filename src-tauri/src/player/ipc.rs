@@ -14,7 +14,7 @@ pub fn endpoint(role: &str) -> String {
     }
     #[cfg(unix)]
     {
-        let path = std::env::temp_dir().join(format!("polar-{role}-{}.sock", std::process::id()));
+        let path = super::scratch_dir().join(format!("polar-{role}-{}.sock", std::process::id()));
         // A socket left by an earlier run with this pid would refuse mpv's bind.
         let _ = std::fs::remove_file(&path);
         path.to_string_lossy().into_owned()

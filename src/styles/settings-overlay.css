@@ -31,7 +31,9 @@
   overflow: hidden;
   border: 1px solid var(--fill-3);
   border-radius: var(--r-card);
-  background: var(--t3-bg);
+  /* No fill of its own: the main pane is solid, the sidebar lets the page
+     show through a blur. */
+  background: transparent;
   color: var(--t3-fg);
   font-size: 16px;
   box-shadow:
@@ -107,7 +109,9 @@
   min-height: 0;
   padding: 0.5rem;
   border-right: 1px solid var(--t3-border);
-  background: var(--t3-card);
+  background: rgb(17 17 17 / 0.82);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.2);
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -315,6 +319,7 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  background: var(--t3-bg);
 }
 .t3s-header {
   flex: none;

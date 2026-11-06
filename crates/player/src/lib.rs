@@ -11,15 +11,15 @@
 //!   * [`sampler`]: which frames our detector reads on the desktop, and which reading feeds the tracker.
 //!   * [`motion`]: eased crop moves (ease-out, spring, ease-in-out).
 //!   * [`headers`]: which of an add-on's request headers playback sends.
-//!   * [`passthrough`]: the ranges and paths of the shell's `trailer` protocol.
+//!   * [`certs`]: one certificate bundle from a folder of certificates (Android's mpv).
 
 pub mod allow;
 pub mod bars;
+pub mod certs;
 pub mod crop;
 pub mod headers;
 pub mod lookahead;
 pub mod motion;
-pub mod passthrough;
 pub mod png;
 pub mod sampler;
 pub mod tune;

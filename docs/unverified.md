@@ -111,6 +111,26 @@ opening fullscreen in TV mode; the D-pad moving focus; Back closing the top laye
 the app; leaving TV mode from the TV menu lasting until the app is closed, and TV mode back at the next start. On
 a phone, TV mode must stay off unless chosen. Fire TV: `UiModeManager` reports TV there too (untested).
 
+## Android player: libmpv (T-044)
+
+Never built or run here (no Android SDK or NDK). Type-checked with clippy for `aarch64-linux-android`; the
+certificate bundle and the MediaCodec mapping are tested (`polar-player`: `certs`, `tune`); the build script's
+source archive and `SOURCES.txt` steps were tried on a stand-in folder, its build steps weren't.
+CI job `android` builds libmpv and FFmpeg with `scripts/android-mpv.sh` (mpv-android's build scripts, pinned
+versions, about an hour the first time, then cached) and keeps `android-mpv-sources` (the sources archive) next to
+the APK; the emulator smoke test fails if the APK carries libmpv and the app hasn't loaded it.
+What to look for on a phone or the emulator, with the `android-debug-apk` artifact: the loading screen says
+"Player: mpv"; an MKV with HEVC video and AC3 or DTS audio plays with picture and sound; ASS and PGS subtitles show;
+the page's controls draw over the picture and the picture fills the screen behind them in both orientations;
+Home and back to the app: the picture comes back (the surface is given back to mpv) and playback goes on;
+an HTTPS stream plays (mbedTLS reads `cacert.pem`, made from `/system/etc/security/cacerts`); subtitles use
+Roboto; hardware decoding (Settings → Advanced) on and off both play; autocrop (MediaCodec copied back) works;
+a TV box with 2 GB of memory plays a 4K file (the cache is 64 MiB there). Not built: Picture in picture,
+background audio, the media session (lock screen controls).
+The same job builds an unsigned release APK and app bundle (`android-release-unsigned`), minified by R8:
+`proguard-rules.pro` keeps `MpvSurface`'s native methods and `polarDevice`; check that a release build, signed with
+any key for testing, starts and plays like the debug one.
+
 ## Saving in the background (R4, H8/M4)
 
 `polar.json` is now written by a background thread about a second after a change,

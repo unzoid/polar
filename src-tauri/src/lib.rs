@@ -14,7 +14,6 @@ mod seekr;
 mod store;
 mod streamcheck;
 mod sync;
-mod trailer_proxy;
 mod trailers;
 
 use std::sync::{Arc, Mutex, RwLock};
@@ -161,7 +160,7 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    trailer_proxy::register(tauri::Builder::default())
+    tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             logging::init(&app.path().app_log_dir()?, app.path().home_dir().ok().as_deref());
@@ -177,6 +176,11 @@ pub fn run() {
             downloads::manage(app.handle(), &dir)?;
             let store = Arc::new(Mutex::new(store::Store::load(path)));
             let cache = app.path().app_cache_dir()?;
+            #[cfg(target_os = "android")]
+            {
+                player::set_scratch_dir(cache.join("mpv"));
+                player::preload();
+            }
             let indexer = Indexer::new(index_config(&store.locked().data.settings));
             app.manage(AppState {
                 indexer: RwLock::new(Arc::new(indexer)),
