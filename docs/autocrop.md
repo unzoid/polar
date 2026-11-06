@@ -75,8 +75,16 @@ cut none. The clip decoded to 3078 frames, not 16 × 192: written as rawvideo, f
 constant frame rate and repeated a frame at six joins, so our detector's frames fell behind the
 truth and cropdetect's readings. The script now decodes every frame once (`-fps_mode
 passthrough`), and `autocrop_compare` stops when the frame count or cropdetect's readings don't
-match the clip. Our rows on Sintel above therefore count too many frames cutting picture (at least
-those 21); the measurement is to be run again.
+match the clip. Our rows on Sintel above therefore counted too many frames cutting picture (at least those 21).
+
+**Run again with every frame decoded once** (85017d7, 3072 frames per film, limit 12). Our
+detector is ahead of cropdetect on every column of both films. Sintel: first crop 208 ms on
+average against 792, picture cut on 52 frames against 78, bars left on 6 against 115, and 10 of
+the changes on the cut against 4. Tears of Steel: right on every frame (first crop 0 ms, nothing
+cut, no bars left) against 42 ms, 2 and 12 for cropdetect. What cuts picture on Sintel is two
+shots (22 and 30 frames, cropdetect 42 and 35), dark scenes whose dim edges both detectors read
+as bar. The limit 8 row is slightly better on Sintel (49 and 2); 12 stays, for the grain these
+clips don't have.
 
 ## 3. Pre-roll: the crop is right on the first frame
 
@@ -248,6 +256,12 @@ sending the zoom on every frame until it settles.
 
 ## 7. Open
 
-- Whether our detector replaces cropdetect on desktop, after §2's measurement is run again with the
-  frame count fixed and the limit at 12.
+- Measured (§2): our detector is ahead of cropdetect on every column. Open is how the desktop
+  player would hand it every frame. There mpv runs cropdetect on each frame inside mpv; our
+  detector needs the frame's pixels. Where libmpv draws through the app (macOS, its render
+  API) a small copy of each frame could be read back; where mpv is its own process (Windows,
+  Linux) the IPC carries no frames, and a screenshot per frame would write ~6 MB each. Until
+  then the desktop keeps cropdetect per frame, with our detector in the pre-roll (§3) and the
+  lookahead (§4); follow mode (§5) needs crisp edges, which cropdetect doesn't give, so on the
+  desktop animated bars are still followed only as late changes.
 - Lookahead defaults per device, after §4's measurements.
