@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, partySurfaces, test } from "./fixtures";
 
 // TV mode at 1920×1080, driven only by the arrow keys, Enter and Backspace (a remote's Back).
 test.use({ tv: true });
@@ -105,4 +105,24 @@ test("in the player, the remote walks the episode rail to the season's last epis
   await press(app, "Enter");
   await expect(rail).toHaveCount(0);
   await expect(app.getByRole("radiogroup", { name: "Episodes" })).toBeVisible();
+});
+
+test.describe("signed in, on a fresh profile", () => {
+  test.use({ account: true });
+
+  test("starting a watch party from the remote leaves one party panel up, with the focus in it (#247)", async ({ app }) => {
+    await press(app, "ArrowDown", "ArrowRight", "ArrowRight", "Enter");
+    await expect(focused(app)).toHaveAccessibleName("Play First Episode");
+    await press(app, "Enter");
+    await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+    await app.getByRole("button", { name: "Watch Party", exact: true }).focus();
+    await press(app, "Enter");
+    await expect(partySurfaces(app)).toHaveCount(1);
+    await app.getByRole("button", { name: "Start a Watch Party" }).focus();
+    await press(app, "Enter");
+    await expect(app.getByRole("button", { name: "End Party" })).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(1);
+    // The remote carries on from inside the panel, not from nowhere.
+    await expect(focused(app)).toHaveAccessibleName("Copy Invite");
+  });
 });

@@ -5,6 +5,7 @@ export * from "./autoplay";
 export * from "./discordPresence";
 export * from "./headers";
 export * from "./languages";
+export * from "./lookahead";
 export * from "./playTarget";
 export * from "./readiness";
 export * from "./sources";

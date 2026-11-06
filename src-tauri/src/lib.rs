@@ -300,6 +300,7 @@ pub fn run() {
             sync::space_fill_display,
             player::mpv_available,
             player::mpv_load,
+            player::mpv_lookahead,
             local_files::local_pick,
             local_files::local_folder,
             local_files::local_recent,

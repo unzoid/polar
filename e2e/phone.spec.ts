@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { card, expect, test } from "./fixtures";
+import { card, expect, partySurfaces, test } from "./fixtures";
 
 // Phone width (Pixel 7: 412×915, touch). The same components as desktop in the phone layout (docs/ARCHITECTURE.md §4).
 
@@ -185,5 +185,22 @@ test.describe("on a tablet", () => {
     await insets(app, tablet);
     await openPlayer(app);
     await controlsClearOf(app, tablet);
+  });
+});
+
+test.describe("signed in, on a fresh profile", () => {
+  test.use({ account: true });
+
+  test("starting a watch party in the player leaves one party panel up, with the focus in it (#247)", async ({ app }) => {
+    await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).tap();
+    await card(app, "The Glass Orchard").tap();
+    await app.getByRole("button", { name: "Play", exact: true }).tap();
+    await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+    await app.getByRole("button", { name: "Watch Party", exact: true }).tap();
+    await expect(partySurfaces(app)).toHaveCount(1);
+    await app.getByRole("button", { name: "Start a Watch Party" }).tap();
+    await expect(app.getByRole("button", { name: "End Party" })).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(1);
+    await expect(app.getByRole("button", { name: "Copy Invite" })).toBeFocused();
   });
 });
