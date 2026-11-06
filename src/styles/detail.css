@@ -332,6 +332,38 @@
   /* Room for the focus ring, which overflow would clip. */
   padding: 4px 0;
 }
+/* A whole season or show downloading as one batch (#24): where it is, a thin bar, pause and cancel. */
+.batch-download {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.batch-download-start {
+  flex: none;
+}
+.batch-download-status {
+  color: var(--text-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.batch-download-bar {
+  width: 4.5rem;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.16);
+}
+.batch-download-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--text);
+  transform-origin: left;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.batch-download[data-state="paused"] .batch-download-bar > span {
+  background: var(--text-3);
+}
 .seasons-picker::-webkit-scrollbar,
 .seasons-tabs::-webkit-scrollbar {
   display: none;

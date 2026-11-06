@@ -22,6 +22,7 @@ import type { ContentType, EpisodeLayout, Meta, MetaPreview, Video } from "../li
 import { IconButton } from "../components/ui/Button";
 import { TitleActions } from "../components/title/TitleActions";
 import { EmptyState } from "../components/ui/EmptyState";
+import { BatchDownload } from "../components/BatchDownload";
 import { Skeleton } from "../components/ui/Skeleton";
 import { errorMessage } from "../lib/errors";
 
@@ -138,6 +139,7 @@ function DetailHero({
           download={item.type === "movie"}
           downloadVideo={isSeries && next?.video && isReleased(next.video) ? next.video : undefined}
         >
+          {isSeries && meta && <BatchDownload item={meta} videos={downloadableEpisodes(meta.videos)} />}
           {trailer.visible && (
             <IconButton
               variant="glass"
@@ -221,6 +223,7 @@ function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => vo
         <div className="seasons-picker">
           <SeasonPicker value={current} onChange={setSeason} options={seasons.map((s) => ({ id: s, label: seasonLabel(s) }))} />
         </div>
+        <BatchDownload item={meta} videos={downloadableEpisodes(episodes)} season={current} />
         <Segmented
           label="Episode layout"
           value={layout}
@@ -247,3 +250,6 @@ function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => vo
   );
 }
 
+/** The episodes a season or show download takes (#24): released ones, specials aside, in order. */
+const downloadableEpisodes = (videos: Video[]) =>
+  videos.filter((v) => v.season > 0 && isReleased(v)).sort((a, b) => a.season - b.season || a.episode - b.episode);
