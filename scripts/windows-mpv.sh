@@ -89,12 +89,43 @@ if grep -rqw libdvdcss winbuild/packages --exclude=libdvdread.cmake || grep -q '
 	exit 1
 fi
 
+# ngtcp2's and curl's scripts pass the static libraries OpenSSL needs (zlib, brotli, zstd, crypt32) in
+# CMAKE_C_FLAGS, which CMake puts before the objects; GNU ld (this build's GCC toolchain, unlike the
+# lld of winbuild's clang builds) resolves static libraries left to right, so their link checks
+# against the static OpenSSL fail. As standard libraries (Windows-GNU's own kept) they come last,
+# in the try_compile checks too.
+winlibs="-lws2_32 -lbcrypt -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32"
+for p in ngtcp2 curl; do
+	f=winbuild/packages/$p.cmake
+	libs=$(sed -n "s/^.*-DCMAKE_C_FLAGS='[^']*\(-lz [^']*\)'.*$/\1/p" "$f")
+	[ -n "$libs" ] || {
+		echo "windows-mpv.sh: no -l flags in $f's CMAKE_C_FLAGS any more; check how it links OpenSSL" >&2
+		exit 1
+	}
+	sed -i "/-DCMAKE_C_FLAGS='/a\\        \"-DCMAKE_C_STANDARD_LIBRARIES='$libs $winlibs'\"\\n        -DCMAKE_TRY_COMPILE_PLATFORM_VARIABLES=CMAKE_C_STANDARD_LIBRARIES" "$f"
+done
+
+# On a failure, the logs of the step that failed: winbuild sends each package's configure and build
+# output to its stamp folder only (CI keeps those folders as an artifact too).
+build() {
+	ninja -C build "$@" 2>&1 | tee "$work/ninja.log" && return 0
+	local dir f
+	for dir in $(grep '^FAILED: ' "$work/ninja.log" | grep -o '[^ ]*-stamp/' | sort -u); do
+		for f in "build/$dir"*-*.log; do
+			[ -s "$f" ] || continue
+			echo "==== windows-mpv.sh: last 100 lines of $f"
+			tail -n 100 "$f"
+		done
+	done
+	return 1
+}
+
 cmake -DTARGET_ARCH=$ARCH -DSINGLE_SOURCE_LOCATION="$work/src" -DRUSTUP_LOCATION="$work/rustup" \
 	-G Ninja -B build -S winbuild
-ninja -C build download
+build download
 # The toolchain's sources too (GCC, binutils, MinGW-w64), before anything is built.
 targets=$(ninja -C build -t targets all | sed -n 's/^\(gcc[^:]*-download\|mingw-w64[^:]*-download\|cppwinrt-download\|gendef-download\|widl-download\|winpthreads-download\): phony$/\1/p')
-[ -n "$targets" ] && ninja -C build $targets
+[ -n "$targets" ] && build $targets
 
 [ ! -e src/libdvdcss ] || {
 	echo "windows-mpv.sh: libdvdcss was downloaded; it must stay out of the build" >&2
@@ -138,7 +169,7 @@ done
 [ $bad -eq 0 ] || exit 1
 
 if [ "${2:-}" = toolchain ]; then
-	ninja -C build gcc
+	build gcc
 	exit 0
 fi
 
@@ -148,8 +179,8 @@ mkdir -p stage
 tar -cf - --exclude=.git -C "$work" src | xz -T0 >stage/sources.tar.xz
 ls src >stage/packed.txt
 
-ninja -C build gcc
-ninja -C build mpv mpv-packaging
+build gcc
+build mpv mpv-packaging
 
 # Anything downloaded during the build isn't in the sources archive.
 late=$(ls src | comm -13 stage/packed.txt -)
