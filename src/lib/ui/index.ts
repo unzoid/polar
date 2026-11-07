@@ -1,8 +1,9 @@
-// Hooks and helpers for the DOM: the art gate (logos wait for their art), the Escape/Back stack (dismiss, layer, the system Back), lazy screens, form factor, the on-screen keyboard, motion, viewport, fold snapping, score tones, title logo contrast.
+// Hooks and helpers for the DOM: the art gate (logos wait for their art), sheet detents, the Escape/Back stack (dismiss, layer, the system Back), lazy screens, form factor, the on-screen keyboard, motion, viewport, fold snapping, score tones, title logo contrast.
 // Its public surface: code outside src/lib imports this folder, code inside src/lib imports the file.
 
 export * from "./artGate";
 export * from "./cardIntent";
+export * from "./detents";
 export * from "./dismiss";
 export * from "./formFactor";
 export * from "./handFocus";

@@ -222,3 +222,45 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(app.getByRole("button", { name: "Copy Invite" })).toBeFocused();
   });
 });
+
+test.describe("on an iPhone", () => {
+  test.use({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148" });
+
+  test("a sheet opens at half the screen, expands and closes like iOS's own (#174)", async ({ app }) => {
+    await app.getByRole("button", { name: "Search", exact: true }).tap();
+    await app.getByRole("textbox", { name: "Search" }).fill("glass orchard");
+    await card(app, "The Glass Orchard").tap();
+    await app.getByRole("button", { name: "Choose source", exact: true }).tap();
+    const sheet = app.locator(".sheet");
+    await expect(sheet).toHaveAttribute("data-detent", "medium");
+    const height = app.viewportSize()!.height;
+    const top = async () => (await sheet.boundingBox())!.y;
+    await expect.poll(top).toBeGreaterThan(height * 0.45);
+    await expect.poll(top).toBeLessThan(height * 0.55);
+
+    await sheet.getByRole("button", { name: "Expand" }).tap();
+    await expect(sheet).toHaveAttribute("data-detent", "large");
+    await expect.poll(top).toBeLessThan(height * 0.05);
+
+    await sheet.getByRole("button", { name: "Collapse" }).tap();
+    await expect(sheet).toHaveAttribute("data-detent", "medium");
+    // Pushing the list up at half height brings the rest of it up.
+    await sheet.locator(".sheet-body").evaluate((b) => {
+      const touch = (y: number) => [new Touch({ identifier: 1, target: b, clientX: 100, clientY: y })];
+      b.dispatchEvent(new TouchEvent("touchstart", { touches: touch(700), bubbles: true }));
+      b.dispatchEvent(new TouchEvent("touchmove", { touches: touch(660), bubbles: true }));
+    });
+    await expect(sheet).toHaveAttribute("data-detent", "large");
+
+    await expect.poll(top).toBeLessThan(height * 0.05);
+    // Pulled down by its header from the top, past half: closed.
+    const header = (await sheet.locator(".sheet-header").boundingBox())!;
+    const x = header.x + header.width / 2;
+    const y = header.y + header.height / 2;
+    await app.mouse.move(x, y);
+    await app.mouse.down();
+    for (let i = 1; i <= 10; i++) await app.mouse.move(x, y + (height * 0.9 * i) / 10);
+    await app.mouse.up();
+    await expect(sheet).toHaveCount(0);
+  });
+});
