@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { endParty, expectedPosition, leaveParty, partyLog, setQuiet, setRules, syncNow, type PartyState } from "../../lib/party";
 import { formatTime } from "../../lib/format";
 import { useMeta } from "../../lib/net";
@@ -14,7 +14,7 @@ import { PartyInvite, PartyMembers } from "./PartyUI";
  * The party menu (#156): what's on, who's here, the code, and what you can
  * do from anywhere in the app. The top bar's party faces open it as a
  * popover, TV mode as a panel; the player's Watch Party panel shows the same
- * parts in columns.
+ * parts in two columns (PartyRoomPane, PartySettingsPane).
  */
 export function PartyMenu({ party, onClose }: { party: PartyState; onClose?: () => void }) {
   const host = party.hostId === party.me;
@@ -40,9 +40,71 @@ export function PartyMenu({ party, onClose }: { party: PartyState; onClose?: () 
       {host && (
         <section className="party-menu-section">
           <h3 className="party-kicker">Host controls</h3>
-          <PartyHostControls party={party} />
+          <PartyRules party={party} />
+          <PartyEnd />
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * The Watch Party panel's left column (the player's, and TV mode's with `now`):
+ * what's on, the code to share, who's here, and getting back in step or out.
+ * Sections stacked, a hairline between.
+ */
+export function PartyRoomPane({ party, onGo, now, autoFocus }: { party: PartyState; onGo?: () => void; now?: boolean; autoFocus?: boolean }) {
+  return (
+    <div className="party-column">
+      {now && party.playback?.media && (
+        <section>
+          <PartyNowPlaying party={party} />
+        </section>
+      )}
+      <section>
+        <PartyInvite party={party} leave={false} autoFocus={autoFocus} />
+      </section>
+      <section aria-label="Members">
+        <h3 className="party-kicker">Watching · {party.members.length}</h3>
+        <PartyMembers party={party} />
+      </section>
+      <section>
+        <div className="party-buttons">
+          <PartyStreamButtons party={party} onGo={onGo} />
+          <Button variant="glass" onClick={leaveParty}>
+            Leave Party
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/**
+ * The player's Watch Party panel, right column: every switch in one list (the
+ * host's rules under the sound one), putting a link on, and the rarer actions last.
+ */
+export function PartySettingsPane({ party, link }: { party: PartyState; link?: ReactNode }) {
+  const host = party.hostId === party.me;
+  return (
+    <div className="party-column">
+      <section>
+        <PartyQuiet party={party} />
+        {host && <PartyRules party={party} />}
+      </section>
+      {link && (
+        <section>
+          <h3 className="party-kicker">Watch a link</h3>
+          <p className="party-lede">Put a video file or stream from the web on for everyone. Everyone's app opens the link itself, after seeing it.</p>
+          {link}
+        </section>
+      )}
+      <section>
+        <div className="party-buttons">
+          <PartyCopyLog />
+          {host && <PartyEnd />}
+        </div>
+      </section>
     </div>
   );
 }
@@ -130,22 +192,6 @@ export function PartyQuiet({ party }: { party: PartyState }) {
   );
 }
 
-/** The player panel's actions: in step, quiet, or out. */
-export function PartyActions({ party, onGo }: { party: PartyState; onGo?: () => void }) {
-  return (
-    <div className="party-actions">
-      <PartyStreamButtons party={party} onGo={onGo} />
-      <PartyQuiet party={party} />
-      <div className="party-buttons">
-        <Button variant="glass" onClick={leaveParty}>
-          Leave Party
-        </Button>
-        <PartyCopyLog />
-      </div>
-    </div>
-  );
-}
-
 /**
  * Copies this device's party log (#203), to compare a session that went wrong
  * from both ends. Nothing personal in it: see lib/party/log.ts.
@@ -171,15 +217,24 @@ export function PartyCopyLog() {
   );
 }
 
-/** The host's switches, and ending the party for everyone (asked twice). */
-export function PartyHostControls({ party }: { party: PartyState }) {
-  const { rules } = party;
+/** Ending the party for everyone, asked twice. */
+export function PartyEnd() {
   const [confirm, setConfirm] = useState(false);
   useEffect(() => {
     if (!confirm) return;
     const t = window.setTimeout(() => setConfirm(false), 4000);
     return () => window.clearTimeout(t);
   }, [confirm]);
+  return (
+    <Button variant="glass" className="party-end" onClick={() => (confirm ? endParty() : setConfirm(true))} aria-live="polite">
+      {confirm ? "End for Everyone?" : "End Party"}
+    </Button>
+  );
+}
+
+/** The host's switches: who can join and who controls playback. */
+export function PartyRules({ party }: { party: PartyState }) {
+  const { rules } = party;
   const rows: { label: string; caption: string; checked: boolean; set: (on: boolean) => void }[] = [
     {
       label: "Lock party",
@@ -213,7 +268,7 @@ export function PartyHostControls({ party }: { party: PartyState }) {
     },
   ];
   return (
-    <div className="party-host">
+    <>
       {rows.map((r) => (
         <label key={r.label} className="party-switch">
           <span className="party-switch-text">
@@ -225,9 +280,6 @@ export function PartyHostControls({ party }: { party: PartyState }) {
           <Switch checked={r.checked} onChange={r.set} />
         </label>
       ))}
-      <Button variant="glass" className="party-end" onClick={() => (confirm ? endParty() : setConfirm(true))} aria-live="polite">
-        {confirm ? "End for Everyone?" : "End Party"}
-      </Button>
-    </div>
+    </>
   );
 }

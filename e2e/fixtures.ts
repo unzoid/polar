@@ -55,5 +55,5 @@ export const clock = (page: Page) => page.locator(".player-remaining").textConte
  */
 export const partySurfaces = (page: Page) =>
   page
-    .locator(".party-dialog, .party-link-confirm, .party-popover, .tv-party, .tv-join, .options-overlay[data-open=true]:has(.party-pane, .party-pane-stack)")
+    .locator(".party-dialog, .party-link-confirm, .party-popover, .tv-party, .tv-join, .options-overlay[data-open=true]:has(.party-pane, .party-column)")
     .filter({ visible: true });
