@@ -1,7 +1,7 @@
 import { animate, AnimatePresence, motion, useDragControls, useMotionValue, type PanInfo } from "motion/react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { os } from "../lib/platform";
-import { type Detent, ease, mediumOffset, prefersReducedMotion, project, restingDetent, springs, useFormFactor, useLayer } from "../lib/ui";
+import { type Detent, ease, mediumOffset, missMargin, prefersReducedMotion, project, restingDetent, springs, useFormFactor, useLayer } from "../lib/ui";
 
 /**
  * A side sheet that enters from the right and leaves the same way; on a phone, a
@@ -25,6 +25,7 @@ export function Sheet({
   subtitle,
   children,
   modal = true,
+  forgiveMisses = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -33,6 +34,8 @@ export function Sheet({
   children: ReactNode;
   /** Modal sheets dim what's behind; non-modal ones keep the flow visible. */
   modal?: boolean;
+  /** A click on the dim just left of a side sheet does nothing; only one clearly away from it closes it (#320). */
+  forgiveMisses?: boolean;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const drag = useDragControls();
@@ -49,6 +52,14 @@ export function Sheet({
   const fade = prefersReducedMotion() ? 0 : 1;
 
   useLayer(panel, open, onClose, { modal });
+
+  /** The kind of pointer that pressed on the dim: a finger gets a wider margin than a mouse. */
+  const pointer = useRef("mouse");
+  const onScrimClick = (e: { clientX: number }) => {
+    const edge = panel.current?.getBoundingClientRect().left;
+    if (forgiveMisses && !bottom && edge !== undefined && e.clientX >= edge - missMargin(pointer.current).x) return;
+    onClose();
+  };
 
   // A new detent moves the sheet through `animate` below; the same one again (a drag let go near it) springs back here.
   const rest = (to: Detent, velocity = 0) => {
@@ -93,7 +104,8 @@ export function Sheet({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2, ease: ease.out }}
-              onClick={onClose}
+              onPointerDown={(e) => (pointer.current = e.pointerType)}
+              onClick={onScrimClick}
             />
           )}
           <motion.aside

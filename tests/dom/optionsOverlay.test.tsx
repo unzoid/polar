@@ -59,12 +59,43 @@ test("a click just past the panel's edge leaves it open; clearly outside closes 
   expect(p.closed()).toBe(1);
 });
 
+test("#320: a click 50 px left or right of the panel leaves it open; clearly away from it closes it", async () => {
+  const p = await open();
+  await p.tap(50, 200);
+  await p.tap(850, 600);
+  expect(p.closed()).toBe(0);
+  await p.tap(30, 200);
+  expect(p.closed()).toBe(1);
+  await p.tap(870, 200);
+  expect(p.closed()).toBe(2);
+});
+
+test("#320: the margin is wider at the sides than above and below", async () => {
+  const p = await open();
+  await p.tap(60, 200); // 40 px to the left
+  expect(p.closed()).toBe(0);
+  await p.tap(250, 60); // 40 px above
+  expect(p.closed()).toBe(1);
+  await p.tap(650, 740); // 40 px below
+  expect(p.closed()).toBe(2);
+});
+
 test("a touch gets a wider margin than a mouse", async () => {
   const p = await open();
-  await p.tap(68, 200, { pointerType: "touch" });
+  await p.tap(20, 200, { pointerType: "touch" });
+  await p.tap(250, 65, { pointerType: "touch" });
   expect(p.closed()).toBe(0);
-  await p.tap(68, 200);
+  await p.tap(20, 200);
   expect(p.closed()).toBe(1);
+});
+
+test("#320: a control inside the margin still takes its click", async () => {
+  const p = await open();
+  const close = view!.container.querySelector<HTMLElement>(".options-close")!;
+  await p.tap(60, 200, { target: close });
+  expect(p.closed()).toBe(0); // the press itself doesn't close the panel...
+  await act(async () => close.click());
+  expect(p.closed()).toBe(1); // ...the button does, as its own click
 });
 
 test("a press outside that turns into a drag or a scroll doesn't close it, nor one that ends inside", async () => {
