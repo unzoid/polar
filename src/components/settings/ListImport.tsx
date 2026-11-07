@@ -2,25 +2,30 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { sync } from "../../lib/account";
 import { api } from "../../lib/api";
-import { listImportDeps, planListImport, previewList, SignedOut, wholeList, type Link, type ListChoice, type ListPreview } from "../../lib/lists";
+import { listClient, listImportDeps, liveLink, planListImport, previewList, SignedOut, type ListChoice, type ListPreview, type ListService } from "../../lib/lists";
 import { keys } from "../../lib/net";
 import { Button } from "../ui/Button";
 import { Switch } from "../ui/Switch";
 
 /**
- * Settings → Services → AniList → Import (#83): reads the linked account's anime list, says what it
- * holds, and adds what the user picks to the profile's library. Run as often as wanted: it only
- * adds, never removes, and what is already in the library stays as it is.
+ * Settings → Services → AniList / MyAnimeList → Import (#83, #84): reads the linked account's
+ * anime list, says what it holds, and adds what the user picks to the profile's library. Run as
+ * often as wanted: it only adds, never removes, and what is already in the library stays as it is.
  */
 
 const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
-/** What the list holds: "12 shows and 3 films on your list, 140 episodes and films watched" and the adult entries left out. */
-export function previewText(p: Pick<ListPreview, "shows" | "films" | "watched" | "adult">) {
+/**
+ * What the list holds: "12 shows and 3 films on your list, 140 episodes and films watched" and the
+ * adult entries left out; `hiddenBy`: the service whose account setting hides them, when it says.
+ */
+export function previewText(p: Pick<ListPreview, "shows" | "films" | "watched" | "adult">, hiddenBy?: string) {
   const parts = [p.shows && count(p.shows, "show"), p.films && count(p.films, "film")].filter(Boolean);
   const watched = p.films ? count(p.watched, "episode or film", "episodes and films") : count(p.watched, "episode");
   const what = parts.length ? `${parts.join(" and ")} on your list, ${watched} watched` : "Your list is empty";
-  return p.adult ? `${what}. ${count(p.adult, "adult entry", "adult entries")} left out: your AniList account hides them.` : `${what}.`;
+  if (!p.adult) return `${what}.`;
+  const adult = `${count(p.adult, "adult entry", "adult entries")} left out`;
+  return hiddenBy ? `${what}. ${adult}: your ${hiddenBy} account hides them.` : `${what}. ${adult}.`;
 }
 
 export interface ImportSummary {
@@ -39,7 +44,8 @@ export function summaryText(s: ImportSummary) {
   return skipped.length ? `${added} Skipped ${skipped.join(" and ")}.` : added;
 }
 
-export function AniListImport({ link }: { link: Link }) {
+export function ListImport({ service, space }: { service: ListService; space: string | null }) {
+  const { name } = listClient(service);
   const qc = useQueryClient();
   const [preview, setPreview] = useState<ListPreview | null>(null);
   const [choice, setChoice] = useState<ListChoice>({ library: true, watched: true });
@@ -51,8 +57,8 @@ export function AniListImport({ link }: { link: Link }) {
   const fail = (e: unknown) =>
     setError(
       e instanceof SignedOut
-        ? "AniList no longer accepts this sign-in. Unlink, then sign in again."
-        : "Couldn't read your AniList list. Check your connection.",
+        ? `${name} no longer accepts this sign-in. Unlink, then sign in again.`
+        : `Couldn't read your ${name} list. Check your connection.`,
     );
 
   const read = async () => {
@@ -60,7 +66,9 @@ export function AniListImport({ link }: { link: Link }) {
     setSummary(null);
     setStep("Reading your list…");
     try {
-      setPreview(previewList(await wholeList(link.userId, { token: link.token }), link.adult));
+      const live = await liveLink(service, space);
+      if (!live) throw new SignedOut(name);
+      setPreview(previewList(await listClient(service).wholeList(live.userId, { token: live.token }), live.adult));
     } catch (e) {
       fail(e);
     } finally {
@@ -76,7 +84,7 @@ export function AniListImport({ link }: { link: Link }) {
       const plan = await planListImport(
         preview.entries,
         choice,
-        listImportDeps((n, of) => setStep(`Matching… ${n} of ${of}`)),
+        listImportDeps(service, (n, of) => setStep(`Matching… ${n} of ${of}`)),
       );
       setStep("Importing…");
       const added = await api.importLibrary(plan.library, plan.progress);
@@ -97,8 +105,8 @@ export function AniListImport({ link }: { link: Link }) {
     <>
       <p className="settings-expand-text">
         {preview
-          ? previewText(preview)
-          : "Add the anime on your AniList list to your library, and mark the episodes you've watched. Nothing is removed, and importing again adds only what's new."}
+          ? previewText(preview, service === "anilist" ? name : undefined)
+          : `Add the anime on your ${name} list to your library, and mark the episodes you've watched. Nothing is removed, and importing again adds only what's new.`}
       </p>
       {preview && !empty && (
         <>

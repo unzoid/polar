@@ -10,3 +10,9 @@ test("the AniList link in Services is found by name and by what it does", () => 
   expect(search("import")).toContain("services:anilist");
   expect(search("sign in")).toContain("services:anilist");
 });
+
+test("the MyAnimeList link is found by its name and its short name (#84)", () => {
+  expect(search("myanimelist")[0]).toBe("services:mal");
+  expect(search("mal")).toContain("services:mal");
+  expect(search("import")).toContain("services:mal");
+});

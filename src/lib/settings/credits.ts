@@ -24,6 +24,7 @@ export const CREDITS: Credit[] = [
   { name: "Fribb/anime-lists", url: "https://github.com/Fribb/anime-lists", use: "Which anime is which across sites when ani.zip is down" },
   { name: "TheTVDB", url: "https://thetvdb.com", use: "Anime episode titles, stills and artwork, by way of ani.zip" },
   { name: "MyAnimeList, via Jikan", url: "https://jikan.moe", use: "Which anime episodes are filler or recaps" },
+  { name: "MyAnimeList", url: "https://myanimelist.net", use: "Your MyAnimeList list, when a profile links it (uses the MyAnimeList API)" },
   { name: "Anime Filler List", url: "https://www.animefillerlist.com", use: "Filler episodes when Jikan has none" },
   { name: "AniSkip", url: "https://aniskip.com", use: "Anime opening and ending times" },
   { name: "IntroDB", url: "https://introdb.app", use: "Intro, recap and credits times" },

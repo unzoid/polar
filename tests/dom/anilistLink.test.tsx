@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AnimeListPanel } from "../../src/components/anime/AnimeListPanel";
+import { AnimeListPanels } from "../../src/components/anime/AnimeListPanel";
 import { ServicesPage } from "../../src/screens/settings/ServicesPage";
 import type { Anime } from "../../src/lib/anime";
 import { keys } from "../../src/lib/net";
@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   globalThis.fetch = realFetch;
-  localStorage.removeItem(queueKey(null));
+  localStorage.removeItem(queueKey("anilist", null));
   localStorage.clear();
 });
 
@@ -75,7 +75,7 @@ async function settle() {
 }
 
 test("the anime page shows nothing for a profile that hasn't linked AniList", async () => {
-  const view = await wrap(<AnimeListPanel anime={anime} />);
+  const view = await wrap(<AnimeListPanels anime={anime} />);
   await settle();
   expect(view.container.textContent).toBe("");
   expect(asked).toEqual([]);
@@ -84,17 +84,17 @@ test("the anime page shows nothing for a profile that hasn't linked AniList", as
 
 test("a linked profile sees its entry, read fresh, and an episode more goes into the queue", async () => {
   keychain.set(linkName("anilist", null), JSON.stringify(link));
-  const view = await wrap(<AnimeListPanel anime={anime} />);
+  const view = await wrap(<AnimeListPanels anime={anime} />);
   await settle();
   expect(view.container.textContent).toContain("Watching");
   expect(view.container.textContent).toContain("3 / 12");
-  expect((view.container.querySelector("#anime-list-score") as HTMLInputElement).value).toBe("7");
+  expect((view.container.querySelector("#anime-list-score-anilist") as HTMLInputElement).value).toBe("7");
   await click(view.container.querySelector('[aria-label="One episode more"]'));
   expect(view.container.textContent).toContain("4 / 12");
   // Queued, then sent at once.
   await settle();
   expect(asked.find((a) => a.query.includes("SaveMediaListEntry"))?.variables).toMatchObject({ m: 5, p: 4 });
-  expect(pendingOps(null)).toEqual([]);
+  expect(pendingOps("anilist", null)).toEqual([]);
   await view.unmount();
 });
 

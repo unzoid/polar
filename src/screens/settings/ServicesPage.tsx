@@ -10,8 +10,19 @@ import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../components/settings/rows";
 import { useSecretsNote } from "../../components/settings/secretsNote";
 import { useKeyGate, type KeyKind } from "../../components/settings/KeyWarning";
-import { AniListImport } from "../../components/settings/AniListImport";
-import { anilistAuthorizeUrl, linkAniList, NotASignIn, SignedOut, unlinkAniList, useAniListLink } from "../../lib/lists";
+import { ListImport } from "../../components/settings/ListImport";
+import {
+  anilistAuthorizeUrl,
+  linkAniList,
+  linkMal,
+  malSignInReady,
+  NoPendingSignIn,
+  NotASignIn,
+  SignedOut,
+  startMalSignIn,
+  unlinkList,
+  useListLink,
+} from "../../lib/lists";
 
 /** Which warning a save needs: one for each key it sets that wasn't set to that before. */
 function added(pairs: [next: string, before: string | null | undefined][]): KeyKind | null {
@@ -28,6 +39,7 @@ export function ServicesPage() {
       <RatingsRow {...expand("ratings")} />
       <PreviewsRow {...expand("previews")} />
       <AniListRow {...expand("anilist")} />
+      <MalRow {...expand("mal")} />
     </Card>
   );
 }
@@ -105,14 +117,14 @@ function RatingsRow(props: Expandable) {
  * here. The link stays on this device, in the system's keychain, and is never synced.
  */
 function AniListRow(props: Expandable) {
-  const { space, link, state } = useAniListLink();
+  const { space, link, state } = useListLink("anilist");
   const [code, setCode] = useState("");
   const url = anilistAuthorizeUrl();
   const signIn = useMutation({
     mutationFn: (text: string) => linkAniList(space, text),
     onSuccess: () => setCode(""),
   });
-  const unlink = useMutation({ mutationFn: () => unlinkAniList(space) });
+  const unlink = useMutation({ mutationFn: () => unlinkList("anilist", space) });
   if (state === undefined) return null;
   const error = signIn.error
     ? signIn.error instanceof NotASignIn
@@ -141,7 +153,7 @@ function AniListRow(props: Expandable) {
               {unlink.isPending ? "Unlinking…" : "Unlink"}
             </Button>
           </div>
-          <AniListImport link={link} />
+          <ListImport service="anilist" space={space} />
         </>
       ) : !url ? (
         <p className="settings-expand-text">Not set up in this build: signing in to AniList needs Polarity registered with AniList first.</p>
@@ -179,6 +191,99 @@ function AniListRow(props: Expandable) {
           {error && <p className="settings-expand-text settings-error">{error}</p>}
         </>
       )}
+      {unlink.isError && <p className="settings-expand-text settings-error">Couldn't unlink. Try again.</p>}
+    </ExpandRow>
+  );
+}
+
+/**
+ * The profile's MyAnimeList account (#84): signed in on MAL's page, which then sends the browser to
+ * an address that doesn't load; that address, with its code, is pasted back here. The link stays
+ * on this device, in the system's keychain, is never synced, and renews itself while it is used.
+ */
+function MalRow(props: Expandable) {
+  const { space, link, state } = useListLink("mal");
+  const [pasted, setPasted] = useState("");
+  const signIn = useMutation({
+    mutationFn: (text: string) => linkMal(space, text),
+    onSuccess: () => setPasted(""),
+  });
+  const unlink = useMutation({ mutationFn: () => unlinkList("mal", space) });
+  if (state === undefined) return null;
+  const open = () => {
+    const url = startMalSignIn(space);
+    if (url) void api.openExternal(url);
+  };
+  const error = signIn.error
+    ? signIn.error instanceof NoPendingSignIn
+      ? "Open MyAnimeList first, then paste the address here within half an hour."
+      : signIn.error instanceof NotASignIn
+        ? "That isn't the address MyAnimeList sent you to. Copy the whole address and paste it again."
+        : signIn.error instanceof SignedOut
+          ? "MyAnimeList didn't accept that sign-in. Open MyAnimeList and sign in again."
+          : "Couldn't reach MyAnimeList. Check your connection."
+    : null;
+
+  return (
+    <ExpandRow
+      icon={LayoutList}
+      title="MyAnimeList"
+      setting="mal"
+      caption="Episodes you watch update this profile's MyAnimeList list, and you can change it from an anime's page"
+      value={state === "linked" ? "Linked" : state === "none" ? "Off" : "Sign in again"}
+      {...props}
+    >
+      {state === "linked" && link ? (
+        <>
+          <p className="settings-expand-text">
+            Linked as <strong>{link.userName || "your MyAnimeList account"}</strong>. The sign-in stays on this device and renews itself while you use
+            Polarity at least once a month.
+          </p>
+          <div className="settings-expand-form">
+            <Button variant="danger" disabled={unlink.isPending} onClick={() => unlink.mutate()}>
+              {unlink.isPending ? "Unlinking…" : "Unlink"}
+            </Button>
+          </div>
+          <ListImport service="mal" space={space} />
+        </>
+      ) : !malSignInReady() ? (
+        <p className="settings-expand-text">Not set up in this build: signing in to MyAnimeList needs Polarity registered with MyAnimeList first.</p>
+      ) : (
+        <>
+          <p className="settings-expand-text">
+            {state === "expired"
+              ? "The sign-in to MyAnimeList has run out. "
+              : state === "refused"
+                ? "MyAnimeList no longer accepts this sign-in. "
+                : ""}
+            Open MyAnimeList and allow Polarity. Your browser then goes to a page that doesn't load: copy its whole address and paste it here. The
+            sign-in stays on this device.
+          </p>
+          <div className="settings-expand-form">
+            <Button variant="glass" onClick={open}>
+              Open MyAnimeList
+            </Button>
+          </div>
+          <FormRow
+            look="expand"
+            type="password"
+            placeholder="Paste the address"
+            aria-label="MyAnimeList address"
+            autoComplete="off"
+            value={pasted}
+            onChange={(v) => {
+              setPasted(v);
+              signIn.reset();
+            }}
+            submit="Link"
+            pending={signIn.isPending}
+            pendingLabel="Linking…"
+            onSubmit={(text) => signIn.mutate(text)}
+          />
+          {error && <p className="settings-expand-text settings-error">{error}</p>}
+        </>
+      )}
+      <p className="settings-expand-text t-caption">Uses the MyAnimeList API.</p>
       {unlink.isError && <p className="settings-expand-text settings-error">Couldn't unlink. Try again.</p>}
     </ExpandRow>
   );

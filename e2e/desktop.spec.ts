@@ -878,3 +878,37 @@ test("Settings → Services: a linked AniList profile reads its list for the imp
   await expect(settings.getByText(/^Not set up in this build/)).toBeVisible();
   expect(await app.evaluate(() => localStorage.getItem("polar.link.anilist.local"))).toBeNull();
 });
+
+test("Settings → Services: a linked MyAnimeList profile reads its list for the import, and unlinks (#84)", async ({ app }) => {
+  // A link made earlier on this device; the fake shell answers MyAnimeList's relay with a made-up list.
+  const day = 86_400_000;
+  const link = {
+    token: "TOKEN",
+    expiresAt: Date.now() + 20 * day,
+    refreshToken: "REFRESH",
+    refreshBy: Date.now() + 25 * day,
+    userId: 77,
+    userName: "Lanternfield Fan",
+    scoreFormat: "POINT_10",
+    adult: false,
+  };
+  await app.evaluate((v) => localStorage.setItem("polar.link.mal.local", v), JSON.stringify(link));
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^MyAnimeList/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await expect(settings.getByText("Uses the MyAnimeList API.")).toBeVisible();
+  await settings.getByRole("button", { name: "Import List…" }).click();
+  await expect(settings.getByText(/^1 show and 1 film on your list, 4 episodes and films watched\. 1 adult entry left out\.$/)).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Import", exact: true })).toBeEnabled();
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no MyAnimeList client id, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/signing in to MyAnimeList needs Polarity registered/)).toBeVisible();
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.mal.local"))).toBeNull();
+});

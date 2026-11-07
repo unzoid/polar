@@ -1,5 +1,6 @@
-import { anilistLimiter, limitedFetch, PRIORITY, type Priority } from "../net/limiter";
+import { anilistLimiter, limitedFetch, PRIORITY } from "../net/limiter";
 import { isRecord, listOf, num, str } from "../parse";
+import { isStatus, ListError, SignedOut, type Caller, type EntryChange, type ListEntry, type Viewer } from "./entry";
 
 /**
  * A signed-in profile's AniList list (#83): who is signed in, one entry, the whole list, what
@@ -10,66 +11,6 @@ import { isRecord, listOf, num, str } from "../parse";
  * and is never copied into Polarity's sync.
  */
 const ENDPOINT = "https://graphql.anilist.co";
-
-export type ListStatus = "CURRENT" | "PLANNING" | "COMPLETED" | "DROPPED" | "PAUSED" | "REPEATING";
-export const LIST_STATUSES: readonly ListStatus[] = ["CURRENT", "PLANNING", "COMPLETED", "PAUSED", "DROPPED", "REPEATING"];
-
-export interface ListEntry {
-  /** The list entry's own id (for removing it). */
-  id: number;
-  /** The AniList entry (media) it is about. */
-  mediaId: number;
-  status: ListStatus;
-  /** Episodes watched. */
-  progress: number;
-  /** In the account's score format; 0 = not scored. */
-  score: number;
-  /** Times watched again to the end. */
-  repeat: number;
-  /** When it last changed on AniList, in seconds since the epoch. */
-  updatedAt: number;
-  /** What the import needs of the entry, when the read asked for it. */
-  episodes?: number | null;
-  isAdult?: boolean;
-  /** AniList's format (`TV`, `MOVIE`, `OVA`…), title and cover; when it was added, in seconds. */
-  format?: string;
-  title?: string;
-  poster?: string;
-  createdAt?: number;
-}
-
-export interface Viewer {
-  id: number;
-  name: string;
-  scoreFormat: string;
-  adult: boolean;
-}
-
-/** The token was refused (run out or revoked): the profile signs in again. */
-export class SignedOut extends Error {
-  constructor() {
-    super("AniList refused the sign-in");
-    this.name = "SignedOut";
-  }
-}
-
-/** AniList answered with an error; `status` is the HTTP status. */
-export class ListError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = "ListError";
-  }
-}
-
-export interface Caller {
-  token: string;
-  fetch?: typeof fetch;
-  priority?: Priority;
-  signal?: AbortSignal;
-}
 
 async function ask(query: string, variables: Record<string, unknown>, { token, fetch: doFetch, priority, signal }: Caller) {
   const res = await limitedFetch(
@@ -97,8 +38,6 @@ async function ask(query: string, variables: Record<string, unknown>, { token, f
 }
 
 const ENTRY_FIELDS = "id mediaId status progress score repeat updatedAt";
-
-const isStatus = (v: unknown): v is ListStatus => typeof v === "string" && (LIST_STATUSES as readonly string[]).includes(v);
 
 export function readEntry(v: unknown): ListEntry | undefined {
   if (!isRecord(v)) return undefined;
@@ -148,13 +87,6 @@ export async function entryFor(userId: number, mediaId: number, caller: Caller):
   );
   const page = isRecord(data.Page) ? data.Page : {};
   return listOf(page.mediaList, readEntry)[0] ?? null;
-}
-
-export interface EntryChange {
-  status?: ListStatus;
-  progress?: number;
-  score?: number;
-  repeat?: number;
 }
 
 /** Creates or changes the account's entry for `mediaId`; AniList's answer is the entry as saved. */

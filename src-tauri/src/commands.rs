@@ -561,6 +561,28 @@ pub async fn skip_segments(state: State<'_, AppState>, video_id: String) -> Resu
     state.introdb.segments(&video_id).await.map_err(CmdError::Upstream)
 }
 
+// --- MyAnimeList (#84) -----------------------------------------------------
+
+/// A request to a linked MyAnimeList list, with the profile's token: only the
+/// list paths and fields src-tauri/src/mal.rs lets through.
+#[tauri::command]
+pub async fn mal_api(
+    state: State<'_, AppState>,
+    method: String,
+    path: String,
+    query: Vec<(String, String)>,
+    form: Vec<(String, String)>,
+    token: String,
+) -> Result<crate::mal::Answer> {
+    state.mal.api(&method, &path, &query, &form, &token).await.map_err(CmdError::Upstream)
+}
+
+/// A MyAnimeList sign-in code, or refresh token, traded for new tokens.
+#[tauri::command]
+pub async fn mal_token(state: State<'_, AppState>, form: Vec<(String, String)>) -> Result<crate::mal::Answer> {
+    state.mal.token(&form).await.map_err(CmdError::Upstream)
+}
+
 // --- Ratings (MDBList / OMDb) ----------------------------------------------
 
 /// Rotten Tomatoes, Metacritic, Letterboxd… scores for a title, from whichever

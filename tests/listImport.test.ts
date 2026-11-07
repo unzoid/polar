@@ -1,7 +1,8 @@
 import "./storageStub";
 import { expect, test } from "bun:test";
 import type { AniZip } from "../src/lib/anime/anizip";
-import { readEntry, type ListEntry } from "../src/lib/lists/anilistList";
+import { readEntry } from "../src/lib/lists/anilistList";
+import type { ListEntry } from "../src/lib/lists/entry";
 import { planListImport, previewList, watchedOf, type ListImportDeps } from "../src/lib/lists/listImport";
 import type { Meta, Video } from "../src/lib/types";
 
@@ -43,6 +44,7 @@ const zip = (imdb: string | null, season: number, firstDay: number, kitsu?: numb
 
 function deps(over: Partial<ListImportDeps> = {}): ListImportDeps {
   return {
+    idKey: "anilist",
     links: async () => [],
     listed: async (anilist) => (anilist === 100 || anilist === 200 ? { imdb_id: "tt0000001" } : null),
     aniZip: async (anilist) => (anilist === 100 ? zip("tt0000001", 1, 1) : anilist === 200 ? zip("tt0000001", 2, 200) : null),
@@ -143,11 +145,12 @@ test("library only: no metadata is read, and the step counts every entry", async
 });
 
 test("the Settings row says what the list holds and what the import skipped", async () => {
-  const { previewText, summaryText } = await import("../src/components/settings/AniListImport");
+  const { previewText, summaryText } = await import("../src/components/settings/ListImport");
   expect(previewText({ shows: 12, films: 0, watched: 140, adult: 0 })).toBe("12 shows on your list, 140 episodes watched.");
-  expect(previewText({ shows: 1, films: 2, watched: 3, adult: 1 })).toBe(
+  expect(previewText({ shows: 1, films: 2, watched: 3, adult: 1 }, "AniList")).toBe(
     "1 show and 2 films on your list, 3 episodes and films watched. 1 adult entry left out: your AniList account hides them.",
   );
+  expect(previewText({ shows: 1, films: 0, watched: 3, adult: 2 })).toBe("1 show on your list, 3 episodes watched. 2 adult entries left out.");
   expect(previewText({ shows: 0, films: 0, watched: 0, adult: 0 })).toBe("Your list is empty.");
   expect(summaryText({ library: 2, progress: 1, unlinked: 0, unmatched: 0 })).toBe("Added 2 titles to your library and 1 watched episode.");
   expect(summaryText({ library: 0, progress: 0, unlinked: 3, unmatched: 1 })).toBe(

@@ -10,6 +10,7 @@ mod keychain;
 mod local_files;
 mod locks;
 mod logging;
+mod mal;
 mod native_back;
 mod native_dialogs;
 mod native_tabs;
@@ -46,6 +47,8 @@ pub struct AppState {
     pub seekr: seekr::Seekr,
     pub mpv: player::Mpv,
     pub introdb: introdb::IntroDb,
+    /// A linked MyAnimeList list's requests (#84).
+    pub mal: mal::Mal,
     pub ratings: ratings::RatingsClient,
     /// Filler and recap episodes, cached in the app's cache folder.
     pub fillers: polar_anime::Fillers,
@@ -226,6 +229,7 @@ pub fn run() {
                 seekr: seekr::Seekr::default(),
                 mpv: player::Mpv::default(),
                 introdb: introdb::IntroDb::default(),
+                mal: mal::Mal::default(),
                 ratings: ratings::RatingsClient::default(),
                 fillers: polar_anime::Fillers::new(cache.clone()),
                 anime_lists: polar_anime::AnimeLists::new(cache.clone()),
@@ -255,6 +259,8 @@ pub fn run() {
             commands::seek_previews,
             commands::seekr_validate,
             commands::skip_segments,
+            commands::mal_api,
+            commands::mal_token,
             commands::ratings,
             commands::addons_list,
             commands::addons_bundled,

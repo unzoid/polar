@@ -31,7 +31,7 @@ interface EpisodeIds {
   kitsu?: number;
   /** Counted from the start of the show (ani.zip's absolute number), when known. */
   abs?: number;
-  /** The entry's AniList id and its number of episodes, when known: a linked AniList list is told of the episode (#83). */
+  /** The entry's AniList id and its number of episodes, when known: linked lists are told of the episode (#83, #84). */
   al?: number;
   of?: number;
 }
@@ -52,9 +52,10 @@ interface TitleContext {
 
 type Saved = Record<string, TitleContext>;
 
-/** The AniList entry an episode belongs to, for a linked list (#83). */
+/** The entry an episode belongs to, by each list service's id, for linked lists (#83, #84). */
 export interface ListEpisode {
-  anilist: number;
+  anilist?: number;
+  mal?: number;
   /** The episode's number in the entry. */
   episode: number;
   /** The entry's number of episodes, when known. */
@@ -186,7 +187,7 @@ export function playContextStore(storage: KeyValue | undefined, now: () => numbe
           ...(ids.kitsu !== undefined && { kitsu: ids.kitsu }),
           ...(abs !== undefined && { abs }),
           ...(ids.anilist !== undefined && { al: ids.anilist }),
-          ...(ids.anilist !== undefined && ids.count !== undefined && { of: ids.count }),
+          ...(ids.count !== undefined && { of: ids.count }),
         };
       }
       const next: TitleContext = { ...(ids.mal !== undefined && { mal: ids.mal }), ...(ids.kitsu !== undefined && { kitsu: ids.kitsu }), eps, at: now() };
@@ -212,10 +213,11 @@ export function playContextStore(storage: KeyValue | undefined, now: () => numbe
       const ids = idsOf(load()[titleOfVideo(videoId)], videoId);
       return ids && { mal: ids.mal, kitsu: ids.kitsu, episode: ids.n };
     },
-    /** The AniList entry the video is an episode of, and its number there, when its page knew them. */
+    /** The entry the video is an episode of (its AniList and MAL ids), and its number there, when its page knew them. */
     listEpisode(videoId: string): ListEpisode | undefined {
       const e = load()[titleOfVideo(videoId)]?.eps[videoId];
-      return typeof e === "object" && e.al !== undefined ? { anilist: e.al, episode: e.n, total: e.of ?? null } : undefined;
+      if (typeof e !== "object" || (e.al === undefined && e.mal === undefined)) return undefined;
+      return { ...(e.al !== undefined && { anilist: e.al }), ...(e.mal !== undefined && { mal: e.mal }), episode: e.n, total: e.of ?? null };
     },
     /**
      * Other ids stream addons may know the video by: the Kitsu episode (or movie) for IMDb ids. Only
