@@ -813,6 +813,64 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(app.getByRole("button", { name: "Copy Invite" })).toBeFocused();
   });
 
+  test("Friends: off until turned on; then a code, requests, friends with what they're doing, and joining a friend's party (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Friends" }).click();
+    const panel = app.getByRole("dialog", { name: "Friends" });
+    await expect(panel.getByRole("button", { name: "Turn On Friends" })).toBeVisible();
+    await panel.getByRole("button", { name: "Turn On Friends" }).click();
+    await expect(panel.getByLabel(/^Friend code \w /)).toHaveText("FAKE-2345");
+    // Alex asked; Sam is a friend, in a party on an open film.
+    const alex = panel.getByRole("region", { name: "Requests" }).getByRole("listitem").filter({ hasText: "Alex" });
+    await expect(alex).toContainText("Wants to be friends");
+    const sam = panel.getByRole("region", { name: "Friends" }).getByRole("listitem").filter({ hasText: "Sam" });
+    await expect(sam).toContainText("In a watch party · Big Buck Bunny");
+    await alex.getByRole("button", { name: "Accept" }).click();
+    await expect(panel.getByRole("region", { name: "Requests" })).toHaveCount(0);
+    await expect(panel.getByRole("region", { name: "Friends" }).getByRole("listitem").filter({ hasText: "Alex" })).toContainText("Online");
+    // Adding by code: typed with a dash, and never this profile's own.
+    await panel.getByRole("textbox", { name: "Friend code" }).fill("fake-2345");
+    await panel.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(panel.getByText("That's your own friend code.")).toBeVisible();
+    await panel.getByRole("textbox", { name: "Friend code" }).fill("wxyz-6789");
+    await panel.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(panel.getByRole("region", { name: "Sent" }).getByRole("listitem")).toContainText("Kai");
+    // One press joins Sam's party: this profile is now joining it (nobody hosts it here, so it stays at that).
+    await sam.getByRole("button", { name: "Join" }).click();
+    await expect(panel.getByText("Joining the watch party…")).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(1);
+  });
+
+  test("a friend's invite shows as a toast; Join opens the Friends panel while joining (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Friends" }).click();
+    await app.getByRole("button", { name: "Turn On Friends" }).click();
+    await expect(app.getByLabel(/^Friend code \w /)).toBeVisible();
+    await app.keyboard.press("Escape");
+    await expect(partySurfaces(app)).toHaveCount(0);
+    await app.evaluate(() => (globalThis as { __polarFakeFriendInvite?: () => void }).__polarFakeFriendInvite?.());
+    const toast = app.locator('[data-kind="friend-invite"]');
+    await expect(toast).toContainText("Sam invited you to a watch party");
+    await toast.getByRole("button", { name: "Join" }).click();
+    await expect(app.getByRole("dialog", { name: "Friends" }).getByText("Joining the watch party…")).toBeVisible();
+    await expect(toast).toHaveCount(0);
+  });
+
+  test("Settings → Account → Friends: on and off for this profile, and what friends see (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Account" }).click();
+    const row = app.locator('[data-setting="friendsEnabled"]');
+    await expect(row).toBeVisible();
+    await expect(app.locator('[data-setting="friendsOnline"]')).toHaveCount(0);
+    await row.getByRole("switch").click();
+    await expect(app.locator('[data-setting="friendsOnline"]')).toBeVisible();
+    await app.locator('[data-setting="friendsOnline"]').getByRole("combobox").click();
+    await app.getByRole("option", { name: "Nobody" }).click();
+    // Nobody sees it's online: nobody can join from their list either.
+    await expect(app.locator('[data-setting="friendsJoin"]').getByRole("switch")).toBeDisabled();
+    await app.locator('[data-setting="friendsJoin"]').getByRole("switch").isChecked().then((on) => expect(on).toBe(false));
+  });
+
   test("a link watched from the Join a Watch Party dialog closes the dialog before the player's panel opens (#247)", async ({ app }) => {
     await app.getByRole("button", { name: /^Profile/ }).click();
     await app.getByRole("menuitem", { name: "Join Watch Party" }).click();

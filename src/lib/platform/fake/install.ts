@@ -29,6 +29,7 @@ params.delete("secretsPlace");
 // `fake.html?account=1`: signed in, with watch parties in this page (account.ts); read by lib/account in dev builds only.
 if (params.get("account")) (globalThis as { __polarFakeAccount?: unknown }).__polarFakeAccount = fakeAccount;
 params.delete("account");
+params.delete("friends"); // `&friends=1`: the profile starts with Friends on (account.ts)
 let settings: Settings = { ...fx.settings, ...Object.fromEntries(params) };
 
 type Args = Record<string, unknown>;

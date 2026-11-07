@@ -8,7 +8,8 @@ import { normalizeAvatar } from "../../account/avatars";
  *
  * Friends (#135) live here too, off until turned on: Sam, a friend in a watch party on an open film, and Alex, who has sent
  * a request (online, watching nothing shown, once accepted). Any other code sends a request to Kai,
- * who doesn't answer. `__polarFakeFriendInvite()` has Sam invite this profile into Sam's party.
+ * who doesn't answer. `__polarFakeFriendInvite()` has Sam invite this profile into Sam's party;
+ * `fake.html?account=1&friends=1` starts with Friends on.
  */
 
 type Member = { handlers: PartyHandlers; presence: PartyPresence };
@@ -35,7 +36,8 @@ const online: Record<string, FriendPresence> = {
   [SAM]: { id: SAM, seq: 1, party: SAM_PARTY, watching: { type: "movie", metaId: "tt0000001", title: "Big Buck Bunny" } },
   [ALEX]: { id: ALEX, seq: 1 },
 };
-let friendSettings: FriendSettings | null = null;
+const FRIENDS_ON: FriendSettings = { code: "FAKE2345", online: true, watching: true, join: true };
+let friendSettings: FriendSettings | null = new URLSearchParams(location.search).get("friends") ? { ...FRIENDS_ON } : null;
 let friendList: FriendEntry[] = [
   { ...people[SAM], state: "accepted", incoming: false },
   { ...people[ALEX], state: "pending", incoming: true },
@@ -76,7 +78,7 @@ export const fakeAccount: AccountBackend = {
   },
   friends: {
     settings: async () => friendSettings && { ...friendSettings },
-    on: async () => ({ ...(friendSettings ??= { code: "FAKE2345", online: true, watching: true, join: true }) }),
+    on: async () => ({ ...(friendSettings ??= { ...FRIENDS_ON }) }),
     off: async () => void (friendSettings = null),
     resetCode: async () => (friendSettings ? (friendSettings.code = "NEWC2345") : ""),
     setPrivacy: async (_p, v) => void (friendSettings &&= { ...friendSettings, ...v }),

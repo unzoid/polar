@@ -803,6 +803,26 @@ whether the window resets on a channel rejoin over the same socket (assumed not)
 3. With A paused, B presses play while A can't see B's entry (hard to force by hand: the logs show it as
    "refused vN by …"): B goes back to paused within a second or two.
 
+## Friends (#135)
+
+Checked here: the migration in PGlite (`tests/sql/friends.test.ts`: codes, requests, accepting, blocking,
+the caps, invites, and who may listen to or show presence on `friends:<profile>` and `invites:<profile>`
+as `friend_topic_allowed` decides), the store against a fake server (`tests/friendsStore.test.ts`), the
+parsing (`tests/friends.test.ts`), and the panel, invite toast, settings and TV row in the browser with the
+fake account (`fake.html?account=1`, e2e). Not checked against Supabase: Realtime itself. To check, apply
+`supabase/migrations/20261108000000_friends.sql`, then with two accounts A and B on two devices:
+1. A: profile menu → Friends → Turn On Friends; a code shows. B does the same, types A's code, Add: A's
+   list shows B under Requests within a second or two (the server's "changed" broadcast), without reopening.
+2. A accepts: B's list shows A as a friend, Online, with a green dot.
+3. A starts a watch party on a title: within 15 s B sees "In a watch party · <title>"; B presses Join and
+   ends up in A's party (or waits for A to let them in, if A asks first).
+4. A, in the party, presses Invite on another online friend C: C gets the toast and joins from it.
+5. A sets "Who sees what you watch" to Nobody: B sees "In a watch party" without the title. A sets "Who sees
+   you're online" to Nobody: A shows Offline on B within 15 s; after B restarts, Realtime refuses B's join
+   of `friends:<A>` (Dashboard → Logs → Realtime).
+6. Throughout a party with Friends on, Realtime's logs show no ClientPresenceRateLimitReached (friends'
+   presence shares the connection with the party's; it updates at most once per 15 s).
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,

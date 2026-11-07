@@ -112,3 +112,9 @@ export function friendStatus(p: FriendPresence | null | undefined): string {
 export function friendRank(p: FriendPresence | null | undefined) {
   return !p ? 3 : p.party ? 0 : p.watching ? 1 : 2;
 }
+
+/** Joining a friend's party: said until the host has let this profile in. */
+export function joiningText(party: { knocking: boolean; rules: { approve?: boolean } } | null) {
+  if (!party?.knocking) return null;
+  return party.rules.approve ? "Waiting for the host to let you in…" : "Joining the watch party…";
+}

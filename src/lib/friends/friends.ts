@@ -23,8 +23,12 @@ import {
 import type { AvatarId } from "../account/avatars";
 import { normalizeFriendCode, ownPresence, samePresence, FRIEND_CODE_LENGTH } from "./messages";
 
-/** Presence updates are rate-limited by the server: at most one this often. */
-export const TRACK_MS = 7000;
+/**
+ * Presence updates are rate-limited by the server, maybe per connection, which the watch party's
+ * channel shares (#227: 5 in 30 s, the room keeping to 5 in 32 s): at most one this often, so
+ * friends take 2 of every 30 s at most, and only when something changed.
+ */
+export const TRACK_MS = 15_000;
 /** An invite not acted on goes away after this long. */
 export const INVITE_MS = 120_000;
 /** Invites shown at once; older ones make way. */

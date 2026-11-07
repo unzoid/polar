@@ -26,13 +26,14 @@ import { useRouter } from "../lib/router";
 import { TvBrowse, TvCard, TvContinueRail, TvItemsRail, TvRail, TvShelfRail, type RailRow } from "./TvRails";
 import { TvKeyboard } from "./TvKeyboard";
 import { TvAnimeRail } from "./TvAnime";
+import { TvFriendsRail } from "./TvFriends";
 import { useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
 import { usePrefs } from "../lib/settings";
 import { EmptyState } from "../components/ui/EmptyState";
 
 const NO_TITLES: MetaPreview[] = [];
 
-/** Home: what you're watching, what's trending, then the day's shelves. */
+/** Home: what you're watching, friends, what's trending, then the day's shelves. */
 export function TvHome() {
   const seeds = useSeeds();
   const shelves = useMemo(() => todaysShelves(seeds), [seeds]);
@@ -47,6 +48,8 @@ export function TvHome() {
 
   const rows: RailRow[] = [
     { key: "continue", render: () => <TvContinueRail /> },
+    // Only while the profile has Friends on and someone to show (#135).
+    { key: "friends", render: () => <TvFriendsRail /> },
     { key: "trending", render: () => <TvItemsRail title="Trending Now" items={picks} shape="poster" /> },
     ...shelves.map((shelf, i) => ({
       key: shelfKey(shelf).join("/"),
