@@ -133,6 +133,8 @@ export interface AnimeCard {
   nextAiringEpisode?: { episode: number; airingAt: number; timeUntilAiring: number } | null;
   /** Only on the shelves that show a synopsis (LISTED), and the anime's own page. */
   description?: string | null;
+  /** Only on an anime page's relations (#192), and the page itself: its official links, a YouTube video among them. */
+  externalLinks?: { site: string; url: string }[];
   /** Its direct prequels and sequels: only on search results, to show a franchise once. */
   chain?: number[];
 }
@@ -481,7 +483,7 @@ const ANIME_QUERY = `query ($id: Int) {
         trailer { id site }
         studios { edges { isMain node { id name isAnimationStudio } } }
         tags { name rank description isMediaSpoiler isGeneralSpoiler category }
-        relations { edges { relationType(version: 2) node { ${CARD} } } }
+        relations { edges { relationType(version: 2) node { ${CARD} externalLinks { site url } } } }
         characters(sort: [ROLE, RELEVANCE, ID], perPage: 25) {
           edges {
             role

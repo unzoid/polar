@@ -20,6 +20,7 @@ export function EpisodeCard({
   video: v,
   progress: p,
   runtime,
+  stillFallback,
   upNext,
   onPlay,
   onSources,
@@ -31,6 +32,8 @@ export function EpisodeCard({
   video: Video;
   progress?: Progress;
   runtime?: string;
+  /** Shown dimmed when the episode has no still, or it doesn't load; the placeholder without it. */
+  stillFallback?: string;
   upNext: boolean;
   onPlay: (v: Video) => void;
   onSources: (v: Video) => void;
@@ -62,7 +65,18 @@ export function EpisodeCard({
     >
       <button className="card card-landscape episode-card-main" disabled={!openable} onClick={() => onPlay(v)} {...intent}>
         <div className="card-frame">
-          <CardArt src={v.thumbnail} fallback={<StillPlaceholder />} />
+          <CardArt
+            src={v.thumbnail}
+            fallback={
+              stillFallback ? (
+                <span className="episode-still-fallback">
+                  <CardArt src={stillFallback} fallback={<StillPlaceholder />} />
+                </span>
+              ) : (
+                <StillPlaceholder />
+              )
+            }
+          />
           <div className="card-art-scrim" />
           {released && label && (
             <span className="episode-runtime t-callout">

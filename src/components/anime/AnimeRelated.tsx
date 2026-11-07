@@ -1,4 +1,19 @@
-import { type Anime, LIKED_THIS_FILL, likedThis, relatedRows, type RelatedCard, useMoreRecommendations } from "../../lib/anime";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import {
+  type Anime,
+  animeLinks,
+  aniZipQuery,
+  entryAction,
+  type EntryAction,
+  knowsNothing,
+  LIKED_THIS_FILL,
+  likedThis,
+  needsEntryLinks,
+  relatedRows,
+  type RelatedCard,
+  useMoreRecommendations,
+} from "../../lib/anime";
+import { keys } from "../../lib/net";
 import { usePrefs } from "../../lib/settings";
 import { Row } from "../Row";
 import { AnimeCard } from "./AnimeCard";
@@ -8,15 +23,21 @@ import type { Franchise } from "./AnimeEpisodes";
  * Watch Order and the rest of the franchise not already in the season tabs
  * (lib/anime/relatedRows.ts), then AniList's recommendations. A Watch Order
  * card for one of the page's tabs switches to it, back at the top of the page.
+ * Also in This Franchise's manga, novels and entries Polarity can't play open
+ * elsewhere (lib/anime/franchiseEntry.ts), or stay out with Settings → Anime.
  */
 export function AnimeRelated({ anime, franchise }: { anime: Anime; franchise?: Franchise }) {
-  const { watchOrder, also: rest } = relatedRows(anime, franchise);
+  const { watchOrder, also } = relatedRows(anime, franchise);
+  const actions = useEntryActions(also);
+  const { animeHideUnplayable } = usePrefs();
+  const rest = animeHideUnplayable ? also.filter((c) => actions.get(c.card.id)?.kind === "page") : also;
   const card = (c: RelatedCard) => (
     <AnimeCard
       key={`${c.card.id}/${c.label}`}
       item={c.card}
-      label={c.label}
+      label={actions.get(c.card.id)?.kind === "youtube" ? `${c.label} · YouTube` : c.label}
       current={c.current}
+      action={actions.get(c.card.id)}
       onOpen={
         franchise && c.tab
           ? (e) => {
@@ -48,6 +69,26 @@ export function AnimeRelated({ anime, franchise }: { anime: Anime; franchise?: F
       )}
       <Recommendations anime={anime} franchise={franchise} />
     </div>
+  );
+}
+
+/**
+ * What each card does (lib/anime/franchiseEntry.ts). Only an anime with a YouTube video waits on ani.zip
+ * and the stored links, and opens its page until they answer.
+ */
+function useEntryActions(cards: RelatedCard[]): Map<number, EntryAction> {
+  const { animeReadOn } = usePrefs();
+  const asked = cards.filter((c) => needsEntryLinks(c.card));
+  const zips = useQueries({ queries: asked.map((c) => aniZipQuery(c.card.id)) });
+  const { data: links } = useQuery({ queryKey: keys.animeLinks, queryFn: animeLinks, staleTime: Infinity });
+  const zip = new Map(asked.map((c, i) => [c.card.id, zips[i]]));
+  return new Map(
+    cards.map((c) => {
+      const z = zip.get(c.card.id);
+      const known = z?.isSuccess && links !== undefined;
+      const entry = known ? { unknown: knowsNothing(z.data), linked: links.some((l) => l.anilist === c.card.id) } : undefined;
+      return [c.card.id, entryAction(c.card, animeReadOn, entry)];
+    }),
   );
 }
 
