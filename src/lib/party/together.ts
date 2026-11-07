@@ -7,7 +7,7 @@
 import { useSyncExternalStore } from "react";
 import { api } from "../api";
 import type { Readiness } from "../types";
-import { checkLink, isStreamLink, linkMedia, youtubeId } from "./links";
+import { checkLink, isStreamLink, linkMedia, youtubeId, youtubeLinkProblem } from "./links";
 import type { Member } from "./room";
 import { getParty, partyAct, startParty } from "./party";
 
@@ -30,6 +30,8 @@ export async function watchLink(
 ): Promise<string | null> {
   const link = checkLink(input);
   if (!link.ok) return link.reason;
+  const problem = youtubeLinkProblem(link.url);
+  if (problem) return problem;
   // YouTube's player opens it: there's no file to check.
   if (!youtubeId(link.url)) {
     let r: Readiness;
