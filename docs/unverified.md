@@ -742,6 +742,11 @@ on two devices, check:
 - An HLS (`.m3u8`) and a DASH (`.mpd`) link both play; a link to a web page says it's a page, not a
   video; a link that answers 403 or 404 says so.
 - The profile menu's Join Watch Party dialog: "or watch a link together" starts a party on a link.
+- A YouTube link (#201): paste a `youtube.com/watch?v=`, a `youtu.be/`, a Shorts and an embed link of the same
+  video on one device each time. YouTube's own player opens in the player, without its controls; the title shows
+  once it loads; Play/Pause, the scrubber, ±10 s and volume drive it; the other device follows pause and seeks. A
+  video whose owner doesn't allow embedding says so. Checked here only against a stand-in for YouTube's embed
+  (e2e), not YouTube itself, and not on macOS (`tauri://` origin), Windows, Linux, Android or iOS web views.
 - TV mode: the question shows and works with a remote (Play focused, Back is Not Now). There's no
   link field in TV mode.
 
