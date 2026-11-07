@@ -1,4 +1,5 @@
--- Friends (#135): a profile that turns Friends on gets a friend code; someone
+-- Friends (#135): a profile that turns Friends on gets a row in
+-- friend_settings, with a friend code and what its friends may see. Someone
 -- who has the code sends a request, which the other side accepts or declines.
 -- Either side can remove the other; blocking hides you from them and refuses
 -- their requests. Everything goes through the functions below (the tables
@@ -7,18 +8,24 @@
 --
 -- Being online, in a party and what's on travel by Realtime Presence on the
 -- private topic `friends:<profile id>`: only its own account shows presence
--- there; it and that profile's accepted friends listen. The app sends only
--- what the profile's privacy settings allow (nothing at all while it's
--- hidden). Invites arrive on `invites:<profile id>`, sent by friend_invite()
--- with the inviting profile filled in by the server; nobody else can send
--- there. An invite carries a party code, never a stream link.
+-- there; it listens, and so do that profile's accepted friends while it shows
+-- them that it's online. The app sends only what the profile's settings allow
+-- (nothing at all while it's hidden). Invites arrive on
+-- `invites:<profile id>`, sent by friend_invite() with the inviting profile
+-- filled in by the server; nobody else can send there. An invite carries a
+-- party code, never a stream link.
 --
 -- Caps (docs/supabase-storage.md §8): 100 rows a profile (friends, requests
 -- and blocks), of which 50 friends and 20 requests sent and not yet answered.
 
-create table public.friend_codes (
+-- Friends on for the profile: its code, and what friends see (the app sends
+-- nothing a setting turns off; `show_online` off also keeps friends off the topic).
+create table public.friend_settings (
   profile_id uuid primary key references public.profiles(id) on delete cascade,
   code text not null unique check (code ~ '^[2-9A-HJ-NP-Z]{8}$'),
+  show_online boolean not null default true,
+  show_watching boolean not null default true,
+  joinable boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -37,7 +44,7 @@ create table public.friendships (
 create unique index friendships_pair on public.friendships (least(a, b), greatest(a, b));
 create index friendships_b_idx on public.friendships (b);
 
-alter table public.friend_codes enable row level security;
+alter table public.friend_settings enable row level security;
 alter table public.friendships enable row level security;
 
 -- --- Helpers ----------------------------------------------------------------
@@ -87,42 +94,83 @@ begin
   end if;
 end $$;
 
--- --- Friend codes -----------------------------------------------------------
+-- Tells the other profile its list changed (a request, an answer, a removal),
+-- so it reads it again rather than wait. Says nothing else.
+create function public.friend_changed(other uuid) returns void
+language sql security definer set search_path = '' as $$
+  select realtime.send('{}'::jsonb, 'changed', 'invites:' || other::text, true)
+$$;
 
--- The profile's code, made the first time (turning Friends on).
-create function public.friend_code(p uuid) returns text
+-- --- Turning Friends on and off ---------------------------------------------
+
+-- The profile's code and settings; no row while Friends is off.
+create function public.friend_settings(p uuid)
+returns table (code text, show_online boolean, show_watching boolean, joinable boolean)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform public.friend_own(p);
+  return query select f.code, f.show_online, f.show_watching, f.joinable from public.friend_settings f where f.profile_id = p;
+end $$;
+
+-- Friends on: a code, made the first time. Returns it.
+create function public.friend_on(p uuid) returns text
 language plpgsql security definer set search_path = '' as $$
 declare
   c text;
 begin
   perform public.friend_own(p);
-  select code into c from public.friend_codes where profile_id = p;
+  select code into c from public.friend_settings where profile_id = p;
   while c is null loop
     begin
-      insert into public.friend_codes(profile_id, code) values (p, public.friend_new_code()) returning code into c;
+      insert into public.friend_settings(profile_id, code) values (p, public.friend_new_code()) returning code into c;
     exception when unique_violation then
       -- The profile got one meanwhile, or the new code is taken: read again, or try another.
-      select code into c from public.friend_codes where profile_id = p;
+      select code into c from public.friend_settings where profile_id = p;
     end;
   end loop;
   return c;
 end $$;
 
--- A new code: the old one stops working. Friends stay.
+-- A new code: the old one stops working. Friends and settings stay.
 create function public.friend_code_reset(p uuid) returns text
 language plpgsql security definer set search_path = '' as $$
+declare
+  c text;
 begin
   perform public.friend_own(p);
-  delete from public.friend_codes where profile_id = p;
-  return public.friend_code(p);
+  loop
+    begin
+      update public.friend_settings set code = public.friend_new_code() where profile_id = p returning code into c;
+      if c is null then
+        raise exception 'friends_off';
+      end if;
+      return c;
+    exception when unique_violation then
+      -- Taken: try another.
+    end;
+  end loop;
 end $$;
 
--- Friends turned off: nobody can send a request with the code any more. Friends stay.
-create function public.friend_code_off(p uuid) returns void
+-- What friends see. Friends must be on.
+create function public.friend_privacy(p uuid, show_online boolean, show_watching boolean, joinable boolean) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   perform public.friend_own(p);
-  delete from public.friend_codes where profile_id = p;
+  update public.friend_settings f
+    set show_online = friend_privacy.show_online, show_watching = friend_privacy.show_watching, joinable = friend_privacy.joinable
+    where f.profile_id = p;
+  if not found then
+    raise exception 'friends_off';
+  end if;
+end $$;
+
+-- Friends off: nobody can send a request with the code, and the settings go.
+-- Friends stay, for when it's turned on again.
+create function public.friend_off(p uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform public.friend_own(p);
+  delete from public.friend_settings where profile_id = p;
 end $$;
 
 -- --- Requests and friends ---------------------------------------------------
@@ -137,7 +185,7 @@ declare
   pair public.friendships;
 begin
   perform public.friend_own(p);
-  select profile_id into other from public.friend_codes where code = upper(friend_code);
+  select profile_id into other from public.friend_settings where code = upper(friend_code);
   if other is null then
     raise exception 'friend_code_unknown' using hint = 'No profile has that friend code.';
   end if;
@@ -154,11 +202,13 @@ begin
     update public.friendships set state = 'accepted', updated_at = now() where a = other and b = p;
     perform public.friend_caps(p);
     perform public.friend_caps(other);
+    perform public.friend_changed(other);
     return 'accepted';
   end if;
   insert into public.friendships(a, b, state) values (p, other, 'pending');
   perform public.friend_caps(p);
   perform public.friend_caps(other);
+  perform public.friend_changed(other);
   return 'sent';
 end $$;
 
@@ -174,6 +224,9 @@ begin
   else
     delete from public.friendships where a = other and b = p and state = 'pending';
   end if;
+  if found then
+    perform public.friend_changed(other);
+  end if;
 end $$;
 
 -- No longer friends (or a request withdrawn). A block stays until its blocker lifts it.
@@ -183,6 +236,9 @@ begin
   perform public.friend_own(p);
   delete from public.friendships
     where ((a = p and b = other) or (a = other and b = p)) and state <> 'blocked';
+  if found then
+    perform public.friend_changed(other);
+  end if;
 end $$;
 
 -- Block a friend or someone who sent a request: they no longer see this
@@ -256,10 +312,11 @@ begin
   if track or mine then
     return mine;
   end if;
-  return exists (
-    select 1 from public.friendships f join public.profiles o on o.id = case when f.a = p then f.b else f.a end
-    where (f.a = p or f.b = p) and f.state = 'accepted' and o.user_id = auth.uid()
-  );
+  return exists (select 1 from public.friend_settings s where s.profile_id = p and s.show_online)
+    and exists (
+      select 1 from public.friendships f join public.profiles o on o.id = case when f.a = p then f.b else f.a end
+      where (f.a = p or f.b = p) and f.state = 'accepted' and o.user_id = auth.uid()
+    );
 end $$;
 
 create policy "friends: owners and friends listen"
@@ -276,9 +333,12 @@ revoke all on function public.friend_own(uuid) from public, anon, authenticated;
 revoke all on function public.friend_new_code() from public, anon, authenticated;
 revoke all on function public.friend_pair(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.friend_caps(uuid) from public, anon, authenticated;
-revoke all on function public.friend_code(uuid) from public, anon;
+revoke all on function public.friend_changed(uuid) from public, anon, authenticated;
+revoke all on function public.friend_settings(uuid) from public, anon;
+revoke all on function public.friend_on(uuid) from public, anon;
 revoke all on function public.friend_code_reset(uuid) from public, anon;
-revoke all on function public.friend_code_off(uuid) from public, anon;
+revoke all on function public.friend_privacy(uuid, boolean, boolean, boolean) from public, anon;
+revoke all on function public.friend_off(uuid) from public, anon;
 revoke all on function public.friend_request(uuid, text) from public, anon;
 revoke all on function public.friend_respond(uuid, uuid, boolean) from public, anon;
 revoke all on function public.friend_remove(uuid, uuid) from public, anon;
@@ -287,9 +347,11 @@ revoke all on function public.friend_unblock(uuid, uuid) from public, anon;
 revoke all on function public.friend_list(uuid) from public, anon;
 revoke all on function public.friend_invite(uuid, uuid, text) from public, anon;
 revoke all on function public.friend_topic_allowed(text, boolean) from public, anon;
-grant execute on function public.friend_code(uuid) to authenticated;
+grant execute on function public.friend_settings(uuid) to authenticated;
+grant execute on function public.friend_on(uuid) to authenticated;
 grant execute on function public.friend_code_reset(uuid) to authenticated;
-grant execute on function public.friend_code_off(uuid) to authenticated;
+grant execute on function public.friend_privacy(uuid, boolean, boolean, boolean) to authenticated;
+grant execute on function public.friend_off(uuid) to authenticated;
 grant execute on function public.friend_request(uuid, text) to authenticated;
 grant execute on function public.friend_respond(uuid, uuid, boolean) to authenticated;
 grant execute on function public.friend_remove(uuid, uuid) to authenticated;

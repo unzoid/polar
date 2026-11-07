@@ -90,6 +90,7 @@ export function PartyHost() {
     if (!inPlayer) return;
     setJoinPartyOpen(false);
     setPartyMenuOpen(false);
+    closePartySurface("friends");
   }, [inPlayer]);
   useEffect(() => {
     if (!asking) return;

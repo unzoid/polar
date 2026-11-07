@@ -135,6 +135,11 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "copySetup", page: "account", title: "Add-ons and Keys", keywords: "copy addons api keys profile guest device start" },
   { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
+  // Friends (#135): kept on the account server per profile, drawn by the page (components/friends/FriendsSettings.tsx).
+  { id: "friendsEnabled", page: "account", title: "Friends", keywords: "friends friend code list online invite watch party join social" },
+  { id: "friendsOnline", page: "account", title: "Who sees you're online", keywords: "friends privacy online status presence hide invisible" },
+  { id: "friendsWatching", page: "account", title: "Who sees what you watch", keywords: "friends privacy watching activity title hide" },
+  { id: "friendsJoin", page: "account", title: "Friends can join your watch party", keywords: "friends join watch party one tap privacy" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback

@@ -22,7 +22,7 @@ const refusal = async (sql: string) => {
   }
 };
 const one = async <T,>(sql: string) => (await db.query<{ v: T }>(`select ${sql} as v`)).rows[0].v;
-const code = (p: string) => one<string>(`friend_code('${p}')`);
+const code = (p: string) => one<string>(`friend_on('${p}')`);
 const request = (p: string, c: string) => one<string>(`friend_request('${p}', '${c}')`);
 const list = async (p: string) =>
   (await db.query<{ id: string; name: string; state: string; incoming: boolean }>(`select id, name, state, incoming from friend_list('${p}')`)).rows;
@@ -42,27 +42,41 @@ insert into profiles(id, user_id, name, avatar) values ('${PA}','${A}','Ada','bl
 grant all on all tables in schema public to authenticated;`);
 }, 30_000);
 
-describe("friend codes", () => {
-  test("a profile's code is made once, eight characters without look-alikes", async () => {
+describe("turning Friends on and off", () => {
+  test("off until turned on; then a code, made once, eight characters without look-alikes", async () => {
     await as(db, A);
+    expect((await db.query(`select * from friend_settings('${PA}')`)).rows).toEqual([]);
     const c = await code(PA);
     expect(c).toMatch(/^[2-9A-HJ-NP-Z]{8}$/);
     expect(await code(PA)).toBe(c);
+    expect((await db.query(`select * from friend_settings('${PA}')`)).rows).toEqual([{ code: c, show_online: true, show_watching: true, joinable: true }]);
+  });
+
+  test("what friends see is kept per profile, and only while Friends is on", async () => {
+    await as(db, A);
+    await db.exec(`select friend_privacy('${PA}', true, false, true)`);
+    expect((await db.query<{ show_watching: boolean }>(`select show_watching from friend_settings('${PA}')`)).rows[0].show_watching).toBe(false);
+    await db.exec(`select friend_privacy('${PA}', true, true, true)`);
+    await as(db, B);
+    expect(await refusal(`select friend_privacy('${PB}', true, true, true)`)).toBe("friends_off");
+    expect(await refusal(`select friend_code_reset('${PB}')`)).toBe("friends_off");
+    expect(await refusal(`select friend_privacy('${PA}', false, false, false)`)).toBe("not_your_profile");
   });
 
   test("only the profile's own account reads or changes its code", async () => {
     await as(db, B);
-    expect(await refusal(`select friend_code('${PA}')`)).toBe("not_your_profile");
+    expect(await refusal(`select friend_on('${PA}')`)).toBe("not_your_profile");
     expect(await refusal(`select friend_code_reset('${PA}')`)).toBe("not_your_profile");
-    expect(await refusal(`select * from friend_codes`)).toBe("");
-    expect((await db.query(`select * from friend_codes`)).rows).toHaveLength(0);
+    expect(await refusal(`select * from friend_settings('${PA}')`)).toBe("not_your_profile");
+    expect(await refusal(`select * from friend_settings`)).toBe("");
+    expect((await db.query(`select * from friend_settings`)).rows).toHaveLength(0);
     await as(db, null);
     await db.exec(`reset role`);
-    expect(await refusal(`set role anon; select friend_code('${PA}')`)).toContain("permission denied");
+    expect(await refusal(`set role anon; select friend_on('${PA}')`)).toContain("permission denied");
     await db.exec(`reset role`);
   });
 
-  test("a new code replaces the old one; turning Friends off removes it", async () => {
+  test("a new code replaces the old one; turning Friends off removes it and the settings", async () => {
     await as(db, A);
     const old = await code(PA);
     const fresh = await one<string>(`friend_code_reset('${PA}')`);
@@ -70,7 +84,8 @@ describe("friend codes", () => {
     await as(db, B);
     expect(await refusal(`select friend_request('${PB}', '${old}')`)).toBe("friend_code_unknown");
     await as(db, A);
-    await db.exec(`select friend_code_off('${PA}')`);
+    await db.exec(`select friend_off('${PA}')`);
+    expect((await db.query(`select * from friend_settings('${PA}')`)).rows).toEqual([]);
     await as(db, B);
     expect(await refusal(`select friend_request('${PB}', '${fresh}')`)).toBe("friend_code_unknown");
   });
@@ -144,7 +159,7 @@ describe("caps", () => {
     await db.exec(`insert into auth.users(id) select ('10000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid from generate_series(1, 120) i;
 insert into profiles(id, user_id, name) select ('20000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
   ('10000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid, 'P' || i from generate_series(1, 120) i;
-insert into friend_codes(profile_id, code) select ('20000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
+insert into friend_settings(profile_id, code) select ('20000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
   'ZZZZ' || translate(lpad(i::text, 4, '0'), '01', 'AB') from generate_series(1, 120) i;`);
     const p = (i: number) => `20000000-0000-0000-0000-${String(i).padStart(12, "0")}`;
     const c = (i: number) => `ZZZZ${String(i).padStart(4, "0").replace(/0/g, "A").replace(/1/g, "B")}`;
@@ -185,8 +200,29 @@ describe("invites and topics", () => {
     expect(await refusal(`select friend_invite('${PA}', '${PC}', 'https://media.example.com/film.mkv')`)).toBe("bad_party_code");
     expect(await refusal(`select friend_invite('${PA}', '${PC}', 'ABC123')`)).toBe("");
     await as(db, null);
-    const sent = (await db.query<{ payload: unknown; event: string; topic: string; private: boolean }>(`select * from realtime.sent`)).rows;
+    const sent = (await db.query<{ payload: unknown; event: string; topic: string; private: boolean }>(`select * from realtime.sent where event = 'invite'`)).rows;
     expect(sent).toEqual([{ payload: { from: PA, party: "ABC123" }, event: "invite", topic: `invites:${PC}`, private: true }]);
+  });
+
+  test("requests, answers and removals tell the other side to read its list again; blocks don't", async () => {
+    await as(db, null);
+    const changed = (await db.query<{ topic: string; payload: unknown }>(`select topic, payload from realtime.sent where event = 'changed'`)).rows;
+    expect(changed.length).toBeGreaterThan(5);
+    expect(changed.every((c) => /^invites:[0-9a-f-]{36}$/.test(c.topic) && JSON.stringify(c.payload) === "{}")).toBe(true);
+    await db.exec(`delete from realtime.sent`);
+    await as(db, A);
+    await db.exec(`select friend_block('${PA}', '${PC}'); select friend_unblock('${PA}', '${PC}')`);
+    await as(db, null);
+    expect((await db.query(`select * from realtime.sent`)).rows).toHaveLength(0);
+    // Friends again for the tests below.
+    await as(db, C);
+    const c = await code(PC);
+    await as(db, A);
+    expect(await request(PA, c)).toBe("sent");
+    await as(db, C);
+    await db.exec(`select friend_respond('${PC}', '${PA}', true)`);
+    await as(db, null);
+    expect((await db.query<{ topic: string }>(`select topic from realtime.sent`)).rows.map((r) => r.topic)).toEqual([`invites:${PC}`, `invites:${PA}`]);
   });
 
   test("a profile's friends topic: its account shows presence, it and its friends listen, nobody else", async () => {
@@ -197,6 +233,21 @@ describe("invites and topics", () => {
     expect(await allowed(C, topic, true)).toBe(false);
     expect(await allowed(B, topic, false)).toBe(false);
     expect(await allowed(B, `friends:${PB}`, true)).toBe(true);
+  });
+
+  test("a profile shown to nobody as online: friends can't listen to its topic", async () => {
+    await as(db, A);
+    await db.exec(`select friend_privacy('${PA}', false, true, true)`);
+    expect(await allowed(C, `friends:${PA}`, false)).toBe(false);
+    expect(await allowed(A, `friends:${PA}`, true)).toBe(true);
+    await db.exec(`select friend_privacy('${PA}', true, true, true)`);
+    expect(await allowed(C, `friends:${PA}`, false)).toBe(true);
+    // Friends off: nobody but its own account either.
+    await as(db, C);
+    await db.exec(`select friend_off('${PC}')`);
+    expect(await allowed(A, `friends:${PC}`, false)).toBe(false);
+    await as(db, C);
+    await code(PC);
   });
 
   test("an invite topic: only its own account listens; nobody sends there but the server", async () => {
@@ -226,6 +277,6 @@ describe("invites and topics", () => {
     await as(db, null);
     await db.exec(`delete from profiles where id = '${PC}'`);
     expect(Number(await one<string>(`(select count(*) from friendships where a = '${PC}' or b = '${PC}')::text`))).toBe(0);
-    expect(Number(await one<string>(`(select count(*) from friend_codes where profile_id = '${PC}')::text`))).toBe(0);
+    expect(Number(await one<string>(`(select count(*) from friend_settings where profile_id = '${PC}')::text`))).toBe(0);
   });
 });
