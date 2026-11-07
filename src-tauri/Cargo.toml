@@ -42,6 +42,10 @@ tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 # The file dialog behind "Open File…" (#204).
 tauri-plugin-dialog = "2"
+# polarity:// links from the website's /watch and /party pages (#153); a link opened while Polarity
+# runs goes to the running app.
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # libmpv loaded from the APK and given the SurfaceView (player/android.rs); the same versions
