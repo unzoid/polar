@@ -165,6 +165,15 @@ export class FakeMedia extends EventTarget implements MediaLike {
   pause() {
     this.sim.after(() => this.report(false), this.o.engineLag ?? 60);
   }
+  /** The network stalls for `ms`: the picture stops, play state unchanged. */
+  stall(ms: number) {
+    this.settle();
+    this.buffering = true;
+    this.sim.after(() => {
+      this.settle();
+      this.buffering = false;
+    }, ms);
+  }
   /** What the player does with a source: open it at `start` and play, as Player.tsx does. */
   load(start: number, loadMs = 1500) {
     this.pos = start;
@@ -252,6 +261,25 @@ export function setup<H extends SimServer = Hub>(makeHub: (sim: Sim) => H = (sim
     return media;
   };
   return { sim, hub, member, watch };
+}
+
+/**
+ * A stall of `ms` mid-video on `m`'s player, told to the room as usePartySync
+ * tells it: after a second, that it stalled where it stopped; cleared when it plays.
+ */
+export function stall(sim: Sim, m: Member, ms: number) {
+  m.media!.stall(ms);
+  let shown = false;
+  const show = sim.after(() => {
+    shown = true;
+    m.room.reportPosition(MEDIA.videoId, m.media!.currentTime, true, true);
+    m.room.setPartyBuffering(true);
+  }, 1000);
+  sim.after(() => {
+    show();
+    if (shown) m.room.reportPosition(MEDIA.videoId, m.media!.currentTime, m.media!.paused, false);
+    m.room.setPartyBuffering(false);
+  }, ms);
 }
 
 /** Start a party on A, playing at `at`, and join B; both players up. */

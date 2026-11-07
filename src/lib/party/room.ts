@@ -9,9 +9,10 @@
  *   (half the round trip of its own echo) and the receiver adds its own, so
  *   positions are extrapolated to "now" without trusting anyone's system time.
  * - The host (first to have joined, or whoever it handed the role to) holds
- *   the room while anyone is loading, answers newcomers and sets the room's
- *   rules (#156): locked, who controls playback, waiting, approving joins,
- *   who's been removed. Leaving hands the role to the next in line.
+ *   the room while anyone is loading (and, if the room says so, while anyone
+ *   stalls mid-video, #238), answers newcomers and sets the room's rules
+ *   (#156): locked, who controls playback, waiting, approving joins, who's
+ *   been removed. Leaving hands the role to the next in line.
  * - A joiner knocks first: it isn't shown or listened to until the host lets
  *   it in, which the host does at once unless the room is locked or asks it
  *   to approve joins. There's no server of our own, so the rules hold because
@@ -70,6 +71,8 @@ export interface MemberPosition {
   videoId: string;
   position: number;
   paused: boolean;
+  /** Stalled mid-video, sent at once (presence is rationed, #227); undefined from apps that don't say. */
+  stalled?: boolean;
   /** clock.now() at which `position` was current here. */
   at: number;
 }
@@ -124,6 +127,18 @@ export interface PartyDeps {
 
 /** A waiter the room gives up holding for, so one bad connection can't stall everyone. */
 const HOLD_MAX_MS = 30_000;
+/**
+ * Pause when someone is buffering (#238): a stall seen this long holds the
+ * room (on top of the second the player waits before saying it's stalled);
+ * the room gives up on that stall after STALL_HOLD_MAX_MS, and holds for one
+ * member at most STALL_HOLDS_MAX times per STALL_WINDOW_MS.
+ */
+export const STALL_SETTLE_MS = 500;
+export const STALL_HOLD_MAX_MS = 20_000;
+export const STALL_HOLDS_MAX = 3;
+export const STALL_WINDOW_MS = 120_000;
+/** A hold for a stall starts where the stalled member stopped, if it's at most this far behind the room. */
+const STALL_REWIND_MAX = 10;
 const HEARTBEAT_MS = 10_000;
 /** Everyone pings this often: the round trip, and a sign of life to the others. */
 export const PING_MS = 5000;
@@ -184,6 +199,9 @@ export function createPartyRoom(deps: PartyDeps) {
   /** Joined, and not yet placed after everyone already in the room (see `presence`). */
   let placeInLine = false;
   const waitingSince = new Map<string, number>();
+  /** Host: when each member's current stall was first seen, and when the room held for each of its recent stalls. */
+  const stallSince = new Map<string, number>();
+  const stallHolds = new Map<string, number[]>();
   let pendingJoin: { resolve: () => void; reject: (e: Error) => void } | null = null;
   let cancelJoinTimeout: (() => void) | null = null;
   let noteId = 0;
@@ -465,7 +483,7 @@ export function createPartyRoom(deps: PartyDeps) {
     if (self && self.waiting !== waiting) track({ waiting });
   }
 
-  /** Stalled mid-video: shown to the others, but the room doesn't hold for it. */
+  /** Stalled mid-video: shown to the others; the room holds for it only if its rules say so (`stall`). */
   function setPartyBuffering(buffering: boolean) {
     if (self && !!self.buffering !== buffering) track({ buffering });
   }
@@ -476,10 +494,13 @@ export function createPartyRoom(deps: PartyDeps) {
     track(away ? { away, waiting: false, buffering: false } : { away });
   }
 
-  /** Where this player is, now and then, so the others can see who's fallen behind. */
-  function reportPosition(videoId: string, position: number, paused: boolean) {
+  /**
+   * Where this player is, now and then, so the others can see who's fallen
+   * behind; and at once when it stalls or plays again, for a room that holds for stalls.
+   */
+  function reportPosition(videoId: string, position: number, paused: boolean, stalled = false) {
     if (!self || !state || state.knocking) return;
-    link?.send({ t: "at", from: self.id, videoId, position, paused, lag: myLag() });
+    link?.send({ t: "at", from: self.id, videoId, position, paused, lag: myLag(), stalled });
   }
 
   /** Seconds this member is behind the room, if it's on the room's video and far enough behind to say. */
@@ -668,7 +689,7 @@ export function createPartyRoom(deps: PartyDeps) {
   }
   /** Who's let in, given up on, removed: said in the log each time it changes, not on each heartbeat. */
   function sayRules(rules: RoomRules, by: string) {
-    const flags = [rules.locked && "locked", rules.approve && "approve", rules.control === "host" && "host-only", !rules.wait && "no-wait"].filter(Boolean);
+    const flags = [rules.locked && "locked", rules.approve && "approve", rules.control === "host" && "host-only", !rules.wait && "no-wait", rules.stall && "stall-hold"].filter(Boolean);
     say(`rules v${rules.v} from ${tag(by)}: host ${rules.host ? tag(rules.host) : "first in line"}${flags.length ? `, ${flags.join(", ")}` : ""}${rules.out.length ? `, removed ${rules.out.map(tag).join(" ")}` : ""}`);
   }
 
@@ -790,7 +811,9 @@ export function createPartyRoom(deps: PartyDeps) {
       case "at": {
         if (!inRoom(from)) return;
         const at = clock.now() - (msg.lag + myLag()) * 1000;
-        update({ positions: { ...state.positions, [from]: { videoId: msg.videoId, position: msg.position, paused: msg.paused, at } } });
+        const was = state.positions[from]?.stalled;
+        update({ positions: { ...state.positions, [from]: { videoId: msg.videoId, position: msg.position, paused: msg.paused, stalled: msg.stalled, at } } });
+        if (msg.stalled !== was) hostDuty();
         return;
       }
       case "state": {
@@ -1034,7 +1057,8 @@ export function createPartyRoom(deps: PartyDeps) {
 
   /**
    * Host: keep the rules naming the actual host, answer joiners, and hold the
-   * room while anyone (not given up on) is loading, if the room waits.
+   * room while anyone (not given up on) is loading, if the room waits, or
+   * stalled mid-video, if the room pauses for that.
    */
   function hostDuty() {
     const p = state?.playback;
@@ -1061,8 +1085,59 @@ export function createPartyRoom(deps: PartyDeps) {
       else waitingSince.delete(m.id);
     }
     for (const id of waitingSince.keys()) if (!state.members.some((m) => m.id === id)) waitingSince.delete(id);
-    const hold = state.members.some((m) => waitingSince.has(m.id) && now - waitingSince.get(m.id)! < HOLD_MAX_MS);
-    if (hold !== p.held) partyAct({ held: hold });
+    const loading = state.members.some((m) => waitingSince.has(m.id) && now - waitingSince.get(m.id)! < HOLD_MAX_MS);
+    const stalled = stallsHeld(state.members, state.rules.stall);
+    const hold = loading || stalled.length > 0;
+    if (hold === p.held) return;
+    partyAct(hold && !loading ? { held: true, position: stallPosition(stalled, p) } : { held: hold });
+  }
+
+  /** Host: the members stalled mid-video the room holds for now (see STALL_SETTLE_MS). */
+  function stallsHeld(members: Member[], on: boolean) {
+    const now = clock.now();
+    const stalling = on ? members.filter((m) => isStalled(m, now) && !m.waiting && !m.away && !m.lost) : [];
+    for (const id of stallSince.keys()) if (!stalling.some((m) => m.id === id)) stallSince.delete(id);
+    for (const [id, holds] of stallHolds) {
+      const recent = holds.filter((t) => now - t < STALL_WINDOW_MS);
+      if (recent.length) stallHolds.set(id, recent);
+      else stallHolds.delete(id);
+    }
+    return stalling.filter((m) => {
+      const since = stallSince.get(m.id);
+      if (since === undefined) {
+        stallSince.set(m.id, now);
+        later(hostDuty, STALL_SETTLE_MS);
+        return false;
+      }
+      if (now - since < STALL_SETTLE_MS) return false;
+      if (now - since >= STALL_HOLD_MAX_MS) return false; // given up: it catches up by itself
+      const holds = stallHolds.get(m.id) ?? [];
+      if (holds.includes(since)) return true;
+      if (holds.length >= STALL_HOLDS_MAX) return false; // held for it too often lately
+      stallHolds.set(m.id, [...holds, since]);
+      say(`holding for ${tag(m.id)}: buffering`);
+      return true;
+    });
+  }
+
+  /**
+   * Stalled, as its position reports say (sent at once, re-sent every few
+   * seconds): presence is rationed, and would see a stall late or not at all.
+   * Presence's Buffering only for an app that doesn't report it, or has gone quiet.
+   */
+  function isStalled(m: Member, now: number) {
+    const at = state?.positions[m.id];
+    return at?.stalled !== undefined && now - at.at < LIVE_MS ? at.stalled : !!m.buffering;
+  }
+
+  /** Where a hold for a stall starts: where the furthest-behind stalled member stopped, so nobody misses what it missed. */
+  function stallPosition(stalled: Member[], p: Playback) {
+    const room = expectedPosition(p);
+    const stops = stalled
+      .map((m) => state?.positions[m.id])
+      .filter((at) => at && at.videoId === p.media.videoId && at.paused && room - at.position > 0 && room - at.position <= STALL_REWIND_MAX)
+      .map((at) => at!.position);
+    return stops.length ? Math.min(...stops) : room;
   }
 
   /** "Sam paused", "Sam jumped to 12:30" — for actions by others. */

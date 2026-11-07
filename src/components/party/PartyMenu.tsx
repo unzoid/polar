@@ -205,6 +205,12 @@ export function PartyHostControls({ party }: { party: PartyState }) {
       checked: rules.wait,
       set: (wait) => setRules({ wait }),
     },
+    {
+      label: "Pause when someone is buffering",
+      caption: "Hold playback while someone's video stalls",
+      checked: rules.stall,
+      set: (stall) => setRules({ stall }),
+    },
   ];
   return (
     <div className="party-host">
