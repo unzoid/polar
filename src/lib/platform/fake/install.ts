@@ -78,7 +78,9 @@ const commands: Record<string, (a: Args) => unknown> = {
   mal_token: () => Promise.reject({ code: "upstream", message: "not in the fake shell" }),
   seek_previews: () => null,
   ratings: () =>
-    fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
+    fx.WORST
+      ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100, tmdb: 0, imdb: 10 }
+      : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9, trakt: 84, tmdb: 81, imdb: 8.2 },
   trailer: () => null,
   addons_list: () => addons,
   // Install links (#163): any example.com add-on answers; an address with "broken" in it doesn't. Installs are counted.

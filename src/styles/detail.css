@@ -928,69 +928,56 @@
   color: var(--text-3);
 }
 
-/* Scores from elsewhere, as tiles in the details… */
-.score-cards {
+/* Scores from elsewhere, as one row of marks and numbers under the hero's facts. */
+.score-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.375rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 700;
 }
-.score-card {
-  display: grid;
-  gap: 0.125rem;
-  min-width: 128px;
-  padding: 0.875rem 1.125rem;
-  border-radius: var(--r-md);
-  background: var(--fill-2);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-}
-.score-card-label {
-  font-size: var(--fs-micro);
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-.score-card-value {
-  font-size: 1.625rem;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-}
-.score-card-note {
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-}
-.score-card[data-tone="fresh"] .score-card-value {
-  color: var(--brand-rt);
-}
-.score-card[data-tone="rotten"] .score-card-value {
-  color: #0ac855;
-}
-.score-card[data-tone="good"] .score-card-value {
-  color: #66cc33;
-}
-.score-card[data-tone="mid"] .score-card-value {
-  color: #ffcc33;
-}
-.score-card[data-tone="low"] .score-card-value {
-  color: #ff4d4d;
-}
-.score-card[data-kind="lb"] .score-card-value {
-  color: var(--brand-letterboxd);
-}
-
-/* …and as small chips beside the rating in the hero. */
-.score-chip {
+.score-row-item > * {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  margin-right: 0.25rem;
-  font-weight: 650;
-  color: var(--text);
+  gap: 0.375rem;
+  color: var(--score-color, var(--text));
 }
-.score-chip-icon {
-  width: 0.9375rem;
-  height: 0.9375rem;
+.score-row-link {
+  border-radius: var(--r-xs);
+  transition: opacity var(--dur-fast) var(--ease-std);
+}
+@media (hover: hover) and (pointer: fine) {
+  .score-row-link:hover {
+    opacity: 0.8;
+  }
+}
+.score-row-icon {
+  display: inline-flex;
+  color: var(--score-color, var(--text));
+}
+.score-row-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
   flex: none;
+}
+.score-row-item[data-site="tmdb"] .score-row-icon svg {
+  width: 1.5rem;
+}
+.score-row-item[data-site="imdb"] { --score-color: var(--brand-imdb); }
+.score-row-item[data-site="tmdb"] { --score-color: var(--brand-tmdb); }
+.score-row-item[data-site="trakt"] { --score-color: var(--brand-trakt); }
+.score-row-item[data-site="letterboxd"] { --score-color: var(--text); }
+.score-row-item[data-tone="fresh"] { --score-color: var(--brand-rt); }
+.score-row-item[data-tone="rotten"] { --score-color: #0ac855; }
+.score-row-item[data-site="metacritic"] .score-row-icon { color: var(--brand-metacritic); }
+.score-row-item[data-tone="good"] { --score-color: #66cc33; }
+.score-row-item[data-tone="mid"] { --score-color: #ffcc33; }
+.score-row-item[data-tone="low"] { --score-color: #ff4d4d; }
+:root[data-form="phone"] .score-row {
+  justify-content: center;
 }
 /* Apple TV's format badges: tiny, outlined, quiet. Short ones (4K, CC) are
    boxes; long ones (Dolby Vision) the same box in smaller type. */

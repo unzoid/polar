@@ -14,8 +14,7 @@ import { imdbUrl } from "../RatingRing";
 import { Chip } from "../ui/Chip";
 
 /**
- * Everything about a title below the fold: what critics and audiences
- * thought, who's in it (with faces where the source has them), the facts,
+ * Everything about a title below the fold: who's in it (with faces where the source has them), the facts,
  * and links out to IMDb, Letterboxd, TMDB and Rotten Tomatoes. A movie's
  * "About", a show's "Details" tab.
  */
@@ -47,7 +46,6 @@ export function TitleDetails({ meta, links: showLinks = true }: { meta: Meta; li
   return (
     <div className="details">
       {d.tagline && <p className="details-tagline">“{d.tagline}”</p>}
-      <ScoreCards ratings={ratings} />
 
       {people.length > 0 && (
         <DetailsSection label="Cast">
@@ -187,68 +185,88 @@ const initials = (name: string) =>
     .join("");
 
 
-/** Big scores for the details: one tile per service that has one. IMDb's is the badge up top. */
-function ScoreCards({ ratings }: { ratings?: ExternalRatings }) {
-  const tiles: { key: string; label: string; value: string; note?: string; tone?: string }[] = [];
-  if (ratings?.rottenTomatoes != null)
-    tiles.push({
-      key: "rt",
-      label: "Tomatometer",
-      value: `${ratings.rottenTomatoes}%`,
-      note: isFresh(ratings.rottenTomatoes) ? "Fresh" : "Rotten",
-      tone: isFresh(ratings.rottenTomatoes) ? "fresh" : "rotten",
-    });
-  if (ratings?.audience != null)
-    tiles.push({ key: "audience", label: "Audience", value: `${ratings.audience}%`, note: "Rotten Tomatoes", tone: isFresh(ratings.audience) ? "fresh" : "rotten" });
-  if (ratings?.metacritic != null)
-    tiles.push({
-      key: "mc",
-      label: "Metacritic",
-      value: String(ratings.metacritic),
-      tone: metacriticTone(ratings.metacritic),
-    });
-  if (ratings?.letterboxd != null) tiles.push({ key: "lb", label: "Letterboxd", value: `${ratings.letterboxd.toFixed(1)} ★`, note: "out of 5" });
-  if (ratings?.trakt != null) tiles.push({ key: "trakt", label: "Trakt", value: `${ratings.trakt}%` });
-  if (!tiles.length) return null;
-  return (
-    <div className="score-cards">
-      {tiles.map((t) => (
-        <div key={t.key} className="score-card" data-kind={t.key} data-tone={t.tone}>
-          <span className="score-card-label">{t.label}</span>
-          <span className="score-card-value tabular">{t.value}</span>
-          {t.note && <span className="score-card-note">{t.note}</span>}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /**
- * The Tomatometer beside a title's facts, as Apple TV shows it: a small
- * tomato (or splat, when rotten) and the percentage. The other scores
- * (audience, Metacritic, Letterboxd) are in the score cards further down.
+ * Every score the user's MDBList/OMDb key found, in one row under a title's
+ * facts: each site's mark and its number. A score whose page on that site is
+ * known opens it (the marks are only ever shown as links out). Nothing when
+ * no key is set or nothing is known.
  */
-export function ScoreChips({ type, id }: { type: ContentType; id: string }) {
-  const { data: r } = useRatings(type, id);
-  if (r?.rottenTomatoes == null) return null;
-  const ok = isFresh(r.rottenTomatoes);
+export function ScoreRow({ ratings: r }: { ratings?: ExternalRatings }) {
+  if (!r) return null;
+  const links = r.links ?? {};
+  const scores: { key: keyof typeof links; site: string; icon: ReactNode; value: string; tone?: string }[] = [];
+  if (r.imdb != null) scores.push({ key: "imdb", site: "IMDb", icon: <BrandIcon site="imdb" />, value: r.imdb.toFixed(1) });
+  if (r.tmdb != null) scores.push({ key: "tmdb", site: "TMDB", icon: <BrandIcon site="tmdb" />, value: String(r.tmdb) });
+  if (r.trakt != null) scores.push({ key: "trakt", site: "Trakt", icon: <BrandIcon site="trakt" />, value: String(r.trakt) });
+  if (r.letterboxd != null) scores.push({ key: "letterboxd", site: "Letterboxd", icon: <LetterboxdDots />, value: r.letterboxd.toFixed(1) });
+  if (r.rottenTomatoes != null) {
+    const fresh = isFresh(r.rottenTomatoes);
+    scores.push({ key: "rottenTomatoes", site: `Rotten Tomatoes (${fresh ? "Fresh" : "Rotten"})`, icon: fresh ? <Tomato /> : <Splat />, value: `${r.rottenTomatoes}%`, tone: fresh ? "fresh" : "rotten" });
+  }
+  if (r.audience != null) {
+    const fresh = isFresh(r.audience);
+    scores.push({ key: "audience", site: "Rotten Tomatoes audience", icon: <Popcorn spilled={!fresh} />, value: `${r.audience}%`, tone: fresh ? "fresh" : "rotten" });
+  }
+  if (r.metacritic != null) scores.push({ key: "metacritic", site: "Metacritic", icon: <BrandIcon site="metacritic" />, value: String(r.metacritic), tone: metacriticTone(r.metacritic) });
+  if (!scores.length) return null;
   return (
-    <span className="score-chip" title={`Rotten Tomatoes: ${ok ? "Fresh" : "Rotten"}`}>
-      {ok ? <Tomato /> : <Splat />}
-      <span className="tabular">{r.rottenTomatoes}%</span>
-    </span>
+    <ul className="score-row t-callout tabular" aria-label="Scores">
+      {scores.map((s) => {
+        const href = links[s.key];
+        const body = (
+          <>
+            <span className="score-row-icon">{s.icon}</span>
+            <span className="score-row-value">{s.value}</span>
+          </>
+        );
+        return (
+          <li key={s.key} className="score-row-item" data-site={s.key} data-tone={s.tone} title={href ? `${s.site}: open the page` : s.site}>
+            {href ? (
+              <button className="score-row-link" onClick={() => void api.openExternal(href)} aria-label={`${s.site} ${s.value}, open on the site`}>
+                {body}
+              </button>
+            ) : (
+              <span aria-label={`${s.site} ${s.value}`}>{body}</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
+/** Letterboxd's three dots, in their colours. */
+const LetterboxdDots = () => (
+  <svg viewBox="0 0 24 24" aria-hidden>
+    <circle cx="4.5" cy="12" r="4.4" fill="#ff8000" />
+    <circle cx="12" cy="12" r="4.4" fill="#00e054" />
+    <circle cx="19.5" cy="12" r="4.4" fill="#40bcf4" />
+  </svg>
+);
+
+/** The audience score: a popcorn bucket, tipped over when under 60%. */
+const Popcorn = ({ spilled }: { spilled: boolean }) => (
+  <svg viewBox="0 0 16 16" aria-hidden>
+    <g transform={spilled ? "rotate(-35 8 9)" : undefined}>
+      <circle cx="4.6" cy="5.6" r="2.1" fill={spilled ? "#0ac855" : "#ffd65c"} />
+      <circle cx="8" cy="4.3" r="2.5" fill={spilled ? "#0ac855" : "#ffe9a3"} />
+      <circle cx="11.4" cy="5.6" r="2.1" fill={spilled ? "#0ac855" : "#ffd65c"} />
+      <path d="M2.8 6.6h10.4l-1.4 8.4H4.2z" fill="#fff" />
+      <path d="M5 6.6h1.7l.4 8.4H5.6zM9.3 6.6H11l-.6 8.4H8.9z" fill={spilled ? "#0ac855" : "#fa320a"} />
+    </g>
+  </svg>
+);
+
 const Tomato = () => (
-  <svg className="score-chip-icon" viewBox="0 0 16 16" aria-hidden>
+  <svg viewBox="0 0 16 16" aria-hidden>
     <circle cx="8" cy="9" r="6.25" fill="#fa320a" />
     <path d="M8 3.6c-.9-1.3-2.4-1.6-3.4-1.1 1 .3 1.6.9 1.9 1.6-1.2-.2-2.2.2-2.8 1 1.3-.2 2.4.1 3.1.8.3-.6.7-.9 1.2-1 .5.1.9.4 1.2 1 .7-.7 1.8-1 3.1-.8-.6-.8-1.6-1.2-2.8-1 .4-.8 1-1.3 1.9-1.6-1-.5-2.5-.2-3.4 1.1Z" fill="#00912d" />
   </svg>
 );
 
 const Splat = () => (
-  <svg className="score-chip-icon" viewBox="0 0 16 16" aria-hidden>
+  <svg viewBox="0 0 16 16" aria-hidden>
     <path
       d="M8.2 1.5c.7 1.6.4 2.6 1.3 2.8 1 .2 1.6-1.4 3-1.2-.5 1.4-1.6 2-1 2.8.7.8 2.2-.2 3.1.6-1.3.8-2.4.6-2.3 1.6 0 1 1.7 1.3 1.7 2.6-1.4-.3-2-1.4-2.9-.8-.8.6.2 2.2-.6 3.2-.9-1.2-.6-2.5-1.6-2.6-1 0-1.2 1.6-2.6 2 .2-1.5 1.3-2.1.7-2.9-.6-.8-2.2.2-3.4-.5 1.2-.8 2.5-.8 2.5-1.7 0-.9-1.6-1-2.3-2.3 1.5 0 2.2.9 3 .4.8-.6.1-2 .4-3.5 1 .9 1 2.2 1.9 2.1.8-.1.6-1.5 1.8-3.7Z"
       fill="#0ac855"
