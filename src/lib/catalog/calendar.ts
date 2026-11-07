@@ -42,7 +42,11 @@ function airDay(released?: string) {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
 }
 
-export function useCalendar(enabled = true) {
+/**
+ * `all`: every dated episode, not just the last week and the next 90 days (TV mode's Calendar, which
+ * can go to any week). The same shows and lookups either way.
+ */
+export function useCalendar(enabled = true, all = false) {
   const { data: library } = useLibrary();
   const { data: watching } = useContinueWatching();
   const { data: history } = useWatchHistory();
@@ -77,8 +81,8 @@ export function useCalendar(enabled = true) {
 
   const entries = useMemo(() => {
     const today = midnight(Date.now());
-    const from = today - PAST_DAYS * DAY;
-    const to = today + FUTURE_DAYS * DAY;
+    const from = all ? -Infinity : today - PAST_DAYS * DAY;
+    const to = all ? Infinity : today + FUTURE_DAYS * DAY;
     const out: CalendarEntry[] = [];
     for (const show of shows) {
       for (const video of show.videos) {
@@ -90,7 +94,7 @@ export function useCalendar(enabled = true) {
     }
     return out.sort((a, b) => a.day - b.day || a.show.name.localeCompare(b.show.name) || a.video.episode - b.video.episode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stamp]);
+  }, [stamp, all]);
 
   return { entries, loading, showCount: ids.length };
 }
@@ -104,6 +108,42 @@ export function byDay(entries: CalendarEntry[]) {
     else days.push({ day: e.day, entries: [e] });
   }
   return days;
+}
+
+/** The locale's first day of the week, as `Date.getDay()` counts (0 = Sunday); Monday where the browser can't say. */
+function firstWeekday() {
+  try {
+    const locale = new Intl.Locale(navigator.language) as Intl.Locale & {
+      getWeekInfo?: () => { firstDay: number };
+      weekInfo?: { firstDay: number };
+    };
+    const first = (locale.getWeekInfo?.() ?? locale.weekInfo)?.firstDay; // 1 = Monday … 7 = Sunday
+    return first ? first % 7 : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** Local midnight of the first day of the week `t` falls in, `offset` weeks on. */
+export function weekStart(t: number, offset = 0, first = firstWeekday()) {
+  const d = new Date(t);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() - first + 7) % 7) + offset * 7);
+  return d.getTime();
+}
+
+/** The seven days of the week starting at `start`, each its local midnight (DST-safe). */
+export function weekDays(start: number) {
+  const d = new Date(start);
+  return Array.from({ length: 7 }, (_, i) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + i).getTime());
+}
+
+/** The starts of the weeks a month's days fall in (4–6), for a month grid. `month` is 0-based. */
+export function monthWeeks(year: number, month: number, first = firstWeekday()) {
+  const out: number[] = [];
+  const end = new Date(year, month + 1, 1).getTime();
+  for (let start = weekStart(new Date(year, month, 1).getTime(), 0, first); start < end; start = weekStart(start, 1, first)) out.push(start);
+  return out;
 }
 
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" });
