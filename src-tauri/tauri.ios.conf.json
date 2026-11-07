@@ -7,7 +7,6 @@
         "OpenGLES",
         "AVFoundation",
         "UserNotifications",
-        "Security",
         "vendor/ios/frameworks/Libavcodec.xcframework",
         "vendor/ios/frameworks/Libavfilter.xcframework",
         "vendor/ios/frameworks/Libavformat.xcframework",
