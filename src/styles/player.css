@@ -2053,10 +2053,3 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
 :root[data-compact="true"] .episode-rail {
   grid-auto-columns: min(78vw, 340px);
 }
-
-/* Frame stepping (#243): two small buttons by the clock while paused. */
-.player-frame-step {
-  display: flex;
-  gap: 0.25rem;
-  margin-right: -0.5rem;
-}

@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Dropdown } from "../components/Dropdown";
 import { ConfirmDeleteButton } from "../components/ConfirmDeleteButton";
-import { DownloadButton, DownloadGlyph } from "../components/DownloadButton";
+import { DownloadGlyph } from "../components/DownloadButton";
 import { Bookmark, ChevronLeft, ChevronRight, Close, Download, PlaylistIcon, Play, Plus, Watched } from "../components/icons";
 import { Img } from "../components/Img";
 import { PlaylistTile, usePlaylistItem } from "../components/Playlists";
@@ -13,9 +13,9 @@ import { watchedFraction } from "../lib/library";
 import { fileKind, fileTitle, forgetRecent, playRecent, useRecentFiles, type RecentFile } from "../lib/localFiles";
 import { Row } from "../components/Row";
 import { StillPlaceholder } from "../components/StillPlaceholder";
-import { downloadFraction, localStream, useAllLeaving, useDownloads, useLeaving, type Download as DownloadRecord } from "../lib/library";
-import { TitleLogo } from "../components/TitleLogo";
-import { episodeCode, formatBytes } from "../lib/format";
+import { localStream, useDownloads, useLeaving, type Download as DownloadRecord } from "../lib/library";
+import { DownloadsPage, downloadLine } from "../components/downloads/DownloadsPage";
+import { formatBytes } from "../lib/format";
 import {
   createPlaylist,
   MAX_PLAYLISTS,
@@ -29,7 +29,6 @@ import { useLibrary, useWatchHistory } from "../lib/net";
 import { useRouter, type Route } from "../lib/router";
 import { progressFraction, progressItem } from "../lib/catalog";
 import type { ContentType } from "../lib/types";
-import { buttonClass } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { PosterGrid } from "../components/title/PosterGrid";
 
@@ -94,7 +93,7 @@ export function LibraryCollection({ view }: { view: Collection }) {
       )}
       {view === "downloads" && (
         <CollectionPage title="Downloads" onBack={back}>
-          {() => <Downloads />}
+          {() => <DownloadsPage />}
         </CollectionPage>
       )}
     </div>
@@ -301,19 +300,6 @@ function usePlayDownload() {
   return (d: DownloadRecord) => navigate({ name: "player", type: d.type, metaId: d.metaId, videoId: d.id, stream: localStream(d) });
 }
 
-/** "S1 E3 · 1080p · 2.4 GB", or how far along it is. */
-function downloadLine(d: DownloadRecord) {
-  const ep = d.season != null && d.episode != null ? episodeCode(d.season, d.episode) : null;
-  const f = downloadFraction(d);
-  const status =
-    d.state === "done"
-      ? formatBytes(d.total ?? d.received)
-      : d.state === "failed"
-        ? "Failed"
-        : `${d.state === "paused" ? "Paused" : "Downloading"}${f != null ? ` · ${Math.round(f * 100)}%` : ""}`;
-  return [ep, d.quality, status].filter(Boolean).join(" · ");
-}
-
 // --- A whole collection ----------------------------------------------------------------------
 
 function CollectionPage({
@@ -393,116 +379,6 @@ function WatchedGrid({ kind, sort }: { kind: Kind; sort: Sort }) {
         ))}
       </PosterGrid>
     </>
-  );
-}
-
-/**
- * Downloads, grouped by title as Netflix does: the poster and how much of it
- * is here, then a row per movie or episode - tap the still to play, the
- * control on the right to pause, resume or delete.
- */
-function Downloads() {
-  const { data } = useDownloads();
-  const play = usePlayDownload();
-  const groups = useMemo(() => {
-    const m = new Map<string, DownloadRecord[]>();
-    for (const d of data ?? []) m.set(d.metaId, [...(m.get(d.metaId) ?? []), d]);
-    for (const list of m.values()) list.sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0));
-    return [...m.values()];
-  }, [data]);
-
-  if (data?.length === 0) {
-    return (
-      <EmptyState>
-        Download a movie or an episode with <Download size={15} className="inline-icon" /> on its page to watch it without a connection.
-      </EmptyState>
-    );
-  }
-  return (
-    <div className="downloads">
-      {groups.map((list) => (
-        <DownloadGroup key={list[0].metaId} list={list} play={play} />
-      ))}
-    </div>
-  );
-}
-
-/** One title: its logo (or name) and how much of it is here, then its rows. Folds away with its last row. */
-function DownloadGroup({ list, play }: { list: DownloadRecord[]; play: (d: DownloadRecord) => void }) {
-  const first = list[0];
-  const here = list.filter((d) => d.state === "done");
-  const bytes = here.reduce((n, d) => n + (d.total ?? d.received), 0);
-  const series = first.type === "series";
-  const allLeaving = useAllLeaving(list.map((d) => d.id));
-  return (
-    <section className="download-group" data-leaving={allLeaving || undefined}>
-      <div className="download-group-fold">
-        <div className="download-group-head">
-          {first.logo ? (
-            <TitleLogo src={first.logo} alt={first.name} className="download-group-logo" />
-          ) : (
-            <h2 className="download-group-title">{first.name}</h2>
-          )}
-          <p className="t-caption faint tabular">
-            {[series ? count(list.length, "episode") : "Movie", here.length ? formatBytes(bytes) : null].filter(Boolean).join(" · ")}
-          </p>
-        </div>
-        <ul className="download-rows">
-          {list.map((d) => (
-            <DownloadRow key={d.id} d={d} series={series} play={play} />
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
-
-/**
- * A movie or an episode. Deleting it folds the row shut (height via a
- * 1fr → 0fr grid row, with a fade and a slight drop in scale) before it
- * leaves the list, so the rows below slide up instead of jumping.
- */
-function DownloadRow({ d, series, play }: { d: DownloadRecord; series: boolean; play: (d: DownloadRecord) => void }) {
-  const leaving = useLeaving(d.id);
-  return (
-    <li className="download-row" data-state={d.state} data-leaving={leaving || undefined}>
-      <div className="download-row-fold">
-        <div className="download-row-inner">
-                  <button className="download-row-main" disabled={d.state !== "done"} onClick={() => play(d)}>
-                    <span className="download-row-still">
-                      {d.thumbnail ?? d.background ? <Img src={(d.thumbnail ?? d.background)!} alt="" /> : <StillPlaceholder />}
-                      {d.state === "done" && (
-                        <span className="download-row-play">
-                          <Play size={16} fill="currentColor" />
-                        </span>
-                      )}
-                      {d.state !== "done" && downloadFraction(d) != null && (
-                        <span className="progress-track">
-                          <span className="progress-fill" style={{ transform: `scaleX(${downloadFraction(d)})` }} />
-                        </span>
-                      )}
-                    </span>
-                    <span className="download-row-text">
-                      <span className="t-headline">
-                        {series && d.episode != null ? `${d.episode}. ${d.episodeTitle ?? `Episode ${d.episode}`}` : d.name}
-                      </span>
-                      <span className="t-caption faint tabular">{downloadLine(d)}</span>
-                      {d.state === "failed" && d.error && <span className="t-caption download-row-error">{d.error}</span>}
-                    </span>
-                  </button>
-                  <DownloadButton
-                    item={{ id: d.metaId, type: d.type, name: d.name, poster: d.poster, background: d.background, logo: d.logo }}
-                    video={
-                      series
-                        ? { id: d.id, title: d.episodeTitle ?? "", season: d.season ?? 0, episode: d.episode ?? 0, thumbnail: d.thumbnail }
-                        : undefined
-                    }
-                    className={buttonClass("plain", true, "download-row-action quiet-btn")}
-                    size={18}
-                  />
-        </div>
-      </div>
-    </li>
   );
 }
 

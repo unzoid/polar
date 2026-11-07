@@ -27,6 +27,11 @@ describe("AniList cards", () => {
     expect(card.nextAiringEpisode).toEqual({ episode: 1100, airingAt: 1_730_000_000, timeUntilAiring: 0 });
     expect("description" in card).toBe(false);
     expect(readCard({ id: 1, description: null })!.description).toBeNull();
+    // A relation's official links (#192): kept when asked for, the ones without a site or URL dropped.
+    expect("externalLinks" in card).toBe(false);
+    expect(readCard({ id: 1, externalLinks: [{ site: "YouTube", url: "https://youtu.be/AAAAAAAAAAA", type: "STREAMING" }, { site: 3 }, null] })!.externalLinks).toEqual([
+      { site: "YouTube", url: "https://youtu.be/AAAAAAAAAAA" },
+    ]);
   });
 
   test("a list keeps the cards that read", () => {

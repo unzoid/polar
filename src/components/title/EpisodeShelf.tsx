@@ -17,6 +17,7 @@ export function EpisodeShelf({
   episodes,
   progress,
   runtime,
+  stillFallback,
   upNextId,
   onPlay,
   onSources,
@@ -29,6 +30,8 @@ export function EpisodeShelf({
   episodes: Video[];
   progress: Map<string, Progress>;
   runtime?: string;
+  /** A picture for episodes with no still, shown dimmed (the show's banner). */
+  stillFallback?: string;
   upNextId?: string;
   onPlay: (v: Video) => void;
   onSources: (v: Video) => void;
@@ -65,6 +68,7 @@ export function EpisodeShelf({
       video={v}
       progress={progress.get(v.id)}
       runtime={runtime}
+      stillFallback={stillFallback}
       upNext={v.id === upNextId}
       onPlay={onPlay}
       onSources={onSources}

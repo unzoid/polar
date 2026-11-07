@@ -83,11 +83,11 @@ export function TrailerHost() {
           <span className="trailer-name t-headline">{open.name}</span>
           {(url || ytId) && <span className="trailer-source t-caption">{trailerSourceLabel(open, url ? "file" : "youtube")}</span>}
           {ytId && (
-            <Button variant="glass" onClick={() => void api.openExternal(youtubeUrl(ytId))}>
-              <TrailerIcon size={16} /> Open in YouTube
+            <Button variant="glass" className="trailer-yt" onClick={() => void api.openExternal(youtubeUrl(ytId))}>
+              <TrailerIcon size={16} /> <span className="trailer-yt-label">Open in YouTube</span>
             </Button>
           )}
-          <IconButton variant="glass" onClick={closeTrailer} label="Close trailer" title="Close (Esc)">
+          <IconButton variant="glass" className="trailer-close" onClick={closeTrailer} label="Close trailer" title="Close (Esc)">
             <Close size={18} />
           </IconButton>
         </div>
