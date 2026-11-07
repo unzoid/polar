@@ -64,7 +64,8 @@ import {
   forgetAssOverride,
   subtitleCueVars,
 } from "../components/player/SubtitleSettings";
-import { MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
+import { isMpv, MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
+import { createFrameStepper, DEFAULT_FPS, measureFps, stepFrame } from "../components/player/frameStep";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
 import { getPrefs, openSettings, setPrefs, useEpisodeLayout, usePrefs, withShortcut } from "../lib/settings";
 import { Segmented } from "../components/Segmented";
@@ -97,7 +98,7 @@ import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { LinkForm, PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { PartyActions, PartyHostControls } from "../components/party/PartyMenu";
-import { WatchParty } from "../components/icons";
+import { ChevronLeft, ChevronRight, WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage, storeLocal, warnFailed } from "../lib/errors";
 import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
@@ -584,6 +585,37 @@ export function Player({
     if (videoRef.current) videoRef.current.currentTime = t;
   }, []);
 
+  // --- Frame stepping (#243) ---------------------------------------------------
+  // The rate frames are counted in: what mpv reads in the file, or what the built-in player measures as it plays.
+  const [fps, setFps] = useState<number | null>(null);
+  useEffect(() => {
+    setFps(null);
+    if (!started || !media) return;
+    if (isMpv(media)) {
+      let live = true;
+      void media.frameRate().then((f) => live && setFps(f));
+      return () => void (live = false);
+    }
+    if (media === videoEl && videoEl) return measureFps(videoEl, setFps);
+  }, [media, started, videoEl]);
+  const fpsRef = useRef(DEFAULT_FPS);
+  fpsRef.current = fps ?? DEFAULT_FPS;
+  /** Stepped since the last pause: the clock shows the frame until playback resumes. */
+  const [stepping, setStepping] = useState(false);
+  useEffect(() => {
+    if (!paused) setStepping(false);
+  }, [paused]);
+  const stepper = useMemo(
+    () =>
+      createFrameStepper(async (direction) => {
+        const v = videoRef.current;
+        if (!v?.duration || !startedRef.current) return;
+        setStepping(true);
+        await stepFrame(v, direction, fpsRef.current);
+      }),
+    [],
+  );
+
   const onAutoSkipped = useCallback((label: string) => flashNotice(label, 2500), [flashNotice]);
   const { preferFileChapters, autoSkipDelay } = usePrefs();
   const skip = useSkipSegments({
@@ -601,7 +633,7 @@ export function Player({
   // A phone or tablet has no window to make fullscreen: its button fits the picture inside the
   // screen or fills the screen with it, cropping the edges (#148, #149). Autocrop (Settings →
   // Advanced) still takes the black bars off a fitted picture.
-  const { videoFill } = usePrefs();
+  const { videoFill, tvFrameStep } = usePrefs();
   const fill = !isDesktop && videoFill;
   useEffect(() => {
     if (engine === "mpv" && !isDesktop) void mpv.set("panscan", fill ? 1 : 0);
@@ -801,12 +833,26 @@ export function Player({
           togglePlay();
           return true;
         case "seekBack":
+          // TV, paused, with "Step one frame" chosen in the player's options: Left steps instead.
+          if (tv && tvFrameStep && paused) {
+            stepper.step(-1);
+            return true;
+          }
           seekBy(-seekStep);
           kick("back");
           return true;
         case "seekForward":
+          if (tv && tvFrameStep && paused) {
+            stepper.step(1);
+            return true;
+          }
           seekBy(seekStep);
           kick("forward");
+          return true;
+        case "frameBack":
+        case "frameForward":
+          if (!started) return false;
+          stepper.step(action === "frameBack" ? -1 : 1);
           return true;
         case "volumeUp":
           setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
@@ -1113,11 +1159,26 @@ export function Player({
       >
         <div className="player-timeline">
           <Scrubber media={media} previews={seekTrack} span={skip.segments?.intro} onSeek={seekTo} />
-          <PlayerClock media={media} display={timeDisplay} rate={rate} onCycle={cycleClock} />
+          {paused && started && !tv && (
+            <div className="player-frame-step">
+              <IconButton variant="player" onClick={() => stepper.step(-1)} label="Back one frame" title={withShortcut("Back one frame", "frameBack")}>
+                <ChevronLeft size={20} />
+              </IconButton>
+              <IconButton variant="player" onClick={() => stepper.step(1)} label="Forward one frame" title={withShortcut("Forward one frame", "frameForward")}>
+                <ChevronRight size={20} />
+              </IconButton>
+            </div>
+          )}
+          <PlayerClock media={media} display={timeDisplay} rate={rate} onCycle={cycleClock} fps={stepping ? (fps ?? DEFAULT_FPS) : null} />
         </div>
         <div className="player-actions">
-          {!party && (
-            <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={(el) => openOptions("speed", el)} />
+          {(!party || tv) && (
+            <ActionButton
+              icon={<Speed size={22} />}
+              label={party ? "Left and Right" : `Speed (${rate}x)`}
+              glyph={pad("speed")}
+              onClick={(el) => openOptions("speed", el)}
+            />
           )}
           {type === "series" && (
             <ActionButton icon={<Episodes size={22} />} label={local ? "In this folder" : "Episodes"} glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
@@ -1147,12 +1208,30 @@ export function Player({
         onClose={() => setOptions(null)}
         media={media}
         columns={[
-          {
-            title: "Playback Speed",
-            value: String(rate),
-            options: SPEEDS.map((r) => ({ id: String(r), label: speedLabel(r) })),
-            onSelect: (id) => setRate(Number(id)),
-          },
+          ...(party
+            ? []
+            : [
+                {
+                  title: "Playback Speed",
+                  value: String(rate),
+                  options: SPEEDS.map((r) => ({ id: String(r), label: speedLabel(r) })),
+                  onSelect: (id: string) => setRate(Number(id)),
+                },
+              ]),
+          // TV: what the remote's Left and Right do while paused (#243).
+          ...(tv
+            ? [
+                {
+                  title: "Left and Right",
+                  value: tvFrameStep ? "frame" : "seek",
+                  options: [
+                    { id: "seek", label: `Skip ${seekStep} seconds` },
+                    { id: "frame", label: "Step one frame when paused" },
+                  ],
+                  onSelect: (id: string) => setPrefs({ tvFrameStep: id === "frame" }),
+                },
+              ]
+            : []),
         ]}
       />
       <OptionsOverlay

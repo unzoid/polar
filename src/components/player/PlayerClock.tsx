@@ -1,4 +1,5 @@
 import { formatTime } from "../../lib/format";
+import { frameAt } from "./frameStep";
 import type { MediaLike } from "./mpvMedia";
 import { useMediaTime } from "./useMediaTime";
 
@@ -10,11 +11,26 @@ const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-d
 /**
  * The timeline clock (Settings → Playback; clicking it cycles). Its own
  * component: it is the one part of the controls that changes every second.
+ * After a frame step (`fps` set, until playback resumes) it shows the time and the frame number instead.
  */
-export function PlayerClock({ media, display, rate, onCycle }: { media: MediaLike | null; display: TimeDisplay; rate: number; onCycle: () => void }) {
+export function PlayerClock({
+  media,
+  display,
+  rate,
+  onCycle,
+  fps = null,
+}: {
+  media: MediaLike | null;
+  display: TimeDisplay;
+  rate: number;
+  onCycle: () => void;
+  fps?: number | null;
+}) {
   // "Ends at" depends on the clock as well: select whole seconds left at this speed, format with the time now.
   const shown = useMediaTime(media, (t) =>
-    display === "elapsed"
+    fps
+      ? `${formatTime(t.current)} · Frame ${frameAt(t.current, fps)}`
+      : display === "elapsed"
       ? `${formatTime(t.current)} / ${formatTime(t.duration)}`
       : display === "endsAt"
         ? Math.round((t.duration - t.current) / (rate || 1))

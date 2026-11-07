@@ -11,9 +11,13 @@ export const JUMP = 2;
 const ECHO_MS = 1500;
 /** Paused, the room is exactly where it stopped: a move this far is the viewer's. */
 const PAUSED_MOVE = 0.25;
+/** Paused, the room moving (a paused seek or a frame step, #243) is followed to within this: a frame is 1/24 s. */
+const EXACT = 0.005;
 /** A seek here waits this long for the next before it's the room's: one update for a drag, held arrow keys or a wheel. */
 export const SEEK_SETTLE_MS = 300;
 export const FOLLOW_MS = 250;
+/** What a frame step (frameStep.ts) fires on the media once it has landed: a paused seek, however small. */
+export const FRAME_STEP_EVENT = "framestep";
 
 export interface FollowerDeps {
   media: MediaLike;
@@ -53,6 +57,8 @@ export function createPartyFollower(d: FollowerDeps) {
   let seekSent: number | null = null;
   /** When the viewer last sought here, until the room has been told where it settled. */
   let viewerSeek: number | null = null;
+  /** Paused, the room's position as last followed: when it changes, it's someone's paused seek or frame step. */
+  let heldAt: number | null = null;
   let stopped = false;
 
   const onRoom = () => {
@@ -102,9 +108,14 @@ export function createPartyFollower(d: FollowerDeps) {
     if (d.buffering()) return; // stalled: the drift is the stall's, not ours to fix yet
     if (hold) {
       setRate(1);
-      if (Math.abs(m.currentTime - p.position) > 0.5) seek(p.position);
+      // A move of the paused room lands exactly where it went (the same frame for everyone);
+      // otherwise a player that stopped a little apart (paused mid-drift) is left where it is.
+      const moved = heldAt != null && p.position !== heldAt;
+      heldAt = p.position;
+      if (Math.abs(m.currentTime - p.position) > (moved ? EXACT : 0.5)) seek(p.position);
       return;
     }
+    heldAt = null;
     const target = d.expected(p);
     if (Number.isFinite(m.duration) && m.duration > 0 && target >= m.duration - 1) return; // let it end on its own
     const drift = m.currentTime - target;
@@ -139,10 +150,16 @@ export function createPartyFollower(d: FollowerDeps) {
     viewerSeek = d.now();
   }
 
+  /** The viewer stepped a frame (frameStep.ts): a paused seek, however small. */
+  function onStep() {
+    if (viewer()) viewerSeek = d.now();
+  }
+
   return {
     tick,
     onPlayPause,
     onSeeking,
+    onStep,
     /** Playback (re)starting: the engine has to match the room again before it speaks for the viewer. */
     restart() {
       synced = false;
@@ -152,7 +169,7 @@ export function createPartyFollower(d: FollowerDeps) {
     jump() {
       const p = onRoom();
       if (stopped || !p || !d.started()) return;
-      seekSent = viewerSeek = null;
+      seekSent = viewerSeek = heldAt = null;
       setRate(1);
       const hold = p.paused || p.held;
       seek(hold ? p.position : d.expected(p) + seekLag);

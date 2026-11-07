@@ -5,7 +5,7 @@ import { expect } from "bun:test";
 import type { AccountBackend, PartyHandlers, PartyPresence } from "../src/lib/account/backend";
 import { parsePresence } from "../src/lib/party/messages";
 import { createPartyRoom, memberStatus, type PartyClock, type PartyRoom, type PartyState } from "../src/lib/party/room";
-import { createPartyFollower } from "../src/components/player/partyFollower";
+import { createPartyFollower, FRAME_STEP_EVENT } from "../src/components/player/partyFollower";
 import type { MediaLike } from "../src/components/player/mpvMedia";
 
 // --- Clock -------------------------------------------------------------------
@@ -236,6 +236,7 @@ export function setup<H extends SimServer = Hub>(makeHub: (sim: Sim) => H = (sim
     media.addEventListener("play", f.onPlayPause);
     media.addEventListener("pause", f.onPlayPause);
     media.addEventListener("seeking", f.onSeeking);
+    media.addEventListener(FRAME_STEP_EVENT, f.onStep);
     media.addEventListener("started", () => {
       m.room.setPartyWaiting(false);
       f.tick();

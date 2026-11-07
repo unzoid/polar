@@ -248,6 +248,34 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await expect(player).toHaveCount(0);
 });
 
+test("the player steps one frame at a time with , and . and the buttons by the clock, which shows the frame (#243)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  const back = app.getByRole("button", { name: "Back one frame" });
+  const forward = app.getByRole("button", { name: "Forward one frame" });
+  // Only while paused; "." pauses first.
+  await expect(forward).toHaveCount(0);
+  await app.waitForTimeout(1200);
+  await app.keyboard.press(".");
+  await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await expect(forward).toBeVisible();
+  const frame = async () => Number((await clock(app))?.match(/Frame (\d+)/)?.[1] ?? NaN);
+  await expect.poll(frame).toBeGreaterThan(0);
+  const start = await frame();
+  await forward.click();
+  await expect.poll(frame).toBe(start + 1);
+  await app.keyboard.press(",");
+  await expect.poll(frame).toBe(start);
+  await back.click();
+  await expect.poll(frame).toBe(start - 1);
+  // Playing again: the buttons go and the clock is the clock again.
+  await app.keyboard.press(" ");
+  await expect(forward).toHaveCount(0);
+  await expect.poll(() => clock(app)).not.toContain("Frame");
+});
+
 test("with an AirPlay receiver around, the player sends the video to it and back (#19)", async ({ app }) => {
   // WebKit's AirPlay surface, as WKWebView on macOS has it: a receiver is there, and the picker toggles to it and back.
   await app.addInitScript(() => {
