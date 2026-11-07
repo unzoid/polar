@@ -41,6 +41,8 @@ export const Edit = icon(S24.PencilIcon, S20.PencilIcon, S16.PencilIcon);
 export const Episodes = icon(S24.RectangleStackIcon, S20.RectangleStackIcon, S16.RectangleStackIcon);
 export const ExitFullscreen = icon(S24.ArrowsPointingInIcon, S20.ArrowsPointingInIcon, S16.ArrowsPointingInIcon);
 export const Fullscreen = icon(S24.ArrowsPointingOutIcon, S20.ArrowsPointingOutIcon, S16.ArrowsPointingOutIcon);
+/** The player's Fit / Fill on desktop (#183), where the arrows are fullscreen's. */
+export const FillWindow = icon(S24.ViewfinderCircleIcon, S20.ViewfinderCircleIcon, S16.ViewfinderCircleIcon);
 export const Grid = icon(S24.Squares2X2Icon, S20.Squares2X2Icon, S16.Squares2X2Icon);
 export const Hidden = icon(S24.EyeSlashIcon, S20.EyeSlashIcon, S16.EyeSlashIcon);
 export const Info = icon(S24.InformationCircleIcon, S20.InformationCircleIcon, S16.InformationCircleIcon);
@@ -54,6 +56,8 @@ export const More = icon(S24.EllipsisHorizontalIcon, S20.EllipsisHorizontalIcon,
 export const Warning = icon(S24.ExclamationTriangleIcon, S20.ExclamationTriangleIcon, S16.ExclamationTriangleIcon);
 export const Pause = icon(S24.PauseIcon, S20.PauseIcon, S16.PauseIcon);
 export const Picture = icon(S24.PhotoIcon, S20.PhotoIcon, S16.PhotoIcon);
+/** The player's Pin window (#266). */
+export const Pin = icon(S24.MapPinIcon, S20.MapPinIcon, S16.MapPinIcon);
 export const PlaylistIcon = icon(S24.ListBulletIcon, S20.ListBulletIcon, S16.ListBulletIcon);
 export const Play =icon(S24.PlayIcon, S20.PlayIcon, S16.PlayIcon);
 export const Plus = icon(S24.PlusIcon, S20.PlusIcon, S16.PlusIcon);

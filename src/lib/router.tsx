@@ -17,8 +17,11 @@ export type TabRoute =
 
 export type Route =
   | TabRoute
-  /** `entry`: TV mode with seasons as separate shows (#22), the AniList entry whose episodes the page shows. */
-  | { name: "detail"; type: ContentType; id: string; preview?: MetaPreview; entry?: number }
+  /**
+   * `entry`: TV mode with seasons as separate shows (#22), the AniList entry whose episodes the page shows.
+   * `episode`: a link to one episode (#163): the page opens on its season with its sources listed.
+   */
+  | { name: "detail"; type: ContentType; id: string; preview?: MetaPreview; entry?: number; episode?: string }
   /** An anime's own page, by AniList id. */
   | { name: "anime-detail"; id: number; preview?: AnimeCard }
   | { name: "anime-schedule" }

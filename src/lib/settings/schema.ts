@@ -135,6 +135,11 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "copySetup", page: "account", title: "Add-ons and Keys", keywords: "copy addons api keys profile guest device start" },
   { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
+  // Friends (#135): kept on the account server per profile, drawn by the page (components/friends/FriendsSettings.tsx).
+  { id: "friendsEnabled", page: "account", title: "Friends", keywords: "friends friend code list online invite watch party join social" },
+  { id: "friendsOnline", page: "account", title: "Who sees you're online", keywords: "friends privacy online status presence hide invisible" },
+  { id: "friendsWatching", page: "account", title: "Who sees what you watch", keywords: "friends privacy watching activity title hide" },
+  { id: "friendsJoin", page: "account", title: "Friends can join your watch party", keywords: "friends join watch party one tap privacy" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback
@@ -276,6 +281,19 @@ export const SETTINGS: SettingDef[] = [
       { value: "off", label: "Off" },
       { value: "app", label: "That you're watching" },
       { value: "title", label: "What you're watching" },
+    ]),
+  },
+  {
+    id: "discordJoin",
+    page: "playback",
+    title: "Who can join from Discord",
+    caption: "In a watch party, a Join watch party button on your Discord profile. Ask me: you allow or decline each request.",
+    keywords: "discord watch party join invite ask friends button",
+    bind: p("discordJoin"),
+    control: choice([
+      { value: "nobody", label: "Nobody" },
+      { value: "ask", label: "Ask me" },
+      { value: "anyone", label: "Anyone who sees it" },
     ]),
   },
   { id: "rememberSpeed", page: "playback", title: "Remember playback speed", keywords: "rate faster slower" },
@@ -1056,6 +1074,15 @@ export const SETTINGS: SettingDef[] = [
   { id: "addonsInstalled", page: "addons", title: "Installed", keywords: "add-ons addons remove" },
   { id: "addonUrl", page: "addons", title: "Install from URL", keywords: "add-on addon manifest stremio" },
   { id: "addonCatalogsHome", page: "addons", title: "Lists on Home", keywords: "add-on addons catalogs catalog rows shelves home order" },
+  {
+    id: "stremioLinks",
+    page: "addons",
+    title: "Open Stremio links in Polarity",
+    caption: "Links on websites meant for the Stremio app, such as an add-on's install button or a title's link, open here instead.",
+    keywords: "stremio links install button scheme handler default app",
+    bind: p("stremioLinks"),
+    control: toggle,
+  },
 
   // Marketplace
   { id: "openSubtitles", page: "marketplace", title: "OpenSubtitles", keywords: "add-ons addons subtitles captions install store" },

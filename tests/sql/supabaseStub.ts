@@ -1,6 +1,7 @@
 // A Postgres (PGlite, in memory) with just enough of Supabase for the migrations: the roles,
 // auth.users and auth.uid() read from the request's JWT claim, and the realtime table the
-// watch-party policies name. Row-level security is enforced as on Supabase once `as(user)` has
+// watch-party policies name (its topic read from the `realtime.topic` setting) and realtime.send, which
+// records what it would broadcast in realtime.sent. Row-level security is enforced as on Supabase once `as(user)` has
 // switched to the `authenticated` role.
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync, readdirSync } from "fs";
@@ -22,7 +23,12 @@ export async function supabaseDb() {
 create table auth.users (id uuid primary key, email text, created_at timestamptz not null default now());
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;
-create schema realtime; create table realtime.messages (extension text); create function realtime.topic() returns text language sql as $$ select '' $$;`);
+create schema realtime; create table realtime.messages (extension text);
+create function realtime.topic() returns text language sql stable as $$ select coalesce(current_setting('realtime.topic', true), '') $$;
+create table realtime.sent (payload jsonb, event text, topic text, private boolean);
+create function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void
+  language sql as $$ insert into realtime.sent values (payload, event, topic, private) $$;
+grant usage on schema realtime to authenticated;`);
   return db;
 }
 

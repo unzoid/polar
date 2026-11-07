@@ -51,6 +51,17 @@ export function useDownloads() {
   });
 }
 
+/** Where new downloads go and how much room is left there (`free` null when the system won't say: the page leaves it out). */
+export interface DownloadsStorage {
+  dir: string;
+  free: number | null;
+}
+
+/** Under the list's key, so every change to the list asks again. */
+export function useDownloadsStorage() {
+  return useQuery({ queryKey: [...downloadsKey, "storage"], queryFn: () => call<DownloadsStorage>("downloads_storage"), staleTime: 30_000 });
+}
+
 const refresh = () => queryClient.invalidateQueries({ queryKey: downloadsKey });
 
 // --- Starting: finding a source takes a moment and can fail; the button shows both.
@@ -163,6 +174,24 @@ export async function removeDownload(id: string) {
     await refresh();
   } finally {
     leaving.delete(id);
+    emit();
+  }
+}
+
+/** Several at once (a title, a season, everything watched, a selection): all fold away together, then go. */
+export async function removeDownloads(ids: string[]) {
+  if (!ids.length) return;
+  for (const id of ids) {
+    setPending(id, null);
+    leaving.add(id);
+  }
+  emit();
+  await new Promise((r) => setTimeout(r, LEAVE_MS));
+  try {
+    for (const id of ids) await call("download_remove", { id });
+  } finally {
+    await refresh();
+    for (const id of ids) leaving.delete(id);
     emit();
   }
 }

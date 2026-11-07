@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::join_all;
-use polar_addon::{rank_asked, Asked, Meta, MetaPreview, RankedStream, Stream, WantedEpisode};
+use polar_addon::{rank_asked, Asked, Manifest, Meta, MetaPreview, RankedStream, Stream, WantedEpisode};
 use polar_index::Indexer;
 use polar_library::AnimeLink;
 use serde::Serialize;
@@ -293,6 +293,16 @@ pub fn addons_list(state: State<'_, AppState>) -> Vec<InstalledAddon> {
 #[tauri::command]
 pub fn addons_bundled() -> Vec<String> {
     crate::BUNDLED_ADDONS.iter().map(|u| u.to_string()).collect()
+}
+
+/// An add-on's manifest, read but not installed: what an install link from outside asks the user
+/// to confirm (#163). Only `https://` addresses, the only kind those links stand for.
+#[tauri::command]
+pub async fn addon_preview(state: State<'_, AppState>, url: String) -> Result<Manifest> {
+    if !url.starts_with("https://") || !(url.ends_with("/manifest.json") || url.contains("/manifest.json?")) {
+        return Err(CmdError::Unsupported("Not an add-on's address".into()));
+    }
+    Ok(state.addons.manifest(&url).await?)
 }
 
 #[tauri::command]
@@ -670,6 +680,24 @@ pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
         return Err(CmdError::Unsupported("only https links can be opened".into()));
     }
     app.opener().open_url(url, None::<&str>).map_err(|e| CmdError::Other(e.to_string()))
+}
+
+/// Whether the window can be pinned on top of the others (the player's Pin
+/// window, #266). Not on Wayland, where most compositors don't let an app
+/// keep itself on top; through XWayland (`GDK_BACKEND=x11`) it can.
+#[tauri::command]
+pub fn window_can_pin() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let wayland = std::env::var("XDG_SESSION_TYPE").is_ok_and(|s| s.eq_ignore_ascii_case("wayland"))
+            || std::env::var_os("WAYLAND_DISPLAY").is_some();
+        let x11 = std::env::var("GDK_BACKEND").is_ok_and(|b| b.starts_with("x11"));
+        !wayland || x11
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
 }
 
 // Inside this module so it can build the result types above, whose fields are private.

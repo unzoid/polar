@@ -21,6 +21,8 @@ import {
   partyAct,
   startParty,
   useParty,
+  youtubeId,
+  youtubeLinkProblem,
   type Member,
   type PartyState,
 } from "../../lib/party";
@@ -68,8 +70,9 @@ const PAGE = "Answered with a page, not a video";
 
 /**
  * Puts a link on for the whole party (#136), or opens a party on it: once it's a web link that answers
- * with a video. Video pages (a site's page around its player) aren't played: the player opens files and
- * HLS/DASH streams only. PartyHost then opens it here, and asks everyone else first.
+ * with a video, or a YouTube video's link, which plays in YouTube's own embedded player (#201). Other
+ * video pages (a site's page around its player) aren't played: the player opens files and HLS/DASH
+ * streams only. PartyHost then opens it here, and asks everyone else first.
  */
 export function useWatchLink(me: Me, onDone?: () => void) {
   const [text, setText] = useState("");
@@ -96,6 +99,12 @@ export function useWatchLink(me: Me, onDone?: () => void) {
       setText("");
       onDone?.();
     };
+    // YouTube's player opens it: there's no file to check.
+    if (youtubeId(link.url)) {
+      setBusy(false);
+      const problem = youtubeLinkProblem(link.url);
+      return problem ? setError(problem) : play();
+    }
     api.streamReady(link.url).then(
       (r) => {
         if (!alive.current) return;
@@ -104,7 +113,7 @@ export function useWatchLink(me: Me, onDone?: () => void) {
         if (r.state !== "notReady" || (r.reason === PAGE && isStreamLink(link.url))) return play();
         setError(
           r.reason === PAGE
-            ? "That's a web page, not a video. Paste the address of the video file or stream itself (.mp4, .mkv, .m3u8, .mpd…)."
+            ? "That page isn't a video Polarity can play. Paste a YouTube video's link, or the address of a video file or stream (.mp4, .mkv, .m3u8, .mpd…)."
             : `That link didn't play: ${r.reason}.`,
         );
       },
@@ -122,7 +131,7 @@ export function useWatchLink(me: Me, onDone?: () => void) {
   return { text, change, submit, busy, error };
 }
 
-/** "Watch a Link": paste a video's address, and everyone in the party watches it (#136). */
+/** "Watch a Link": paste a video's address or a YouTube link, and everyone in the party watches it (#136, #201). */
 export function LinkForm({ me, onDone }: { me: Me; onDone?: () => void }) {
   const { text, change, submit, busy, error } = useWatchLink(me, onDone);
   return (
@@ -137,7 +146,7 @@ export function LinkForm({ me, onDone }: { me: Me; onDone?: () => void }) {
       <input
         className="party-join-input"
         aria-label="Video link"
-        placeholder="https://… (video file or stream)"
+        placeholder="https://… (YouTube, video file or stream)"
         type="url"
         inputMode="url"
         autoComplete="off"

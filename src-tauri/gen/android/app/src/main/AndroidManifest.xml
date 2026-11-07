@@ -26,6 +26,21 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Links meant for Stremio (#163): off until Settings → Add-ons → Open Stremio links in Polarity
+             turns it on (MainActivity.kt, PolarDevice.setStremioLinks). -->
+        <activity-alias
+            android:name=".StremioLinks"
+            android:targetActivity=".MainActivity"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="stremio" />
+            </intent-filter>
+        </activity-alias>
 
         <provider
           android:name="androidx.core.content.FileProvider"

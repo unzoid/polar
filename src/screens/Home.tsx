@@ -448,7 +448,7 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
     >
       {/* The logo names the show; an entry of it goes by its own name. */}
       <ArtTitle name={item.name} logo={entry ? undefined : logo} />
-      {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a progressive blur. */}
+      {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a gradient (#38). */}
       <div className="card-resume">
         <ProgressBar fraction={fraction} />
         <span className="card-resume-left tabular">{formatRemaining(p.position, p.duration)}</span>

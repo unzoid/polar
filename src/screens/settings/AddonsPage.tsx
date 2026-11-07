@@ -11,6 +11,9 @@ import { showWhereStored, useSecretsNote } from "../../components/settings/secre
 import { useKeyGate, useSecretsPlain } from "../../components/settings/KeyWarning";
 import { linkHasKey } from "../../lib/account";
 import { addonHomeCatalogs, catalogKey, useAddonCatalogs, useHomeCatalogSetting, withAddonOnHome, withCatalogMoved } from "../../lib/catalog";
+import { setStremioLinks, stremioLinksOs, type Os } from "../../lib/platform";
+import { setPrefs } from "../../lib/settings";
+import { SettingRow } from "../../components/settings/SettingRow";
 
 const hintsTried = new Set<string>();
 
@@ -101,6 +104,7 @@ export function AddonsPage() {
         />
         {gate.warning}
       </Card>
+      <StremioLinksCard />
     </>
   );
 }
@@ -139,6 +143,40 @@ function HomeLists({ addon }: { addon: string }) {
         </ol>
       )}
     </div>
+  );
+}
+
+/** What each system does with "Open Stremio links in Polarity" (src-tauri/src/stremio_links.rs). */
+const STREMIO_LINKS_ON: Record<Os, string> = {
+  windows: "On: Polarity opens them on this computer. Off: they go back to the app that opened them before, such as Stremio.",
+  macos: "macOS opens these links in one app. On: Polarity. Off: back to Stremio, if it's installed.",
+  linux: "On: Polarity becomes the default app for these links. Off: it stops being one.",
+  android: "With Stremio installed too, Android asks which app to open each link with.",
+  ios: "",
+};
+
+/** Settings → Add-ons → Open Stremio links in Polarity (#163): this device's choice, off until the user turns it on. */
+function StremioLinksCard() {
+  const os = stremioLinksOs();
+  const [error, setError] = useState<string | null>(null);
+  if (!os) return null;
+  const change = (on: boolean) => {
+    setError(null);
+    setStremioLinks(on).catch((e: unknown) => {
+      // The system said no: the setting says what's true.
+      setPrefs({ stremioLinks: !on });
+      setError(`Couldn't change which app opens Stremio links: ${errorMessage(e)}`);
+    });
+  };
+  return (
+    <Card title="Links" footer="Polarity isn't Stremio: these are links meant for Stremio, opened by Polarity.">
+      <SettingRow id="stremioLinks" caption={`Links meant for the Stremio app, such as an add-on's install button or a title's link. ${STREMIO_LINKS_ON[os]}`} onChanged={(v) => change(!!v)} />
+      {error && (
+        <p className="settings-card-pad settings-expand-text" role="alert">
+          {error}
+        </p>
+      )}
+    </Card>
   );
 }
 

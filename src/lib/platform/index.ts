@@ -5,6 +5,7 @@
 
 export * from "./back";
 export * from "./bridge";
+export * from "./deepLinks";
 export * from "./device";
 export * from "./formFactor";
 export * from "./keychain";

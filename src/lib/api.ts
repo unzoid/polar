@@ -9,6 +9,7 @@ import type {
   ExternalRatings,
   InstalledAddon,
   LibraryItem,
+  Manifest,
   Meta,
   MetaPreview,
   Playable,
@@ -95,6 +96,8 @@ export const api = {
   /** A page of an installed add-on's catalog (#206); `extra` only what the manifest declares (lib/catalog/addonCatalogs.ts). */
   addonCatalog: (addon: string, type: ContentType, id: string, extra: [string, string][] = []) =>
     call<MetaPreview[]>("addon_catalog", { addon, ty: type, id, extra }),
+  /** An add-on's manifest, read without installing it (an install link's confirmation, #163). */
+  previewAddon: (url: string) => call<Manifest>("addon_preview", { url }),
   installAddon: (url: string) => call<InstalledAddon>("addon_install", { url }).then(changed),
   removeAddon: (id: string) => call<void>("addon_remove", { id }).then(changed),
 

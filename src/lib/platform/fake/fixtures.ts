@@ -1,4 +1,5 @@
 import type { InstalledAddon, LibraryItem, Meta, MetaPreview, Progress, Settings, StreamsResult, Video } from "../../types";
+import type { Download } from "../../library/downloads";
 
 /**
  * Made-up titles for the fake shell (fake.html): enough of every kind of data
@@ -252,6 +253,8 @@ function baseMeta(id: string): Meta | null {
       ),
     })),
     videos: p.type === "series" ? episodes(p, i) : [],
+    // One title with a TMDB trailer, for the trailer player's tests (the id is a placeholder; tests refuse YouTube).
+    ...(p.name === "Paper Lanterns" ? { trailerYtId: "xxxxxxxxxxx", trailerSource: "tmdb" as const } : {}),
     details: {
       tagline: "Every road ends somewhere.",
       status: p.type === "series" ? "Returning Series" : "Released",
@@ -516,3 +519,66 @@ export const settings: Settings = {
   cardRatingPosition: "poster",
   showCalendar: false,
 } as Settings;
+
+/**
+ * `fake.html?downloads=many` (#15): 50-odd downloads across a dozen titles, as the Downloads page has to
+ * cope with: shows spanning one to three seasons, movies, three still coming down (one paused, one failed),
+ * and the first episodes of some shows watched.
+ */
+export const DOWNLOADS = new URLSearchParams(location.search).get("downloads") === "many";
+const GB = 1_000_000_000;
+
+export function seededDownloads(): { downloads: Download[]; watched: Progress[] } {
+  const downloads: Download[] = [];
+  const watched: Progress[] = [];
+  const base = { quality: "1080p", received: 0, state: "done" as const };
+  series.slice(0, 8).forEach((s, k) => {
+    const seasons = 1 + (k % 3);
+    for (let season = 1; season <= seasons; season++)
+      for (let episode = 1; episode <= 3 + ((k + season) % 4); episode++) {
+        const id = `${s.id}:${season}:${episode}`;
+        const total = Math.round((0.6 + ((k + episode) % 5) * 0.15) * GB);
+        downloads.push({
+          ...base,
+          id,
+          metaId: s.id,
+          type: "series",
+          name: s.name,
+          poster: s.poster,
+          background: s.background,
+          season,
+          episode,
+          episodeTitle: `Chapter ${episode}`,
+          thumbnail: art(`${season}×${episode}`, k + season + episode, 400, 225),
+          file: `/downloads/${id}.mkv`,
+          received: total,
+          total,
+          addedAt: now - (k * 40 + season * 10 + episode) * 3_600_000,
+        });
+        if (k % 2 === 0 && season === 1 && episode <= 2)
+          watched.push({ metaId: s.id, videoId: id, type: "series", name: s.name, season, episode, position: 3000, duration: 3100, updatedAt: now - k * 7_200_000 });
+      }
+  });
+  movies.slice(0, 5).forEach((m, k) => {
+    const total = Math.round((1.8 + k * 0.7) * GB);
+    downloads.push({ ...base, id: m.id, metaId: m.id, type: "movie", name: m.name, poster: m.poster, background: m.background, file: `/downloads/${m.id}.mkv`, received: total, total, addedAt: now - (k * 30 + 5) * 3_600_000 });
+  });
+  // Coming down: one moving, one paused part-way, one failed.
+  const moving = (m: MetaPreview, state: Download["state"], received: number, error?: string): Download => ({
+    ...base,
+    id: m.id,
+    metaId: m.id,
+    type: "movie",
+    name: m.name,
+    poster: m.poster,
+    background: m.background,
+    file: `/downloads/${m.id}.mkv`,
+    received,
+    total: 2 * GB,
+    state,
+    error,
+    addedAt: now - 60_000,
+  });
+  downloads.push(moving(movies[6], "downloading", 0.8 * GB), moving(movies[7], "paused", 0.3 * GB), moving(movies[8], "failed", 0, "The link has expired."));
+  return { downloads, watched };
+}

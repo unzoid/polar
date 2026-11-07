@@ -77,7 +77,7 @@ test("a web page is turned down with a clear reason; a video link starts the par
   expect(checked).toEqual([]);
 
   await typeLink(container, "https://media.example.com/watch.html");
-  expect(container.textContent).toContain("That's a web page, not a video");
+  expect(container.textContent).toContain("That page isn't a video Polarity can play");
   expect(getParty()).toBeNull();
   expect(done).toBe(0);
 
@@ -85,5 +85,14 @@ test("a web page is turned down with a clear reason; a video link starts the par
   expect(checked.at(-1)).toBe(FILM);
   expect(getParty()?.playback?.media).toMatchObject({ videoId: linkId(FILM), url: FILM });
   expect(done).toBe(1);
+  await unmount();
+});
+
+test("a YouTube video's link starts the party on its one address, with no file to check (#201)", async () => {
+  const { container, unmount } = await render(<LinkForm me={{ name: "Sam", avatar: "a1" }} />);
+  const url = "https://www.youtube.com/watch?v=abc-DEF_123";
+  await typeLink(container, "https://youtu.be/abc-DEF_123?si=xxx");
+  expect(checked).toEqual([]);
+  expect(getParty()?.playback?.media).toMatchObject({ videoId: linkId(url), url, label: "YouTube video" });
   await unmount();
 });

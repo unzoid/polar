@@ -32,13 +32,14 @@ import { useRouter } from "../lib/router";
 import { TvBrowse, TvCard, TvContinueRail, TvItemsRail, TvRail, TvShelfRail, type RailRow } from "./TvRails";
 import { TvKeyboard } from "./TvKeyboard";
 import { TvAnimeRail } from "./TvAnime";
+import { TvFriendsRail } from "./TvFriends";
 import { useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
 import { usePrefs } from "../lib/settings";
 import { EmptyState } from "../components/ui/EmptyState";
 
 const NO_TITLES: MetaPreview[] = [];
 
-/** Home: what you're watching, what's trending, the add-on catalogs switched on (#206), then the day's shelves. */
+/** Home: what you're watching, friends, what's trending, the add-on catalogs switched on (#206), then the day's shelves. */
 export function TvHome() {
   const seeds = useSeeds();
   const shelves = useMemo(() => todaysShelves(seeds), [seeds]);
@@ -54,6 +55,8 @@ export function TvHome() {
 
   const rows: RailRow[] = [
     { key: "continue", render: () => <TvContinueRail /> },
+    // Only while the profile has Friends on and someone to show (#135).
+    { key: "friends", render: () => <TvFriendsRail /> },
     { key: "trending", render: () => <TvItemsRail title="Trending Now" items={picks} shape="poster" /> },
     ...addonRows.map((c) => ({ key: `addon:${catalogKey(c)}`, render: (near: boolean) => <TvAddonRail catalog={c} enabled={near} /> })),
     ...shelves.map((shelf, i) => ({
@@ -121,7 +124,7 @@ export function TvLibrary() {
   // Only what's here to watch: a download still coming down can't play yet.
   const ready = (downloads ?? []).filter((d) => d.state === "done");
 
-  if (saved?.length === 0 && history?.length === 0 && playlists.length === 0 && !ready.length) {
+  if (saved?.length === 0 && history?.length === 0 && playlists.length === 0 && !downloads?.length) {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Library</h1>
@@ -134,7 +137,7 @@ export function TvLibrary() {
     {
       key: "downloads",
       render: () =>
-        ready.length ? (
+        downloads?.length ? (
           <TvRail title="Downloads">
             {ready.map((d) => (
               <TvCard
@@ -145,6 +148,12 @@ export function TvLibrary() {
                 onOpen={() => navigate({ name: "player", type: d.type, metaId: d.metaId, videoId: d.id, stream: localStream(d) })}
               />
             ))}
+            {/* The whole page: what's still coming down, every title, the deletes (#15). */}
+            <button className="tv-card tv-card-more" data-shape="landscape" onClick={() => navigate({ name: "library-collection", view: "downloads" })}>
+              <span className="tv-card-frame">
+                <span className="tv-card-fallback">All Downloads</span>
+              </span>
+            </button>
           </TvRail>
         ) : null,
     },
