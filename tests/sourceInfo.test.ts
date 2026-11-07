@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import "./storageStub";
 import { describeRequest, looksSecret, MASK, maskText, maskUrl, sourceInfo, sourceInfoText } from "../src/lib/playback/sourceInfo";
 import { NO_FILTER } from "../src/lib/playback/sources";
-import { NEUTRAL, scoreSources } from "../src/lib/playback/bestMatch";
+import { FACTOR_LABELS, NEUTRAL, scoreSources, WEIGHTS } from "../src/lib/playback/bestMatch";
 import type { RankedStream } from "../src/lib/types";
 
 // Invented keys, one per place a key turns up in add-on and stream links.
@@ -102,6 +102,11 @@ const stream = (patch: Partial<RankedStream> = {}): RankedStream => ({
 });
 
 const rows = (r: RankedStream, ctx = {}) => new Map(sourceInfo(r, ctx).flatMap((s) => s.rows.map((x) => [x.label, x.value])));
+/** Best Match's table: factor → [this source, points], and the total. */
+const scoreTable = (r: RankedStream, ctx = {}) => {
+  const t = sourceInfo(r, ctx).find((s) => s.title === "Best Match")!.table!;
+  return { rows: new Map(t.rows.map(([f, input, points]) => [f, [input, points]])), total: t.total[2] };
+};
 
 test("the copied text contains no key from any position", () => {
   const text = sourceInfoText(sourceInfo(stream(), { filter: NO_FILTER, sort: "best" }));
@@ -112,6 +117,16 @@ test("the copied text contains no key from any position", () => {
   expect(text).toContain("nested: { token }");
 });
 
+test("Copy has Best Match's table as plain text, every factor on its own line (#274)", () => {
+  const r = stream();
+  const text = sourceInfoText(sourceInfo(r, { match: scoreSources([r, stream()], NEUTRAL).get(r) }));
+  const lines = text.split("\n");
+  const head = lines.indexOf("Best Match");
+  expect(lines[head + 1]).toMatch(/^  Factor +This source +Points$/);
+  expect(lines.slice(head + 2, head + 2 + Object.keys(WEIGHTS).length).map((l) => l.trim().split(/\s{2,}/)[0])).toEqual(Object.values(FACTOR_LABELS));
+  expect(text).toMatch(/\n  Total +\d+\n  Rank: 1st of 2/);
+});
+
 test("the panel says where a source came from and what was made of it", () => {
   const r = stream();
   const device = { screen: 1080, preferScreen: true, hdr: false, dolbyVision: null, hevc: true, av1: null };
@@ -120,12 +135,14 @@ test("the panel says where a source came from and what was made of it", () => {
   expect(m.get("Asked by")).toBe("IMDb tt0000000, season 1, episode 5 (tt0000000:1:5)");
   expect(m.get("Resolution")).toBe("4K (2160p)");
   expect(m.get("Audio languages")).toBe("English, Japanese");
-  expect(m.get("4K on a 1080p screen")).toBe("+40");
-  expect(m.get("Bigger than this screen shows")).toBe("−8");
-  expect(m.get("HEVC, decoded by this device's hardware")).toBe("+1");
-  // An SDR screen: no points for HDR.
-  expect([...m.keys()].filter((k) => k.includes("HDR on"))).toEqual([]);
-  expect(m.get("Score")).toBe("43");
+  const s = scoreTable(r, { match: scoreSources([r], { ...NEUTRAL, device }).get(r) });
+  expect(s.rows.get("Resolution")).toEqual(["4K on a 1080p screen", "+40"]);
+  expect(s.rows.get("Bigger than the screen")).toEqual(["Bigger than this screen shows", "−8"]);
+  expect(s.rows.get("Hardware decoding")).toEqual(["HEVC, decoded by this device's hardware", "+1"]);
+  // An SDR screen: no points for HDR, and the row still there.
+  expect(s.rows.get("HDR")).toEqual(["n/a", "0"]);
+  expect(s.total).toBe("43");
+  expect(m.get("Rank")).toBe("1st of 1");
   expect(m.get("Hidden by")).toBe("Resolution");
   expect(m.get("videoSize")).toBe("14.2 GB (14200000000 bytes)");
 });
@@ -133,8 +150,10 @@ test("the panel says where a source came from and what was made of it", () => {
 test("a preferred group is its own reason; another sort says so", () => {
   const r = stream({ quality: { ...stream().quality, source: "GROUP" } });
   const m = rows(r, { sort: "sizeDesc", match: scoreSources([r], { ...NEUTRAL, preferredGroups: ["group"] }).get(r) });
-  expect(m.get("GROUP, a release group you prefer")).toBe("+12");
-  expect(m.get("Score")).toBe("62 (list sorted by Largest File)");
+  const s = scoreTable(r, { match: scoreSources([r], { ...NEUTRAL, preferredGroups: ["group"] }).get(r) });
+  expect(s.rows.get("Preferred release group")).toEqual(["GROUP, a release group you prefer", "+12"]);
+  expect(s.total).toBe("62");
+  expect(m.get("List sorted by")).toBe("Largest File");
 });
 
 test("the playing source adds what the player reports", () => {

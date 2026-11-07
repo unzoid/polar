@@ -708,11 +708,18 @@ test("a source's i button shows what the source carries with every key masked, o
   await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
   await expect(panel).toContainText("Request header Authorization");
   await expect(panel).toContainText("Direct link");
+  // Best Match as a table, every factor a row, then the total and the rank (#274).
+  const table = panel.getByRole("table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Factor", "This source", "Points"]);
+  await expect(table.getByRole("rowheader", { name: "Resolution", exact: true })).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: "Total" })).toBeVisible();
+  await expect(panel).toContainText(/Rank\s*\d+(st|nd|rd|th) of \d+/);
   expect(await panel.textContent()).not.toContain("TOKEN0000");
   await panel.getByRole("button", { name: "Copy" }).click();
   await expect(panel.getByRole("button", { name: "Copied" })).toBeVisible();
   const copied = await app.evaluate(() => (window as unknown as { __copied: string }).__copied);
   expect(copied).toContain("Request header Authorization: •••");
+  expect(copied).toMatch(/Best Match\n  Factor +This source +Points\n/);
   expect(copied).toContain("Mirror https://mirror.example.org/•••/film.mkv apikey=•••");
   expect(copied).not.toContain("TOKEN0000");
   // Esc closes the panel only, back on the row it came from.
