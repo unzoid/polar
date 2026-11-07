@@ -2,6 +2,7 @@ package app.getpolar.desktop
 
 import android.app.Activity
 import android.app.UiModeManager
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.Surface
@@ -17,13 +18,33 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import org.json.JSONObject
 
 class MainActivity : TauriActivity() {
+  private var webView: WebView? = null
+  // The payload of the notification that started the app (NotesWorker.kt), until the page takes it.
+  private var launchNote: String? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     keepAboveKeyboard()
+    launchNote = intent?.getStringExtra(Notes.EXTRA)
   }
+
+  // A notification clicked while the app runs: the page hears it as a `polar-note` event.
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    val payload = intent.getStringExtra(Notes.EXTRA) ?: return
+    val view = webView
+    if (view == null) {
+      launchNote = payload
+      return
+    }
+    view.evaluateJavascript("window.dispatchEvent(new CustomEvent('polar-note', { detail: ${JSONObject.quote(payload)} }))", null)
+  }
+
+  fun takeLaunchNote(): String? = launchNote.also { launchNote = null }
 
   // Edge to edge, the system no longer shrinks the window for the on-screen keyboard (adjustResize is
   // ignored from Android 15), so the web view is made to end at the keyboard's top here: the page gets
@@ -59,6 +80,8 @@ class MainActivity : TauriActivity() {
     webView.settings.builtInZoomControls = false
     webView.settings.displayZoomControls = false
     webView.addJavascriptInterface(PolarDevice(this, isTelevision()), "polarDevice")
+    webView.addJavascriptInterface(PolarNotes(this), "polarNotes")
+    this.webView = webView
   }
 
   private fun isTelevision(): Boolean {

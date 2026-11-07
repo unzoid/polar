@@ -15,7 +15,7 @@ fn main() {
     // iOS the app is a static library Xcode links: its frameworks are listed in
     // tauri.ios.conf.json (`bundle.iOS.frameworks`) instead.
     let native: &[&str] = match os.as_str() {
-        "macos" => &["src/macos/mpv_view.m"],
+        "macos" => &["src/macos/mpv_view.m", "src/apple/notes.m"],
         "ios" => &[
             "src/ios/mpv_view.m",
             "src/ios/files.m",
@@ -23,6 +23,7 @@ fn main() {
             "src/ios/tabs.m",
             "src/ios/dialogs.m",
             "src/ios/back.m",
+            "src/apple/notes.m",
         ],
         _ => &[],
     };
@@ -34,7 +35,7 @@ fn main() {
         cc::Build::new().files(native).flag("-fobjc-arc").flag("-fmodules").compile("polar_native");
     }
     if os == "macos" {
-        for framework in ["Cocoa", "QuartzCore", "OpenGL"] {
+        for framework in ["Cocoa", "QuartzCore", "OpenGL", "UserNotifications"] {
             println!("cargo:rustc-link-lib=framework={framework}");
         }
     }

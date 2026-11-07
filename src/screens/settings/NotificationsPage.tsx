@@ -47,7 +47,7 @@ export function NotificationsPage() {
           Notifications are turned off for Polarity in your system settings. Turn them on there to get these.
         </p>
       )}
-      <p className="settings-footer">Checks run on this device, from the episode lists Polarity already loads. Nothing about your library is sent anywhere for them.</p>
+      <p className="settings-footer">Checks run on this device, looking up episode lists the way title pages do. There is no notification server.</p>
     </>
   );
 }

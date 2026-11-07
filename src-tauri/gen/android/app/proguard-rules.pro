@@ -28,3 +28,6 @@
 -keepclassmembers class app.getpolar.desktop.PolarDevice {
     @android.webkit.JavascriptInterface <methods>;
 }
+-keepclassmembers class app.getpolar.desktop.PolarNotes {
+    @android.webkit.JavascriptInterface <methods>;
+}

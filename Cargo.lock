@@ -3953,6 +3953,8 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "windows",
+ "zbus",
 ]
 
 [[package]]

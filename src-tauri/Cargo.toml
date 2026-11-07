@@ -43,6 +43,16 @@ tauri-plugin-updater = "2"
 # The file dialog behind "Open File…" (#204).
 tauri-plugin-dialog = "2"
 
+# Notifications (#209): the desktop's notification service on the session bus. Already in the
+# build through keyring and the opener plugin.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
+
+# Notifications (#209): toasts. Already in the build through tauri and wry; only its toast and
+# XML parts are added.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Data_Xml_Dom", "UI_Notifications"] }
+
 [target.'cfg(target_os = "android")'.dependencies]
 # libmpv loaded from the APK and given the SurfaceView (player/android.rs); the same versions
 # tao already uses.
