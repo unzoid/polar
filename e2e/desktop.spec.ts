@@ -707,7 +707,7 @@ test("a source's i button shows what the source carries with every key masked, o
   // Best Match as a table, every factor a row, then the total and the rank (#274).
   const table = panel.getByRole("table");
   await expect(table.getByRole("columnheader")).toHaveText(["Factor", "This source", "Points"]);
-  await expect(table.getByRole("rowheader", { name: "Resolution" })).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: "Resolution", exact: true })).toBeVisible();
   await expect(table.getByRole("rowheader", { name: "Total" })).toBeVisible();
   await expect(panel).toContainText(/Rank\s*\d+(st|nd|rd|th) of \d+/);
   expect(await panel.textContent()).not.toContain("TOKEN0000");
