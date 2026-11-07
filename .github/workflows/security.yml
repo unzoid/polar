@@ -1,0 +1,128 @@
+# Dependency checks, code scanning and fuzzing (docs/testing.md, "Security checks").
+#
+# - deps (every push and pull request): cargo-deny holds licences, crate sources and duplicate bans
+#   to deny.toml (licences as docs/licensing.md lists them); OSV-Scanner and `bun audit` look up
+#   advisories for Cargo.lock and the bun.lock files. Only high or critical advisories fail the job
+#   (scripts/advisoryGate.ts); the rest are listed in the job summary.
+# - codeql (pushes to master, weekly, by hand): TypeScript and Rust; results go to the repository's
+#   Security tab, so this job alone needs security-events: write. Not a pull request check.
+# - fuzz (nightly, by hand): each target in fuzz/ for a few minutes; a crash is kept as an artifact.
+#   Never runs on pull requests.
+name: Security
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  schedule:
+    - cron: '17 3 * * *' # fuzz, nightly
+    - cron: '41 4 * * 1' # codeql, Mondays
+  workflow_dispatch:
+    inputs:
+      fuzz_seconds:
+        description: Seconds per fuzz target
+        default: '300'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  deps:
+    name: Dependencies (licences, sources, advisories)
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Licences, sources and bans (cargo-deny)
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check licenses sources bans
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: Advisories (OSV-Scanner)
+        id: osv
+        continue-on-error: true # advisoryGate.ts decides
+        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        with:
+          scan-args: |-
+            --format=json
+            --output=osv.json
+            --lockfile=Cargo.lock
+            --lockfile=bun.lock
+            --lockfile=web/bun.lock
+            --lockfile=fuzz/Cargo.lock
+      - name: Fail on high or critical advisories
+        run: |
+          test -s osv.json || { echo "::error::OSV-Scanner wrote no report"; exit 1; }
+          bun scripts/advisoryGate.ts osv.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Advisories (bun audit, high and critical)
+        run: bun audit --audit-level=high
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch' || github.event.schedule == '41 4 * * 1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write # upload results to the Security tab
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, rust]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}
+
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    if: ${{ github.event.schedule == '17 3 * * *' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [addon_response, subtitles, magnet, player_input, library_file]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: fuzz
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked --version 0.13.2
+      - name: Fuzz
+        env:
+          TARGET: ${{ matrix.target }}
+          SECONDS_PER_TARGET: ${{ inputs.fuzz_seconds || '300' }}
+        run: |
+          case "$SECONDS_PER_TARGET" in ''|*[!0-9]*) echo "::error::fuzz_seconds must be a number"; exit 1 ;; esac
+          cargo +nightly fuzz run "$TARGET" -- -max_total_time="$SECONDS_PER_TARGET" -rss_limit_mb=2048
+      - name: Keep the crash
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts/
+          retention-days: 30

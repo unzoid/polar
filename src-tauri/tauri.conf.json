@@ -43,7 +43,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5MDA2MTJDQjMzOTQ5Q0YKUldUUFNUbXpMR0VBV1lvdWtnSm9hRnRBa0VGbDArZUVLV3ZVbWI1R2I5OEg1YTl5bXJxTmZiaEsK",
       "endpoints": [
-        "https://github.com/unzoid/polar/releases/latest/download/latest.json"
+        "https://github.com/unzoid/polarity/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "quiet"

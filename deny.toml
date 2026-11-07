@@ -1,0 +1,43 @@
+# cargo-deny (.github/workflows/security.yml, docs/testing.md "Security checks"). Advisories are
+# looked up by OSV-Scanner in the same job, which fails only on high or critical ones; this file
+# holds licences, where crates come from and duplicate bans.
+
+[graph]
+all-features = true
+
+[licenses]
+# Licences that let a crate ship inside an MIT app without further terms (docs/licensing.md).
+# MPL-2.0 keeps its terms to the crate's own files, which we use unchanged. A crate under any
+# other licence (GPL, AGPL, SSPL, a custom one) stops the job until docs/licensing.md says how it
+# is shipped.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+ignore = true
+
+[sources]
+# Only crates.io; a git or other registry dependency has to be added here on purpose.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+[bans]
+# Several versions of one crate are common in the Tauri tree: listed, not failed.
+multiple-versions = "warn"
