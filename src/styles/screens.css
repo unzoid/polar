@@ -3,6 +3,128 @@
   padding: calc(var(--nav-h) + 1.5rem) 0 4rem;
 }
 
+/* On a phone, a page of its own (screens/Search.tsx): a large title and the field, then recent searches and
+   genre tiles, or the results. */
+.search-page[data-phone] {
+  padding-top: calc(var(--nav-h) + 0.25rem);
+}
+.search-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0 var(--gutter) 1.5rem;
+}
+.search-head-title {
+  margin: 0;
+  font-size: 2.125rem;
+  line-height: 1.1;
+  letter-spacing: -0.022em;
+  font-weight: 700;
+}
+.search-start {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 0 var(--gutter);
+}
+.search-start-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.search-start-section h2 {
+  margin: 0;
+}
+.search-start-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+/* A 44px target that doesn't push the heading's line taller. */
+.search-start-clear {
+  height: 44px;
+  margin: -0.75rem -0.5rem;
+  padding: 0 0.5rem;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--text-2);
+  transition: color var(--dur-press) var(--ease-out);
+}
+.search-start-clear:active {
+  color: var(--text);
+}
+.search-start-recent {
+  display: grid;
+  margin: -0.25rem -0.5rem 0;
+}
+.search-start-recent .search-recent-item {
+  height: 44px;
+  font-size: var(--fs-lg);
+}
+.search-start-recent .search-recent-item:active {
+  background: var(--fill-2);
+  color: var(--text);
+}
+.search-start-clear,
+.search-start-recent .search-recent-item,
+.genre-tile {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.genre-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+/* Held sideways there's room for a row of four. */
+@media (orientation: landscape) {
+  .genre-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.genre-tile {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  aspect-ratio: 16 / 10;
+  padding: 0.75rem 0.875rem;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: linear-gradient(140deg, hsl(var(--tile-hue) 70% 48%), hsl(calc(var(--tile-hue) + 40) 65% 22%));
+  color: #fff;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-align: left;
+  -webkit-touch-callout: none;
+}
+.genre-tile > img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.genre-tile > img[data-loaded="true"] {
+  opacity: 1;
+}
+/* The tint keeps each tile its genre's colour, and its name legible over any art. */
+.genre-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(160deg, hsl(var(--tile-hue) 70% 45% / 0.35), hsl(var(--tile-hue) 65% 10% / 0.85));
+}
+.genre-tile > span {
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.4);
+}
+
 /* --- Settings pages (drawn in the settings overlay): options sit in bordered cards with hairline rows.
        Monochrome: colour is for the switches, the main action and errors. */
 .settings-group {
@@ -1295,6 +1417,37 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   color: var(--text-2);
+}
+/* A phone has no room for the date beside the episodes: the date heads its day on one line, the
+   episodes go full width under it. */
+:root[data-form="phone"] .calendar {
+  padding: 0 var(--gutter);
+}
+:root[data-form="phone"] .calendar-day {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 1.5rem 0 1.25rem;
+}
+:root[data-form="phone"] .calendar-date {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-top: 0;
+}
+:root[data-form="phone"] .calendar-items {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+:root[data-form="phone"] .calendar-art {
+  width: 7.5rem;
+}
+:root[data-form="phone"] .calendar-item {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+:root[data-form="phone"] .calendar-item:active {
+  background: rgb(255 255 255 / 0.09);
 }
 
 /* A line above the grid, spaced like the Saved / Watched toolbar. */

@@ -78,6 +78,19 @@
   border-radius: var(--r-panel) var(--r-panel) 0 0;
   padding-bottom: var(--safe-bottom);
   touch-action: auto;
+  /* Solid, like the phone's own sheets: the page behind is dimmed by the scrim, not seen through the sheet. */
+  background: var(--surface-1);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  /* Pulled up past its height, its bottom edge would lift off the screen's: a copy of its fill
+     100px lower reaches past the edge, so the sheet looks taller rather than detached. */
+  box-shadow:
+    0 0 0 1px var(--hairline),
+    0 100px 0 0 var(--surface-1);
+}
+/* No fade under the header: at rest it shaded the first card's top edge. */
+.sheet[data-edge="bottom"] .sheet-body {
+  mask-image: none;
 }
 .sheet[data-edge="bottom"] .sheet-header {
   position: relative;

@@ -32,7 +32,8 @@ export function useNativeTabs(links: NavLink[]) {
     void onNativeTab((id) => {
       const route = tabRoute(latest.current.links, id);
       if (route) latest.current.tab(route);
-      // The search tab opens the search field in the top bar, with its suggestions.
+      // The search tab opens search: on a phone its own page (its field focuses when it's open already),
+      // on an iPad the field in the top bar, with its suggestions.
       if (id === SEARCH_TAB.id) focusSearch();
     }).then((u) => (gone ? u() : (unlisten = u)));
     // Leaving this shell takes the bar away with it.

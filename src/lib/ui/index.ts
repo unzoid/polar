@@ -13,6 +13,7 @@ export * from "./lazy";
 export * from "./logoContrast";
 export * from "./motion";
 export * from "./pageFocus";
+export * from "./pageMotion";
 export * from "./presence";
 export * from "./reducedMotion";
 export * from "./score";

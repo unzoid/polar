@@ -1,12 +1,22 @@
 import logo from "../assets/polarity-white.png";
 import { ChevronDown, ChevronLeft, Close, Search, Speed, Tv } from "./icons";
-import { addRecentSearch, clearRecentSearches, FOCUS_SEARCH_EVENT, setSearchText, useRecentSearches, useSearchText } from "../lib/catalog";
+import {
+  addRecentSearch,
+  clearRecentSearches,
+  FOCUS_SEARCH_EVENT,
+  focusSearch,
+  SEARCH_ANIME,
+  SEARCH_GENRES,
+  setSearchText,
+  useRecentSearches,
+  useSearchText,
+} from "../lib/catalog";
 import { setTvMode, tvModeAvailable } from "../tv/tvMode";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
 import { usePrefs, useSettingsOverlay } from "../lib/settings";
-import { dismissDepth, onDismissDepth, useHandFocus } from "../lib/ui";
+import { dismissDepth, onDismissDepth, useFormFactor, useHandFocus } from "../lib/ui";
 import { MOD_LABEL } from "../lib/platform";
 import { useSettings } from "../lib/net";
 import { WindowControls } from "./WindowControls";
@@ -46,8 +56,10 @@ export function NavBar() {
   const { stack, current, tab, back } = useRouter();
   const active = rootTab(stack);
   const isActive = (r: TabRoute) => JSON.stringify(r) === JSON.stringify(active);
-  // Search results are closed by clearing the field, not with Back.
-  const canGoBack = stack.length > 1 && current.name !== "search";
+  // On a phone search is a page of its own (screens/Search.tsx), left with Back like any other. Elsewhere its
+  // results are closed by clearing the navbar's field, not with Back.
+  const phone = useFormFactor().form === "phone";
+  const canGoBack = stack.length > 1 && (phone || current.name !== "search");
   // Back to a top-level page with focus on Back: it hides, so focus moves off it first (test report 1, item 25).
   const backButton = useRef<HTMLButtonElement>(null);
   useHandFocus(backButton, !canGoBack);
@@ -96,7 +108,7 @@ export function NavBar() {
       <div className="navbar-actions">
         <UpdatePill />
         <NavParty />
-        <SearchBox />
+        {phone ? <SearchPageButton /> : <SearchBox />}
         {showTvButton && tvModeAvailable && (
           <button className="navbar-icon pressable" aria-label="TV mode" title="TV mode" onClick={() => setTvMode(true)}>
             <Tv size={23} />
@@ -198,6 +210,41 @@ function NavLinks({ links, isActive, open }: { links: NavLink[]; isActive: (r: T
         </MenuPopup>
       </MenuRoot>
     </nav>
+  );
+}
+
+/**
+ * On a phone search is a page of its own, as in phone apps (screens/Search.tsx): the icon opens it, or goes
+ * back to it from a title opened there. On it, the icon (and Ctrl K) brings its field into view and focuses it.
+ * iOS draws a search tab of its own, so the icon hides there (shell.css).
+ */
+function SearchPageButton() {
+  const { stack, current, navigate, back } = useRouter();
+  const onPage = current.name === "search";
+  const latest = useRef({ stack, navigate, back });
+  latest.current = { stack, navigate, back };
+
+  useEffect(() => {
+    const open = () => {
+      const { stack, navigate, back } = latest.current;
+      if (stack[stack.length - 1].route.name === "search") return; // the page's field takes it (Search.tsx)
+      const at = stack.map((e) => e.route.name).lastIndexOf("search");
+      if (at < 0) navigate({ name: "search" });
+      else for (let i = at; i < stack.length - 1; i++) back();
+    };
+    window.addEventListener(FOCUS_SEARCH_EVENT, open);
+    return () => window.removeEventListener(FOCUS_SEARCH_EVENT, open);
+  }, []);
+
+  return (
+    <button
+      className="navbar-icon navbar-search-page pressable"
+      aria-label="Search"
+      aria-current={onPage ? "page" : undefined}
+      onClick={focusSearch}
+    >
+      <Search size={23} strokeWidth={2} />
+    </button>
   );
 }
 
@@ -317,10 +364,6 @@ function SearchBox() {
   );
 }
 
-/** A handful to start from; every genre is in Movies, Series and Anime → Browse. */
-const SUGGESTED_GENRES = ["Action", "Comedy", "Drama", "Horror", "Sci-Fi", "Thriller", "Romance", "Documentary"];
-const SUGGESTED_ANIME = ["Isekai", "Shounen", "Slice of Life", "Mecha", "Iyashikei", "Psychological"];
-
 /** The recent searches shown above the genres. */
 const RECENT_SHOWN = 3;
 
@@ -371,11 +414,11 @@ function SearchSuggestions({ pick, under }: { pick: (text: string) => void; unde
         </>
       )}
       <span className="search-suggest-title">Genres</span>
-      <div className="genre-wrap">{chips(SUGGESTED_GENRES)}</div>
+      <div className="genre-wrap">{chips(SEARCH_GENRES)}</div>
       {animeEnabled && (
         <>
           <span className="search-suggest-title">Anime</span>
-          <div className="genre-wrap">{chips(SUGGESTED_ANIME)}</div>
+          <div className="genre-wrap">{chips(SEARCH_ANIME)}</div>
         </>
       )}
     </div>,

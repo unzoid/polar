@@ -1,5 +1,5 @@
 import { Dialog } from "@base-ui/react/dialog";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent } from "react";
 import { Avatar } from "./Avatar";
 import { ChevronLeft, ChevronRight, Close, Reset, SignOut } from "./icons";
 import { iconButtonClass } from "./ui/Button";
@@ -110,6 +110,8 @@ export function SettingsOverlay() {
     setQuery("");
   };
 
+  const dragDown = useDragDown(closeSettings);
+
   const pick = (entry: SettingEntry) => {
     go(entry.page);
     setTarget({ entry }); // a fresh object, so picking the same one again still scrolls
@@ -130,6 +132,7 @@ export function SettingsOverlay() {
           className="t3s"
           data-view={phone ? view : undefined}
           aria-label="Settings"
+          {...(phone ? dragDown : {})}
           onKeyDown={(e) => {
             const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
             if (e.key === "/" && !typing) {
@@ -138,6 +141,11 @@ export function SettingsOverlay() {
             }
           }}
         >
+          {phone && (
+            <div className="t3s-grab" aria-hidden>
+              <div className="t3s-grabber" />
+            </div>
+          )}
           <nav className="t3s-sidebar" aria-label="Settings sections">
             {phone && (
               <div className="t3s-list-head">
@@ -301,4 +309,59 @@ function NavItem({
       {chevron && <ChevronRight size={18} className="t3s-nav-chevron" aria-hidden />}
     </button>
   );
+}
+
+/** Past this far down, or this fast (px/ms), letting go closes the sheet. */
+const CLOSE_AT = 140;
+const FLICK = 0.11;
+
+/**
+ * A phone's Settings sheet follows a finger down from its grabber or a header, and closes when let go far
+ * enough down or flicked; otherwise it springs back. Up past the top it gives a little, against friction.
+ * Only the first finger drags (pointer capture keeps it, off the sheet too).
+ */
+function useDragDown(close: () => void) {
+  const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
+  const settle = (el: HTMLElement, transform: string, ms: number, curve: string) => {
+    el.style.transition = `transform ${ms}ms ${curve}`;
+    el.style.transform = transform;
+    const done = () => {
+      el.style.transition = "";
+      el.removeEventListener("transitionend", done);
+    };
+    el.addEventListener("transitionend", done);
+  };
+  return {
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      const t = e.target as HTMLElement;
+      if (drag.current || e.button !== 0) return;
+      if (!t.closest(".t3s-grab, .t3s-list-head, .t3s-header") || t.closest("button, input, a")) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      e.currentTarget.style.transition = "none";
+      drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+    },
+    onPointerMove: (e: PointerEvent<HTMLElement>) => {
+      const d = drag.current;
+      if (!d || e.pointerId !== d.id) return;
+      const raw = e.clientY - d.y;
+      d.dy = raw < 0 ? raw * 0.1 : raw;
+      e.currentTarget.style.transform = `translateY(${d.dy}px)`;
+    },
+    onPointerUp: (e: PointerEvent<HTMLElement>) => {
+      const d = drag.current;
+      if (!d || e.pointerId !== d.id) return;
+      drag.current = null;
+      const el = e.currentTarget;
+      const velocity = d.dy / Math.max(1, performance.now() - d.t);
+      if (d.dy > CLOSE_AT || (d.dy > 24 && velocity > FLICK)) {
+        settle(el, "translateY(100%)", 240, "var(--ease-out)");
+        close();
+      } else settle(el, "", 320, "var(--ease-drawer)");
+    },
+    onPointerCancel: (e: PointerEvent<HTMLElement>) => {
+      if (drag.current?.id !== e.pointerId) return;
+      drag.current = null;
+      settle(e.currentTarget, "", 320, "var(--ease-drawer)");
+    },
+  };
 }

@@ -6,10 +6,11 @@ import { Close, Search } from "../icons";
  * - `pill`: a quiet pill among other pills (AnimeDetail's episode search).
  * - `mini`: the small pill in a filter row's head (source filters).
  * - `plain`: structure only; a screen draws the box itself (the settings overlay's `.t3s-search`).
+ * - `large`: the phone's Search page, a tall filled field under the page's title.
  */
-export type SearchFieldLook = "box" | "pill" | "mini" | "plain";
+export type SearchFieldLook = "box" | "pill" | "mini" | "plain" | "large";
 
-const ICON_SIZE: Record<SearchFieldLook, number> = { box: 16, pill: 15, mini: 13, plain: 16 };
+const ICON_SIZE: Record<SearchFieldLook, number> = { box: 16, pill: 15, mini: 13, plain: 16, large: 20 };
 
 type Native = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange" | "className" | "aria-label" | "ref">;
 

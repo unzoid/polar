@@ -368,6 +368,36 @@ export function useAnimeGenre(genre: string, enabled: boolean, priority: Priorit
   return { data: all.data ?? first.data, isError: first.isError && all.isError };
 }
 
+/**
+ * A wide picture for each genre or tag (the phone's Search tiles): the banner of its most popular entry, or
+ * its cover where none of the first few has one. One request for them all, asked again after a day.
+ */
+export function useAnimeGenreArt(names: string[], enabled = true) {
+  return useQuery({
+    queryKey: keys.anime.genreArt(names),
+    staleTime: 24 * 60 * 60_000,
+    enabled: enabled && names.length > 0,
+    queryFn: async ({ signal }) => {
+      const params = names.map((_, i) => `$n${i}: String`).join(", ");
+      const pages = names.map(
+        (n, i) =>
+          `g${i}: Page(perPage: 4) { media(type: ANIME, isAdult: false, ${ANIME_TAGS.includes(n) ? "tag" : "genre"}: $n${i}, sort: POPULARITY_DESC) { bannerImage coverImage { extraLarge } } }`,
+      );
+      const vars = Object.fromEntries(names.map((n, i) => [`n${i}`, n]));
+      const data = await gql(`query (${params}) { ${pages.join(" ")} }`, vars, signal, { priority: PRIORITY.visible });
+      const art: Record<string, string> = {};
+      names.forEach((n, i) => {
+        const page = data[`g${i}`];
+        const media = listOf(isRecord(page) ? page.media : undefined, (m) => (isRecord(m) ? m : undefined));
+        const cover = (m: Record<string, unknown>) => (isRecord(m.coverImage) ? str(m.coverImage.extraLarge) : undefined);
+        const pick = media.map((m) => str(m.bannerImage)).find(Boolean) ?? media.map(cover).find(Boolean);
+        if (pick) art[n] = pick;
+      });
+      return art;
+    },
+  });
+}
+
 // --- Seasons ---------------------------------------------------------------
 
 /** One step along a franchise: the entry, and where its prequel and sequel lead (with the entry's details when asked for). */
