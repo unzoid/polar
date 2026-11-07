@@ -827,3 +827,50 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(partySurfaces(app)).toHaveCount(1);
   });
 });
+
+test("Downloads with 50+ downloads: collapsed titles, totals, search, one-action deletes, remembered groups (#15)", async ({ app }) => {
+  await app.goto("/fake.html?downloads=many");
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Library", exact: true }).click();
+  await app.getByRole("button", { name: /^Downloads/ }).first().click();
+
+  // The totals without adding anything up, and the active ones in their own section.
+  await expect(app.locator(".downloads-summary")).toContainText("75 downloads · 77.5 GB");
+  await expect(app.getByRole("region", { name: "In progress" }).locator(".download-row")).toHaveCount(3);
+  // Collapsed: one row per title, no episode rows showing.
+  const titles = app.locator(".downloads-library > .download-title");
+  await expect(titles).toHaveCount(13);
+  await expect(app.locator(".download-fold[data-open]")).toHaveCount(0);
+
+  // A show opens to its seasons, and stays open after a reload.
+  const show = titles.filter({ hasText: "Fieldwork" });
+  await show.getByRole("button", { name: /^Fieldwork/ }).click();
+  await expect(show.getByRole("button", { name: /^Season 1/ })).toBeVisible();
+  await app.reload();
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Library", exact: true }).click();
+  await app.getByRole("button", { name: /^Downloads/ }).first().click();
+  await expect(app.locator(".downloads-library > .download-title").filter({ hasText: "Fieldwork" }).getByRole("button", { name: /^Season 1/ })).toBeVisible();
+
+  // Search finds a title; In Progress shows only what's coming down.
+  await app.getByRole("searchbox", { name: "Search downloads" }).fill("blue h");
+  await expect(app.locator(".downloads-library > .download-title")).toHaveCount(1);
+  await app.getByRole("searchbox", { name: "Search downloads" }).fill("");
+  await app.getByRole("radio", { name: "In Progress" }).click();
+  await expect(app.locator(".downloads-library")).toHaveCount(0);
+  await app.getByRole("radio", { name: "All" }).click();
+
+  // Everything watched goes in one action (two clicks: arm, then delete).
+  const deleteWatched = app.getByRole("button", { name: /^Delete All Watched \(9\)$/ });
+  await deleteWatched.click();
+  await app.getByRole("button", { name: /^Click again: Delete All Watched/ }).click();
+  await expect(app.locator(".downloads-summary")).toContainText("66 downloads");
+  await expect(app.getByRole("button", { name: /^Delete All Watched/ })).toHaveCount(0);
+
+  // A selection across titles goes at once too.
+  await app.getByRole("button", { name: "Select", exact: true }).click();
+  await app.getByRole("checkbox", { name: "Select Northbound" }).check();
+  await titles.filter({ hasText: "Fieldwork" }).getByRole("checkbox", { name: "Select every episode of Season 2" }).check();
+  await app.getByRole("button", { name: /^Delete Selected \(4\)$/ }).click();
+  await app.getByRole("button", { name: /^Click again: Delete Selected/ }).click();
+  await expect(app.locator(".downloads-summary")).toContainText("62 downloads");
+  await expect(titles.filter({ hasText: "Northbound" })).toHaveCount(0);
+});

@@ -195,3 +195,23 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(focused(app)).toHaveAccessibleName("Copy Invite");
   });
 });
+
+test("Downloads opens from the Library's rail and its titles open and close with the remote (#15)", async ({ app }) => {
+  await app.goto("/fake.html?downloads=many");
+  await press(app, "ArrowUp");
+  await app.getByRole("button", { name: "Library", exact: true }).click();
+  await app.getByRole("button", { name: "All Downloads" }).click();
+  await expect(app.getByRole("heading", { level: 1, name: "Downloads" })).toBeVisible();
+  // Down past the downloads still coming down (their menus stay shut) to the first titles.
+  await press(app, "ArrowDown", "ArrowDown", "ArrowDown", "ArrowDown", "ArrowDown");
+  await expect(focused(app)).toHaveAccessibleName(/^Low Water Station/);
+  await expect(app.getByRole("menu")).toHaveCount(0);
+  await press(app, "Enter");
+  await expect(focused(app)).toHaveAttribute("aria-expanded", "true");
+  await press(app, "ArrowDown");
+  await expect(focused(app)).toHaveAccessibleName(/^Delete (Watched|All)/);
+  await press(app, "ArrowUp", "Enter");
+  await expect(focused(app)).toHaveAttribute("aria-expanded", "false");
+  await press(app, "Backspace");
+  await expect(focused(app)).toHaveAccessibleName("All Downloads");
+});

@@ -102,7 +102,7 @@ export function TvLibrary() {
   // Only what's here to watch: a download still coming down can't play yet.
   const ready = (downloads ?? []).filter((d) => d.state === "done");
 
-  if (saved?.length === 0 && history?.length === 0 && playlists.length === 0 && !ready.length) {
+  if (saved?.length === 0 && history?.length === 0 && playlists.length === 0 && !downloads?.length) {
     return (
       <div className="tv-note">
         <h1 className="tv-heading">Library</h1>
@@ -115,7 +115,7 @@ export function TvLibrary() {
     {
       key: "downloads",
       render: () =>
-        ready.length ? (
+        downloads?.length ? (
           <TvRail title="Downloads">
             {ready.map((d) => (
               <TvCard
@@ -126,6 +126,12 @@ export function TvLibrary() {
                 onOpen={() => navigate({ name: "player", type: d.type, metaId: d.metaId, videoId: d.id, stream: localStream(d) })}
               />
             ))}
+            {/* The whole page: what's still coming down, every title, the deletes (#15). */}
+            <button className="tv-card tv-card-more" data-shape="landscape" onClick={() => navigate({ name: "library-collection", view: "downloads" })}>
+              <span className="tv-card-frame">
+                <span className="tv-card-fallback">All Downloads</span>
+              </span>
+            </button>
           </TvRail>
         ) : null,
     },

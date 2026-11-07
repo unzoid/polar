@@ -820,6 +820,20 @@ same network:
 - Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
   untested. Subtitles inside the file aren't sent.
 
+## Downloads page (#15)
+
+Checked here: grouping, seasons, sorting, filters, search, totals and the saved view (`tests/downloadsView.test.ts`);
+the page with 75 made-up downloads in the browser shell (`fake.html?downloads=many`) on desktop, phone and TV
+(e2e: collapsed titles, a title kept open after a reload, search, In Progress, Delete All Watched, Delete Selected,
+D-pad through titles and seasons); `disk.rs` type-checked for Linux, Windows, Android, macOS and iOS. Needs the app:
+- The summary's "N GB free" matches the free space of the disk holding the downloads folder (Windows: the drive's
+  free space in Explorer; macOS/Linux: `df -h` on the folder). It's left out, not wrong, when the system won't say.
+- "Saved in" names the real folder (Videos/Polarity, or the app's folder on iOS and Android).
+- Deleting many at once (Delete All Watched with a few dozen episodes) removes the files from that folder, and the
+  rows fold away together without a jump.
+- TV with a remote or controller: up and down pass over the downloads still coming down without opening their menu;
+  A opens it.
+
 ## Scrolling long pages (#134)
 
 Measured here in headless Chromium without a GPU (the fake backend, a production build and the dev server):
