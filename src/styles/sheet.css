@@ -93,6 +93,23 @@
   height: 4px;
 }
 
+/* On an iPhone the sheet is laid out at its large detent, nearly the screen's
+   height, and Sheet.tsx moves it down to rest at half (lib/ui/detents.ts). */
+.sheet[data-detent] {
+  height: calc(100dvh - var(--safe-top) - 0.625rem);
+  max-height: none;
+}
+.sheet[data-detent] .sheet-grabber {
+  /* A button here (it toggles the detent): a wider target than the bar it draws. */
+  padding: 0;
+  border: solid transparent;
+  border-width: 0.5rem 1.5rem;
+  background-clip: content-box;
+  box-sizing: content-box;
+  top: 0;
+  cursor: pointer;
+}
+
 /* --- Stream list */
 .stream-list {
   display: flex;
