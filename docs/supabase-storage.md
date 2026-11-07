@@ -413,7 +413,9 @@ travels.
   `service_role` alone. Codes and secrets are stored as SHA-256, the caller's address as an HMAC keyed with the
   service key.
 - A request lives 5 minutes and is handed out once: deleted when the TV collects the answer; expired rows go with
-  the next request. Limits: 5 live requests per address, 10,000 in all, 10 code lookups per user per 10 minutes.
+  the next request. Limits: 5 live requests per address; 10,000 live in all, past which the oldest unanswered ones
+  make way for new ones; 10 tries per user per 10 minutes (every lookup, and every answer to a code that isn't
+  there). Requests start one at a time (an advisory lock), so parallel ones can't get past the counts.
 - Deploy: apply the migration, then `supabase functions deploy tv-sign-in --no-verify-jwt` (the TV has no session
   yet; the function checks the user's token itself for look and answer). It reads `SUPABASE_URL` and
   `SUPABASE_SERVICE_ROLE_KEY`, which Supabase provides to functions.
