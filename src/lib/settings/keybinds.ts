@@ -16,6 +16,8 @@ export type Action =
   | "playPause"
   | "seekBack"
   | "seekForward"
+  | "frameBack"
+  | "frameForward"
   | "volumeUp"
   | "volumeDown"
   | "mute"
@@ -37,6 +39,8 @@ export const ACTIONS: { id: Action; label: string; group: ActionGroup; when?: st
   { id: "playPause", label: "Play / pause", group: "player" },
   { id: "seekBack", label: "Skip back", group: "player" },
   { id: "seekForward", label: "Skip forward", group: "player" },
+  { id: "frameBack", label: "Back one frame", group: "player", when: "While watching (pauses first)" },
+  { id: "frameForward", label: "Forward one frame", group: "player", when: "While watching (pauses first)" },
   { id: "volumeUp", label: "Volume up", group: "player" },
   { id: "volumeDown", label: "Volume down", group: "player" },
   { id: "mute", label: "Mute", group: "player" },
@@ -61,6 +65,8 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   playPause: ["Space", "k"],
   seekBack: ["ArrowLeft", "j"],
   seekForward: ["ArrowRight", "l"],
+  frameBack: [","],
+  frameForward: ["."],
   volumeUp: ["ArrowUp"],
   volumeDown: ["ArrowDown"],
   mute: ["m"],

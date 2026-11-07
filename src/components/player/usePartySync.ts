@@ -12,7 +12,7 @@ import {
   type StreamHint,
 } from "../../lib/party";
 import type { MediaLike } from "./mpvMedia";
-import { createPartyFollower, FOLLOW_MS } from "./partyFollower";
+import { createPartyFollower, FOLLOW_MS, FRAME_STEP_EVENT } from "./partyFollower";
 
 /** A stall shorter than this (a catch-up seek loading) isn't worth showing the room. */
 const BUFFERING_SHOWN_MS = 1000;
@@ -117,10 +117,11 @@ export function usePartySync({
     follower.current = f;
     f.tick();
     const t = window.setInterval(f.tick, FOLLOW_MS);
-    const { onPlayPause, onSeeking } = f;
+    const { onPlayPause, onSeeking, onStep } = f;
     media.addEventListener("play", onPlayPause);
     media.addEventListener("pause", onPlayPause);
     media.addEventListener("seeking", onSeeking);
+    media.addEventListener(FRAME_STEP_EVENT, onStep);
     return () => {
       // Events the engine fires after this (the element going away pauses it) aren't the viewer's.
       f.stop();
@@ -129,6 +130,7 @@ export function usePartySync({
       media.removeEventListener("play", onPlayPause);
       media.removeEventListener("pause", onPlayPause);
       media.removeEventListener("seeking", onSeeking);
+      media.removeEventListener(FRAME_STEP_EVENT, onStep);
     };
   }, [media, inParty, videoId, leaving]);
 

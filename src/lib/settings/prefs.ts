@@ -67,6 +67,8 @@ export interface Prefs {
   autocropEveryFrame: boolean;
   /** Phones and tablets: the picture fills the screen, its edges cropped, instead of fitting inside it (#149). */
   videoFill: boolean;
+  /** TV mode, paused: Left and Right step one frame instead of skipping (the player's Speed options, #243). */
+  tvFrameStep: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
   /** Torrent sources: most GB their cache on this device may hold; 0 = no limit. */
@@ -155,6 +157,7 @@ const DEFAULTS: Prefs = {
   autocropLookahead: true,
   autocropEveryFrame: false,
   videoFill: false,
+  tvFrameStep: false,
   buffer: "normal",
   torrentCacheGb: 20,
   torrentSpeedMbps: 0,

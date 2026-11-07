@@ -9,7 +9,7 @@
 use serde_json::Value;
 
 /// Commands the UI sends through `mpv_command`.
-pub const ALLOWED_COMMANDS: &[&str] = &["seek", "set", "get_property", "sub-add"];
+pub const ALLOWED_COMMANDS: &[&str] = &["seek", "set", "get_property", "sub-add", "frame-step", "frame-back-step"];
 
 /// Properties the UI reads or writes (`mpv_set`, `set`, `get_property`).
 pub const ALLOWED_PROPERTIES: &[&str] = &[
@@ -43,6 +43,10 @@ pub const READ_ONLY_PROPERTIES: &[&str] = &[
     "sub-scale-by-window",
     "sub-scale-with-window",
     "sub-use-margins",
+    // Frame stepping: where a step landed (time reports are throttled) and the frame rate it counts frames in.
+    "time-pos",
+    "container-fps",
+    "estimated-vf-fps",
 ];
 
 /// Media and subtitles only ever come from the network (addons, or a server
@@ -64,6 +68,14 @@ pub fn check_command(args: &[Value]) -> Result<(), String> {
             Some(url) if is_web_url(url) => Ok(()),
             _ => Err("subtitles must be an http(s) URL".into()),
         },
+        // One frame either way, by an exact seek or (older mpv) mpv's own step: never a long run of frames.
+        "frame-step" => match &args[1..] {
+            [] => Ok(()),
+            [n, flag] if matches!(n.as_i64(), Some(-1 | 1)) && flag.as_str() == Some("seek") => Ok(()),
+            _ => Err("frame-step takes one frame, by seek".into()),
+        },
+        "frame-back-step" if args.len() == 1 => Ok(()),
+        "frame-back-step" => Err("frame-back-step takes no arguments".into()),
         _ => Ok(()),
     }
 }
@@ -105,6 +117,14 @@ mod tests {
         assert!(check_command(&[json!("get_property"), json!("sub-margin-y")]).is_ok());
         assert!(check_command(&[json!("set"), json!("sub-margin-y"), json!(0)]).is_err());
         assert!(check_command(&[json!("get_property"), json!("screenshot-directory")]).is_err());
+        assert!(check_command(&[json!("frame-step"), json!(1), json!("seek")]).is_ok());
+        assert!(check_command(&[json!("frame-step"), json!(-1), json!("seek")]).is_ok());
+        assert!(check_command(&[json!("frame-step")]).is_ok());
+        assert!(check_command(&[json!("frame-back-step")]).is_ok());
+        assert!(check_command(&[json!("frame-step"), json!(100000), json!("play")]).is_err());
+        assert!(check_command(&[json!("frame-back-step"), json!(5)]).is_err());
+        assert!(check_command(&[json!("get_property"), json!("container-fps")]).is_ok());
+        assert!(check_command(&[json!("set"), json!("time-pos"), json!(0)]).is_err());
         assert!(!is_web_url("file:///C:/x.mkv") && is_web_url("HTTP://127.0.0.1:8080/a.mkv"));
     }
 }

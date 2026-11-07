@@ -52,6 +52,10 @@ export interface StepDetail {
 const SEEK_STALE_MS = 1000;
 /** A time report this close to the target (seconds) is the seek having landed. */
 const SEEK_LANDED_S = 1;
+/** A frame step that never reports where it landed is given up on after this (as frameStep.ts's STEP_TIMEOUT_MS). */
+const STEP_TIMEOUT_MS = 1500;
+/** How often a frame step asks where it has landed. */
+const STEP_POLL_MS = 25;
 
 /**
  * An mpv-backed stand-in for an HTMLVideoElement.
@@ -91,6 +95,8 @@ export class MpvMedia extends EventTarget implements MediaLike {
    */
   private seekTarget: number | null = null;
   private seekAt = 0;
+  /** A frame step is under way: an older mpv's own step un-pauses for one frame, which isn't the viewer pressing play. */
+  private stepping = false;
 
   tracks: MpvTrack[] = [];
   /** Container chapters, when the file has any. */
@@ -183,6 +189,41 @@ export class MpvMedia extends EventTarget implements MediaLike {
       return Promise.resolve();
     }
     return call("mpv_set", { name, value }).catch(warnFailed(`mpv_set ${name}`));
+  }
+
+  /**
+   * One frame forward or back, paused (#243): an exact seek by one frame where mpv can (newer mpv),
+   * else mpv's own frame-step / frame-back-step. Resolves once mpv says where it landed: time reports
+   * are throttled, so this asks.
+   */
+  async frameStep(direction: 1 | -1) {
+    const from = this.time;
+    this.stepping = true;
+    try {
+      await this.command("frame-step", direction, "seek").catch(() => this.command(direction > 0 ? "frame-step" : "frame-back-step"));
+      for (const until = performance.now() + STEP_TIMEOUT_MS; performance.now() < until; ) {
+        await new Promise((r) => window.setTimeout(r, STEP_POLL_MS));
+        const t = await this.command("get_property", "time-pos").catch(() => null);
+        if (typeof t === "number" && t !== from) {
+          this.time = t;
+          this.stamp = performance.now();
+          this.seekTarget = null;
+          this.emit("timeupdate");
+          break;
+        }
+      }
+    } finally {
+      this.stepping = false;
+    }
+  }
+
+  /** The video's frame rate as the file states it (mpv's measured one if it doesn't), or null with no video. */
+  async frameRate(): Promise<number | null> {
+    for (const name of ["container-fps", "estimated-vf-fps"]) {
+      const fps = await this.command("get_property", name).catch(() => null);
+      if (typeof fps === "number" && fps > 1 && fps < 500) return fps;
+    }
+    return null;
   }
 
   // --- HTMLVideoElement surface -------------------------------------------
@@ -307,6 +348,7 @@ export class MpvMedia extends EventTarget implements MediaLike {
         }
         break;
       case "pause":
+        if (this.stepping && data !== true) break;
         this.time = this.currentTime;
         this.stamp = performance.now();
         this.isPaused = data === true;
