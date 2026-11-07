@@ -1,3 +1,4 @@
+import { deflateRawSync } from "node:zlib";
 import { card, clock, expect, partySurfaces, test } from "./fixtures";
 import type { Locator, Page } from "@playwright/test";
 import { serveMedia } from "./media";
@@ -527,7 +528,7 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   const settings = app.getByRole("dialog", { name: /^Settings/ });
   // Signed out (as here), it's under Advanced; signed in, under Account.
   await settings.getByRole("button", { name: "Advanced", exact: true }).click();
-  await settings.locator('input[type="file"]').setInputFiles({ name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await settings.locator('input[type="file"][accept*="json"]').setInputFiles({ name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
   await expect(settings.getByText("1 title Polarity can show")).toBeVisible();
   await expect(settings.getByRole("switch", { name: /^Where you left off/ })).toBeChecked();
   const addon = settings.getByRole("switch", { name: /^Example One/ });
@@ -535,6 +536,64 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   await settings.getByRole("button", { name: "Import", exact: true }).click();
   await expect(settings.getByText("Added 1 title to your library and 1 progress entry.")).toBeVisible();
   await expect(addon).toHaveCount(0);
+});
+
+/** A ZIP of deflated files, as Letterboxd's export is (CRCs left 0: the import doesn't check them). */
+function zipOf(files: Record<string, string>): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const [path, text] of Object.entries(files)) {
+    const name = Buffer.from(path);
+    const raw = Buffer.from(text);
+    const body = deflateRawSync(raw);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(body.length, 18);
+    local.writeUInt32LE(raw.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(body.length, 20);
+    central.writeUInt32LE(raw.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, name, body);
+    centrals.push(central, name);
+    offset += 30 + name.length + body.length;
+  }
+  const dir = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(centrals.length / 2, 8);
+  end.writeUInt16LE(centrals.length / 2, 10);
+  end.writeUInt32LE(dir.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, dir, end]);
+}
+
+test("a Letterboxd export ZIP is read on the device, its films found by title and year, the rest left to pick (#87)", async ({ app }) => {
+  // The fake catalog has The Glass Orchard (2024) and Northbound (2023); the third film is in no catalog.
+  const zip = zipOf({
+    "letterboxd-someone/watched.csv": "Date,Name,Year,Letterboxd URI\n2026-01-02,The Glass Orchard,2024,https://boxd.example.com/a\n2026-01-03,A Film Nobody Lists,1990,https://boxd.example.com/b\n",
+    "letterboxd-someone/watchlist.csv": "Date,Name,Year,Letterboxd URI\n2026-01-01,Northbound,2023,https://boxd.example.com/c\n",
+    "letterboxd-someone/ratings.csv": "Date,Name,Year,Letterboxd URI,Rating\n2026-01-02,The Glass Orchard,2024,https://boxd.example.com/a,4\n",
+  });
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Advanced", exact: true }).click();
+  await settings.locator('input[type="file"][accept*="zip"]').setInputFiles({ name: "letterboxd-someone.zip", mimeType: "application/zip", buffer: zip });
+  await expect(settings.getByText("3 films", { exact: true })).toBeVisible();
+  await expect(settings.getByText(/Ratings aren't imported/)).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Found 2 films: added 1 film to your library and marked 1 film watched\. 1 film to pick below\./)).toBeVisible();
+  const pick = settings.locator(".settings-pick");
+  await expect(pick.getByText("A Film Nobody Lists (1990)")).toBeVisible();
+  await pick.getByRole("button", { name: "Skip" }).click();
+  await expect(pick).toHaveCount(0);
 });
 
 test("Download Season downloads every released episode of the season, then says so (#24)", async ({ app }) => {
@@ -570,7 +629,7 @@ test("on a new install Discord shows only that something plays, never the title 
   await card(app, "The Glass Orchard").click();
   await app.getByRole("button", { name: "Play", exact: true }).click();
   await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
-  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "Watching" });
+  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "Watching on Polarity" });
   expect(JSON.stringify(await sent())).not.toContain("Glass Orchard");
   expect((await sent()).at(-1)?.image).toBeUndefined();
   await app.keyboard.press("Escape");
@@ -984,6 +1043,30 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(app.getByRole("heading", { level: 1, name: "The Glass Orchard" }).or(app.getByRole("img", { name: "The Glass Orchard" })).first()).toBeVisible();
     // Anything else is ignored.
     await app.evaluate(() => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink("polarity://play/movie/tt0000000"));
+  });
+
+  test("the browser extension's links: a TMDB title opens its page, a video asks before a party starts on it (#208)", async ({ app }) => {
+    await serveMedia(app);
+    const open = (link: string) => app.evaluate((u) => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink(u), link);
+    // The fake TMDB gives its title 1 the fixtures' second movie.
+    await open("polarity://title/movie/tmdb:1");
+    await expect(app.getByRole("heading", { level: 1, name: "Northbound" }).or(app.getByRole("img", { name: "Northbound" })).first()).toBeVisible();
+    // One TMDB lists no IMDb page for: said in words.
+    await open("polarity://title/movie/tmdb:999999");
+    const problem = app.getByRole("alertdialog", { name: "Couldn't open that title" });
+    await expect(problem).toContainText("TMDB key");
+    await problem.getByRole("button", { name: "OK" }).click();
+    await expect(problem).toHaveCount(0);
+    await open("polarity://together?u=https%3A%2F%2Fmedia.example%2Ffilm.mp4&t=12&n=An%20open%20film");
+    const question = app.getByRole("dialog", { name: "Watch together?" });
+    await expect(question.getByTestId("party-link-url")).toHaveText("https://media.example/film.mp4");
+    await expect(question).toContainText("An open film");
+    await expect(question).toContainText("It starts at 0:12");
+    await expect(app.locator(".player")).toHaveCount(0);
+    await question.getByRole("button", { name: "Watch Together" }).click();
+    await expect(question).toHaveCount(0);
+    await expect(app.locator(".player")).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(0);
   });
 
   test("starting a watch party in the player leaves one party panel up, with the focus in it (#247)", async ({ app }) => {
@@ -1430,4 +1513,116 @@ test("Settings → Services: a linked MyAnimeList profile reads its list for the
   // This build has no MyAnimeList client id, so it says so instead of offering a sign-in.
   await expect(settings.getByText(/signing in to MyAnimeList needs Polarity registered/)).toBeVisible();
   expect(await app.evaluate(() => localStorage.getItem("polar.link.mal.local"))).toBeNull();
+});
+
+test("Settings → Services: a linked Trakt profile imports its watchlist and what it watched, and unlinks (#85)", async ({ app }) => {
+  // A link made earlier on this device; Trakt's answers are made up here.
+  const link = { token: "TOKEN", refreshToken: "REFRESH", expiresAt: Date.now() + 5 * 86_400_000, slug: "lanternfield-fan", name: "Lanternfield Fan" };
+  await app.evaluate((v) => localStorage.setItem("polar.link.trakt.local", v), JSON.stringify(link));
+  const film = (imdb: string | undefined, title: string) => ({ title, ids: { trakt: 1, ...(imdb ? { imdb } : {}) } });
+  const asked: { path: string; auth: string }[] = [];
+  await app.route("https://api.trakt.tv/**", async (route) => {
+    const url = new URL(route.request().url());
+    asked.push({ path: url.pathname, auth: route.request().headers()["authorization"] ?? "" });
+    const json =
+      url.pathname === "/sync/watchlist"
+        ? [
+            { type: "movie", listed_at: "2026-01-02T00:00:00.000Z", movie: film("tt0000001", "Night Train") },
+            { type: "show", listed_at: "2026-01-03T00:00:00.000Z", show: film("tt0000002", "Harbour Lights") },
+            { type: "movie", listed_at: "2026-01-04T00:00:00.000Z", movie: film(undefined, "No Page") },
+          ]
+        : url.pathname === "/sync/watched/movies"
+          ? [{ plays: 1, last_watched_at: "2026-02-01T00:00:00.000Z", movie: film("tt0000003", "Paper Moon Lane") }]
+          : url.pathname === "/sync/watched/shows"
+            ? [
+                {
+                  plays: 2,
+                  last_watched_at: "2026-03-01T00:00:00.000Z",
+                  show: film("tt0000002", "Harbour Lights"),
+                  seasons: [{ number: 1, episodes: [{ number: 1, last_watched_at: "2026-02-21T00:00:00.000Z" }, { number: 2 }] }],
+                },
+              ]
+            : url.pathname === "/sync/last_activities"
+              ? { all: "2026-03-01T00:00:00.000Z" }
+              : {};
+    await route.fulfill({ json });
+  });
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^Trakt/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await settings.getByRole("button", { name: "Import from Trakt…" }).click();
+  await expect(
+    settings.getByText("1 film and 1 show on your watchlist. 1 film and 2 episodes watched. 1 title without an IMDb page left out."),
+  ).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Added 2 titles to your library and 3 watched films and episodes\.$/)).toBeVisible();
+  expect(asked.filter((a) => a.path.startsWith("/sync/")).every((a) => a.auth === `Bearer ${link.token}`)).toBe(true);
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no Trakt client id, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/signing in to Trakt needs Polarity registered/)).toBeVisible();
+  expect(asked.some((a) => a.path === "/oauth/revoke")).toBe(true);
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.trakt.local"))).toBeNull();
+});
+
+test("Settings → Services: a linked Simkl profile imports its Plan to Watch and what it watched, and unlinks (#86)", async ({ app }) => {
+  // A link made earlier on this device; Simkl's answers are made up here.
+  const link = { token: "TOKEN", refreshToken: "REFRESH", expiresAt: Date.now() + 5 * 86_400_000, account: 1, name: "Lanternfield Fan" };
+  await app.evaluate((v) => localStorage.setItem("polar.link.simkl.local", v), JSON.stringify(link));
+  const T = "2026-02-01T00:00:00Z";
+  const lists: Record<string, unknown> = {
+    movies: {
+      movies: [
+        { status: "plantowatch", added_to_watchlist_at: T, movie: { title: "Night Train", ids: { simkl: 1, imdb: "tt0000001" } } },
+        { status: "completed", last_watched_at: T, movie: { title: "Paper Moon Lane", ids: { simkl: 2, imdb: "tt0000003" } } },
+        { status: "plantowatch", movie: { title: "No Page", ids: { simkl: 3 } } },
+      ],
+    },
+    shows: {
+      shows: [
+        {
+          status: "watching",
+          show: { title: "Harbour Lights", ids: { simkl: 4, imdb: "tt0000002" } },
+          seasons: [{ number: 1, episodes: [{ number: 1, watched_at: T }, { number: 2, watched_at: T }] }],
+        },
+      ],
+    },
+    anime: { anime: [{ status: "plantowatch", show: { title: "Paper Kites", ids: { simkl: 5, kitsu: 5 } } }] },
+  };
+  const asked: { path: string; auth: string }[] = [];
+  await app.route("https://api.simkl.com/**", async (route) => {
+    const url = new URL(route.request().url());
+    asked.push({ path: url.pathname, auth: route.request().headers()["authorization"] ?? "" });
+    const kind = url.pathname.match(/^\/sync\/all-items\/(\w+)$/)?.[1];
+    const json = kind ? (lists[kind] ?? {}) : url.pathname === "/sync/activities" ? { all: T } : {};
+    await route.fulfill({ json });
+  });
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^Simkl/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await settings.getByRole("button", { name: "Import from Simkl…" }).click();
+  await expect(
+    settings.getByText("2 titles on Plan to Watch. 1 film and 2 episodes watched. 1 title without an IMDb page or a Kitsu entry left out."),
+  ).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Added 2 titles to your library and 3 watched films and episodes\.$/)).toBeVisible();
+  expect(asked.filter((a) => a.path.startsWith("/sync/")).every((a) => a.auth === `Bearer ${link.token}`)).toBe(true);
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no Simkl client id, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/signing in to Simkl needs Polarity registered/)).toBeVisible();
+  expect(asked.some((a) => a.path === "/oauth2/revoke")).toBe(true);
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.simkl.local"))).toBeNull();
 });

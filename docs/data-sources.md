@@ -18,6 +18,8 @@ first (see `AGENTS.md`).
 | AniList GraphQL | Anime catalog, seasons, schedule, relations, characters, search | `src/lib/anime/anilist.ts`, `src/lib/net/limiter.ts` | None | 90 a minute (30 while degraded); a 429 means a minute's wait. Requests wait in one queue, most urgent first (an opened page, then rows on screen); rows and pages are kept on the device up to a day |
 | AniList account | The profile's AniList list: watched episodes, status and score from an anime's page, and the list import in Settings → Services | `src/lib/lists/`, `src/screens/settings/ServicesPage.tsx`, `src/components/anime/AnimeListPanel.tsx` | The user's own sign-in, made on AniList's page for Polarity's API client (not registered yet: the sign-in says it isn't set up) | The catalog's budget. Changes wait in a queue per profile and go out together; entries changed on AniList are read on start, 50 at most |
 | MyAnimeList account | The profile's MyAnimeList list: watched episodes, status and score from an anime's page, and the list import in Settings → Services | `src/lib/lists/malList.ts`, `malSignIn.ts`, `src-tauri/src/mal.rs` | The user's own sign-in (OAuth with PKCE, no client secret) through Polarity's MyAnimeList API client, whose id the release build is given as `VITE_MAL_CLIENT_ID` (none yet: the sign-in says it isn't set up). Requests go through the app's native side, which lets only the list paths through | None published; MAL answers 403 when it thinks it is flooded, which waits like a 429. Changes wait in a queue per profile; entries changed on MAL are read on start, 50 at most |
+| Trakt account | The profile's Trakt history (scrobbling while playing, watched marks both ways), watchlist (kept in step with the library when switched on), film and show ratings from a title page, and the import in Settings → Services | `src/lib/trakt/`, `src/screens/settings/ServicesPage.tsx`, `src/components/settings/TraktSignIn.tsx`, `TraktImport.tsx`, `src/components/title/TraktRating.tsx`, `src/components/player/useTraktScrobble.ts` | The user's own sign-in (device code entered on Trakt's site; no client secret is sent) through Polarity's Trakt API app, whose client id the release build is given as `VITE_TRAKT_CLIENT_ID` (none yet: the sign-in says it isn't set up) | 500 reads per 5 minutes per user, of which Polarity uses at most 90 a minute; 1 write a second. A 429 waits for its Retry-After once. Watched marks and watchlist changes wait in a queue per profile and go out in batches; what changed on Trakt is read after its `last_activities`, on start and when the window comes back at most every few minutes |
+| Simkl account | The profile's Simkl lists (films, shows and anime): scrobbling while playing, watched marks both ways, Plan to Watch kept in step with the library when switched on, the list and a 1 to 10 rating from a title page, and the import in Settings → Services | `src/lib/simkl/`, `src/screens/settings/ServicesPage.tsx`, `src/components/settings/SimklSignIn.tsx`, `SimklImport.tsx`, `src/components/title/SimklPanel.tsx`, `src/components/player/useSimklScrobble.ts` | The user's own sign-in (PIN entered on Simkl's site; no client secret is sent) through Polarity's Simkl API app, whose client id the release build is given as `VITE_SIMKL_CLIENT_ID` (none yet: the sign-in says it isn't set up). Every request carries `client_id`, `app-name` and `app-version` | A daily allowance per account (`X-RateLimit-Remaining`); one request at a time. A spent allowance stops requests until its Retry-After, and background reads stop while fewer than 50 are left. What changed on Simkl is read after `/sync/activities`, only for the kinds that moved, on start and when the window comes back at most every 15 minutes. Changes wait in a queue per profile and go out in batches |
 | Jikan | Filler and recap episodes | `crates/anime/src/fillers.rs` | None | 60 a minute, 3 a second; 400 ms between pages |
 | animefillerlist.com | Filler episodes when Jikan knows none | `crates/anime/src/fillers.rs` | None | One page per show, cached 24 h |
 | ani.zip | Ids across anime and general sources, per-episode data, art | `src/lib/anime/anizip.ts` | None | None published |
@@ -30,6 +32,7 @@ first (see `AGENTS.md`).
 | Add-ons the user installs | Streams, subtitles, catalogs | `crates/addon/src/client.rs`, `src-tauri/src/commands.rs` | Per add-on | Each add-on's own |
 | Add-on list | The curated list in Settings → Add-ons | `src/lib/catalog/marketplace.ts` | None | — |
 | GitHub releases API | Release notes for updates | `src/lib/updater.ts` | None | 60 unauthenticated requests an hour |
+| Letterboxd export (a file) | Watchlist and watched films the user imports (#87) | `src/lib/library/letterboxdImport.ts`, `src/components/settings/LetterboxdImport.tsx` | None | Read on the device; nothing is fetched from Letterboxd and its `boxd.it` links are never followed. Films are found through the catalog above, two searches at a time |
 | Supabase | Accounts and sync, the owner's project | `src/lib/account/` | Owner's publishable key | `docs/supabase-storage.md` |
 
 Every host the web view fetches from is listed in its `connect-src` policy
@@ -51,6 +54,27 @@ Every host the web view fetches from is listed in its `connect-src` policy
   `VITE_MAL_CLIENT_ID`, and a build without one hides the sign-in. The tokens are refreshed before they run out, so a
   profile signs in again only after a month without opening Polarity. The row and the anime page say "Uses the
   MyAnimeList API".
+- **Trakt account:** the sign-in stays on the device (the system's keychain, else the web view's storage) and is never
+  sent to Polarity's database; each device and profile signs in itself. Trakt's CORS answers the web view, so requests
+  go straight to `api.trakt.tv` (listed in `connect-src`). The client id isn't in the source: the release build gets it
+  from `VITE_TRAKT_CLIENT_ID`, and a build without one says the sign-in isn't set up. Only titles with an IMDb id are
+  sent; anime played from Kitsu ids say on their page that they aren't. What is removed on Trakt (a play, a watchlist
+  title) isn't followed. The row and the credits carry Trakt's line "Polarity is not endorsed or certified by Trakt."
+  Unlinking revokes the token and removes the sign-in, the queue, the ratings kept and the last look.
+- **Simkl account:** the sign-in stays on the device (the system's keychain, else the web view's storage) and is never
+  sent to Polarity's database; each device and profile signs in itself. Simkl's CORS answers the web view, so requests
+  go straight to `api.simkl.com` (listed in `connect-src`). The client id isn't in the source: the release build gets it
+  from `VITE_SIMKL_CLIENT_ID`, and a build without one says the sign-in isn't set up. Films and shows are sent by their
+  IMDb id and anime played from Kitsu ids by their Kitsu number; titles with neither aren't sent. A Kitsu account link
+  isn't offered: Kitsu's API signs a user in only by sending their Kitsu password through the app. Removals on Simkl
+  aren't followed into Polarity; removing a title on its page takes it off every Simkl list and its watched history,
+  as Simkl does. The credits say "uses the Simkl API" in text; Simkl's API rules ask for its logo, which isn't added
+  until the owner or Simkl says how. Unlinking revokes the token and removes the sign-in, the queue, the
+  lists and ratings kept and the last look.
+- **Letterboxd:** its API is by invitation only, so there is no account link. The import reads the export the user
+  downloads from Letterboxd's settings. The export carries no IMDb or TMDB ids, so each film is matched by title and year
+  through the catalog (TMDB's search narrowed to the year, Cinemeta's plain search). A row that matches no film, or more
+  than one, is left for the user to pick. Ratings aren't imported: Polarity has no rating of its own.
 - **Credits:** Settings → About → Credits names every source and shows TMDB's notice and logo (`src/lib/settings/credits.ts`).
 
 ## 3. What the app keeps on disk

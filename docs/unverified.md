@@ -723,7 +723,25 @@ against a real project.
     a second or two, and upload stops. With "Keep sharing after playback" on, it stays and keeps uploading until
     Polarity quits; the next start finds the folder empty.
   - No firewall prompt appears (the engine doesn't listen; it connects out).
-  - Phones: a torrent source says it plays on the desktop app for now.
+  - iPhone and iPad: a torrent source says it doesn't play there.
+
+## Torrent sources on Android (#207)
+
+- Checked here: the Android build type-checks with the engine (clippy for `aarch64-linux-android`), the
+  `polar-torrent` test binaries build for `x86_64-linux-android`, and in the browser (fake backend) a torrent on mobile data is passed over for the next source, or with
+  none left fails with the reason and Open Settings; the setting is on Settings → Sources (phone) and TV Settings
+  → Sources. Not run here: an Android device or emulator playing a torrent, real networks, battery saver.
+- To check on an Android phone and an Android TV, with your own add-on returning torrent streams of a file you're
+  entitled to watch (an open film):
+  - On Wi-Fi: the source plays as on desktop (notice the first time, peer lines, then the picture).
+  - On mobile data (Wi-Fi off) with "Play torrent streams on mobile data" off: the torrent doesn't start; the
+    loading screen says why and has Open Settings (phone); with other sources the next one plays instead. With the
+    setting on, it plays.
+  - Close the player: `adb shell run-as app.getpolar.desktop ls cache/torrent-cache` is empty within a second or
+    two, and the app's network use (Settings → Network → Data usage) stops growing.
+  - Play, press Home, wait more than 30 seconds, come back: the player says playback stopped while Polarity was
+    in the background, the cache folder is empty, and no data is used meanwhile. Back within 30 seconds, it plays on.
+  - Battery saver on with "Keep sharing after playback" on: closing the player still empties the cache.
 
 ## Seasons as separate shows (#22)
 
@@ -801,6 +819,36 @@ Polarity signed in. Check:
 6. Linux: the .deb/.rpm register polarity:// on install; an AppImage registers it when it first runs.
    Windows: the installer registers it. macOS: the app bundle does.
 
+## Browser extension: Open in Polarity, Watch together (#208)
+
+Checked here: the id parsing for every site (`extension/tests/ids.test.ts`), the button in stand-in
+pages run with happy-dom (`extension/tests/content.test.ts`: title pages, an episode and list pages
+showing nothing, Letterboxd's links arriving late, YouTube's start time and page changes without a
+reload, Hide), the context menu with a stand-in browser API (`extension/tests/background.test.ts`),
+the chain extension → website page → app link (`tests/extensionLinks.test.ts`), TMDB → IMDb on a
+stand-in TMDB (`cargo test -p polar-index`), and end to end in the browser shell (a TMDB link opens the
+title, one without an IMDb id says so, a video link asks and then starts the party). Not run: the
+extension in a real browser (this machine's Chromium is a headless shell that can't load extensions,
+and downloading another browser isn't allowed), the real sites, and the website pages deployed. Check,
+with `cd extension && bun run build`, Polarity installed and signed in, and the website's /watch and
+/party pages from this branch deployed (until then the buttons land on the old pages):
+1. Chrome: Load unpacked `extension/dist/chrome`; Firefox: Load Temporary Add-on
+   `extension/dist/firefox/manifest.json`. The permissions asked are the listed sites only, and the
+   context menu.
+2. Open in Polarity: a film and a show on IMDb (also IMDb in another language, `/fr/title/…`), on TMDB
+   (needs a TMDB key in Polarity), on Trakt and on Letterboxd; an anime on AniList and on MyAnimeList,
+   one with no IMDb id. Each opens the right title in Polarity. An IMDb episode, a list, a search, a
+   person page and a title's cast page show no button.
+3. If a site has changed how its title pages look (IMDb's `og:type`, Trakt's or Letterboxd's links to
+   IMDb/TMDB), the button won't show there: that's what to report.
+4. YouTube: play a video to a minute in, press Watch together in Polarity: Polarity shows "Watch
+   together?", the video's title and link, "It starts at 1:00…"; Watch Together starts the party there.
+   Move to another video without a reload: the button follows. A channel or the home page: no button.
+5. Right-click a link to an `.mp4` (and open an `.mp4` in a tab and right-click the page): "Watch
+   together in Polarity" is offered and starts a party after Polarity asks. On an ordinary link or page
+   the item isn't there.
+6. Polarity not installed: the page offers the download after a moment.
+
 ## Opening Stremio links in Polarity (#163)
 
 Checked here: link parsing and where each kind goes, the setting's off state, and that an install link
@@ -862,6 +910,22 @@ whether the window resets on a channel rejoin over the same socket (assumed not)
 3. With A paused, B presses play while A can't see B's entry (hard to force by hand: the logs show it as
    "refused vN by …"): B goes back to paused within a second or two.
 
+## Letterboxd export import (#87)
+
+Letterboxd doesn't publish its export's columns. The parser reads `Name`, `Year`, `Date`, `Watched Date` and
+`Rating` by header name (any order, any case) from `watched.csv`, `diary.csv`, `ratings.csv` and `watchlist.csv`.
+It was written from exports users have described, not from a real one. The tests use invented files of that shape.
+To check, with a Letterboxd account that has a few watched, logged, rated and watchlisted films:
+1. Letterboxd → Settings → Data → Export your data. In Polarity: Settings → Account (or Advanced when signed out) →
+   Import from Letterboxd → Choose File… → the ZIP. The counts match the account: Watchlist, Watched, and Ratings
+   with "Ratings aren't imported".
+2. Import, with and without a TMDB key. The films land in the library (watchlist) and in History (watched) on the
+   right days. A film logged twice in the diary shows its latest day.
+3. Films with a common title (remakes) or with a different year on Letterboxd and the catalog are listed under
+   "Films to pick". Picking one imports it, Search finds others, and Skip drops it.
+4. Import the same ZIP again: nothing new is added.
+5. Unzip the export and pick `watched.csv` and `watchlist.csv` together. The same counts show.
+
 ## AniList account link (#83)
 
 Checked here: unit tests (`tests/listSync.test.ts`: the sign-in code, the queue, the watched rule, sending and
@@ -912,6 +976,75 @@ and building with its id in `VITE_MAL_CLIENT_ID`:
 8. Revoke Polarity in MAL's settings: the next change makes the row say "Sign in again".
 9. A second profile and a second device each show Off until they sign in; nothing about the MAL account appears in the
    Supabase tables.
+
+## Trakt account link (#85)
+
+Checked here: unit tests (`tests/traktLink.test.ts`: the device code sign-in, refreshing and revoking the tokens, the
+limits; `tests/traktSync.test.ts`: scrobbling, the history queue both ways, the pull after `last_activities`, the
+watchlist switch, ratings; `tests/traktImport.test.ts`), component tests (`tests/dom/traktLink.test.tsx`,
+`traktScrobble`, `traktRating`) and a desktop e2e test on the fake shell with a made-up account (a linked profile
+imports its watchlist and what it watched, then unlinks). Not run against Trakt (no client id). To check, after
+creating an API app at https://trakt.tv/oauth/applications (redirect `urn:ietf:wg:oauth:2.0:oob`) and building with
+its client id in `VITE_TRAKT_CLIENT_ID`:
+1. Settings → Services → Trakt → Get a code: enter the code at trakt.tv/activate and allow Polarity. The row shows
+   "Linked as <your Trakt name>". Check whether Trakt's device token answer works without a client secret; if Trakt
+   refuses it, the sign-in says "Trakt didn't accept the sign-in" and the PR stays held.
+2. Play a film or episode that has an IMDb id: your Trakt profile shows it as watching now; pause, then stop past
+   80%: it is in the history once. Stop at 50%: no history entry, and the next play resumes there in Polarity.
+3. Mark an episode watched by hand, then unwatched: Trakt's history follows both. Offline, mark one, reconnect: it
+   arrives.
+4. Watch something with another Trakt app (or check it in on trakt.tv), bring Polarity's window back after a few
+   minutes: it shows as watched.
+5. Turn on "Keep the library and the Trakt watchlist in step": add and remove a title in the library, then on
+   trakt.tv: both sides follow. On a free account with a full watchlist, the row says it is full.
+6. Rate a film and a show 1 to 10 on its title page: trakt.tv shows the ratings; a rating changed on trakt.tv shows
+   on the title page after the next look.
+7. Import from Trakt…: the counts match the account; Import adds the watchlist and the watched marks, and running it
+   again adds nothing new.
+8. An anime played from a Kitsu id says on its page that it isn't sent to Trakt, and nothing reaches Trakt.
+9. Tokens: the access token's real lifetime; after it, a change still goes out and the row stays "Linked". Revoke
+   Polarity in Trakt's settings: the next change makes the row say Trakt no longer accepts the sign-in.
+10. Unlink: Polarity disappears from Trakt's connected apps. A second profile and device each show Off until they
+    sign in; nothing about the Trakt account appears in the Supabase tables. On each desktop system the sign-in is in
+    the system's keychain (`polar.link.trakt.…`).
+
+## Simkl account link (#86)
+
+Checked here: unit tests (`tests/simklLink.test.ts`: the PIN sign-in, refreshing and revoking the tokens, the daily
+allowance; `tests/simklSync.test.ts`: scrobbling, the history queue both ways, the Plan to Watch switch;
+`tests/simklPull.test.ts`; `tests/simklRatings.test.ts`; `tests/simklImport.test.ts`), component tests
+(`tests/dom/simklLink.test.tsx`, `simklScrobble`, `simklPanel`) and a desktop e2e test on the fake shell with a
+made-up account (a linked profile imports its Plan to Watch and what it watched, then unlinks). Not run against Simkl
+(no client id). To check, after creating an app at https://simkl.com/settings/developer/ and building with its client
+id in `VITE_SIMKL_CLIENT_ID`:
+1. Settings → Services → Simkl → Get a code: enter it at simkl.com/pin and allow Polarity. The row shows "Linked as
+   <your Simkl name>". Check that the token answer works without a client secret, and that a sign-in which doesn't
+   grant write access is refused and said.
+2. Play a film or episode that has an IMDb id, and an anime played from a Kitsu id: Simkl shows each as watching;
+   stop past 80%: it is in the history once (for the anime, the right episode under the anime). Stop at 50%: no
+   history entry.
+3. Mark an episode watched by hand, then unwatched: Simkl's history follows both. Offline, mark one, reconnect: it
+   arrives.
+4. Watch something in another Simkl app (or mark it on simkl.com), bring Polarity's window back after 15 minutes: it
+   shows as watched. Check the answer of the `simkl_ids_only` read (status and IMDb/Kitsu ids in it), and that a
+   title removed on Simkl stays in Polarity.
+5. Turn on "Keep the library and Simkl's Plan to Watch in step": add a film, a show and a Kitsu anime to the library:
+   each lands on Plan to Watch (the anime under anime). Remove one still on Plan to Watch: it leaves Simkl. A title
+   already Watching on Simkl doesn't move back to Plan to Watch.
+6. On a title page, pick a list and a rating 1 to 10: simkl.com shows both; change them on simkl.com: the page shows
+   them after the next look. Check the ratings answer's shape (`user_rating`, anime under `anime`, a removed rating as
+   null). "View on Simkl" opens the title's page, also for a title reached through `/redirect` with a Kitsu id.
+   "Remove from Simkl" takes it off every list, its history and its rating.
+7. Import from Simkl…: the counts match the account; Import adds Plan to Watch and the watched marks, and running it
+   again adds nothing new.
+8. Unwatching a film removes it from Simkl's lists too (Simkl's own behaviour): check that this is still so.
+9. Tokens: after a week the access token renews and changes still go out. Revoke Polarity in Simkl's settings: the
+   next change makes the row say Simkl no longer accepts the sign-in.
+10. The account's daily allowance: `X-RateLimit-Remaining` comes back on each answer; a day of normal use stays far
+    below it.
+11. Unlink: Polarity disappears from Simkl's connected apps. A second profile and device each show Off until they
+    sign in; nothing about the Simkl account appears in the Supabase tables. On each desktop system the sign-in is in
+    the system's keychain (`polar.link.simkl.…`).
 
 ## Friends (#135)
 

@@ -62,8 +62,12 @@ export const api = {
   /** Titles like `id`, for "Because you watched …". */
   recommend: (type: ContentType, id: string) => call<MetaPreview[]>("recommend", { ty: type, id }),
   search: (query: string) => call<SearchResults>("search", { query }),
+  /** Films only, released in `year` where the catalog can narrow it (TMDB); Cinemeta answers the plain search. */
+  searchMovies: (query: string, year?: number) => call<MetaPreview[]>("search_movies", { query, year: year ?? null }),
   // Anime with no IMDb page carry a Kitsu id; no metadata addon serves those, so they're built from AniList.
   meta: (type: ContentType, id: string) => (isKitsuId(id) ? kitsuMeta(type, id) : call<Meta>("meta", { ty: type, id })),
+  /** The IMDb id of a TMDB title (a TMDB page opened in Polarity, #208); null without a TMDB key or when TMDB lists none. */
+  imdbForTmdb: (type: ContentType, id: number) => call<string | null>("imdb_for_tmdb", { ty: type, id }),
   /** Also asked by the episode's other ids; files are checked against its absolute number too (anime). */
   streams: (type: ContentType, videoId: string) => {
     const absolute = playContext.absolute(videoId);

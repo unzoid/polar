@@ -15,14 +15,22 @@ export interface TorrentLimits {
   keepSharing: boolean;
 }
 
+/** With battery saver on (Android, #207), nothing is kept for sharing after playback. */
 export const torrentLimits = (
   p: Pick<Prefs, "torrentCacheGb" | "torrentSpeedMbps" | "torrentUploadMbps" | "torrentKeepSharing">,
+  batterySaver = false,
 ): TorrentLimits => ({
   cacheGb: p.torrentCacheGb,
   downloadMbps: p.torrentSpeedMbps,
   uploadMbps: p.torrentUploadMbps,
-  keepSharing: p.torrentKeepSharing,
+  keepSharing: p.torrentKeepSharing && !batterySaver,
 });
+
+/** Why a torrent source won't start on this connection, if it won't (#207): mobile data while the setting is off. */
+export const torrentBlocked = (p: Pick<Prefs, "torrentMobileData">, onMobileData: boolean): string | null =>
+  onMobileData && !p.torrentMobileData
+    ? "Torrent sources don't play on mobile data. Connect to Wi-Fi, or turn on Play torrent streams on mobile data in Settings → Sources."
+    : null;
 
 export type TorrentStep =
   | { kind: "searching"; trackers: number; dht: boolean }

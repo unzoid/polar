@@ -120,6 +120,8 @@ import { useMediaTime } from "../components/player/useMediaTime";
 import { usePlayerChrome } from "../components/player/usePlayerChrome";
 import { usePlayerKeyboard } from "../components/player/usePlayerKeyboard";
 import { useProgressSaver } from "../components/player/useProgressSaver";
+import { useSimklScrobble } from "../components/player/useSimklScrobble";
+import { useTraktScrobble } from "../components/player/useTraktScrobble";
 import { useAirPlay } from "../components/player/useAirPlay";
 
 const win = appWindow;
@@ -214,6 +216,8 @@ export function Player({
   // Before AirPlay: leaving the player saves the receiver's position before the cast ends.
   const current = meta?.videos.find((v) => v.id === videoId);
   const { save, saveIfDue } = useProgressSaver({ media: videoRef, meta, type, metaId, videoId, current, state: source.state });
+  useTraktScrobble({ media: videoRef, videoId, type, playing: started && !paused, enabled: !local });
+  useSimklScrobble({ media: videoRef, videoId, type, playing: started && !paused, enabled: !local });
 
   // --- AirPlay (#19) ----------------------------------------------------------
   const playingUrl = source.state.status === "ready" && started ? source.state : undefined;
@@ -577,6 +581,8 @@ export function Player({
       save();
     },
     error: () => {
+      // The torrent engine was stopped in the background (#207): its reason stays on screen.
+      if (source.halted()) return;
       // mpv exiting isn't this source's fault: moving on to the next source
       // would just start mpv again (and if it keeps exiting, loop through
       // every source).
@@ -1137,6 +1143,14 @@ export function Player({
             steps={steps}
             backend={engine === "html" ? "built-in" : engine === "youtube" ? "YouTube's embedded player" : (engine ?? "not chosen yet")}
             onSources={link || local ? undefined : () => setOptions("sources")}
+            onSettings={
+              tv
+                ? undefined
+                : () => {
+                    void exit();
+                    openSettings("sources");
+                  }
+            }
             onYouTube={ytOutside ? () => void api.openExternal(youtubeUrl(ytOutside)) : undefined}
           />
         )}

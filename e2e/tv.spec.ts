@@ -235,6 +235,9 @@ test("Downloads opens from the Library's rail and its titles open and close with
   await expect(app.getByRole("menu")).toHaveCount(0);
   await press(app, "Enter");
   await expect(focused(app)).toHaveAttribute("aria-expanded", "true");
+  // While the fold is still opening its buttons sit level with the next title, which lines up better and wins.
+  const fold = app.locator(`[id="${await focused(app).getAttribute("aria-controls")}"]`);
+  await expect.poll(() => fold.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
   await press(app, "ArrowDown");
   await expect(focused(app)).toHaveAccessibleName(/^Delete (Watched|All)/);
   await press(app, "ArrowUp", "Enter");

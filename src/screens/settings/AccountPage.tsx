@@ -12,6 +12,7 @@ import { api } from "../../lib/api";
 import { os } from "../../lib/platform";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
+import { LetterboxdImport } from "../../components/settings/LetterboxdImport";
 import { StremioImport } from "../../components/settings/StremioImport";
 import { CopySetup } from "../../components/settings/CopySetup";
 import { SettingRow } from "../../components/settings/SettingRow";
@@ -76,6 +77,8 @@ export function AccountPage() {
       <CopySetup />
 
       <StremioImport />
+
+      <LetterboxdImport />
 
       <Card title="Danger Zone">
         <DeleteAccountRow {...expand("delete")} />

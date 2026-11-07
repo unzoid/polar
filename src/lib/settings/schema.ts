@@ -135,6 +135,12 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "copySetup", page: "account", title: "Add-ons and Keys", keywords: "copy addons api keys profile guest device start" },
   { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
+  {
+    id: "letterboxdImport",
+    page: "account",
+    title: "Import from Letterboxd",
+    keywords: "import letterboxd watchlist watched diary films movies export zip csv file",
+  },
   // Friends (#135): kept on the account server per profile, drawn by the page (components/friends/FriendsSettings.tsx).
   { id: "friendsEnabled", page: "account", title: "Friends", keywords: "friends friend code list online invite watch party join social" },
   { id: "friendsOnline", page: "account", title: "Who sees you're online", keywords: "friends privacy online status presence hide invisible" },
@@ -443,6 +449,7 @@ export const SETTINGS: SettingDef[] = [
     keywords: "torrent cache disk space size limit",
     bind: p("torrentCacheGb"),
     control: { kind: "number", min: 0, max: 200, step: 5, unit: "GB", zero: "No limit", tvStep: 10 },
+    tv: "Torrent Cache Limit",
   },
   {
     id: "torrentSpeedMbps",
@@ -461,6 +468,7 @@ export const SETTINGS: SettingDef[] = [
     keywords: "torrent bandwidth speed limit upload share mbps",
     bind: p("torrentUploadMbps"),
     control: { kind: "number", min: 0, max: 100, step: 1, unit: "Mbit/s", zero: "No limit", tvStep: 2 },
+    tv: "Torrent Upload Limit",
   },
   {
     id: "torrentNotice",
@@ -479,6 +487,17 @@ export const SETTINGS: SettingDef[] = [
     keywords: "torrent seed share upload after playback",
     bind: p("torrentKeepSharing"),
     control: toggle,
+    tv: "Keep Sharing After Playback",
+  },
+  {
+    id: "torrentMobileData",
+    page: "sources",
+    title: "Play torrent streams on mobile data",
+    caption: "Off: on mobile data a torrent source doesn't start, so it can't use up your data plan. Wi-Fi and Ethernet aren't affected.",
+    keywords: "torrent mobile data cellular metered wifi plan",
+    bind: p("torrentMobileData"),
+    control: toggle,
+    tv: "Torrents on Mobile Data",
   },
 
   // Subtitles & Audio
@@ -1099,6 +1118,8 @@ export const SETTINGS: SettingDef[] = [
   { id: "seekrKey", page: "services", title: "Timeline previews", keywords: "seekr thumbnails scrubbing" },
   { id: "anilist", page: "services", title: "AniList", keywords: "anime list account link sign in import tracking" },
   { id: "mal", page: "services", title: "MyAnimeList", keywords: "mal anime list account link sign in import tracking" },
+  { id: "trakt", page: "services", title: "Trakt", keywords: "trakt scrobble history watchlist ratings account link sign in import tracking" },
+  { id: "simkl", page: "services", title: "Simkl", keywords: "simkl scrobble history watchlist ratings anime list account link sign in import tracking" },
 
   // Advanced
   {

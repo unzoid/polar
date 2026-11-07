@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight } from "../components/icons";
 import { ANIME_SHELVES, setShelfVisible, useShelfVisible } from "../lib/anime";
+import { os, torrentsPlayHere } from "../lib/platform";
 import { choicesOf, numberLabel, shownNumber, storedNumber, tvNumberSteps, usePrefs, useSetting } from "../lib/settings";
 import { useBack, usePageActive } from "./shell";
 import { playSound } from "./sounds";
@@ -91,7 +92,17 @@ const ROWS: Record<Exclude<CategoryId, "anime">, string[]> = {
     "audioLanguage",
     "subtitleLanguage",
   ],
-  sources: ["autoPickSource", "maxResolution", "preferScreenResolution", "hideCam", "sourceSort", "sourceFiltersHide"],
+  sources: [
+    "autoPickSource",
+    "maxResolution",
+    "preferScreenResolution",
+    "hideCam",
+    "sourceSort",
+    "sourceFiltersHide",
+    // Where the built-in engine plays them (#207), so a TV reaches them in TV mode too.
+    ...(torrentsPlayHere ? ["torrentUploadMbps", "torrentCacheGb", "torrentKeepSharing"] : []),
+    ...(os === "android" ? ["torrentMobileData"] : []),
+  ],
   browsing: ["trailerAutoplay", "trailerSound", "showCardRatings", "cardRatingPosition", "matureContent", "showCalendar", "showContinueWatching"],
   tv: ["uiSounds", "uiSoundVolume", "padHints", "padStick", "padPlayerVolume", "controllerAlerts"],
 };

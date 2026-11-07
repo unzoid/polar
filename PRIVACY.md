@@ -67,6 +67,9 @@ These never go to the account server:
 - **Downloads**, **local files** you open (and their Recent files list and where you stopped in them), and the
   **Stremio export file** if you import one: it's read on your device and only the library and add-ons you choose are
   kept.
+- The **Letterboxd export** if you import one: it's read on your device. Each film's title and year is looked up in the
+  catalog (TMDB or Cinemeta), as a search would be, and nothing is sent to Letterboxd. Only the library and watched
+  films you import are kept.
 - **API keys and add-on links** on your device are kept in the system's keychain where there is one.
 - **Discord Rich Presence** talks only to the Discord app on the same computer, while something plays. By default it
   shows only that you're watching something in Polarity, no title; in Settings → Playback → Show on Discord you can
@@ -84,6 +87,15 @@ These never go to the account server:
 
   Those pages only open Polarity on the visitor's computer (or offer the download): they look nothing up about
   you or the title. Neither button carries stream links, add-on links or anything about you.
+
+- **The browser extension "Open in Polarity"**, if you install it, runs only on the film, TV, anime and YouTube
+  sites it lists. There it reads the page's address and, where that alone doesn't say which title it is, the
+  page's links to the title's IMDb and TMDB pages; on a YouTube video, also the video's title and where it's
+  playing. It sends nothing anywhere itself and stores nothing. Its buttons open a page on getpolar.app that
+  hands the title or video to Polarity on your computer: for a title, the page's address carries the title's
+  public id (as Watch in Polarity above); for a video to watch together, the video's link is in the part of the
+  address after `#`, which browsers don't send to the website. Polarity shows the link and asks before a watch
+  party starts with it.
 
 ## Services your device talks to
 
@@ -105,6 +117,21 @@ terms apply:
   The anime episodes and films it watches, and the changes you make on an anime's page, go to that service under
   your account, and its list is read to show and import it. The sign-in and what is read from the list stay on your
   device (the system's keychain where there is one) and never go to Polarity's account server. Unlinking removes them.
+- **Trakt:** only for a profile that links a Trakt account in Settings → Services. While it plays a film or an
+  episode that has an IMDb id, Trakt is told what is playing and how far along it is (Trakt shows this as "watching
+  now" on your profile, as public as your Trakt profile is); what you finish or mark watched goes to your Trakt
+  history, and ratings you give on a title page go to Trakt. With the watchlist switch on, titles you add to or remove
+  from your library are added to or removed from your Trakt watchlist. Your Trakt history, watchlist and ratings are
+  read to import them and to bring in what you watch elsewhere. Anime played from Kitsu ids aren't sent. The sign-in
+  stays on your device (the system's keychain where there is one) and never goes to Polarity's account server;
+  unlinking revokes it and removes it.
+- **Simkl:** only for a profile that links a Simkl account in Settings → Services. While it plays a film or an
+  episode that has an IMDb id, or an anime played from a Kitsu id, Simkl is told what is playing and how far along it
+  is; what you finish or mark watched goes to your Simkl history, and the list and rating you pick on a title page go
+  to Simkl. With the Plan to Watch switch on, titles you add to your library are added to Simkl's Plan to Watch, and
+  titles you remove leave it while they are still there. Your Simkl lists, history and ratings are read to show them,
+  to import them and to bring in what you watch elsewhere. The sign-in stays on your device (the system's keychain
+  where there is one) and never goes to Polarity's account server; unlinking revokes it and removes it.
 - **Updates and the add-on list:** GitHub, to check for and download updates and to load the list of add-ons in
   Settings.
 - **Sign-in check:** Cloudflare Turnstile, only if the account server asks for one before sending a login code.
