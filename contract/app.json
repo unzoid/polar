@@ -11,7 +11,7 @@
   "Playable.unsupported": ["kind","reason"],
   "Playable.url": ["kind","url"],
   "PreviewTrack": ["cues","sourceDurationMs"],
-  "Ratings": ["audience","awards","imdb","imdbVotes","letterboxd","metacritic","rated","rottenTomatoes","trakt"],
+  "Ratings": ["audience","awards","imdb","imdbVotes","letterboxd","links","metacritic","rated","rottenTomatoes","tmdb","trakt"],
   "SearchResults": ["movies","series"],
   "Segments": ["intro","outro","postCredits","recap"],
   "Settings": ["accentColor","animeAudioLanguage","animeSubtitleLanguage","audioLanguage","autoPickSource","autoSkip","autoSkipRecaps","autoplayCountdown","autoplayNext","cardRatingPosition","cardSize","clickAction","controlsHideSecs","episodeLayout","excludeKeywords","heroAutoplay","hideCam","hideEpisodeDescriptions","hideEpisodeThumbs","language","maxEpisodeSizeGb","maxMovieSizeGb","maxResolution","mdblistKey","metadataSource","nextUpTiming","omdbKey","playbackSpeed","preferScreenResolution","ratingColors","reduceMotion","rememberSpeed","resumePlayback","resumeRewind","seekPreviews","seekStep","seekrKey","showCalendar","showCardDetails","showCardRatings","showCardTitles","showContinueWatching","sourceAutoTags","sourceFiltersHide","sourceSort","startFullscreen","startPage","stillWatchingAfter","subtitleLanguage","subtitleMode","subtitleStyle","theme","timeDisplay","tmdbKey","trailerAutoplay","trailerSound","uiFont","watchedThreshold","wheelAction"],
