@@ -7,6 +7,7 @@ import { type AnimeCard as Card, retryTitle, useAnimeAliases, useAnimeResults, w
 import { api } from "../lib/api";
 import { addRecentSearch, BROWSE_GENRES, genreOf, searchMinLength, useSearchText } from "../lib/catalog";
 import { usePrefs } from "../lib/settings";
+import { useRouter } from "../lib/router";
 import { keys, useSearch } from "../lib/net";
 import type { ContentType, MetaPreview } from "../lib/types";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -22,6 +23,7 @@ export function Search() {
   const [query, setQuery] = useState(text.trim());
   const deferred = useDeferredValue(query);
   const { animeEnabled } = usePrefs();
+  const searchTab = useRouter().stack.length === 1;
 
   // Keystrokes update the field instantly; the network waits for a pause.
   useEffect(() => {
@@ -36,7 +38,9 @@ export function Search() {
   const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "", retryTitle(data?.series ?? [], data?.movies ?? []));
   const aliases = useAnimeAliases();
 
-  if (!text.trim()) return <div className="scroll search-page" />;
+  // Opened by iOS's search tab (the stack's root) with nothing typed yet: say what the field above is for.
+  if (!text.trim())
+    return <div className="scroll search-page">{searchTab && <EmptyState>{animeEnabled ? "Search for movies, series and anime." : "Search for movies and series."}</EmptyState>}</div>;
   // One Latin letter matches half the catalog: ask for another rather than show an empty page.
   if (text.trim().length < searchMinLength(text.trim()))
     return (
