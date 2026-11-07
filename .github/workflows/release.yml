@@ -48,6 +48,9 @@ jobs:
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # The account backend (scripts/accountEnv.ts): public values, kept as secrets so forks don't build against it.
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,6 +79,13 @@ jobs:
         run: |
           if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
             echo "::error::Add the TAURI_SIGNING_PRIVATE_KEY repository secret (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+      # Without them the app has no sign-in at all (#14).
+      - name: Check the account settings are set
+        run: |
+          if [[ -z "$VITE_SUPABASE_URL" || -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]]; then
+            echo "::error::Add the VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY repository secrets: without them the build has no sign-in."
             exit 1
           fi
 

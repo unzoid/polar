@@ -9,7 +9,7 @@
 //
 // (the Release workflow's macOS job; scripts/release-mac.ts calls packMacSources itself).
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 /** A Homebrew keg bundle-libmpv.ts copied a library from. */
@@ -76,7 +76,8 @@ export function packMacSources(formulaeJson: string, archive: string, work: stri
   }
 
   rmSync(work, { recursive: true, force: true });
-  const cache = join(work, "cache");
+  // Absolute: Homebrew refuses a relative HOMEBREW_CACHE ("different prefix").
+  const cache = resolve(work, "cache");
   const out = join(work, "polarity-mac-sources");
   mkdirSync(join(out, "sources"), { recursive: true });
   mkdirSync(join(out, "recipes"), { recursive: true });
