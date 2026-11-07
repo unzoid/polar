@@ -95,6 +95,24 @@ size and input:
     windows as well.
   - No window buttons off the desktop (`WindowControls`).
 
+### Notifications (#209)
+
+`src/lib/notifications` decides what to say (new episodes and seasons from the episode lists title
+pages load, finished downloads); `src/lib/platform/notifications.ts` is the one interface to the
+system, so switching to a plugin later changes that file and the native parts below, nothing else. The
+native code is the project's own (owner's decision, 2026-11-07), on crates already in the build:
+
+| Platform | Shows notes | Click | Planned ahead (app closed) |
+|---|---|---|---|
+| Windows | toasts (`notifications/toasts.rs`, `windows` crate's toast and XML parts) under the app id the installer gives the Start menu shortcut | the toast's `Activated` event | no: notifies while running |
+| macOS | UserNotifications (`apple/notes.m`, `notifications/apple.rs`); only from the bundled `.app` | the centre's delegate | no: notifies while running |
+| Linux | `org.freedesktop.Notifications` on the session bus (`notifications/linux.rs`, `zbus`) | `ActionInvoked` for the default action | no: notifies while running |
+| Android | `NotificationManager` (`NotesWorker.kt`, `window.polarNotes` from `MainActivity.kt`) | the activity's intent extra, as a `polar-note` page event | WorkManager (`androidx.work`), one job per note at its time |
+| iOS | UserNotifications (`apple/notes.m`) | the centre's delegate | time-interval triggers (at most 60 pending) |
+
+A click's payload is checked by `payloadRoute` (`lib/notifications/store.ts`) before anything opens:
+only a title page, Library or Downloads.
+
 ## 5. Adding a platform
 
 1. Make the shell build there (`tauri android init` / `tauri ios init`); gate desktop-only

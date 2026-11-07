@@ -54,6 +54,9 @@ These never go to the account server:
   or stream links, or what you watch. It leaves your device only if you copy it yourself, for example with "Copy
   details" on a playback error, which is redacted the same way.
 - **Recent searches**, while "Remember recent searches" is on (Settings → Browsing).
+- **Notifications**, if you turn any on (Settings → Notifications, off by default): which episodes of the shows you
+  follow were already out, so the next check can tell what's new. The checks look those shows up as title pages do;
+  the notes are shown by your system, and there is no notification server.
 - **Caches** of catalog and anime data (most kept up to a day, the anime id list a week). Settings → About → Cache
   shows and clears them.
 - **Downloads**, **local files** you open (and their Recent files list and where you stopped in them), and the

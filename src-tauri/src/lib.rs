@@ -15,6 +15,7 @@ mod logging;
 mod native_back;
 mod native_dialogs;
 mod native_tabs;
+mod notifications;
 mod player;
 mod ratings;
 mod seekr;
@@ -221,6 +222,7 @@ pub fn run() {
             migrate_legacy_store(&dir, &path);
             downloads::manage(app.handle(), &dir)?;
             local_files::manage(app.handle())?;
+            notifications::manage(app.handle());
             let mut store = store::Store::load(path);
             let (vault, secrets) = keychain::open_vault(&store.data);
             store.data.fill_secrets(&secrets);
@@ -345,6 +347,11 @@ pub fn run() {
             native_back::native_back,
             native_dialogs::native_dialog,
             native_dialogs::native_share,
+            notifications::notifications_permission,
+            notifications::notifications_request,
+            notifications::notifications_show,
+            notifications::notifications_plan,
+            notifications::notifications_take_launch,
         ])
         .build(tauri::generate_context!())
         .expect("error while building polar")

@@ -1164,6 +1164,44 @@ export const SETTINGS: SettingDef[] = [
 
   // About & Updates
   { id: "version", page: "about", title: "Version", keywords: "about build number" },
+  {
+    id: "notifyEpisodes",
+    page: "notifications",
+    title: "New episodes",
+    caption: "A show you follow has a new episode out. At most one a day per show.",
+    keywords: "notify notification alert episode air aired out",
+    bind: p("notifyEpisodes"),
+    control: toggle,
+  },
+  {
+    id: "notifySeasons",
+    page: "notifications",
+    title: "New seasons",
+    caption: "A show you follow has a new season out.",
+    keywords: "notify notification alert season premiere",
+    bind: p("notifySeasons"),
+    control: toggle,
+  },
+  {
+    id: "notifyScope",
+    page: "notifications",
+    title: "Shows to follow",
+    keywords: "notify notification library started watching",
+    bind: p("notifyScope"),
+    control: choice([
+      { value: "library", label: "Everything in my library" },
+      { value: "started", label: "Only shows I've started" },
+    ]),
+  },
+  {
+    id: "notifyDownloads",
+    page: "notifications",
+    title: "Downloads",
+    caption: "A download finished or failed.",
+    keywords: "notify notification alert download finished failed",
+    bind: p("notifyDownloads"),
+    control: toggle,
+  },
   { id: "softwareUpdate", page: "about", title: "Software update", keywords: "check for updates upgrade new version install" },
   {
     id: "autoDownloadUpdates",

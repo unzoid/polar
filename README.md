@@ -71,6 +71,7 @@ and on Linux as an AppImage, the app updates itself when a new version is out.
         <li>Search with recent searches</li>
         <li>IMDb ratings on cards and title pages, and trailers on the title backdrop</li>
         <li>A calendar built from the shows in your library and the ones you're watching</li>
+        <li>Notifications when a show you follow has a new episode or season, or a download finishes (off until you turn them on)</li>
       </ul>
     </td>
     <td width="50%" valign="top">
@@ -268,6 +269,10 @@ You'll need [Rust](https://rustup.rs) and [Bun](https://bun.sh), and for your pl
 bun install
 bun run app
 ```
+
+Notifications (Settings → Notifications) show only from an installed or bundled build: on macOS the `.app`
+(`bunx tauri build --debug --bundles app`), not the bare binary `bun run app` starts; on Windows the installed app,
+whose Start menu shortcut carries the app's id.
 
 Accounts and watch parties need a Supabase project: copy `.env.example` to `.env` and fill it in
 ([docs/supabase-storage.md](docs/supabase-storage.md)). Leave it out and the app runs without accounts.

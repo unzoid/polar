@@ -934,6 +934,26 @@ To check on Windows (WebView2), and on Linux and macOS:
   inspect the app and record a Performance trace while scrolling; it names what's left. Still known: a shelf's first appearance costs a
   long frame (its cards styled and drawn for the first time).
 
+## Notifications (#209)
+
+Checked here: what's new (time zones, undated episodes, a whole season at once, the one-a-day rule,
+nothing repeated after a restart, plans on phones) in `tests/notifications.test.ts`; Settings →
+Notifications, a new episode's note and its click opening the show in the fake shell
+(`e2e/desktop.spec.ts`); the native code type-checks for all five systems, Android's Kotlin compiles. None of
+it was shown by a real system. To check, with New episodes, New seasons and Downloads switched on:
+- **Each system**: a show in the library whose next episode comes out within the next hours shows one
+  note when it does (or within three hours after); clicking it opens that show. A download finishing shows
+  "Download finished"; clicking it opens the title. Turning a switch off stops that kind.
+- **Windows**: only the installed app (its Start menu shortcut carries the app id `app.getpolar.desktop`);
+  Settings → System → Notifications lists Polarity, and turning it off there makes Settings → Notifications
+  say so.
+- **macOS**: only the bundled `.app`; the first switch turned on asks for permission once; a note shows as a
+  banner with Polarity in front too.
+- **Linux**: GNOME and KDE show the note; a click on it (not just on Open) opens the show.
+- **Android 13 and later**: the first switch asks for permission; with Polarity closed (swiped away), an
+  episode with a listed air date still arrives at that time; a click with the app closed opens the show.
+- **iOS**: as Android; background refresh isn't used, so only listed air dates arrive with the app closed.
+
 ## Screens in headless Chromium (T-051)
 
 - How: `bun run dev`, then open `http://localhost:1420/fake.html` in any browser. The

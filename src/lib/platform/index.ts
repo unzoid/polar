@@ -13,5 +13,6 @@ export * from "./longPress";
 export * from "./nativeBack";
 export * from "./nativeDialogs";
 export * from "./nativeTabs";
+export * from "./notifications";
 export * from "./updates";
 export * from "./window";

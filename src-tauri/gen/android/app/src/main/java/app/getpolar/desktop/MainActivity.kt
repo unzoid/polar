@@ -26,22 +26,41 @@ import androidx.webkit.WebMessageCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : TauriActivity() {
   private var webView: WebView? = null
+  // The payload of the notification that started the app or was clicked (NotesWorker.kt), until the page takes it.
+  private var launchNote: String? = null
+  private var pageHearsNotes = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     keepAboveKeyboard()
+    launchNote = intent?.getStringExtra(Notes.EXTRA)
     // Recreated (turned, resized): the link that started it was already handed over.
     if (savedInstanceState == null) IncomingLinks.offer(intent)
   }
 
-  // A link opened while Polarity runs (the activity is singleTask): to the page at once, once it listens.
+  // A link opened or a notification clicked while Polarity runs (the activity is singleTask): to the page at
+  // once, once it listens.
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     if (IncomingLinks.offer(intent)) deliverLinks()
+    intent.getStringExtra(Notes.EXTRA)?.let {
+      launchNote = it
+      deliverNote()
+    }
+  }
+
+  // A notification's payload as a `polar-note` event, into the page's main frame only, as links are.
+  fun deliverNote(fromPage: Boolean = false) {
+    if (fromPage) pageHearsNotes = true
+    if (!pageHearsNotes) return
+    val payload = launchNote ?: return
+    launchNote = null
+    webView?.evaluateJavascript("window.dispatchEvent(new CustomEvent('polar-note', { detail: ${JSONObject.quote(payload)} }))", null)
   }
 
   private var pageListens = false
@@ -93,9 +112,11 @@ class MainActivity : TauriActivity() {
     // web view hands over only from the app's own pages. A web view too old for that keeps the calls on the interface.
     if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
       webView.addJavascriptInterface(PolarDevice(isTelevision()), "polarDevice")
+      webView.addJavascriptInterface(PolarNotes(this), "polarNotes")
       WebViewCompat.addWebMessageListener(webView, "polarActions", appOrigins(), DeviceActions(this))
     } else {
       webView.addJavascriptInterface(PolarDeviceWithActions(this, isTelevision()), "polarDevice")
+      webView.addJavascriptInterface(PolarNotesWithActions(this), "polarNotes")
     }
     this.webView = webView
   }
@@ -120,18 +141,20 @@ open class PolarDevice(private val tv: Boolean) {
 
 /**
  * The window and app changes, as messages from the app's own pages (src/lib/platform/back.ts, deepLinks.ts):
- * `leave`, `immersive:on|off`, `links-ready`, `stremio-links:on|off`.
+ * `leave`, `immersive:on|off`, `links-ready`, `stremio-links:on|off`, and notifications' `notes:…` (NotesWorker.kt).
  */
-class DeviceActions(private val activity: Activity) : WebViewCompat.WebMessageListener {
+class DeviceActions(private val activity: MainActivity) : WebViewCompat.WebMessageListener {
   override fun onPostMessage(view: WebView, message: WebMessageCompat, sourceOrigin: Uri, isMainFrame: Boolean, replyProxy: JavaScriptReplyProxy) {
     if (!isMainFrame) return
-    when (message.data) {
+    val data = message.data ?: return
+    when (data) {
       "leave" -> leave(activity)
       "immersive:on" -> immersive(activity, true)
       "immersive:off" -> immersive(activity, false)
       "links-ready" -> linksReady(activity)
       "stremio-links:on" -> setStremioLinks(activity, true)
       "stremio-links:off" -> setStremioLinks(activity, false)
+      else -> if (data.startsWith("notes:")) noteAction(activity, data.removePrefix("notes:"))
     }
   }
 }

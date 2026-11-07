@@ -1250,3 +1250,60 @@ test.describe("stremio:// links (#163)", () => {
     await expect(app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Home", exact: true })).toHaveAttribute("aria-current", "page");
   });
 });
+
+test("notifications: New episodes switched on, a new episode is one note, and its click opens the show (#209)", async ({ app }) => {
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Notifications", exact: true }).click();
+  const episodes = settings.getByRole("switch", { name: /^New episodes/ });
+  await expect(episodes).not.toBeChecked();
+  await episodes.click();
+  await expect(episodes).toBeChecked();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+
+  // The checks remember the first show in the library as it was before its last episode came out.
+  const show = await app.evaluate(async () => {
+    type Video = { id: string; season: number; episode: number; released?: string };
+    const invoke = (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a?: object) => Promise<unknown> } }).__TAURI_INTERNALS__.invoke;
+    const library = (await invoke("library_list")) as { id: string; type: string; name: string }[];
+    const first = library.find((l) => l.type === "series")!;
+    const meta = (await invoke("meta", { ty: "series", id: first.id })) as { videos: Video[] };
+    const out = meta.videos.filter((v) => v.released).sort((a, b) => Date.parse(a.released!) - Date.parse(b.released!));
+    const last = out[out.length - 1];
+    const memory = {
+      shows: { [first.id]: { known: out.slice(0, -1).map((v) => v.id), seasons: [...new Set(out.slice(0, -1).map((v) => v.season))], since: Date.parse(out[0].released!) } },
+      planned: {},
+    };
+    localStorage.setItem("polar.notifications.guest", JSON.stringify(memory));
+    return { id: first.id, name: first.name, code: `S${last.season} E${last.episode}` };
+  });
+
+  // The first check runs a little after launch.
+  await app.clock.install();
+  await app.reload();
+  await app.clock.runFor(16_000);
+  const notes = () => app.evaluate(() => ((window as { __notes?: unknown[] }).__notes ?? []) as { title: string; body: string; payload: string }[]);
+  await expect.poll(async () => (await notes()).length).toBe(1);
+  const [note] = await notes();
+  expect(note.title).toBe(show.name);
+  expect(note.body).toContain(show.code);
+  // Remembered as said, so the next check (or a restart) doesn't repeat it.
+  const remembered = await app.evaluate((id) => JSON.parse(localStorage.getItem("polar.notifications.guest") ?? "{}").shows?.[id]?.notifiedDay, show.id);
+  expect(remembered).toBeTruthy();
+
+  await app.evaluate((payload) => (window as unknown as { __polarFakeNoteClick: (p: string) => void }).__polarFakeNoteClick(payload), note.payload);
+  await expect(app.locator(".detail-actions .detail-play")).toBeVisible();
+  // A payload asking for anything else opens nothing.
+  await app.evaluate(() =>
+    (window as unknown as { __polarFakeNoteClick: (p: string) => void }).__polarFakeNoteClick('{"name":"settings","page":"account"}'),
+  );
+  await expect(app.getByRole("dialog", { name: /^Settings/ })).toHaveCount(0);
+
+  // A restart says nothing again.
+  await app.reload();
+  await app.clock.runFor(16_000);
+  await expect(app.locator("#root > *").first()).toBeAttached();
+  await app.clock.runFor(2_000);
+  expect(await notes()).toHaveLength(0);
+});
