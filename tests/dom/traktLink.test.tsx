@@ -43,6 +43,18 @@ beforeEach(() => {
     }
     if (path === "/users/settings") return json({ user: { username: "someone", name: "Someone", ids: { slug: "someone" } } });
     if (path === "/oauth/revoke") return json({});
+    if (path.startsWith("/sync/watchlist"))
+      return json([{ type: "movie", listed_at: "2026-01-02T00:00:00.000Z", movie: { title: "Night Train", ids: { imdb: "tt0000001" } } }]);
+    if (path === "/sync/watched/movies") return json([]);
+    if (path === "/sync/watched/shows")
+      return json([
+        {
+          last_watched_at: "2026-03-01T00:00:00.000Z",
+          show: { title: "Harbour Lights", ids: { imdb: "tt0000002" } },
+          seasons: [{ number: 1, episodes: [{ number: 1 }, { number: 2 }] }],
+        },
+        { last_watched_at: "2026-03-01T00:00:00.000Z", show: { title: "Elsewhere", ids: {} }, seasons: [] },
+      ]);
     if (path === "/sync/last_activities") return json({ all: "2026-01-01T00:00:00.000Z", movies: {}, episodes: {}, shows: {} });
     return new Response(null, { status: 404 });
   }) as unknown as typeof fetch;
@@ -130,4 +142,35 @@ test("a declined code says so and offers a new one; closing stops the polls", as
   expect(asked.filter((a) => a.path === "/oauth/device/token").length).toBe(polls);
   expect(byText(view.container, "button", "Get a code")).toBeTruthy();
   await view.unmount();
+});
+
+test("Settings: a linked profile imports its Trakt watchlist and watched episodes into the library", async () => {
+  keychain.set(traktLinkName(null), JSON.stringify(link));
+  const imported: { library: { id: string }[]; progress: { videoId: string }[] }[] = [];
+  const w = window as { __TAURI_INTERNALS__?: unknown };
+  w.__TAURI_INTERNALS__ = {
+    invoke: async (cmd: string, args: { library: { id: string }[]; progress: { videoId: string }[] }) => {
+      if (cmd !== "library_import") return null;
+      imported.push(args);
+      return { library: args.library.length, progress: args.progress.length };
+    },
+  };
+  try {
+    const view = await wrap(<ServicesPage />);
+    await settle();
+    await click(byText(view.container, ".settings-row-title, .settings-row-button *", "Trakt").closest("button"));
+    await click(byText(view.container, "button", "Import from Trakt…"));
+    await settle();
+    expect(view.container.textContent).toContain("1 film on your watchlist. 2 episodes watched. 1 title without an IMDb page left out.");
+    await click(byText(view.container, "label", "Add the watchlist to the library").querySelector("input"));
+    await click(byText(view.container, "button", "Import"));
+    await settle();
+    expect(imported).toHaveLength(1);
+    expect(imported[0].library).toEqual([]);
+    expect(imported[0].progress.map((r) => r.videoId)).toEqual(["tt0000002:1:1", "tt0000002:1:2"]);
+    expect(view.container.textContent).toContain("Added 0 titles to your library and 2 watched films and episodes.");
+    await view.unmount();
+  } finally {
+    delete w.__TAURI_INTERNALS__;
+  }
 });

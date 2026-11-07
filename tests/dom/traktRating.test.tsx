@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { act } from "react";
-import { TraktRating } from "../../src/components/title/TraktRating";
+import { TraktNotSent, TraktRating } from "../../src/components/title/TraktRating";
 import type { KeyStorage } from "../../src/lib/platform/keychain";
 import { setTraktLinkStorage, traktLinkName, type TraktLink } from "../../src/lib/trakt/link";
 import { traktRatings } from "../../src/lib/trakt/ratings";
@@ -79,4 +79,20 @@ test("not linked, or a title Trakt can't be told about: no rating control", asyn
   await settle();
   expect(b.container.innerHTML).toBe("");
   await b.unmount();
+});
+
+test("an anime played from Kitsu says it isn't sent to Trakt, only while Trakt is linked", async () => {
+  const a = await render(<TraktNotSent id="kitsu:5" />);
+  await settle();
+  expect(a.container.textContent).toContain("Not sent to Trakt");
+  await a.unmount();
+  const b = await render(<TraktNotSent id="tt0000002" />);
+  await settle();
+  expect(b.container.innerHTML).toBe("");
+  await b.unmount();
+  keychain.clear();
+  const c = await render(<TraktNotSent id="kitsu:5" />);
+  await settle();
+  expect(c.container.innerHTML).toBe("");
+  await c.unmount();
 });

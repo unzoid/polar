@@ -1,5 +1,5 @@
 import type { MetaPreview } from "../../lib/types";
-import { useTraktRating } from "../../lib/trakt";
+import { useTraktNotSent, useTraktRating } from "../../lib/trakt";
 import { Check, Star, Trash } from "../icons";
 import { buttonClass } from "../ui/Button";
 import { MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "../ui/Menu";
@@ -39,4 +39,10 @@ export function TraktRating({ item }: { item: MetaPreview }) {
       </MenuPopup>
     </MenuRoot>
   );
+}
+
+/** Under an anime's actions when Trakt is linked and the anime plays as `kitsu:N`: says Trakt isn't told what is watched of it (#85). */
+export function TraktNotSent({ id }: { id: string | undefined }) {
+  if (!useTraktNotSent(id)) return null;
+  return <p className="anime-unavailable t-caption">Not sent to Trakt: Trakt finds titles by their IMDb page, and this one has none.</p>;
 }

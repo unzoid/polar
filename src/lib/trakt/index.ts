@@ -11,6 +11,7 @@ export * from "./queue";
 export * from "./ratings";
 export * from "./scrobble";
 export * from "./signIn";
+export * from "./traktImport";
 export * from "./traktSync";
 export * from "./useTraktLink";
 export * from "./useTraktRating";

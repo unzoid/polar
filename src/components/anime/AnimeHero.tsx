@@ -19,6 +19,7 @@ import { useEffect } from "react";
 import { useArtGate } from "../../lib/ui";
 import { SourcePicker, useSourcePicker } from "../title/SourcePicker";
 import { TitleActions } from "../title/TitleActions";
+import { TraktNotSent } from "../title/TraktRating";
 import { TitleHeading } from "../title/TitleHeading";
 import { openTrailer } from "../Trailer";
 import { AnimeSeriesPick } from "./AnimeSeriesPick";
@@ -154,6 +155,7 @@ export function AnimeHero({
             {pb.pickable && <AnimeSeriesPick anime={item} isMovie={pb.isMovie} current={pb.metaId} mal={pb.malId} kitsu={pb.kitsu} />}
           </p>
         )}
+        <TraktNotSent id={pb.metaId} />
       </div>
 
       <SourcePicker picker={picker} />

@@ -18,3 +18,12 @@ export function useTraktRating(item: { id: string; type: ContentType }): { ratin
   if (state !== "linked" || !ref || ref.kind === "episode") return undefined;
   return { rating: traktRatings(space)?.[ref.imdb] ?? null, rate: (rating) => void rateTrakt(item, rating) };
 }
+
+/**
+ * Whether a title's page says it isn't sent to Trakt (#85): the active profile has linked Trakt,
+ * and the title is an anime Polarity plays as `kitsu:N`, which has no IMDb page for Trakt to know it by.
+ */
+export function useTraktNotSent(id: string | undefined): boolean {
+  const { state } = useTraktLink();
+  return state === "linked" && !!id?.startsWith("kitsu:");
+}

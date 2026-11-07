@@ -11,6 +11,7 @@ import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../co
 import { useSecretsNote } from "../../components/settings/secretsNote";
 import { useKeyGate, type KeyKind } from "../../components/settings/KeyWarning";
 import { ListImport } from "../../components/settings/ListImport";
+import { TraktImport } from "../../components/settings/TraktImport";
 import { TraktSignIn } from "../../components/settings/TraktSignIn";
 import {
   anilistAuthorizeUrl,
@@ -334,6 +335,7 @@ function TraktRow(props: Expandable) {
               Your Trakt watchlist is full, so some titles weren't added. Trakt's free accounts hold a limited number of titles.
             </p>
           )}
+          <TraktImport space={space} />
         </>
       ) : !traktReady() ? (
         <p className="settings-expand-text">Not set up in this build: signing in to Trakt needs Polarity registered with Trakt first.</p>
