@@ -2,7 +2,8 @@
  * Where the app's data comes from, for Settings → About → Credits. TMDB and
  * TheTVDB ask for theirs; the rest are courtesy. docs/data-sources.md lists
  * every source. Swapping a source means
- * changing its entry here too.
+ * changing its entry here too. Bundled artwork whose licence asks for credit
+ * (Twemoji's flags, CC BY 4.0) is credited here as well (docs/licensing.md).
  */
 export interface Credit {
   name: string;
@@ -32,4 +33,9 @@ export const CREDITS: Credit[] = [
   { name: "OMDb", url: "https://www.omdbapi.com", use: "Ratings and awards, with your OMDb key" },
   { name: "Seekr", url: "https://seekr.tv", use: "Seek previews, with your Seekr key" },
   { name: "OpenSubtitles", url: "https://www.opensubtitles.com", use: "Subtitles" },
+  {
+    name: "Twemoji",
+    url: "https://github.com/twitter/twemoji",
+    use: "Flag emoji on Windows, in the Twemoji Country Flags font (talkjs/country-flag-emoji-polyfill), licensed CC BY 4.0",
+  },
 ];

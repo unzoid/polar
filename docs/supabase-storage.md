@@ -325,6 +325,8 @@ the project's 500 MB. The caps leave room for a real household: the heavy test p
 | `anime_links` | ids and the canonical id's format | 5,000 a profile | 25,000 × 146 B = 3.5 MiB |
 | `playlists` | name 1-60 characters, items 8 KB; a removed one keeps no items | 100 live, 1,000 with removed ones, a profile | 5 × 1.2 MiB = 5.9 MiB |
 | `profile_settings` | 16 KB, a JSON object | 1 a profile | 5 × 16 KiB = 0.1 MiB |
+| `friend_settings` (#135) | a code and three switches | 1 a profile with Friends on | 5 × ~0.2 KiB |
+| `friendships` (#135) | two profile ids and a state | 100 a profile (50 friends, 20 requests waiting) | 500 × ~0.2 KiB = 0.1 MiB |
 | **Total** | | | **about 29 MiB** |
 
 Sizes are `pg_total_relation_size` (rows, TOAST and indexes) measured in PGlite with every row at
@@ -345,6 +347,9 @@ How the caps work:
   `not valid`, so the migration never fails on rows already stored: run
   `supabase/checks/account_limits.sql` once afterwards to list rows that don't pass and validate
   the checks.
+- Friends (`supabase/migrations/20261108000000_friends.sql`): rows change only through the
+  `friend_*` functions, which refuse a request or an answer past the caps with `friend_limit` or
+  `friend_requests_limit`; the Friends panel says which.
 - In the app (`sync.ts`, `AccountFullToast`): a kind that's full stays on the device and is tried
   again each round, everything else goes on syncing, and a toast says which part is full, once a
   session per kind. Before a push the app leaves out what the server would refuse anyway (an id
@@ -388,3 +393,23 @@ In the dashboard's SQL editor, as the owner:
   per table, sign-ups per day for 30 days (a burst can be a script), and the size of each table.
 - `supabase/admin/delete_account.sql`: deletes one account (put its id in first), as a whole or
   only its profiles and their rows (`keep_sign_in`). It can't be undone.
+
+## 9. Signing in on a TV (#133)
+
+`supabase/migrations/20261109000000_tv_sign_in.sql` and the Edge Function `supabase/functions/tv-sign-in`.
+The TV (not signed in) asks the function for an 8-character code (31 letters and digits, no 0/O/1/I/L) and a
+secret of its own; a signed-in device looks the code up (what the TV calls itself) and approves or denies; the TV
+asks every 3 s with its secret and, once approved, gets a one-time magic-link token hash (made with the admin API's
+`generateLink`, which sends no email) and verifies it into a session of its own. The other device's session never
+travels.
+
+- Only the service role touches `tv_sign_in` and `tv_sign_in_tries`: RLS on with no policies, functions granted to
+  `service_role` alone. Codes and secrets are stored as SHA-256, the caller's address as an HMAC keyed with the
+  service key.
+- A request lives 5 minutes and is handed out once: deleted when the TV collects the answer; expired rows go with
+  the next request. Limits: 5 live requests per address, 10,000 in all, 10 code lookups per user per 10 minutes.
+- Deploy: apply the migration, then `supabase functions deploy tv-sign-in --no-verify-jwt` (the TV has no session
+  yet; the function checks the user's token itself for look and answer). It reads `SUPABASE_URL` and
+  `SUPABASE_SERVICE_ROLE_KEY`, which Supabase provides to functions.
+- Tests: `tests/sql/tvSignIn.test.ts` (PGlite), `tests/tvSignInFunction.test.ts` (the function's steps with an
+  in-memory database), `tests/tvSignIn.test.ts` (the app's waiting loop).

@@ -4,6 +4,8 @@
 
 /// Longest name kept (before the extension); Windows paths have a 260-character limit by default.
 const MAX_CHARS: usize = 120;
+/// And in bytes: folders hold names of 255 bytes at most, which leaves room for ` (2).webm.part`.
+const MAX_BYTES: usize = 200;
 
 /// What a download's file is called, without its extension.
 pub fn download_stem(
@@ -46,7 +48,7 @@ fn is_bare_episode(t: &str) -> bool {
 }
 
 /// `name` as a file name anywhere: no characters Windows, macOS or Linux refuse, no trailing dots
-/// or spaces, not a reserved device name, at most [`MAX_CHARS`] characters.
+/// or spaces, not a reserved device name, at most [`MAX_CHARS`] characters and [`MAX_BYTES`] bytes.
 pub fn safe_name(name: &str) -> String {
     let mut out: String = name
         .chars()
@@ -60,16 +62,27 @@ pub fn safe_name(name: &str) -> String {
     while out.contains("  ") {
         out = out.replace("  ", " ");
     }
-    let mut out: String = out.trim().chars().take(MAX_CHARS).collect();
+    let mut bytes = 0;
+    let mut out: String = out
+        .trim()
+        .chars()
+        .take(MAX_CHARS)
+        .take_while(|c| {
+            bytes += c.len_utf8();
+            bytes <= MAX_BYTES
+        })
+        .collect();
     while out.ends_with(['.', ' ']) {
         out.pop();
     }
-    const RESERVED: [&str; 22] = [
+    const RESERVED: [&str; 24] = [
         "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1",
-        "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "CONIN$", "CONOUT$",
     ];
-    if RESERVED.iter().any(|r| r.eq_ignore_ascii_case(&out)) {
-        out.push('_');
+    // Windows takes the part before the first dot ("NUL.mkv", "aux .x") as the device name too.
+    let base = out.split('.').next().unwrap_or_default().trim_end_matches(' ');
+    if RESERVED.iter().any(|r| r.eq_ignore_ascii_case(base)) {
+        out.insert(base.len(), '_');
     }
     out
 }
@@ -105,6 +118,13 @@ mod tests {
         assert_eq!(safe_name("Ends with dots..."), "Ends with dots");
         assert_eq!(safe_name("con"), "con_");
         assert_eq!(safe_name(&"x".repeat(300)).chars().count(), MAX_CHARS);
+        // Windows takes "NUL.anything" as the device too, and CONIN$ / CONOUT$.
+        assert_eq!(safe_name("Nul. The Sequel"), "Nul_. The Sequel");
+        assert_eq!(safe_name("aux .x"), "aux_ .x");
+        assert_eq!(safe_name("conout$"), "conout$_");
+        assert_eq!(safe_name("Connections"), "Connections");
+        // Folders hold names of 255 bytes at most, whatever the script.
+        assert!(safe_name(&"字".repeat(300)).len() <= MAX_BYTES);
     }
 
     #[test]

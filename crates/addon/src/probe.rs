@@ -231,6 +231,10 @@ impl Probe {
                     .then(|| res.headers().get(header::LOCATION)?.to_str().ok().and_then(|l| url.join(l).ok()))
                     .flatten();
                 let Some(next) = next else { break (res, ms(sent)) };
+                // The player opens whatever this ends on: a file, a share or one of mpv's own protocols never.
+                if !matches!(next.scheme(), "http" | "https") {
+                    return Err("The source sent the player to a link it doesn't open. Choose another source.".into());
+                }
                 hops += 1;
                 if hops > MAX_REDIRECTS {
                     return Err(
@@ -778,6 +782,20 @@ mod tests {
             let (r, events) = run(&format!("{base}/again")).await;
             assert!(r.unwrap_err().contains("too many redirects"));
             assert_eq!(events.iter().filter(|e| matches!(e, ProbeEvent::Redirect { .. })).count(), MAX_REDIRECTS);
+        })
+    }
+
+    #[test]
+    fn a_redirect_off_the_web_is_refused() {
+        block(async {
+            for to in ["file:///etc/hosts", "edl://x", "smb://192.0.2.1/share/film.mkv"] {
+                let base = serve(move |_, _| answer("302 Found", &[("Location", to)])).await;
+                let (r, _) = run(&format!("{base}/start")).await;
+                assert_eq!(
+                    r.unwrap_err(),
+                    "The source sent the player to a link it doesn't open. Choose another source."
+                );
+            }
         })
     }
 
