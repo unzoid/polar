@@ -1,8 +1,8 @@
-import type { EntryChange, ListEntry } from "./anilistList";
+import type { EntryChange, ListEntry } from "./entry";
 
 /**
- * What watching episode `episode` (its number within the AniList entry) changes on the entry
- * (#83), or `null` when nothing does:
+ * What watching episode `episode` (its number within the list entry) changes on the entry
+ * (#83, #84), or `null` when nothing does:
  * - not on the list, planned, paused or dropped: watching, with that progress;
  * - watching: progress moves up to the episode, never back;
  * - completed: watching it again (`REPEATING`), from that episode;

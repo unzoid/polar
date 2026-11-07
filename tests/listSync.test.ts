@@ -4,7 +4,7 @@ import { anilistAuthorizeUrl, readSignIn, ANILIST_TOKEN_LIFE } from "../src/lib/
 import { afterWatching } from "../src/lib/lists/progressRule";
 import { enqueue, flush, pendingOps, type QueueDeps } from "../src/lib/lists/queue";
 import { linkName, readLink, type Link } from "../src/lib/lists/linkStore";
-import { ListError, SignedOut, type EntryChange, type ListEntry } from "../src/lib/lists/anilistList";
+import { ListError, SignedOut, type EntryChange, type ListEntry } from "../src/lib/lists/entry";
 import { entriesKey, forgetListEntries, noteWatched, seenEntry, setListSpace, setListSyncDeps, syncList, type ListSyncDeps } from "../src/lib/lists/listSync";
 import type { ListEpisode } from "../src/lib/anime/playContext";
 
@@ -86,98 +86,105 @@ function memory() {
   return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
 }
 
-function deps(over: Partial<QueueDeps> = {}) {
+function deps(over: Partial<Omit<QueueDeps, "client">> & { client?: Partial<QueueDeps["client"]> } = {}) {
   const storage = memory();
   let link: Link | undefined = { token: "TOKEN", expiresAt: NOW + 1000, userId: 7, userName: "x", scoreFormat: "POINT_10", adult: false };
   const saved: [number, EntryChange][] = [];
   const removed: number[] = [];
   const entries = new Map<number, ListEntry>();
-  const d: QueueDeps = {
-    storage,
-    now: () => NOW,
-    getLink: async () => link,
-    saveLink: async (_s, l) => void (link = l),
+  const client: QueueDeps["client"] = {
+    name: "AniList",
     entryFor: async (_u, m) => entries.get(m) ?? null,
     saveEntry: async (m, c) => {
       saved.push([m, c]);
       return { ...entry("CURRENT", 0), mediaId: m };
     },
     deleteEntry: async (id) => void removed.push(id),
-    ...over,
+  };
+  const { client: overClient, ...rest } = over;
+  const d: QueueDeps = {
+    storage,
+    // AniList's links can't be refreshed: a refused one has nothing to renew it with.
+    liveLink: async (_s, renew) => (link?.refused || renew ? undefined : link),
+    saveLink: async (_s, l) => void (link = l),
+    client: { ...client, ...overClient },
+    ...rest,
   };
   return { d, saved, removed, entries, link: () => link };
 }
 
 test("the queue keeps the later episode of an entry and drops what a removal covers", () => {
   const s = memory();
-  enqueue("p", { kind: "watched", mediaId: 5, episode: 2, total: 12 }, s);
-  enqueue("p", { kind: "watched", mediaId: 5, episode: 3, total: 12 }, s);
-  enqueue("p", { kind: "watched", mediaId: 6, episode: 1, total: 12 }, s);
-  expect(pendingOps("p", s).map((o) => o.kind === "watched" && o.episode)).toEqual([3, 1]);
-  enqueue("p", { kind: "remove", mediaId: 5 }, s);
-  expect(pendingOps("p", s)).toEqual([
+  enqueue("anilist", "p", { kind: "watched", mediaId: 5, episode: 2, total: 12 }, s);
+  enqueue("anilist", "p", { kind: "watched", mediaId: 5, episode: 3, total: 12 }, s);
+  enqueue("anilist", "p", { kind: "watched", mediaId: 6, episode: 1, total: 12 }, s);
+  expect(pendingOps("anilist", "p", s).map((o) => o.kind === "watched" && o.episode)).toEqual([3, 1]);
+  enqueue("anilist", "p", { kind: "remove", mediaId: 5 }, s);
+  expect(pendingOps("anilist", "p", s)).toEqual([
     { kind: "watched", mediaId: 6, episode: 1, total: 12 },
     { kind: "remove", mediaId: 5 },
   ]);
-  expect(pendingOps("other", s)).toEqual([]);
+  expect(pendingOps("anilist", "other", s)).toEqual([]);
 });
 
 test("flush sends in order, reading each entry first", async () => {
   const t = deps();
   t.entries.set(5, entry("COMPLETED", 12));
   t.entries.set(8, entry("CURRENT", 1));
-  enqueue("p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, t.d.storage);
-  enqueue("p", { kind: "set", mediaId: 6, change: { score: 8 } }, t.d.storage);
-  enqueue("p", { kind: "remove", mediaId: 8 }, t.d.storage);
-  expect(await flush("p", t.d)).toBe("done");
+  enqueue("anilist", "p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, t.d.storage);
+  enqueue("anilist", "p", { kind: "set", mediaId: 6, change: { score: 8 } }, t.d.storage);
+  enqueue("anilist", "p", { kind: "remove", mediaId: 8 }, t.d.storage);
+  expect(await flush("anilist", "p", t.d)).toBe("done");
   expect(t.saved).toEqual([
     [5, { status: "REPEATING", progress: 1 }],
     [6, { score: 8 }],
   ]);
   expect(t.removed).toEqual([9]);
-  expect(pendingOps("p", t.d.storage)).toEqual([]);
+  expect(pendingOps("anilist", "p", t.d.storage)).toEqual([]);
 });
 
 test("offline keeps the queue; a refused token marks the link and keeps it too", async () => {
-  const off = deps({ entryFor: async () => Promise.reject(new TypeError("Failed to fetch")) });
-  enqueue("p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, off.d.storage);
-  expect(await flush("p", off.d)).toBe("offline");
-  expect(pendingOps("p", off.d.storage)).toHaveLength(1);
+  const off = deps({ client: { entryFor: async () => Promise.reject(new TypeError("Failed to fetch")) } });
+  enqueue("anilist", "p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, off.d.storage);
+  expect(await flush("anilist", "p", off.d)).toBe("offline");
+  expect(pendingOps("anilist", "p", off.d.storage)).toHaveLength(1);
 
-  const busy = deps({ saveEntry: async () => Promise.reject(new ListError("busy", 503)) });
-  enqueue("p", { kind: "set", mediaId: 5, change: { score: 1 } }, busy.d.storage);
-  expect(await flush("p", busy.d)).toBe("offline");
-  expect(pendingOps("p", busy.d.storage)).toHaveLength(1);
+  const busy = deps({ client: { saveEntry: async () => Promise.reject(new ListError("busy", 503)) } });
+  enqueue("anilist", "p", { kind: "set", mediaId: 5, change: { score: 1 } }, busy.d.storage);
+  expect(await flush("anilist", "p", busy.d)).toBe("offline");
+  expect(pendingOps("anilist", "p", busy.d.storage)).toHaveLength(1);
 
-  const out = deps({ entryFor: async () => Promise.reject(new SignedOut()) });
-  enqueue("p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, out.d.storage);
-  expect(await flush("p", out.d)).toBe("signed-out");
+  const out = deps({ client: { entryFor: async () => Promise.reject(new SignedOut()) } });
+  enqueue("anilist", "p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, out.d.storage);
+  expect(await flush("anilist", "p", out.d)).toBe("signed-out");
   expect(out.link()?.refused).toBe(true);
-  expect(pendingOps("p", out.d.storage)).toHaveLength(1);
-  expect(await flush("p", out.d)).toBe("signed-out");
+  expect(pendingOps("anilist", "p", out.d.storage)).toHaveLength(1);
+  expect(await flush("anilist", "p", out.d)).toBe("signed-out");
 });
 
 test("a change AniList rejects is dropped so the rest still go", async () => {
   let first = true;
   const t = deps({
-    saveEntry: async (m, c) => {
-      if (first) {
-        first = false;
-        throw new ListError("validation", 400);
-      }
-      t.saved.push([m, c]);
-      return entry("CURRENT", 0);
+    client: {
+      saveEntry: async (m: number, c: EntryChange) => {
+        if (first) {
+          first = false;
+          throw new ListError("validation", 400);
+        }
+        t.saved.push([m, c]);
+        return entry("CURRENT", 0);
+      },
     },
   });
-  enqueue("p", { kind: "set", mediaId: 5, change: { score: 99 } }, t.d.storage);
-  enqueue("p", { kind: "set", mediaId: 6, change: { score: 1 } }, t.d.storage);
-  expect(await flush("p", t.d)).toBe("done");
+  enqueue("anilist", "p", { kind: "set", mediaId: 5, change: { score: 99 } }, t.d.storage);
+  enqueue("anilist", "p", { kind: "set", mediaId: 6, change: { score: 1 } }, t.d.storage);
+  expect(await flush("anilist", "p", t.d)).toBe("done");
   expect(t.saved).toEqual([[6, { score: 1 }]]);
 });
 
 test("the queue never holds the token", () => {
   const s = memory();
-  enqueue("p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, s);
+  enqueue("anilist", "p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, s);
   expect(s.getItem("polar.lists.queue.anilist.p")).not.toContain("TOKEN");
 });
 
@@ -192,16 +199,17 @@ describe("list sync (#83)", () => {
     const flushed: (string | null)[] = [];
     const looked: number[] = [];
     let changes: ListEntry[] = [];
+    const linked = async (service: string, space: string | null) => (service === "anilist" && space === "linked" ? link : undefined);
     const d: ListSyncDeps = {
       storage,
-      now: () => NOW,
-      getLink: async (space) => (space === "linked" ? link : undefined),
+      getLink: linked,
+      liveLink: linked,
       listEpisode: (v) => episodes[v],
-      flush: async (space) => {
+      flush: async (_service, space) => {
         flushed.push(space);
         return "done";
       },
-      changedSince: async (_u, since) => {
+      changedSince: async (_service, _u, since) => {
         looked.push(since);
         return changes.filter((e) => e.updatedAt > since);
       },
@@ -217,7 +225,7 @@ describe("list sync (#83)", () => {
     setListSpace("linked");
     await syncList();
     await noteWatched(["tt0000106:1:1", "tt0000999:1:1", "tt0000106:1:2"]);
-    expect(pendingOps("linked", t.storage)).toEqual([{ kind: "watched", mediaId: 5, episode: 2, total: 2 }]);
+    expect(pendingOps("anilist", "linked", t.storage)).toEqual([{ kind: "watched", mediaId: 5, episode: 2, total: 2 }]);
     expect(t.flushed).toContain("linked");
   });
 
@@ -226,11 +234,11 @@ describe("list sync (#83)", () => {
     setListSpace("unlinked");
     await syncList();
     await noteWatched(["tt0000106:1:1"]);
-    expect(pendingOps("unlinked", t.storage)).toEqual([]);
+    expect(pendingOps("anilist", "unlinked", t.storage)).toEqual([]);
     setListSpace("linked");
     await syncList();
     await noteWatched(["tt0000999:1:1"]);
-    expect(pendingOps("linked", t.storage)).toEqual([]);
+    expect(pendingOps("anilist", "linked", t.storage)).toEqual([]);
     expect(t.flushed).toEqual([]);
   });
 
@@ -241,22 +249,22 @@ describe("list sync (#83)", () => {
     setListSpace("linked");
     await syncList();
     expect(t.looked).toEqual([0]);
-    expect(seenEntry(6, "linked")?.updatedAt).toBe(90);
+    expect(seenEntry("anilist", 6, "linked")?.updatedAt).toBe(90);
     t.setChanges([at(6, 120), at(5, 100)]);
     setListSpace("linked");
     await syncList();
     expect(t.looked).toEqual([0, 100]);
-    expect(seenEntry(6, "linked")?.updatedAt).toBe(120);
-    expect(seenEntry(5, "linked")?.updatedAt).toBe(100);
-    expect(t.storage.getItem(entriesKey("linked"))).not.toContain("TOKEN");
-    forgetListEntries("linked");
-    expect(seenEntry(5, "linked")).toBeUndefined();
+    expect(seenEntry("anilist", 6, "linked")?.updatedAt).toBe(120);
+    expect(seenEntry("anilist", 5, "linked")?.updatedAt).toBe(100);
+    expect(t.storage.getItem(entriesKey("anilist", "linked"))).not.toContain("TOKEN");
+    forgetListEntries("anilist", "linked");
+    expect(seenEntry("anilist", 5, "linked")).toBeUndefined();
   });
 
   test("a switch to another profile mid-send still looks at the new one's list", async () => {
     let release = () => {};
     const t = setup({
-      changedSince: async (_u, since) => {
+      changedSince: async (_service, _u, since) => {
         t.looked.push(since);
         await new Promise<void>((r) => (release = r));
         return [];

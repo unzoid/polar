@@ -1,19 +1,21 @@
-import { viewer as askViewer, type Caller, type EntryChange, type ListEntry, type ListStatus, type Viewer } from "./anilistList";
-import { getLink, removeLink, saveLink, type Link } from "./linkStore";
+import type { Caller, EntryChange, ListEntry, Viewer } from "./entry";
+import { getLink, removeLink, renewable, saveLink, type Link, type ListService } from "./linkStore";
 import { forgetListEntries, keepEntry, syncList } from "./listSync";
+import { finishMalSignIn, type TokenRelay } from "./malSignIn";
 import { clearQueue, enqueue } from "./queue";
+import { listClient } from "./services";
 import { readSignIn } from "./signIn";
 
 /**
- * Linking a profile's AniList account and changing its entries from Polarity (#83): what the
- * Settings row and the anime page's list panel call. Changes go through the profile's queue
- * (queue.ts), so one made offline goes out later.
+ * Linking a profile's list accounts (#83 AniList, #84 MyAnimeList) and changing its entries from
+ * Polarity: what the Settings rows and the anime page's list panels call. Changes go through the
+ * profile's queue for the service (queue.ts), so one made offline goes out later.
  */
 
 /** What the user pasted holds no sign-in, or one already run out. */
 export class NotASignIn extends Error {
-  constructor() {
-    super("That isn't an AniList sign-in code");
+  constructor(service = "AniList") {
+    super(`That isn't a ${service} sign-in code`);
     this.name = "NotASignIn";
   }
 }
@@ -26,21 +28,23 @@ export interface LinkingDeps {
   storage: Pick<Storage, "getItem" | "setItem" | "removeItem">;
   /** After a link or an unlink: the list sync and whoever shows the link. */
   changed: (space: string | null) => void;
+  /** Tests: MyAnimeList's token requests instead of the native relay. */
+  tokenRelay?: TokenRelay;
 }
 
 const listeners = new Set<() => void>();
 
-/** Hear when a profile links or unlinks AniList; returns the function that stops listening. */
+/** Hear when a profile links or unlinks a list service; returns the function that stops listening. */
 export function onLinkChange(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-const realDeps = (): LinkingDeps => ({
+const realDeps = (service: ListService): LinkingDeps => ({
   now: Date.now,
-  viewer: askViewer,
-  saveLink: (space, link) => saveLink("anilist", space, link),
-  removeLink: (space) => removeLink("anilist", space),
+  viewer: listClient(service).viewer,
+  saveLink: (space, link) => saveLink(service, space, link),
+  removeLink: (space) => removeLink(service, space),
   storage: localStorage,
   changed: () => {
     listeners.forEach((l) => l());
@@ -53,7 +57,7 @@ const realDeps = (): LinkingDeps => ({
  * the link the browser opened back into the app): asks AniList who that is, keeps the link, and
  * sends what was queued meanwhile. Throws {@link NotASignIn}, or what AniList answered.
  */
-export async function linkAniList(space: string | null, pasted: string, deps: LinkingDeps = realDeps()): Promise<Link> {
+export async function linkAniList(space: string | null, pasted: string, deps: LinkingDeps = realDeps("anilist")): Promise<Link> {
   const signIn = readSignIn(pasted, deps.now());
   if (!signIn) throw new NotASignIn();
   const who = await deps.viewer({ token: signIn.token });
@@ -63,21 +67,45 @@ export async function linkAniList(space: string | null, pasted: string, deps: Li
   return link;
 }
 
-/** Unlinks the profile: the token, the changes still waiting and what the device kept of the list all go. */
-export async function unlinkAniList(space: string | null, deps: LinkingDeps = realDeps()): Promise<void> {
+/**
+ * Links the profile to the MyAnimeList account that allowed the sign-in started from Settings
+ * (malSignIn.ts): trades the code in `pasted` (the address the browser landed on) for tokens, asks
+ * MAL who that is, keeps the link and sends what was queued meanwhile. Throws {@link NotASignIn},
+ * NoPendingSignIn, or what MAL answered.
+ */
+export async function linkMal(space: string | null, pasted: string, deps: LinkingDeps = realDeps("mal")): Promise<Link> {
+  const tokens = await finishMalSignIn(space, pasted, { storage: deps.storage, now: deps.now(), relay: deps.tokenRelay });
+  if (!tokens) throw new NotASignIn("MyAnimeList");
+  const who = await deps.viewer({ token: tokens.token });
+  const link: Link = { ...tokens, userId: who.id, userName: who.name, scoreFormat: who.scoreFormat, adult: who.adult };
+  await deps.saveLink(space, link);
+  deps.changed(space);
+  return link;
+}
+
+/** Unlinks the profile from `service`: the token, the changes still waiting and what the device kept of the list all go. */
+export async function unlinkList(service: ListService, space: string | null, deps: LinkingDeps = realDeps(service)): Promise<void> {
   await deps.removeLink(space);
-  clearQueue(space, deps.storage);
-  forgetListEntries(space);
+  clearQueue(service, space, deps.storage);
+  forgetListEntries(service, space);
   deps.changed(space);
 }
 
 /**
- * Changes the profile's entry for `mediaId` from the anime page: queued and sent, and kept on the
- * device as AniList will have it, so the page shows it at once. Returns that entry.
+ * Changes the profile's entry for `mediaId` (the service's id) from the anime page: queued and
+ * sent, and kept on the device as the service will have it, so the page shows it at once.
+ * Returns that entry.
  */
-export function changeEntry(space: string | null, mediaId: number, before: ListEntry | null, change: EntryChange, now = Date.now()): ListEntry {
+export function changeEntry(
+  service: ListService,
+  space: string | null,
+  mediaId: number,
+  before: ListEntry | null,
+  change: EntryChange,
+  now = Date.now(),
+): ListEntry {
   const after: ListEntry = {
-    id: before?.id ?? 0,
+    id: before?.id ?? (service === "mal" ? mediaId : 0),
     mediaId,
     status: change.status ?? before?.status ?? "PLANNING",
     progress: change.progress ?? before?.progress ?? 0,
@@ -85,17 +113,17 @@ export function changeEntry(space: string | null, mediaId: number, before: ListE
     repeat: change.repeat ?? before?.repeat ?? 0,
     updatedAt: Math.floor(now / 1000),
   };
-  // AniList fills in the rest of a new entry: send only what changed, with the status a new one needs.
-  enqueue(space, { kind: "set", mediaId, change: before ? change : { status: after.status, ...change } });
-  keepEntry(space, after);
+  // The service fills in the rest of a new entry: send only what changed, with the status a new one needs.
+  enqueue(service, space, { kind: "set", mediaId, change: before ? change : { status: after.status, ...change } });
+  keepEntry(service, space, after);
   void syncList();
   return after;
 }
 
-/** Takes the anime off the profile's list. */
-export function removeEntry(space: string | null, mediaId: number) {
-  enqueue(space, { kind: "remove", mediaId });
-  keepEntry(space, null, mediaId);
+/** Takes the anime off the profile's list on `service`. */
+export function removeEntry(service: ListService, space: string | null, mediaId: number) {
+  enqueue(service, space, { kind: "remove", mediaId });
+  keepEntry(service, space, null, mediaId);
   void syncList();
 }
 
@@ -105,21 +133,11 @@ export type LinkState = "none" | "linked" | "expired" | "refused";
 export function linkState(link: Link | undefined, now: number): LinkState {
   if (!link) return "none";
   if (link.refused) return "refused";
-  return link.expiresAt > now ? "linked" : "expired";
+  return renewable(link, now) ? "linked" : "expired";
 }
 
-/** The link of `space`, for the code that reads it once. */
-export const anilistLink = (space: string | null) => getLink("anilist", space);
-
-/** AniList's names of the statuses, as its own site says them for anime. */
-export const STATUS_NAMES: Record<ListStatus, string> = {
-  CURRENT: "Watching",
-  PLANNING: "Plan to watch",
-  COMPLETED: "Completed",
-  PAUSED: "Paused",
-  DROPPED: "Dropped",
-  REPEATING: "Rewatching",
-};
+/** The profile's link to `service`, for the code that reads it once. */
+export const listLink = (service: ListService, space: string | null) => getLink(service, space);
 
 /** The scores an account's format allows: 0 is "not scored". `labels` name each step where the format draws symbols. */
 export interface ScoreScale {

@@ -58,7 +58,7 @@ export interface AniZip {
  * be reached, the ids alone from Fribb/anime-lists (kept by the app,
  * crates/anime/src/anime_lists.rs), with no episodes or images.
  */
-type AniZipParams = { anilist_id: number } | { imdb_id: string } | { kitsu_id: number };
+type AniZipParams = { anilist_id: number } | { imdb_id: string } | { kitsu_id: number } | { mal_id: number };
 
 async function fetchAniZip(params: AniZipParams, signal?: AbortSignal): Promise<AniZip | null> {
   const [k, v] = Object.entries(params)[0];
@@ -86,7 +86,13 @@ async function fallback(key: string, value: string, error: unknown): Promise<Ani
 /** The query for one ani.zip record: every lookup goes through the cache, so a show is asked for once. */
 export const aniZipLookup = (params: AniZipParams) => ({
   queryKey:
-    "anilist_id" in params ? keys.aniZip(params.anilist_id) : "imdb_id" in params ? keys.aniZipImdb(params.imdb_id) : keys.aniZipKitsu(params.kitsu_id),
+    "anilist_id" in params
+      ? keys.aniZip(params.anilist_id)
+      : "imdb_id" in params
+        ? keys.aniZipImdb(params.imdb_id)
+        : "mal_id" in params
+          ? keys.aniZipMal(params.mal_id)
+          : keys.aniZipKitsu(params.kitsu_id),
   queryFn: ({ signal }: { signal?: AbortSignal }) => fetchAniZip(params, signal),
   staleTime: 6 * 60 * 60_000,
   gcTime: 24 * 60 * 60_000,

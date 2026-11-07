@@ -67,6 +67,9 @@ const commands: Record<string, (a: Args) => unknown> = {
   streams: () => fx.streams(),
   subtitles: () => [],
   skip_segments: () => ({}),
+  // A linked MyAnimeList list (#84): a made-up account with a short list; sign-ins aren't faked.
+  mal_api: (a) => fakeMal(a as { method: string; path: string; token: string }),
+  mal_token: () => Promise.reject({ code: "upstream", message: "not in the fake shell" }),
   seek_previews: () => null,
   ratings: () =>
     fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
@@ -180,6 +183,27 @@ const commands: Record<string, (a: Args) => unknown> = {
     ]),
   ),
 };
+
+/** The native MyAnimeList relay's answer for the fake account: its whole list, an entry, a change saved. */
+function fakeMal({ method, path, token }: { method: string; path: string; token: string }) {
+  const answer = (body: unknown) => ({ status: 200, body: JSON.stringify(body) });
+  if (!token) return { status: 401, body: "" };
+  const status = (s: string, watched: number) => ({ status: s, score: 0, num_episodes_watched: watched, is_rewatching: false, num_times_rewatched: 0, updated_at: "2026-01-02T00:00:00Z" });
+  const node = (id: number, media_type: string, nsfw = "white") => ({ id, title: `Show ${id}`, num_episodes: media_type === "movie" ? 1 : 12, media_type, nsfw });
+  if (path === "users/@me") return answer({ id: 77, name: "Lanternfield Fan" });
+  if (path === "users/@me/animelist")
+    return answer({
+      data: [
+        { node: node(101, "tv"), list_status: status("watching", 3) },
+        { node: node(102, "movie"), list_status: status("completed", 1) },
+        { node: node(103, "tv", "black"), list_status: status("plan_to_watch", 0) },
+      ],
+      paging: {},
+    });
+  if (method === "GET" && path.startsWith("anime/")) return answer({ id: Number(path.slice(6)) });
+  if (method === "PATCH") return answer(status("watching", 1));
+  return { status: 200, body: "" };
+}
 
 mockWindows("main");
 mockIPC(

@@ -63,6 +63,7 @@ export const keys = {
   aniZip: (anilistId: number) => ["anizip", "anilist", anilistId] as const,
   aniZipImdb: (imdb: string) => ["anizip", "imdb", imdb] as const,
   aniZipKitsu: (kitsu: number) => ["anizip", "kitsu", kitsu] as const,
+  aniZipMal: (mal: number) => ["anizip", "mal", mal] as const,
   anime: {
     home: ["anime", "home"] as const,
     genre: (genre: string) => ["anime", "genre", genre] as const,

@@ -101,6 +101,10 @@ terms apply:
   doesn't choose, check or vouch for them.
 - **Torrent playback:** while a torrent source plays (and afterwards, only if you turned on Keep sharing after playback), the
   other people in that torrent see your IP address and which pieces of the file you download and upload.
+- **Linked list accounts:** only for a profile that links an AniList or MyAnimeList account in Settings → Services.
+  The anime episodes and films it watches, and the changes you make on an anime's page, go to that service under
+  your account, and its list is read to show and import it. The sign-in and what is read from the list stay on your
+  device (the system's keychain where there is one) and never go to Polarity's account server. Unlinking removes them.
 - **Updates and the add-on list:** GitHub, to check for and download updates and to load the list of add-ons in
   Settings.
 - **Sign-in check:** Cloudflare Turnstile, only if the account server asks for one before sending a login code.

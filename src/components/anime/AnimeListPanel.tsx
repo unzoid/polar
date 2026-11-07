@@ -3,17 +3,18 @@ import { useEffect, useState } from "react";
 import type { Anime } from "../../lib/anime";
 import {
   changeEntry,
-  entryFor,
   fitScore,
   LIST_STATUSES,
+  listClient,
+  liveLink,
   removeEntry,
   scoreScale,
   SignedOut,
-  STATUS_NAMES,
-  useAniListLink,
+  useListLink,
   useSeenEntry,
   type EntryChange,
   type ListEntry,
+  type ListService,
   type ScoreScale,
 } from "../../lib/lists";
 import { Check, ChevronDown, Minus, Plus, Trash } from "../icons";
@@ -21,33 +22,51 @@ import { buttonClass, IconButton } from "../ui/Button";
 import { MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "../ui/Menu";
 import { TextField } from "../ui/TextField";
 
+/** The anime's entries on each list service the profile has linked (#83 AniList, #84 MyAnimeList). */
+export function AnimeListPanels({ anime }: { anime: Anime }) {
+  const mal = anime.idMal;
+  return (
+    <>
+      <AnimeListPanel service="anilist" mediaId={anime.id} anime={anime} />
+      {mal != null && Number.isSafeInteger(mal) && mal > 0 && <AnimeListPanel service="mal" mediaId={mal} anime={anime} />}
+    </>
+  );
+}
+
 /**
- * The anime's entry on the profile's linked AniList list (#83): status, progress and score, read
- * fresh from AniList each time the page opens and changed here (through the profile's queue, so a
- * change made offline goes out later). Nothing when the profile hasn't linked AniList.
+ * The anime's entry on the profile's linked list on `service`: status, progress and score, read
+ * fresh from the service each time the page opens and changed here (through the profile's queue,
+ * so a change made offline goes out later). Nothing when the profile hasn't linked the service.
  */
-export function AnimeListPanel({ anime }: { anime: Anime }) {
-  const { space, link, state } = useAniListLink();
+function AnimeListPanel({ service, mediaId, anime }: { service: ListService; mediaId: number; anime: Anime }) {
+  const { space, link, state } = useListLink(service);
+  const client = listClient(service);
   const qc = useQueryClient();
-  const key = ["anilist", "entry", space, link?.userId, anime.id];
+  const key = [service, "entry", space, link?.userId, mediaId];
   const fresh = useQuery({
     queryKey: key,
-    queryFn: ({ signal }) => entryFor(link!.userId, anime.id, { token: link!.token, signal }),
+    queryFn: async ({ signal }) => {
+      const live = await liveLink(service, space);
+      if (!live) throw new SignedOut(client.name);
+      return client.entryFor(live.userId, mediaId, { token: live.token, signal });
+    },
     enabled: state === "linked",
     staleTime: 0,
     gcTime: 0,
     retry: (n, e) => !(e instanceof SignedOut) && n < 1,
     refetchOnWindowFocus: false,
   });
-  const seen = useSeenEntry(anime.id);
+  const seen = useSeenEntry(service, mediaId);
   if (!link || state === "none" || state === undefined) return null;
 
-  const title = <h2 className="t-title2 anime-section-title">Your AniList</h2>;
+  const title = <h2 className="t-title2 anime-section-title">Your {client.name}</h2>;
   if (state !== "linked" || fresh.error instanceof SignedOut) {
     return (
       <>
         {title}
-        <p className="anime-list-note t-caption">The sign-in to AniList has run out. Sign in again in Settings → Services → AniList.</p>
+        <p className="anime-list-note t-caption">
+          The sign-in to {client.name} has run out. Sign in again in Settings → Services → {client.name}.
+        </p>
       </>
     );
   }
@@ -60,40 +79,53 @@ export function AnimeListPanel({ anime }: { anime: Anime }) {
     );
   }
   const entry: ListEntry | null = fresh.isSuccess ? fresh.data : (seen ?? null);
-  const change = (c: EntryChange) => qc.setQueryData(key, changeEntry(space, anime.id, entry, c));
+  const change = (c: EntryChange) => qc.setQueryData(key, changeEntry(service, space, mediaId, entry, c));
   const remove = () => {
-    removeEntry(space, anime.id);
+    removeEntry(service, space, mediaId);
     qc.setQueryData(key, null);
   };
 
   return (
     <>
       {title}
-      <section className="anime-list" aria-label="Your AniList entry">
-        <StatusPick entry={entry} onPick={(status) => change({ status })} onRemove={remove} />
+      <section className="anime-list" aria-label={`Your ${client.name} entry`}>
+        <StatusPick entry={entry} names={client.statusNames} service={client.name} onPick={(status) => change({ status })} onRemove={remove} />
         {entry && (
           <>
             <Progress value={entry.progress} total={anime.episodes ?? null} onChange={(progress) => change({ progress })} />
-            <Score value={entry.score} scale={scoreScale(link.scoreFormat)} onChange={(score) => change({ score })} />
+            <Score id={`anime-list-score-${service}`} value={entry.score} scale={scoreScale(link.scoreFormat)} onChange={(score) => change({ score })} />
           </>
         )}
       </section>
-      {fresh.isError && <p className="anime-list-note t-caption">Couldn't reach AniList: this is what this device saw last.</p>}
+      {service === "mal" && <p className="anime-list-note t-caption">Uses the MyAnimeList API.</p>}
+      {fresh.isError && <p className="anime-list-note t-caption">Couldn't reach {client.name}: this is what this device saw last.</p>}
     </>
   );
 }
 
-function StatusPick({ entry, onPick, onRemove }: { entry: ListEntry | null; onPick: (s: ListEntry["status"]) => void; onRemove: () => void }) {
+function StatusPick({
+  entry,
+  names,
+  service,
+  onPick,
+  onRemove,
+}: {
+  entry: ListEntry | null;
+  names: Record<ListEntry["status"], string>;
+  service: string;
+  onPick: (s: ListEntry["status"]) => void;
+  onRemove: () => void;
+}) {
   return (
     <MenuRoot>
       <MenuTrigger className={buttonClass(entry ? "glass" : "primary")}>
-        {entry ? STATUS_NAMES[entry.status] : "Add to list"}
+        {entry ? names[entry.status] : "Add to list"}
         <ChevronDown size={16} />
       </MenuTrigger>
-      <MenuPopup aria-label="Status on AniList" align="start">
+      <MenuPopup aria-label={`Status on ${service}`} align="start">
         {LIST_STATUSES.map((s) => (
           <MenuItem key={s} icon={<span className="menu-check">{entry?.status === s && <Check />}</span>} onClick={() => onPick(s)}>
-            {STATUS_NAMES[s]}
+            {names[s]}
           </MenuItem>
         ))}
         {entry && (
@@ -130,7 +162,7 @@ function Progress({ value, total, onChange }: { value: number; total: number | n
 }
 
 /** The score in the account's own format: a pick for symbols (stars, smileys), else a number. */
-function Score({ value, scale, onChange }: { value: number; scale: ScoreScale; onChange: (n: number) => void }) {
+function Score({ id, value, scale, onChange }: { id: string; value: number; scale: ScoreScale; onChange: (n: number) => void }) {
   const [typed, setTyped] = useState(value ? String(value) : "");
   useEffect(() => setTyped(value ? String(value) : ""), [value]);
   const { labels } = scale;
@@ -168,12 +200,12 @@ function Score({ value, scale, onChange }: { value: number; scale: ScoreScale; o
         commit();
       }}
     >
-      <label className="t-caption" htmlFor="anime-list-score">
+      <label className="t-caption" htmlFor={id}>
         Score
       </label>
       <div className="anime-list-stepper">
         <TextField
-          id="anime-list-score"
+          id={id}
           className="anime-list-score"
           inputMode="decimal"
           placeholder="–"

@@ -1,7 +1,7 @@
 import "./storageStub";
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { SignedOut, type Viewer } from "../src/lib/lists/anilistList";
-import { changeEntry, fitScore, linkAniList, linkState, NotASignIn, removeEntry, scoreScale, unlinkAniList, type LinkingDeps } from "../src/lib/lists/linking";
+import { SignedOut, type Viewer } from "../src/lib/lists/entry";
+import { changeEntry, fitScore, linkAniList, linkState, NotASignIn, removeEntry, scoreScale, unlinkList, type LinkingDeps } from "../src/lib/lists/linking";
 import type { Link } from "../src/lib/lists/linkStore";
 import { entriesKey, keepEntry, seenEntry, setListSyncDeps } from "../src/lib/lists/listSync";
 import { enqueue, pendingOps, queueKey } from "../src/lib/lists/queue";
@@ -30,8 +30,8 @@ beforeEach(() => {
   // The list sync keeps entries where the queue does: the stub's localStorage.
   setListSyncDeps({
     storage: localStorage,
-    now: () => NOW,
     getLink: async () => undefined,
+    liveLink: async () => undefined,
     listEpisode: () => undefined,
     flush: async () => "empty",
     changedSince: async () => [],
@@ -39,8 +39,10 @@ beforeEach(() => {
 });
 afterEach(() => {
   for (const s of ["p", "q"]) {
-    localStorage.removeItem(queueKey(s));
-    localStorage.removeItem(entriesKey(s));
+    for (const service of ["anilist", "mal"] as const) {
+      localStorage.removeItem(queueKey(service, s));
+      localStorage.removeItem(entriesKey(service, s));
+    }
   }
   setListSyncDeps(undefined);
 });
@@ -66,31 +68,31 @@ test("what isn't a sign-in, or one AniList refuses, links nothing", async () => 
 test("unlinking drops the link, the waiting changes and the kept entries of that profile only", async () => {
   const t = deps();
   await linkAniList("p", jwt({ sub: "1" }), t.d);
-  enqueue("p", { kind: "watched", mediaId: 5, episode: 1, total: 12 });
-  enqueue("q", { kind: "watched", mediaId: 5, episode: 1, total: 12 });
-  keepEntry("p", { id: 1, mediaId: 5, status: "CURRENT", progress: 1, score: 0, repeat: 0, updatedAt: 1 });
-  await unlinkAniList("p", t.d);
+  enqueue("anilist", "p", { kind: "watched", mediaId: 5, episode: 1, total: 12 });
+  enqueue("anilist", "q", { kind: "watched", mediaId: 5, episode: 1, total: 12 });
+  keepEntry("anilist", "p", { id: 1, mediaId: 5, status: "CURRENT", progress: 1, score: 0, repeat: 0, updatedAt: 1 });
+  await unlinkList("anilist", "p", t.d);
   expect(t.links.has("p")).toBe(false);
-  expect(pendingOps("p")).toEqual([]);
-  expect(pendingOps("q")).toHaveLength(1);
-  expect(seenEntry(5, "p")).toBeUndefined();
+  expect(pendingOps("anilist", "p")).toEqual([]);
+  expect(pendingOps("anilist", "q")).toHaveLength(1);
+  expect(seenEntry("anilist", 5, "p")).toBeUndefined();
   expect(t.changed).toEqual(["p", "p"]);
 });
 
 test("a change from the page is queued and kept as AniList will have it", () => {
-  const added = changeEntry("p", 5, null, { status: "PLANNING" }, NOW);
+  const added = changeEntry("anilist", "p", 5, null, { status: "PLANNING" }, NOW);
   expect(added).toMatchObject({ mediaId: 5, status: "PLANNING", progress: 0, score: 0 });
-  const scored = changeEntry("p", 5, added, { score: 4 }, NOW);
+  const scored = changeEntry("anilist", "p", 5, added, { score: 4 }, NOW);
   expect(scored).toMatchObject({ status: "PLANNING", score: 4 });
-  expect(seenEntry(5, "p")).toEqual(scored);
+  expect(seenEntry("anilist", 5, "p")).toEqual(scored);
   // One after another, they go out as one.
-  expect(pendingOps("p")).toEqual([{ kind: "set", mediaId: 5, change: { status: "PLANNING", score: 4 } }]);
+  expect(pendingOps("anilist", "p")).toEqual([{ kind: "set", mediaId: 5, change: { status: "PLANNING", score: 4 } }]);
   // A new entry with only a score still goes out with a status.
-  changeEntry("p", 6, null, { score: 2 }, NOW);
-  expect(pendingOps("p").at(-1)).toEqual({ kind: "set", mediaId: 6, change: { status: "PLANNING", score: 2 } });
-  removeEntry("p", 5);
-  expect(seenEntry(5, "p")).toBeUndefined();
-  expect(pendingOps("p").at(-1)).toEqual({ kind: "remove", mediaId: 5 });
+  changeEntry("anilist", "p", 6, null, { score: 2 }, NOW);
+  expect(pendingOps("anilist", "p").at(-1)).toEqual({ kind: "set", mediaId: 6, change: { status: "PLANNING", score: 2 } });
+  removeEntry("anilist", "p", 5);
+  expect(seenEntry("anilist", 5, "p")).toBeUndefined();
+  expect(pendingOps("anilist", "p").at(-1)).toEqual({ kind: "remove", mediaId: 5 });
 });
 
 test("the link's state", () => {

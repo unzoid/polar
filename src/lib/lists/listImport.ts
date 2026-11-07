@@ -5,30 +5,34 @@ import type { AnimeLink } from "../library/identity";
 import { concurrency } from "../net/limiter";
 import { call } from "../platform/bridge";
 import type { ContentType, LibraryItem, Meta, Progress, Video } from "../types";
-import type { ListEntry } from "./anilistList";
+import type { ListEntry } from "./entry";
+import type { ListService } from "./linkStore";
+import { listClient } from "./services";
 
 /**
- * Importing a linked AniList list into the profile's library (#83): optional, run from Settings
+ * Importing a linked list (#83 AniList, #84 MyAnimeList) into the profile's library: optional, run from Settings
  * when the user asks, as often as they like. Each entry becomes a library item under the id its
  * anime page plays it from (the stored link, else the IMDb show the id lists name, else its Kitsu
  * id), and its progress becomes watched marks for the entry's first episodes. The library import
  * (api.importLibrary) only adds: what is already there, or newer, stays as it is, and nothing is
- * removed. Adult entries are left out unless the AniList account shows them.
+ * removed. Adult entries are left out unless the account shows them (MyAnimeList doesn't say: left out).
  */
 
-/** The ids the anime id lists kept on the device give an AniList entry. */
+/** The ids the anime id lists kept on the device give an entry. */
 export interface ListedIds {
   imdb_id?: string | null;
   kitsu_id?: number | null;
 }
 
 export interface ListImportDeps {
+  /** Which of a stored link's ids the entries' `mediaId` is: the list's service. */
+  idKey: "anilist" | "mal";
   /** The space's stored anime links (lib/anime/links.ts). */
   links: () => Promise<AnimeLink[]>;
-  /** The anime id lists' ids of an AniList entry; null when it has none. */
-  listed: (anilist: number) => Promise<ListedIds | null>;
-  /** ani.zip's answer for an AniList entry: its ids when the lists have none, and its episodes. */
-  aniZip: (anilist: number) => Promise<AniZip | null>;
+  /** The anime id lists' ids of an entry (by the service's id); null when it has none. */
+  listed: (id: number) => Promise<ListedIds | null>;
+  /** ani.zip's answer for an entry: its ids when the lists have none, and its episodes. */
+  aniZip: (id: number) => Promise<AniZip | null>;
   /** A title's metadata (its episodes), null when it can't be read. */
   meta: (type: ContentType, id: string) => Promise<Meta | null>;
   /** How many lookups run at once. */
@@ -37,15 +41,19 @@ export interface ListImportDeps {
   step?: (done: number, of: number) => void;
 }
 
-/** The real lookups: the id lists and links on the device first, ani.zip and metadata four at a time. */
-export const listImportDeps = (step?: ListImportDeps["step"]): ListImportDeps => ({
-  links: animeLinks,
-  listed: (anilist) => call<ListedIds | null>("anime_ids", { key: "anilist_id", value: String(anilist) }),
-  aniZip: (anilist) => cachedAniZip({ anilist_id: anilist }),
-  meta: (type, id) => api.meta(type, id),
-  run: concurrency(4),
-  step,
-});
+/** The real lookups for `service`'s list: the id lists and links on the device first, ani.zip and metadata four at a time. */
+export const listImportDeps = (service: ListService, step?: ListImportDeps["step"]): ListImportDeps => {
+  const idKey = listClient(service).idKey;
+  return {
+    idKey,
+    links: animeLinks,
+    listed: (id) => call<ListedIds | null>("anime_ids", { key: `${idKey}_id`, value: String(id) }),
+    aniZip: (id) => cachedAniZip(idKey === "mal" ? { mal_id: id } : { anilist_id: id }),
+    meta: (type, id) => api.meta(type, id),
+    run: concurrency(4),
+    step,
+  };
+};
 
 export interface ListChoice {
   library: boolean;
@@ -94,7 +102,7 @@ export function previewList(entries: ListEntry[], showAdult: boolean): ListPrevi
 
 /** The id the entry plays from, as its page and card pick it; undefined when there is none. */
 async function playId(e: ListEntry, links: AnimeLink[], deps: ListImportDeps): Promise<{ id: string; zip?: AniZip | null } | undefined> {
-  const stored = links.find((l) => l.anilist === e.mediaId)?.canonical;
+  const stored = links.find((l) => l[deps.idKey] === e.mediaId)?.canonical;
   if (stored) return { id: stored };
   const listed = await deps.listed(e.mediaId).catch(() => null);
   if (listed?.imdb_id) return { id: listed.imdb_id };

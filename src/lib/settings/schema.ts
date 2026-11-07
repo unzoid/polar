@@ -1098,6 +1098,7 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "seekrKey", page: "services", title: "Timeline previews", keywords: "seekr thumbnails scrubbing" },
   { id: "anilist", page: "services", title: "AniList", keywords: "anime list account link sign in import tracking" },
+  { id: "mal", page: "services", title: "MyAnimeList", keywords: "mal anime list account link sign in import tracking" },
 
   // Advanced
   {

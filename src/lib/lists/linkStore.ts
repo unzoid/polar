@@ -2,21 +2,25 @@ import { isRecord, num, str } from "../parse";
 import { keychainStorage, type KeyStorage } from "../platform/keychain";
 
 /**
- * Which list services a profile has linked, with each one's sign-in (#83). Kept per profile in
+ * Which list services a profile has linked, with each one's sign-in (#83 AniList, #84 MyAnimeList). Kept per profile in
  * the system's keychain under `polar.link.<service>.<profile>` (`local` when signed out of
  * Polarity), else in the web view's storage under that name, as the Polarity sign-in is
  * (lib/platform/keychain.ts). Never synced to Polarity's database: each device signs in itself.
  */
-export type ListService = "anilist";
+export type ListService = "anilist" | "mal";
+export const LIST_SERVICES: readonly ListService[] = ["anilist", "mal"];
 
 export interface Link {
   token: string;
   /** When the token stops working, in ms since the epoch. */
   expiresAt: number;
+  /** MyAnimeList: what gets a new token, and when it stops working too (ms). */
+  refreshToken?: string;
+  refreshBy?: number;
   /** The account on the service, as it named itself when the link was made. */
   userId: number;
   userName: string;
-  /** The account's score format (AniList: `POINT_100`, `POINT_10_DECIMAL`, `POINT_10`, `POINT_5`, `POINT_3`). */
+  /** The account's score format (AniList: `POINT_100`, `POINT_10_DECIMAL`, `POINT_10`, `POINT_5`, `POINT_3`; MyAnimeList: `POINT_10`). */
   scoreFormat: string;
   /** Whether the account shows adult entries; the import skips them otherwise. */
   adult: boolean;
@@ -55,6 +59,8 @@ export function readLink(raw: unknown): Link | undefined {
     scoreFormat: str(v.scoreFormat) ?? "POINT_10",
     adult: v.adult === true,
   };
+  const [refreshToken, refreshBy] = [str(v.refreshToken), num(v.refreshBy)];
+  if (refreshToken && refreshBy !== undefined) Object.assign(link, { refreshToken, refreshBy });
   if (v.refused === true) link.refused = true;
   return link;
 }
@@ -79,3 +85,7 @@ export function removeLink(service: ListService, space: string | null): Promise<
 
 /** Whether the link can be used now: not run out, not refused. */
 export const usable = (link: Link | undefined, now: number): link is Link => !!link && !link.refused && link.expiresAt > now;
+
+/** Whether the link still works, or can be refreshed into one that does. */
+export const renewable = (link: Link | undefined, now: number): link is Link =>
+  !!link && !link.refused && (link.expiresAt > now || (!!link.refreshToken && (link.refreshBy ?? 0) > now));
