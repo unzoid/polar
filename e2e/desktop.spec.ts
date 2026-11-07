@@ -588,6 +588,58 @@ test("a Home shelf's heading opens its browse page with the filter on, and Back 
   await expect(app.getByRole("combobox", { name: "Genre" })).not.toHaveText(/All Genres/);
 });
 
+test("an add-on's catalogs: off at first, switched on and ordered in Settings, rows on Home, browsed in Discover, searched (#206)", async ({ app }) => {
+  const rowTitles = () => app.locator(".home-rows .row-title").allTextContents();
+  await expect(app.getByText("Continue Watching")).toBeVisible();
+  // Installed but not switched on: Home has none of its lists.
+  expect((await rowTitles()).filter((t) => t.includes("Example Lists"))).toEqual([]);
+
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Add-ons", exact: true }).click();
+  // An add-on without lists has no switch.
+  await settings.getByRole("button", { name: /^Open Films/ }).click();
+  await expect(settings.getByRole("switch", { name: /lists? on Home/ })).toHaveCount(0);
+  await settings.getByRole("button", { name: /^Example Lists/ }).click();
+  // Staff Picks, Weekend Series and Late Night; not the search-only list, the radio list or one that needs a year.
+  await settings.getByRole("switch", { name: "Show its 3 lists on Home" }).check();
+  const order = settings.getByRole("list", { name: "Order on Home" });
+  await expect(order.getByRole("listitem")).toHaveText([/Staff Picks/, /Weekend Series/, /Late Night/]);
+  await settings.getByRole("button", { name: "Move Weekend Series up" }).click();
+  await expect(order.getByRole("listitem")).toHaveText([/Weekend Series/, /Staff Picks/, /Late Night/]);
+  await expect(settings.getByRole("button", { name: "Move Weekend Series up" })).toBeDisabled();
+  await app.keyboard.press("Escape");
+
+  // The rows in that order, right under Continue Watching; Late Night's add-on fails, so its row leaves itself out.
+  const picks = app.getByRole("button", { name: "Staff Picks · Example Lists", exact: true });
+  await expect(picks).toBeVisible();
+  // Below the fold it waits as a skeleton; once near, it fails and leaves.
+  await app.locator('[data-addon-row="late"]').scrollIntoViewIfNeeded();
+  await expect(app.locator('[data-addon-row="late"] .row')).toHaveCount(0);
+  const titles = (await rowTitles()).map((t) => t.trim());
+  expect(titles.slice(0, 3)).toEqual(["Continue Watching", "Weekend Series · Example Lists", "Staff Picks · Example Lists"]);
+  expect(titles).not.toContain("Late Night · Example Lists");
+  await expect(app.locator('[data-addon-row="picks"] .card')).toHaveCount(4);
+
+  // Its heading opens Discover on that list, with the list's own genres.
+  await picks.click();
+  await expect(app.getByRole("heading", { level: 1, name: "Movies" })).toBeVisible();
+  await expect(app.getByRole("combobox", { name: "List" })).toHaveText(/Staff Picks · Example Lists/);
+  await expect(app.getByRole("radiogroup", { name: "Catalog" })).toHaveCount(0);
+  await app.getByRole("combobox", { name: "Genre" }).click();
+  await expect(app.getByRole("option")).toHaveText(["All Genres", "Drama", "Comedy"]);
+  await app.keyboard.press("Escape");
+  // Pages of 4 follow `skip` as the grid scrolls.
+  await expect(app.locator(".scroll .card").nth(4)).toBeAttached();
+
+  // A list that takes a search answers searches, below Polarity's own results.
+  await app.getByRole("textbox", { name: "Search" }).fill("orchard");
+  const found = app.locator(".search-rows .row").filter({ has: app.getByRole("heading", { name: "Search · Example Lists" }) });
+  await expect(found.locator(".card").first()).toBeVisible();
+  await expect(app.locator(".search-rows .row-title").last()).toHaveText("Search · Example Lists");
+});
+
 test("with seasons as separate shows, Continue Watching names the anime entry the episode is part of, and only then (#22)", async ({ app }) => {
   const row = app.locator(".row").filter({ has: app.getByRole("heading", { name: "Continue Watching" }) });
   // The first title on the fake backend is at season 2, episode 3; its stored card names the show.

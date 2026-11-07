@@ -236,6 +236,36 @@
 .settings-expand-form-stack .text-field {
   flex: 1 1 12rem;
 }
+/* Settings → Add-ons: an add-on's lists on Home and their order (#206). */
+.settings-home-lists {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 420px;
+}
+.settings-home-order {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.settings-home-order li {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.settings-home-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-md);
+  color: var(--text-2);
+}
+.settings-home-kind {
+  color: var(--text-3);
+}
 /* A card holding a group of chips (Settings → Sources). */
 .settings-chip-row {
   min-height: 0;

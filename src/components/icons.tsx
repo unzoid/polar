@@ -24,6 +24,7 @@ function icon(large: HeroIcon, mini: HeroIcon, micro: HeroIcon): Icon {
 }
 
 export const AlertCircle = icon(S24.ExclamationCircleIcon, S20.ExclamationCircleIcon, S16.ExclamationCircleIcon);
+export const ArrowDown = icon(S24.ArrowDownIcon, S20.ArrowDownIcon, S16.ArrowDownIcon);
 export const ArrowUp = icon(S24.ArrowUpIcon, S20.ArrowUpIcon, S16.ArrowUpIcon);
 export const ArrowUpRight = icon(S24.ArrowUpRightIcon, S20.ArrowUpRightIcon, S16.ArrowUpRightIcon);
 export const ArrowLeft =icon(S24.ArrowLeftIcon, S20.ArrowLeftIcon, S16.ArrowLeftIcon);

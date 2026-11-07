@@ -257,6 +257,7 @@ pub fn run() {
             commands::skip_segments,
             commands::ratings,
             commands::addons_list,
+            commands::addon_catalog,
             commands::addons_bundled,
             commands::addon_install,
             commands::addon_remove,

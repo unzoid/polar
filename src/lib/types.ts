@@ -274,6 +274,23 @@ export interface Manifest {
   resources: (string | { name: string })[];
   /** Null on manifests saved before hints were kept. */
   behaviorHints?: { configurable: boolean; configurationRequired: boolean } | null;
+  /** The lists of titles it serves (#206); missing on manifests from before the app read them. */
+  catalogs?: ManifestCatalog[];
+}
+
+/** One of an add-on's lists of titles (lib/catalog/addonCatalogs.ts reads them). */
+export interface ManifestCatalog {
+  type: string;
+  id: string;
+  name?: string | null;
+  /** The arguments it takes: `genre` (with its options), `skip` (paging), `search`. */
+  extra?: CatalogExtra[];
+}
+
+export interface CatalogExtra {
+  name: string;
+  options?: string[];
+  isRequired?: boolean;
 }
 
 export interface InstalledAddon {

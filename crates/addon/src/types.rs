@@ -71,7 +71,10 @@ pub enum ManifestResource {
     },
 }
 
+/// A list of titles an addon serves (`catalog` resource), with the extra
+/// arguments it takes: `genre` (with its options), `skip` (paging), `search`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "RawManifestCatalog")]
 pub struct ManifestCatalog {
     #[serde(rename = "type")]
     pub ty: ContentType,
@@ -80,6 +83,55 @@ pub struct ManifestCatalog {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<CatalogExtra>,
+}
+
+impl ManifestCatalog {
+    /// The declared extra called `name`.
+    pub fn extra(&self, name: &str) -> Option<&CatalogExtra> {
+        self.extra.iter().find(|e| e.name == name)
+    }
+
+    /// Whether a request with these extra arguments is one this catalog
+    /// declares: each name once and declared, every required one given.
+    pub fn accepts(&self, args: &[(String, String)]) -> bool {
+        let given = |name: &str| args.iter().filter(|(k, _)| k == name).count();
+        args.iter().all(|(k, _)| self.extra(k).is_some() && given(k) == 1)
+            && self.extra.iter().filter(|e| e.is_required).all(|e| given(&e.name) == 1)
+    }
+}
+
+/// A catalog as manifests write it: `extra`, or the older `extraSupported` /
+/// `extraRequired` name lists, which become `extra` entries.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawManifestCatalog {
+    #[serde(rename = "type")]
+    ty: ContentType,
+    id: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    extra: Vec<CatalogExtra>,
+    #[serde(default)]
+    extra_supported: Vec<String>,
+    #[serde(default)]
+    extra_required: Vec<String>,
+}
+
+impl From<RawManifestCatalog> for ManifestCatalog {
+    fn from(raw: RawManifestCatalog) -> Self {
+        let mut extra = raw.extra;
+        if extra.is_empty() {
+            let names = raw.extra_required.iter().chain(&raw.extra_supported);
+            for name in names {
+                if !extra.iter().any(|e: &CatalogExtra| &e.name == name) {
+                    let is_required = raw.extra_required.contains(name);
+                    extra.push(CatalogExtra { name: name.clone(), options: None, is_required });
+                }
+            }
+        }
+        Self { ty: raw.ty, id: raw.id, name: raw.name, extra }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,4 +342,73 @@ pub struct VideoFile {
 pub struct SubtitlesResponse {
     #[serde(default)]
     pub subtitles: Vec<Subtitle>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn catalogs(json: &str) -> Vec<ManifestCatalog> {
+        let manifest: Manifest =
+            serde_json::from_str(&format!(r#"{{"id":"a","version":"1","name":"A","catalogs":{json}}}"#)).unwrap();
+        manifest.catalogs
+    }
+
+    #[test]
+    fn catalog_extras_keep_options_and_required() {
+        let [c] = &catalogs(
+            r#"[{"type":"movie","id":"picks","name":"Picks","extra":[
+                {"name":"genre","options":["Drama","Comedy"],"isRequired":true},{"name":"skip"}]}]"#,
+        )[..] else {
+            panic!("one catalog")
+        };
+        let genre = c.extra("genre").unwrap();
+        assert!(genre.is_required);
+        assert_eq!(genre.options.as_deref(), Some(&["Drama".to_string(), "Comedy".to_string()][..]));
+        assert!(!c.extra("skip").unwrap().is_required);
+        assert!(c.extra("search").is_none());
+    }
+
+    #[test]
+    fn older_extra_lists_become_extras() {
+        let [c] =
+            &catalogs(r#"[{"type":"series","id":"s","extraSupported":["search","skip"],"extraRequired":["search"]}]"#)
+                [..]
+        else {
+            panic!("one catalog")
+        };
+        let names: Vec<_> = c.extra.iter().map(|e| (e.name.as_str(), e.is_required)).collect();
+        assert_eq!(names, [("search", true), ("skip", false)]);
+        assert!(c.name.is_none());
+    }
+
+    #[test]
+    fn extra_wins_over_the_older_lists() {
+        let [c] = &catalogs(r#"[{"type":"movie","id":"m","extra":[{"name":"skip"}],"extraRequired":["search"]}]"#)[..]
+        else {
+            panic!("one catalog")
+        };
+        assert_eq!(c.extra.len(), 1);
+        assert_eq!(c.extra[0].name, "skip");
+    }
+
+    #[test]
+    fn a_request_takes_only_declared_extras_and_every_required_one() {
+        let c =
+            &catalogs(r#"[{"type":"movie","id":"m","extra":[{"name":"genre","isRequired":true},{"name":"skip"}]}]"#)[0];
+        let args =
+            |pairs: &[(&str, &str)]| pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<Vec<_>>();
+        assert!(c.accepts(&args(&[("genre", "Drama")])));
+        assert!(c.accepts(&args(&[("genre", "Drama"), ("skip", "100")])));
+        assert!(!c.accepts(&args(&[])), "genre is required");
+        assert!(!c.accepts(&args(&[("genre", "Drama"), ("search", "x")])), "search isn't declared");
+        assert!(!c.accepts(&args(&[("genre", "Drama"), ("genre", "Comedy")])), "each name once");
+    }
+
+    #[test]
+    fn a_catalog_serialises_as_extra_only() {
+        let c = &catalogs(r#"[{"type":"movie","id":"m","extraSupported":["skip"]}]"#)[0];
+        let out = serde_json::to_value(c).unwrap();
+        assert_eq!(out, serde_json::json!({"type":"movie","id":"m","name":null,"extra":[{"name":"skip"}]}));
+    }
 }

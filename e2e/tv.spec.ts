@@ -26,6 +26,21 @@ test("arrows move between cards and Back returns to the same card", async ({ app
   await expect(app.getByRole("heading", { level: 2, name: "Trending Now" })).toBeVisible();
 });
 
+test("an add-on's catalogs switched on are rails under Trending Now; one that fails leaves itself out (#206)", async ({ app }) => {
+  await app.addInitScript(() =>
+    localStorage.setItem("polar.prefs", JSON.stringify({ ...JSON.parse(localStorage.getItem("polar.prefs") ?? "{}"), addonCatalogsHome: '{"on":["example.lists"],"order":[]}' })),
+  );
+  await app.reload();
+  await expect(focused(app)).toHaveAccessibleName("The Understudies");
+  await press(app, "ArrowDown", "ArrowDown");
+  await expect(app.getByRole("heading", { level: 2, name: "Staff Picks · Example Lists" })).toBeVisible();
+  await press(app, "ArrowDown");
+  await expect(app.getByRole("heading", { level: 2, name: "Weekend Series · Example Lists" })).toBeVisible();
+  await expect(app.getByRole("heading", { level: 2, name: "Late Night · Example Lists" })).toHaveCount(0);
+  await press(app, "Enter");
+  await expect(app.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
 test("the section tabs are reached from the top row", async ({ app }) => {
   await expect(focused(app)).toHaveAccessibleName("The Understudies");
   await press(app, "ArrowUp");

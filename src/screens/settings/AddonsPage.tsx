@@ -1,14 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings as Cog, Plus, Puzzle, Trash } from "../../components/icons";
+import { ArrowDown, ArrowUp, Settings as Cog, Plus, Puzzle, Trash } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { keys, useAddons } from "../../lib/net";
 import { errorMessage } from "../../lib/errors";
-import { Button } from "../../components/ui/Button";
+import { Button, IconButton } from "../../components/ui/Button";
+import { Switch } from "../../components/ui/Switch";
 import { Card, ExpandRow, FormRow, useExpanded } from "../../components/settings/rows";
 import { showWhereStored, useSecretsNote } from "../../components/settings/secretsNote";
 import { useKeyGate, useSecretsPlain } from "../../components/settings/KeyWarning";
 import { linkHasKey } from "../../lib/account";
+import { addonHomeCatalogs, catalogKey, useAddonCatalogs, useHomeCatalogSetting, withAddonOnHome, withCatalogMoved } from "../../lib/catalog";
 
 const hintsTried = new Set<string>();
 
@@ -59,6 +61,7 @@ export function AddonsPage() {
               {a.manifest.description && <p className="settings-expand-text">{a.manifest.description}</p>}
               <p className="settings-expand-text settings-url">{a.manifestUrl}</p>
               {linkHasKey(a.manifestUrl) && <KeyedLinkNote plain={plain} />}
+              <HomeLists addon={a.manifest.id} />
               <div className="settings-expand-actions">
                 {a.manifest.behaviorHints?.configurable && (
                   <Button
@@ -99,6 +102,43 @@ export function AddonsPage() {
         {gate.warning}
       </Card>
     </>
+  );
+}
+
+/**
+ * Under an installed add-on with lists of titles (#206): whether they're rows on Home, and their order there.
+ * Off until switched on, so installing an add-on for its sources doesn't change Home.
+ */
+function HomeLists({ addon }: { addon: string }) {
+  const catalogs = useAddonCatalogs();
+  const [setting, set] = useHomeCatalogSetting();
+  const own = addonHomeCatalogs(catalogs, setting, addon);
+  if (!own.length) return null;
+  const on = setting.on.includes(addon);
+  return (
+    <div className="settings-home-lists" data-setting="addonCatalogsHome">
+      <label className="settings-expand-toggle">
+        <span>{own.length === 1 ? "Show its list on Home" : `Show its ${own.length} lists on Home`}</span>
+        <Switch checked={on} onChange={(v) => set(withAddonOnHome(setting, addon, v))} />
+      </label>
+      {on && own.length > 1 && (
+        <ol className="settings-home-order" aria-label="Order on Home">
+          {own.map((c, i) => (
+            <li key={catalogKey(c)}>
+              <span className="settings-home-name">
+                {c.name} <span className="settings-home-kind">{c.type === "movie" ? "Movies" : "Series"}</span>
+              </span>
+              <IconButton label={`Move ${c.name} up`} disabled={i === 0} onClick={() => set(withCatalogMoved(catalogs, setting, c, -1))}>
+                <ArrowUp size={15} />
+              </IconButton>
+              <IconButton label={`Move ${c.name} down`} disabled={i === own.length - 1} onClick={() => set(withCatalogMoved(catalogs, setting, c, 1))}>
+                <ArrowDown size={15} />
+              </IconButton>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 

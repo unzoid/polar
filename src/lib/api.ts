@@ -92,6 +92,9 @@ export const api = {
   addons: () => call<InstalledAddon[]>("addons_list"),
   /** The add-ons the app installs itself, by manifest URL. */
   bundledAddons: () => call<string[]>("addons_bundled"),
+  /** A page of an installed add-on's catalog (#206); `extra` only what the manifest declares (lib/catalog/addonCatalogs.ts). */
+  addonCatalog: (addon: string, type: ContentType, id: string, extra: [string, string][] = []) =>
+    call<MetaPreview[]>("addon_catalog", { addon, ty: type, id, extra }),
   installAddon: (url: string) => call<InstalledAddon>("addon_install", { url }).then(changed),
   removeAddon: (id: string) => call<void>("addon_remove", { id }).then(changed),
 

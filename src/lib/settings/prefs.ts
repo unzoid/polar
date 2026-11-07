@@ -126,6 +126,9 @@ export interface Prefs {
   animeNo4k: boolean;
   /** Release groups whose anime sources go to the top, comma-separated, most preferred first (lib/anime/groups.ts). */
   animePreferredGroups: string;
+
+  /** Which add-ons' catalogs are Home rows, and their order: JSON (lib/catalog/addonCatalogs.ts, #206). */
+  addonCatalogsHome: string;
 }
 
 /**
@@ -189,6 +192,7 @@ const DEFAULTS: Prefs = {
   animeSpoilerTags: false,
   animeNo4k: true,
   animePreferredGroups: "",
+  addonCatalogsHome: "",
 };
 
 const STORAGE = "polar.prefs";
@@ -236,6 +240,7 @@ export const SYNCED_PREFS = [
   "animeSpoilerTags",
   "animeNo4k",
   "animePreferredGroups",
+  "addonCatalogsHome",
 ] as const satisfies readonly (keyof Prefs)[];
 
 export function setPrefs(patch: Partial<Prefs>, { quiet = false } = {}) {
