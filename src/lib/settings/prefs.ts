@@ -46,6 +46,8 @@ export interface Prefs {
   pauseOnMinimize: boolean;
   /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title. */
   discordPresence: "off" | "app" | "title";
+  /** Who may join a watch party from the "Join watch party" button on the user's Discord profile (#154). */
+  discordJoin: "nobody" | "ask" | "anyone";
   /**
    * A profile new to this device starts with the add-ons and API keys already here (#80). Off: it starts
    * with none (its own from the account, once they sync) and Settings offers to copy a set from this device.
@@ -148,6 +150,7 @@ const DEFAULTS: Prefs = {
   uiScale: 1,
   pauseOnMinimize: false,
   discordPresence: "off",
+  discordJoin: "ask",
   shareAddonsAndKeys: false,
   dialogueBoost: false,
   volumeLeveling: false,

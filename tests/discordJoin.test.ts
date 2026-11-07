@@ -93,7 +93,7 @@ function join(...args: Parameters<typeof askToJoin>) {
   return { done: outcome(ask.done), cancel: ask.cancel };
 }
 
-test("a token is 16 random bytes, and its channel is named after a hash, not the token", async () => {
+test("a token is 16 random bytes and a key's fingerprint, and its channel is named after a hash, not the token", async () => {
   const w = world();
   const { desk } = party(w);
   expect(desk.token()).toBeNull();
@@ -209,7 +209,7 @@ test("tokens change: the previous one still works for a while, older ones don't"
 
 test("a token nobody answers for, or one that isn't a token, says the link has expired", async () => {
   const w = world();
-  const nobody = join(w.deps, "A".repeat(22), "Moa");
+  const nobody = join(w.deps, "A".repeat(43), "Moa");
   await w.settle();
   await w.advance(SEEN_MS);
   expect(await nobody.done).toEqual({ error: REFUSALS.expired });
@@ -241,19 +241,25 @@ test("a joiner who cancels stops listening", async () => {
   expect(w.listeners(w.opened[0])).toBe(1);
 });
 
-test("someone else's answer, a forged one or a malformed message is ignored", async () => {
+test("someone else with the token can't answer in the member's place; malformed messages are dropped", async () => {
   const w = world();
   const { desk } = party(w, "ask");
   await w.settle();
-  const ask = join(w.deps, desk.token()!, "Moa");
+  const token = desk.token()!;
+  const ask = join(w.deps, token, "Moa");
   await w.settle();
   const [{ id }] = desk.requests();
-  // A listener with the token answers in the member's place: a box sealed for nobody.
+  // A listener with the token answers first, with the code of a party of its own, sealed with its own key.
+  const forger = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
+  const jwk = await crypto.subtle.exportKey("jwk", forger.publicKey);
   const ch = w.deps.connect(w.opened[0], () => {}, () => {});
+  ch.send({ t: "ok", to: id, key: { x: jwk.x, y: jwk.y }, iv: "AAAAAAAAAAAAAAAA", box: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" });
   ch.send({ t: "no", to: "joiner-9999", why: "declined" });
-  ch.send({ t: "ok", to: id, key: { x: "A".repeat(43), y: "A".repeat(43) }, iv: "AAAAAAAAAAAAAAAA", box: "AAAA" });
   await w.settle();
-  expect(await ask.done).toEqual({ error: REFUSALS.expired });
+  // Still waiting for the member, who lets them in.
+  desk.answer(id, true);
+  await w.settle();
+  expect(await ask.done).toEqual({ code: "K7Q2ZP" });
   for (const bad of [{ t: "ask", id: "x", name: "a", key: {} }, { t: "no", to: "a", why: "because" }, { t: "ok", to: "a" }, { t: "hello" }, null]) {
     expect(parseJoinMessage(bad as Record<string, unknown>)).toBeNull();
   }

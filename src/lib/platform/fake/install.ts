@@ -1,4 +1,5 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
+import { emit } from "@tauri-apps/api/event";
 
 import * as fx from "./fixtures";
 import { fakeAccount } from "./account";
@@ -32,6 +33,12 @@ params.delete("account");
 let settings: Settings = { ...fx.settings, ...Object.fromEntries(params) };
 
 type Args = Record<string, unknown>;
+
+const deepLinks: string[] = [];
+(globalThis as { __polarFakeDeepLink?: (url: string) => void }).__polarFakeDeepLink = (url) => {
+  deepLinks.push(url);
+  void emit("deep-link");
+};
 
 const commands: Record<string, (a: Args) => unknown> = {
   store_problem: () => null,
@@ -104,6 +111,8 @@ const commands: Record<string, (a: Args) => unknown> = {
   // Discord: what the player sends is kept for browser tests to read.
   discord_available: () => true,
   discord_presence: (a) => void ((window as { __discord?: unknown[] }).__discord ??= []).push(a.activity),
+  // polarity:// links, as `__polarFakeDeepLink(url)` opens them (#153).
+  deep_links_take: () => deepLinks.splice(0),
   resolve_stream: (a) => {
     const stream = a.stream as { url?: string; infoHash?: string };
     return stream.infoHash ? { kind: "torrent" } : { kind: "url", url: stream.url };

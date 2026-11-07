@@ -2,9 +2,10 @@
  * Joining a watch party from someone's Discord profile (#153, #154).
  *
  * The "Join watch party" button carries a join token, never the party code:
- * 16 random bytes that last JOIN_TOKEN_MS, after which a new one replaces
- * them (the previous one still answers for another JOIN_TOKEN_MS, so a button
- * someone loaded just before the change still works). The member whose
+ * 16 random bytes, then the fingerprint of a key pair the desk made for that
+ * token. A token is handed out for JOIN_TOKEN_MS, after which a new one
+ * replaces it (the previous one still answers for another JOIN_TOKEN_MS, so a
+ * button someone loaded just before the change still works). The member whose
  * profile it is runs a desk: it listens on a channel named after a hash of
  * each live token, and a joiner who has the token asks there.
  *
@@ -13,9 +14,12 @@
  * - A locked room (#156) turns everyone away; once in, the room's own rules
  *   (approving joins, removing members) apply as to anyone with the code.
  *
- * Anyone who has the token can listen on its channel, so the code goes to the
- * one joiner let in sealed with a key only the two of them share: each side
- * makes a one-time ECDH key pair and the code travels AES-GCM encrypted.
+ * Anyone who has the token can listen and speak on its channel. So the code
+ * goes to the one joiner let in sealed with a key only the two of them share
+ * (ECDH: the joiner's one-time key pair and the token's; AES-GCM), and the
+ * joiner only takes an answer from the key the token's fingerprint names:
+ * someone else with the token can't hand a joiner the code of another party.
+ * (They can still send a joiner a refusal, which only ends that attempt.)
  * Messages are parsed like the room's (messages.ts): anything else is dropped.
  * Pure apart from its deps, so tests run it against a simulated channel
  * (tests/discordJoin.test.ts).
@@ -71,8 +75,8 @@ export interface JoinDeps {
 const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const fromB64url = (text: string) => Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
 
-/** A join token as links carry it: 22 base64url characters. */
-export const isJoinToken = (text: string) => /^[A-Za-z0-9_-]{22}$/.test(text);
+/** A join token as links carry it: 43 base64url characters (32 bytes). */
+export const isJoinToken = (text: string) => /^[A-Za-z0-9_-]{43}$/.test(text);
 
 /** The channel a token's requests go to: a hash, so the channel's name doesn't give the token away. */
 export async function joinTopic(subtle: SubtleCrypto, token: string) {
@@ -95,6 +99,13 @@ async function keyPair(subtle: SubtleCrypto) {
   const jwk = await subtle.exportKey("jwk", pair.publicKey);
   return { pair, pub: { x: jwk.x!, y: jwk.y! } };
 }
+
+/** The 16 bytes of a public key a token carries. */
+async function fingerprint(subtle: SubtleCrypto, key: PublicKey) {
+  return new Uint8Array(await subtle.digest("SHA-256", new TextEncoder().encode(`polarity-join-key:${key.x}.${key.y}`))).slice(0, 16);
+}
+
+const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 async function sharedKey(subtle: SubtleCrypto, mine: CryptoKey, theirs: PublicKey) {
   const pub = await subtle.importKey("jwk", { kty: "EC", crv: "P-256", x: theirs.x, y: theirs.y, ext: true }, ECDH, false, []);
@@ -166,13 +177,16 @@ export interface DeskRoom {
 export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () => JoinMode) {
   interface Live {
     token: string;
+    /** The token's key pair: its fingerprint is in the token, and the code is sealed with it. */
+    pair: CryptoKeyPair;
+    pub: PublicKey;
     channel: JoinChannel;
     /** Hearing requests: only then is its token handed out. */
     ready: boolean;
   }
   interface Pending extends JoinRequest {
     key: PublicKey;
-    channel: JoinChannel;
+    live: Live;
     expire: () => void;
   }
   let live: Live[] = [];
@@ -182,23 +196,29 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
   let stopped = false;
   const listeners = new Set<() => void>();
   const changed = () => listeners.forEach((l) => l());
-  /** Requests already heard, so a repeat doesn't ask twice. */
+  /** Requests already heard, so a repeat doesn't ask twice (forgotten in bulk past HEARD_MAX). */
   const heard = new Set<string>();
+  const HEARD_MAX = 500;
 
   function rotate() {
     if (stopped) return;
-    const token = b64url(deps.randomBytes(16));
-    current = token;
     // The previous token still answers until the next change.
     const keep = live.slice(-1);
     for (const l of live.slice(0, -1)) l.channel.close();
     live = keep;
-    void joinTopic(deps.subtle, token).then((topic) => {
+    void (async () => {
+      const { pair, pub } = await keyPair(deps.subtle);
+      const bytes = new Uint8Array(32);
+      bytes.set(deps.randomBytes(16));
+      bytes.set(await fingerprint(deps.subtle, pub), 16);
+      const token = b64url(bytes);
+      const topic = await joinTopic(deps.subtle, token);
       if (stopped) return;
-      const l: Live = { token, channel: null as unknown as JoinChannel, ready: false };
+      current = token;
+      const l: Live = { token, pair, pub, channel: null as unknown as JoinChannel, ready: false };
       l.channel = deps.connect(
         `join-${topic}`,
-        (m) => void hear(l.channel, m),
+        (m) => void hear(l, m),
         () => {
           if (l.ready) return;
           l.ready = true;
@@ -206,14 +226,16 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
         },
       );
       live.push(l);
-    });
+    })();
     stopRotation = deps.after(rotate, JOIN_TOKEN_MS);
   }
 
-  async function hear(channel: JoinChannel, raw: Record<string, unknown>) {
+  async function hear(l: Live, raw: Record<string, unknown>) {
     const msg = parseJoinMessage(raw);
     if (stopped || msg?.t !== "ask" || heard.has(msg.id)) return;
+    if (heard.size >= HEARD_MAX) heard.clear();
     heard.add(msg.id);
+    const channel = l.channel;
     const no = (why: JoinRefusal) => channel.send({ t: "no", to: msg.id, why });
     const r = room();
     const m = mode();
@@ -221,17 +243,17 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
     if (r.locked) return no("locked");
     if (pending.length >= PENDING_MAX) return no("busy");
     channel.send({ t: "seen", to: msg.id });
-    if (m === "anyone") return void (await letIn(channel, msg.id, msg.key));
+    if (m === "anyone") return void (await letIn(l, msg.id, msg.key));
     const expire = deps.after(() => answer(msg.id, false), ASK_MS);
-    pending = [...pending, { id: msg.id, name: msg.name, key: msg.key, channel, expire }];
+    pending = [...pending, { id: msg.id, name: msg.name, key: msg.key, live: l, expire }];
     changed();
   }
 
-  async function letIn(channel: JoinChannel, to: string, theirs: PublicKey) {
+  async function letIn(l: Live, to: string, theirs: PublicKey) {
+    const { channel, pair, pub } = l;
     const code = room().code;
     if (!code) return channel.send({ t: "no", to, why: "closed" });
     try {
-      const { pair, pub } = await keyPair(deps.subtle);
       const key = await sharedKey(deps.subtle, pair.privateKey, theirs);
       const iv = deps.randomBytes(12);
       const box = new Uint8Array(await deps.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, new TextEncoder().encode(code)));
@@ -250,9 +272,9 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
     pending = pending.filter((x) => x !== p);
     changed();
     const r = room();
-    if (!allow) p.channel.send({ t: "no", to: id, why: "declined" });
-    else if (r.locked) p.channel.send({ t: "no", to: id, why: "locked" });
-    else void letIn(p.channel, id, p.key);
+    if (!allow) p.live.channel.send({ t: "no", to: id, why: "declined" });
+    else if (r.locked) p.live.channel.send({ t: "no", to: id, why: "locked" });
+    else void letIn(p.live, id, p.key);
   }
 
   rotate();
@@ -271,7 +293,7 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
       stopRotation?.();
       for (const p of pending) {
         p.expire();
-        p.channel.send({ t: "no", to: p.id, why: "closed" });
+        p.live.channel.send({ t: "no", to: p.id, why: "closed" });
       }
       pending = [];
       for (const l of live) l.channel.close();
@@ -320,6 +342,7 @@ export function askToJoin(
     void (async () => {
       const { pair, pub } = await keyPair(deps.subtle);
       const topic = await joinTopic(deps.subtle, token);
+      const desk = fromB64url(token).slice(16);
       if (over) return;
       const ask = () => {
         if (asked || over) return;
@@ -338,12 +361,13 @@ export function askToJoin(
           stops.push(deps.after(() => finish(() => reject(new Error(REFUSALS.declined))), ASK_MS + SEEN_MS));
         } else if (msg.t === "no") finish(() => reject(new Error(REFUSALS[msg.why])));
         else
-          void sharedKey(deps.subtle, pair.privateKey, msg.key)
-            .then((key) => deps.subtle.decrypt({ name: "AES-GCM", iv: fromB64url(msg.iv) as BufferSource }, key, fromB64url(msg.box) as BufferSource))
-            .then(
-              (plain) => finish(() => resolve(new TextDecoder().decode(plain))),
-              () => finish(() => reject(new Error(REFUSALS.expired))),
-            );
+          // Only from the key the token names; anything else (someone else with the token) is ignored.
+          void (async () => {
+            if (!sameBytes(await fingerprint(deps.subtle, msg.key), desk)) return;
+            const key = await sharedKey(deps.subtle, pair.privateKey, msg.key);
+            const plain = await deps.subtle.decrypt({ name: "AES-GCM", iv: fromB64url(msg.iv) as BufferSource }, key, fromB64url(msg.box) as BufferSource);
+            finish(() => resolve(new TextDecoder().decode(plain)));
+          })().catch(() => {});
       }, ask);
       // A channel that never opens (offline, signed out on the server): said, not waited on forever.
       stops.push(deps.after(() => !asked && finish(() => reject(new Error(REFUSALS.expired))), 2 * SEEN_MS));

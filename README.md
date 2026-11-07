@@ -105,7 +105,7 @@ and on Linux as an AppImage, the app updates itself when a new version is out.
       <ul>
         <li>Optional accounts and profiles with their own avatars, synced between your devices</li>
         <li>Watch parties that keep everyone's player in step, with a code to join and host controls</li>
-        <li>Show on Discord what you're watching, or only that you are (desktop, if you turn it on)</li>
+        <li>Show on Discord what you're watching, or only that you are, with buttons to watch the same title or join your watch party (desktop, if you turn it on)</li>
         <li>TV mode for the couch, with a controller or the arrow keys</li>
       </ul>
     </td>

@@ -6,3 +6,5 @@ export * from "./messages";
 export * from "./party";
 export * from "./sounds";
 export * from "./surface";
+export * from "./discordJoin";
+export * from "./discordDesk";

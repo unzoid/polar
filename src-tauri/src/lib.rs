@@ -184,9 +184,17 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
-    // First, so a second launch (a polarity:// link opened while Polarity runs) hands over before anything starts.
+    // First, so a second launch (a polarity:// link opened while Polarity runs, or the app started again) hands over
+    // to the running app before anything starts; the running window comes to the front.
     #[cfg(desktop)]
-    let builder = builder.plugin(tauri_plugin_single_instance::init(|_, _, _| {})).plugin(tauri_plugin_deep_link::init());
+    let builder = builder
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init());
     builder
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {

@@ -96,7 +96,9 @@ import {
   streamHint,
   useParty,
   usePartySurface,
+  useJoinDesk,
 } from "../lib/party";
+import { partyPage, watchPage } from "../lib/deepLink";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { LinkForm, PartyBadge, PartyHold, PartyNotes, PartyStart } from "../components/party/PartyUI";
@@ -481,7 +483,13 @@ export function Player({
   // Settings → Playback → "Pause when minimized".
   const { pauseOnMinimize, discordPresence } = usePrefs();
   // A file on this device stays private: its name isn't shown on Discord.
-  useDiscordPresence(media, meta, videoId, local ? "off" : discordPresence);
+  // Buttons (#153): this title in the viewer's own Polarity (only where the title is shown), and the party's join link.
+  const joinToken = useJoinDesk().token;
+  const presenceLinks = useMemo(
+    () => ({ watch: (discordPresence === "title" && watchPage(type, metaId)) || undefined, party: joinToken ? partyPage(joinToken) : undefined }),
+    [discordPresence, type, metaId, joinToken],
+  );
+  useDiscordPresence(media, meta, videoId, local ? "off" : discordPresence, presenceLinks);
   useEffect(() => {
     if (!pauseOnMinimize) return;
     const unlisten = win.onResized(() => {

@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: 06/11/2026
+Last updated: 07/11/2026
 
 Polarity is a media player. This page says what it stores about you, where, and who else your device talks to while
 you use it. It's written from what the app does today; where something isn't settled yet, it says so.
@@ -63,7 +63,18 @@ These never go to the account server:
 - **Discord Rich Presence**, if you turn it on in Settings → Playback (it's off by default), talks only to the
   Discord app on the same computer. What it shows (Polarity, or the title you're watching, as you choose) then
   appears on your Discord profile, so Discord and the people who can see your profile see it, under
-  [Discord's privacy policy](https://discord.com/privacy).
+  [Discord's privacy policy](https://discord.com/privacy). People who see it also see up to two buttons:
+  - **Watch in Polarity** (only when it shows the title): a link to a page on getpolar.app carrying the title's
+    public id (IMDb's or Kitsu's), which opens that title in their own Polarity.
+  - **Join watch party** (only while you're in a watch party and "Who can join from Discord" isn't Nobody): a
+    link to a page on getpolar.app carrying a random join token, not your party code. A token is replaced every
+    ten minutes and stops working ten minutes after that, or when you leave the party. Someone who opens it asks
+    your Polarity to join, under the name of their Polarity profile; with "Ask me" (the default) you see that name
+    and allow or decline, with "Anyone who sees it" they're let in. Only someone let in receives the party code,
+    encrypted so that only their app can read it.
+
+  Those pages only open Polarity on the visitor's computer (or offer the download): they look nothing up about
+  you or the title. Neither button carries stream links, add-on links or anything about you.
 
 ## Services your device talks to
 

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { api } from "../../lib/api";
-import { discordActivity, sameActivity, type DiscordActivity, type DiscordPresence } from "../../lib/playback";
+import { discordActivity, sameActivity, type DiscordActivity, type DiscordPresence, type PresenceLinks } from "../../lib/playback";
 import type { Meta } from "../../lib/types";
 import type { MediaLike } from "./mpvMedia";
 
@@ -9,15 +9,16 @@ const EVENTS = ["play", "pause", "playing", "seeking", "seeked", "ended", "loade
 /**
  * Keeps the user's Discord profile showing what plays (#31), as Settings → Playback → Show on
  * Discord has it: updated on play, pause, seek and speed changes, cleared when it ends or the
- * player closes.
+ * player closes. `links`: the buttons others see on it (#153).
  */
-export function useDiscordPresence(media: MediaLike | null, meta: Meta | undefined, videoId: string, mode: DiscordPresence) {
+export function useDiscordPresence(media: MediaLike | null, meta: Meta | undefined, videoId: string, mode: DiscordPresence, links: PresenceLinks = {}) {
   const name = meta?.name;
   const poster = meta?.poster;
   const video = meta?.videos?.find((v) => v.id === videoId);
   const season = video?.season;
   const episode = video?.episode;
   const episodeTitle = video?.title;
+  const { watch, party } = links;
   useEffect(() => {
     if (mode === "off" || !media || !name) return;
     let sent: DiscordActivity | null = null;
@@ -35,7 +36,7 @@ export function useDiscordPresence(media: MediaLike | null, meta: Meta | undefin
         current: media.currentTime,
         duration: media.duration,
         rate: media.playbackRate,
-      });
+      }, Date.now(), { watch, party });
       if (sameActivity(sent, next)) return;
       sent = next;
       void api.discordPresence(next);
@@ -46,5 +47,5 @@ export function useDiscordPresence(media: MediaLike | null, meta: Meta | undefin
       for (const e of EVENTS) media.removeEventListener(e, update);
       if (sent) void api.discordPresence(null);
     };
-  }, [media, mode, name, poster, season, episode, episodeTitle]);
+  }, [media, mode, name, poster, season, episode, episodeTitle, watch, party]);
 }

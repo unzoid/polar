@@ -1,5 +1,6 @@
 import { card, clock, expect, partySurfaces, test } from "./fixtures";
-import type { Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { serveMedia } from "./media";
 
 // The desktop layout (also run in WebKit on CI). Titles come from src/lib/platform/fake/fixtures.ts.
 
@@ -798,6 +799,90 @@ test("the player's episode rail pages with Home's shelf paddles: blurred edge, s
 
 test.describe("signed in, on a fresh profile", () => {
   test.use({ account: true });
+
+  type Sent = { details: string; buttons?: { label: string; url: string }[] } | null;
+  const sentToDiscord = (page: Page) => page.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as Sent[]);
+
+  async function showOnDiscord(page: Page, mode: string) {
+    await page.getByRole("button", { name: /^Profile/ }).click();
+    await page.getByRole("menuitem", { name: "Settings" }).click();
+    const settings = page.getByRole("dialog", { name: /^Settings/ });
+    await settings.getByRole("combobox", { name: "Show on Discord" }).click();
+    await page.getByRole("option", { name: mode }).click();
+    await expect(settings.getByRole("combobox", { name: "Who can join from Discord" })).toHaveText(/Ask me/);
+    await settings.getByRole("button", { name: "Close settings" }).click();
+  }
+
+  test("someone with the Join watch party link asks, the host allows, and they're in the party (#153, #154)", async ({ app }) => {
+    await showOnDiscord(app, "That you're watching");
+    await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+    await card(app, "The Glass Orchard").click();
+    await app.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+    // Not in a party: no join button.
+    await expect.poll(async () => (await sentToDiscord(app)).at(-1)?.details).toBe("Watching on Polarity");
+    expect((await sentToDiscord(app)).at(-1)?.buttons).toBeUndefined();
+    await app.getByRole("button", { name: "Watch Party", exact: true }).click();
+    await app.getByRole("button", { name: "Start a Watch Party" }).click();
+    await expect(app.getByRole("button", { name: "End Party" })).toBeVisible();
+    await app.keyboard.press("Escape");
+
+    await expect.poll(async () => (await sentToDiscord(app)).at(-1)?.buttons?.[0]?.label).toBe("Join watch party");
+    const url = new URL((await sentToDiscord(app)).at(-1)!.buttons![0].url);
+    expect(url.origin + url.pathname).toBe("https://getpolar.app/party/");
+    const token = url.searchParams.get("t")!;
+    // The party code isn't in it.
+    const code = (await app.evaluate(() => document.body.innerText)).match(/\b[A-Z0-9]{6}\b/g) ?? [];
+    for (const c of code) expect(url.href).not.toContain(c);
+
+    // Someone else's Polarity, in another page of the same browser.
+    const joiner = await app.context().newPage();
+    await joiner.route((u) => u.protocol.startsWith("http") && u.host !== new URL(app.url()).host && u.host !== "media.example", (r) => r.abort("blockedbyclient"));
+    await serveMedia(joiner);
+    await joiner.goto("/fake.html?account=1");
+    await expect(joiner.locator("#root > *").first()).toBeAttached();
+    await joiner.evaluate((t) => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink(`polarity://party/${t}`), token);
+    // Nothing is asked until the joiner says so.
+    const question = joiner.getByRole("dialog", { name: "Join a watch party?" });
+    await expect(question).toContainText("Robin");
+    await expect(app.getByRole("dialog", { name: /wants to join/ })).toHaveCount(0);
+    await question.getByRole("button", { name: "Ask to Join" }).click();
+    await expect(joiner.getByTestId("party-discord-status")).toHaveText("Waiting for the host to let you in…");
+
+    const request = app.getByRole("dialog", { name: "Robin wants to join" });
+    await expect(request).toBeVisible();
+    await request.getByRole("button", { name: "Allow" }).click();
+    await expect(request).toHaveCount(0);
+    // In the party, and on the room's video.
+    await expect(joiner.locator(".player")).toBeVisible();
+    await expect(joiner.getByTestId("party-discord-status")).toHaveCount(0);
+    await expect(app.getByRole("dialog", { name: /wants to join/ })).toHaveCount(0);
+    await joiner.close();
+  });
+
+  test("Watch in Polarity carries the title; a polarity://title link opens its page (#153)", async ({ app }) => {
+    await showOnDiscord(app, "What you're watching");
+    await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+    await card(app, "The Glass Orchard").click();
+    await app.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+    await expect.poll(async () => (await sentToDiscord(app)).at(-1)?.buttons?.[0]?.label).toBe("Watch in Polarity");
+    const url = new URL((await sentToDiscord(app)).at(-1)!.buttons![0].url);
+    expect(url.origin + url.pathname).toBe("https://getpolar.app/watch/");
+    expect(url.searchParams.get("type")).toBe("movie");
+    expect(url.searchParams.get("id")).toMatch(/^tt\d+$/);
+    await app.keyboard.press("Escape");
+    await expect(app.locator(".player")).toHaveCount(0);
+
+    await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Home", exact: true }).click();
+    await app.evaluate(
+      (id) => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink(`polarity://title/movie/${id}`),
+      url.searchParams.get("id")!,
+    );
+    await expect(app.getByRole("heading", { level: 1, name: "The Glass Orchard" }).or(app.getByRole("img", { name: "The Glass Orchard" })).first()).toBeVisible();
+    // Anything else is ignored.
+    await app.evaluate(() => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink("polarity://play/movie/tt0000000"));
+  });
 
   test("starting a watch party in the player leaves one party panel up, with the focus in it (#247)", async ({ app }) => {
     await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
