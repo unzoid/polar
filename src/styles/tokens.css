@@ -10,7 +10,9 @@
  * UI motion stays under 300ms; springs (src/lib/motion.ts) handle gestures.
  */
 :root {
-  --font: "Inter Variable", "Inter", system-ui, "Segoe UI Variable Text", sans-serif;
+  /* "Twemoji Country Flags" first: it covers only flag emoji, and only exists where the system draws
+     none (Windows, main.tsx); every other character skips it. */
+  --font: "Twemoji Country Flags", "Inter Variable", "Inter", system-ui, "Segoe UI Variable Text", sans-serif;
   --bg: #0a0a0a;
   --surface-1: #141414;
   --surface-2: #1c1c1c;
