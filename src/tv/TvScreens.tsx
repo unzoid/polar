@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Speed } from "../components/icons";
-import { addRecentSearch, byDay, clearRecentSearches, dayLabel, searchMinLength, useCalendar, useRecentSearches } from "../lib/catalog";
+import { addRecentSearch, clearRecentSearches, searchMinLength, useRecentSearches } from "../lib/catalog";
 import { playSound } from "./sounds";
 import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/net";
 import {
@@ -335,42 +335,3 @@ function TvGenreResults({ genre }: { genre: string }) {
 }
 const NO_IDS = new Set<string>();
 
-/** The Calendar (when it's on): one rail per day, last week first, then what's coming. */
-export function TvCalendar() {
-  const { entries, loading, showCount } = useCalendar();
-  const days = useMemo(() => byDay(entries), [entries]);
-
-  if (!loading && !days.length) {
-    return (
-      <div className="tv-note">
-        <h1 className="tv-heading">Calendar</h1>
-        <EmptyState variant="tv">
-          {showCount === 0
-            ? "Add shows to your library, or start watching one, and their new episodes show up here."
-            : "Nothing aired in the last week, and nothing's scheduled yet for your shows."}
-        </EmptyState>
-      </div>
-    );
-  }
-
-  const rows: RailRow[] = days.map((d) => {
-    const label = dayLabel(d.day);
-    return {
-      key: String(d.day),
-      render: () => (
-        <TvRail title={`${label.name} · ${label.date}`}>
-          {d.entries.map(({ show, video }) => (
-            <TvCard
-              key={video.id}
-              item={show}
-              shape="landscape"
-              kicker={label.past ? "Aired" : label.today ? "Today" : "Coming up"}
-              chip={`S${video.season}, E${video.episode}`}
-            />
-          ))}
-        </TvRail>
-      ),
-    };
-  });
-  return <TvBrowse rows={rows} />;
-}

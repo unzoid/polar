@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "../components/Avatar";
-import { Close, Desktop, Power, Profile, Search, Settings, Tv, Users, WatchParty } from "../components/icons";
+import { Calendar, Close, Desktop, Power, Profile, Search, Settings, Tv, Users, WatchParty } from "../components/icons";
 import { partyAvailable, setJoinPartyOpen, setPartyMenuOpen, useParty } from "../lib/party";
 import { useAccount } from "../lib/account";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
@@ -104,6 +104,7 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
   useFocusTrap(ref);
   useBack(true, onClose);
   const party = useParty();
+  const { data: settings } = useSettings();
   const me = account.profile;
   const others = me ? account.profiles.filter((p) => p.id !== me.id) : [];
   const hasAccountItems = account.enabled && (others.length > 0 || account.status === "ready" || account.status === "guest");
@@ -154,6 +155,19 @@ export function TvMenu({ onClose }: { onClose: () => void }) {
             </button>
           )}
           {hasAccountItems && <div className="tv-menu-sep" />}
+          {/* Like the desktop's profile menu: here while the Calendar isn't a tab (#92). */}
+          {!settings?.showCalendar && (
+            <button
+              className="tv-menu-item"
+              onClick={() => {
+                onClose();
+                tab({ name: "calendar" });
+              }}
+            >
+              <Calendar size={28} />
+              Calendar
+            </button>
+          )}
           <button
             className="tv-menu-item"
             onClick={() => {

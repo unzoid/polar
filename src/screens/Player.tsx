@@ -97,8 +97,8 @@ import {
 } from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
-import { LinkForm, PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
-import { PartyActions, PartyHostControls } from "../components/party/PartyMenu";
+import { LinkForm, PartyBadge, PartyHold, PartyNotes, PartyStart } from "../components/party/PartyUI";
+import { PartyRoomPane, PartySettingsPane } from "../components/party/PartyMenu";
 import { ChevronLeft, ChevronRight, WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage, storeLocal, warnFailed } from "../lib/errors";
@@ -1358,22 +1358,23 @@ export function Player({
                     size: "medium" as const,
                     options: [],
                     onSelect: () => {},
+                    // Focus comes to Copy Invite when the party starts: what it replaces is gone (#247).
+                    content: <PartyRoomPane party={party} onGo={() => setOptions(null)} autoFocus />,
+                  },
+                  {
+                    title: "Settings",
+                    size: "medium" as const,
+                    options: [],
+                    onSelect: () => {},
+                    // TV mode: no pasting on a remote; links others put on still play there.
                     content: (
-                      <div className="party-pane-stack">
-                        {/* Focus comes here when the party starts: what it replaces is gone (#247). */}
-                        <PartyInvite party={party} leave={false} autoFocus />
-                        <PartyActions party={party} onGo={() => setOptions(null)} />
-                      </div>
+                      <PartySettingsPane party={party} link={tv ? undefined : <LinkForm me={profile!} onDone={() => setOptions(null)} />} />
                     ),
                   },
-                  { title: "Watching", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyMembers party={party} /> },
-                  ...(party.hostId === party.me
-                    ? [{ title: "Host", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyHostControls party={party} /> }]
-                    : []),
                 ]
               : [{ title: "Watch Party", size: "medium" as const, options: [], onSelect: () => {}, content: <PartyStart me={profile!} onStart={local ? undefined : startHere} /> }]),
-            // TV mode: no pasting on a remote; links others put on still play there.
-            ...(tv
+            // Not in a party yet: a link can start one. TV mode: no pasting on a remote.
+            ...(party || tv
               ? []
               : [
                   {
@@ -1384,8 +1385,7 @@ export function Player({
                     content: (
                       <div className="party-pane">
                         <p className="party-lede">
-                          {party ? "Put a video file or stream from the web on for everyone." : "Start a party on a video file or stream from the web."}{" "}
-                          Everyone's app opens the link itself, after seeing it.
+                          Start a party on a video file or stream from the web. Everyone's app opens the link itself, after seeing it.
                         </p>
                         <LinkForm me={profile!} onDone={() => setOptions(null)} />
                       </div>

@@ -534,14 +534,40 @@
 .party-stream {
   margin-top: 0.875rem;
 }
-.party-actions .party-stream {
-  margin-top: 0;
-}
-/* The player panel's first column: the code, then what you can do. */
-.party-pane-stack {
+
+/* The player's Watch Party panel: two columns (the room | settings), each a
+   stack of sections on one rhythm — 1rem inside, a hairline and 1.25rem between. */
+.party-column {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  padding: 0 0.25rem;
+}
+.party-column > section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.party-column > section + section {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--hairline);
+}
+.party-column .party-pane {
+  padding: 0;
+}
+.party-column .party-buttons {
+  margin-top: 0;
+}
+/* Sync Now sits in the same row as Leave Party. */
+.party-column .party-buttons > .party-stream {
+  display: contents;
+}
+.party-column .party-members {
+  margin: -0.5rem -0.25rem;
+}
+.party-column .btn.party-end {
+  align-self: auto;
+  margin-top: 0;
 }
 
 /* What's on */
@@ -599,12 +625,6 @@
 }
 
 /* A setting row: text left, switch right; the whole row toggles. */
-.party-actions,
-.party-host {
-  display: flex;
-  flex-direction: column;
-  gap: 0.875rem;
-}
 .party-switch {
   display: flex;
   align-items: center;

@@ -26,7 +26,8 @@ import { ControllerToast, TvHints, TvMenu, TvNav, sameTab, useTvTabs } from "./T
 import { TvCardMenuHost, useCardMenuOpen } from "./TvCardMenu";
 import { TvAnime, TvAnimeDetail } from "./TvAnime";
 import { TvDetail } from "./TvDetail";
-import { TvCalendar, TvDiscover, TvHome, TvLibrary, TvSearch } from "./TvScreens";
+import { TvDiscover, TvHome, TvLibrary, TvSearch } from "./TvScreens";
+import { TvCalendar } from "./TvCalendar";
 import { TvSettings } from "./TvSettings";
 import { TvJoinParty } from "./TvJoinParty";
 import { useJoinPartyOpen, usePartyMenuOpen } from "../lib/party";
