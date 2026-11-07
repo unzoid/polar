@@ -2,7 +2,9 @@
 mod automation;
 mod commands;
 mod controllers;
+mod deep_link;
 mod discord;
+mod disk;
 mod downloads;
 mod imdb;
 mod introdb;
@@ -14,11 +16,13 @@ mod mal;
 mod native_back;
 mod native_dialogs;
 mod native_tabs;
+mod notifications;
 mod player;
 mod ratings;
 mod seekr;
 mod store;
 mod streamcheck;
+mod stremio_links;
 mod sync;
 mod torrent;
 mod trailers;
@@ -185,7 +189,20 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // First, so a second launch (a polarity:// link opened while Polarity runs, or the app started again) hands over
+    // to the running app before anything starts; the running window comes to the front.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            deep_link::from_args(app, &args);
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init());
+    builder
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
             // Videos dropped on the window open in the player (#204).
@@ -201,12 +218,14 @@ pub fn run() {
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
                 app.handle().plugin(tauri_plugin_dialog::init())?;
+                deep_link::init(app);
             }
             let dir = app.path().app_data_dir()?;
             let path = data_file(&dir);
             migrate_legacy_store(&dir, &path);
             downloads::manage(app.handle(), &dir)?;
             local_files::manage(app.handle())?;
+            notifications::manage(app.handle());
             let mut store = store::Store::load(path);
             let (vault, secrets) = keychain::open_vault(&store.data);
             store.data.fill_secrets(&secrets);
@@ -263,7 +282,9 @@ pub fn run() {
             commands::mal_token,
             commands::ratings,
             commands::addons_list,
+            commands::addon_catalog,
             commands::addons_bundled,
+            commands::addon_preview,
             commands::addon_install,
             commands::addon_remove,
             commands::library_list,
@@ -281,6 +302,7 @@ pub fn run() {
             commands::settings_reset,
             commands::settings_defaults,
             commands::open_external,
+            commands::window_can_pin,
             commands::anime_episode_flags,
             commands::anime_ids,
             commands::anime_cache,
@@ -296,6 +318,7 @@ pub fn run() {
             downloads::download_resume,
             downloads::download_remove,
             downloads::download_reveal,
+            downloads::downloads_storage,
             controllers::controllers_list,
             sync::space_activate,
             sync::space_import_local,
@@ -318,6 +341,8 @@ pub fn run() {
             streamcheck::stream_ready,
             discord::discord_available,
             discord::discord_presence,
+            deep_link::deep_links_take,
+            stremio_links::stremio_links_set,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,
@@ -328,6 +353,11 @@ pub fn run() {
             native_back::native_back,
             native_dialogs::native_dialog,
             native_dialogs::native_share,
+            notifications::notifications_permission,
+            notifications::notifications_request,
+            notifications::notifications_show,
+            notifications::notifications_plan,
+            notifications::notifications_take_launch,
         ])
         .build(tauri::generate_context!())
         .expect("error while building polar")

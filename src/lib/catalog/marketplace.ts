@@ -15,10 +15,10 @@ import { keys } from "../net/queryKeys";
 export const MARKETPLACE_URL = "https://raw.githubusercontent.com/unzoid/polarity-addons/main/addons.json";
 export const MARKETPLACE_REPO = "https://github.com/unzoid/polarity-addons";
 
-export type MarketCategory = "Subtitles" | "Streams" | "Metadata";
+export type MarketCategory = "Subtitles" | "Streams" | "Metadata" | "Catalogs";
 
-/** Categories this version can use, in the order they're shown. ("Catalogs" waits for add-on catalog support.) */
-export const MARKET_CATEGORIES: MarketCategory[] = ["Subtitles", "Streams", "Metadata"];
+/** Categories this version can use, in the order they're shown. Catalogs: lists of titles for Home, Discover and search (#206). */
+export const MARKET_CATEGORIES: MarketCategory[] = ["Subtitles", "Streams", "Metadata", "Catalogs"];
 
 export interface MarketAddon {
   /** The add-on's own manifest id, to tell whether it's installed. */

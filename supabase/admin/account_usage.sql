@@ -15,6 +15,10 @@ with rows as (
     from public.playlists t join public.profiles p on p.id = t.profile_id
   union all select p.user_id, 'profile_settings', pg_column_size(t.*)
     from public.profile_settings t join public.profiles p on p.id = t.profile_id
+  union all select p.user_id, 'friendships', pg_column_size(t.*)
+    from public.friendships t join public.profiles p on p.id = t.a
+  union all select p.user_id, 'friend_settings', pg_column_size(t.*)
+    from public.friend_settings t join public.profiles p on p.id = t.profile_id
   union all select p.user_id, 'profiles', pg_column_size(p.*) from public.profiles p
 )
 select
@@ -27,7 +31,8 @@ select
   count(*) filter (where r.tbl = 'library') as library,
   count(*) filter (where r.tbl = 'progress') as progress,
   count(*) filter (where r.tbl = 'anime_links') as anime_links,
-  count(*) filter (where r.tbl = 'playlists') as playlists
+  count(*) filter (where r.tbl = 'playlists') as playlists,
+  count(*) filter (where r.tbl = 'friendships') as friendships
 from rows r
 join auth.users u on u.id = r.user_id
 group by r.user_id, u.email, u.created_at

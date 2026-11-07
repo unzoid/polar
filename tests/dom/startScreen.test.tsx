@@ -80,3 +80,22 @@ test("a copy the system refuses says it couldn't", async () => {
   await act(async () => new Promise((r) => setTimeout(r, 0)));
   expect(byText(container, "button", "Couldn't copy")).toBeTruthy();
 });
+
+test("a YouTube video that can't play here (Android) says so and offers Open in YouTube (#201)", async () => {
+  let opened = 0;
+  const { container } = await render(
+    <PlayerStatus
+      state={{ status: "searching" }}
+      error="On Android, YouTube videos play in YouTube."
+      name="YouTube video"
+      steps={[]}
+      backend="YouTube's embedded player"
+      onYouTube={() => opened++}
+    />,
+  );
+  expect(container.querySelector("[role=status]")!.textContent).toBe("On Android, YouTube videos play in YouTube.");
+  const open = byText(container, "button", "Open in YouTube");
+  expect(document.activeElement).toBe(open);
+  await click(open);
+  expect(opened).toBe(1);
+});

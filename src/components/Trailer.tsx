@@ -1,5 +1,6 @@
 import { useRef, useSyncExternalStore } from "react";
 import { api } from "../lib/api";
+import { canEmbedOtherSites } from "../lib/platform";
 import { useLayer } from "../lib/ui";
 import { trailerSourceLabel, useFileTrailer, type TrailerRequest as Open } from "../lib/playback";
 import { Close, Trailer as TrailerIcon } from "./icons";
@@ -67,6 +68,8 @@ export function TrailerHost() {
       <div className="trailer-box">
         {url ? (
           <video className="trailer-video" src={url} autoPlay controls playsInline title={`${open.name} trailer`} />
+        ) : ytId && !canEmbedOtherSites() ? (
+          <div className="trailer-video trailer-empty t-body muted">This trailer plays on YouTube.</div>
         ) : ytId ? (
           <iframe
             className="trailer-video"
@@ -75,6 +78,7 @@ export function TrailerHost() {
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen
             referrerPolicy="strict-origin-when-cross-origin"
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
           />
         ) : (
           <div className="trailer-video trailer-empty t-body muted">{waiting ? "" : "No trailer for this title."}</div>

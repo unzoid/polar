@@ -6,6 +6,7 @@ import {
   Close,
   Episodes,
   ExitFullscreen,
+  FillWindow,
   LayoutList,
   LayoutRow,
   Fullscreen,
@@ -20,7 +21,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { anchorOf, appWindow, isDesktop, isMac, nativeDialogsAvailable, setImmersive, showNativeDialog } from "../lib/platform";
+import { anchorOf, appWindow, canEmbedOtherSites, isDesktop, isMac, isTvDevice, nativeDialogsAvailable, os, setImmersive, showNativeDialog } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -68,9 +69,12 @@ import {
   subtitleCueVars,
 } from "../components/player/SubtitleSettings";
 import { isMpv, MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
-import { createFrameStepper, DEFAULT_FPS, measureFps, stepFrame } from "../components/player/frameStep";
+import { createFrameStepper, DEFAULT_FPS, FRAME_SHOWN_MS, measureFps, stepFrame } from "../components/player/frameStep";
+import { createWindowPin } from "../components/player/windowPin";
+import { YouTubeMedia } from "../components/player/youtubeMedia";
+import { youtubeEmbed, youtubeUrl } from "../components/Trailer";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
-import { getPrefs, openSettings, setPrefs, useEpisodeLayout, usePrefs, withShortcut } from "../lib/settings";
+import { getPrefs, openSettings, setPrefs, shortcutText, useEpisodeLayout, usePrefs, withShortcut } from "../lib/settings";
 import { Segmented } from "../components/Segmented";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
@@ -96,12 +100,16 @@ import {
   streamHint,
   useParty,
   usePartySurface,
+  useJoinDesk,
+  youtubeId,
 } from "../lib/party";
+import { partyPage, watchPage } from "../lib/deepLink";
+import { setWatching } from "../lib/friends";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { LinkForm, PartyBadge, PartyHold, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { PartyRoomPane, PartySettingsPane } from "../components/party/PartyMenu";
-import { ChevronLeft, ChevronRight, WatchParty } from "../components/icons";
+import { Pin, WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage, storeLocal, warnFailed } from "../lib/errors";
 import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
@@ -151,6 +159,10 @@ export function Player({
   // A link pasted into a watch party (#136): no title behind it, so no title page, episodes, sources,
   // progress or lookups by id; it plays the URL it came with.
   const link = isLinkId(metaId) ? stream?.url : undefined;
+  // A YouTube video's link plays in YouTube's own embedded player (#201), never in mpv.
+  const ytId = link ? youtubeId(link) : undefined;
+  // On Android YouTube's player can't go in a frame (lib/platform canEmbedOtherSites): the video opens in YouTube.
+  const ytOutside = ytId && !canEmbedOtherSites() ? ytId : undefined;
   // A video file on this device (#204): its title is the file or its folder (lib/localFiles), its
   // source the file itself, and where it stopped is kept on this device; nothing is looked up online.
   const local = isFileId(metaId);
@@ -161,8 +173,11 @@ export function Player({
   // Engine: embedded mpv when installed (plays every codec, AC3/DTS audio, every
   // subtitle format), else the WebView's own <video>.
   const engineQuery = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
-  const engine: "mpv" | "html" | null = engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
+  const engine: "mpv" | "html" | "youtube" | null = ytId ? "youtube" : engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
   const mpv = useMemo(() => new MpvMedia(), []);
+  const yt = useMemo(() => new YouTubeMedia(), []);
+  const [ytFrame, setYtFrame] = useState<HTMLIFrameElement | null>(null);
+  useEffect(() => (ytFrame ? yt.attach(ytFrame) : undefined), [yt, ytFrame]);
   // Watch party: signed-in profiles only. Joining the room's video, look for the file it's on.
   const { profile } = useAccount();
   const canParty = partyAvailable() && !!profile;
@@ -174,6 +189,7 @@ export function Player({
   const { steps, add: logStep } = useStartLog();
   useEffect(() => {
     if (engine === "mpv") logStep("Player: mpv", "info", "player");
+    else if (engine === "youtube") logStep("Player: YouTube's embedded player", "info", "player");
     // What the built-in player can't do depends on the file's codecs and the machine, not on MKV (test report 1, item 23).
     else if (engine === "html")
       logStep("Player: built-in (mpv isn't installed, so some files may not play: AC3/DTS audio, HEVC where the system can't decode it)", "info", "player");
@@ -184,7 +200,7 @@ export function Player({
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   /** What plays in the app; `media` is what the controls drive, an AirPlay receiver's element while casting with mpv. */
-  const baseMedia: MediaLike | null = engine === "mpv" ? mpv : videoEl;
+  const baseMedia: MediaLike | null = engine === "mpv" ? mpv : engine === "youtube" ? yt : videoEl;
   const baseRef = useRef<MediaLike | null>(null);
   baseRef.current = baseMedia;
   const videoRef = useRef<MediaLike | null>(null);
@@ -210,7 +226,8 @@ export function Player({
     video: engine === "html" ? videoEl : null,
     url: playingUrl?.url,
     headers: playingUrl ? requestHeaders(playingUrl.stream) : null,
-    enabled: !party,
+    // YouTube's player has no file to hand over.
+    enabled: !party && engine !== "youtube",
   });
   const media: MediaLike | null = airplay.media ?? baseMedia;
   videoRef.current = media;
@@ -329,7 +346,14 @@ export function Player({
     }
     return { next: n, skipped };
   }, [meta, type, videoId, animeSkipFiller]);
-  const title = link ? stream?.name || linkLabel(link) : (meta?.name ?? "");
+  // A YouTube video is called by its own title once its player says it.
+  const [ytTitle, setYtTitle] = useState<string | null>(null);
+  useEffect(() => {
+    const onTitle = () => setYtTitle(yt.title);
+    yt.addEventListener("titlechange", onTitle);
+    return () => yt.removeEventListener("titlechange", onTitle);
+  }, [yt]);
+  const title = link ? ytTitle || stream?.name || linkLabel(link) : (meta?.name ?? "");
   const heading = local ? (current?.title ?? title) : current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
 
   // --- Watch party ------------------------------------------------------------
@@ -394,6 +418,9 @@ export function Player({
       const start = partyPosition(videoId) ?? resumePoint(source.resume ?? (local ? recentPosition(videoId) : undefined));
       resumed.current = true;
       v.load(source.state.url, start, requestHeaders(source.state.stream));
+    } else if (v instanceof YouTubeMedia) {
+      resumed.current = true;
+      v.load(partyPosition(videoId) ?? null);
     } else if (v instanceof HTMLVideoElement) {
       const url = source.state.url;
       const play = (src: string) => {
@@ -446,7 +473,7 @@ export function Player({
     if (!v) return;
     v.volume = sliderAmplitude(volume);
     v.muted = muted;
-    storeLocal("polar.volume", String(volume));
+    if (!systemVolume) storeLocal("polar.volume", String(volume));
   }, [volume, muted, media]);
 
   // A watch party plays at 1x for everyone (its sync nudges the rate itself).
@@ -485,7 +512,21 @@ export function Player({
   // Settings → Playback → "Pause when minimized".
   const { pauseOnMinimize, discordPresence } = usePrefs();
   // A file on this device stays private: its name isn't shown on Discord.
-  useDiscordPresence(media, meta, videoId, local ? "off" : discordPresence);
+  // Buttons (#153): this title in the viewer's own Polarity (only where the title is shown), and the party's join link.
+  const joinToken = useJoinDesk().token;
+  const presenceLinks = useMemo(
+    () => ({ watch: (discordPresence === "title" && watchPage(type, metaId)) || undefined, party: joinToken ? partyPage(joinToken) : undefined }),
+    [discordPresence, type, metaId, joinToken],
+  );
+  useDiscordPresence(media, meta, videoId, local ? "off" : discordPresence, presenceLinks);
+  // What friends may see playing (#135); the same rule: never a file on this device.
+  const playingVideo = meta?.videos?.find((v) => v.id === videoId);
+  const friendsLabel = playingVideo?.season !== undefined && playingVideo.episode !== undefined ? `S${playingVideo.season}:E${playingVideo.episode}` : undefined;
+  useEffect(() => {
+    if (local || !meta?.name) return;
+    setWatching({ type, metaId, title: meta.name, ...(friendsLabel ? { label: friendsLabel } : {}) });
+    return () => setWatching(null);
+  }, [local, type, metaId, meta?.name, friendsLabel]);
   useEffect(() => {
     if (!pauseOnMinimize) return;
     const unlisten = win.onResized(() => {
@@ -556,7 +597,7 @@ export function Player({
       } else {
         const v = videoRef.current;
         setError(
-          v instanceof MpvMedia
+          v instanceof MpvMedia || v instanceof YouTubeMedia
             ? (v.error?.message ?? "This file couldn't be played.")
             : linkError.current
               ? linkError.current
@@ -594,12 +635,12 @@ export function Player({
     if (videoRef.current) videoRef.current.currentTime = t;
   }, []);
 
-  // --- Frame stepping (#243) ---------------------------------------------------
+  // --- Frame stepping (#243, #273): desktop only, with the keys -----------------
   // The rate frames are counted in: what mpv reads in the file, or what the built-in player measures as it plays.
   const [fps, setFps] = useState<number | null>(null);
   useEffect(() => {
     setFps(null);
-    if (!started || !media) return;
+    if (!isDesktop || !started || !media) return;
     if (isMpv(media)) {
       let live = true;
       void media.frameRate().then((f) => live && setFps(f));
@@ -609,18 +650,25 @@ export function Player({
   }, [media, started, videoEl]);
   const fpsRef = useRef(DEFAULT_FPS);
   fpsRef.current = fps ?? DEFAULT_FPS;
-  /** Stepped since the last pause: the clock shows the frame until playback resumes. */
+  /** Stepped a moment ago: the clock shows the frame for a few seconds after each step, or until playback resumes. */
   const [stepping, setStepping] = useState(false);
+  const steppingTimer = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (!paused) setStepping(false);
+    if (paused) return;
+    window.clearTimeout(steppingTimer.current);
+    setStepping(false);
   }, [paused]);
+  useEffect(() => () => window.clearTimeout(steppingTimer.current), []);
   const stepper = useMemo(
     () =>
       createFrameStepper(async (direction) => {
         const v = videoRef.current;
-        if (!v?.duration || !startedRef.current) return;
+        // YouTube's player seeks to whole moments, not frames.
+        if (!v?.duration || !startedRef.current || v instanceof YouTubeMedia) return;
+        window.clearTimeout(steppingTimer.current);
         setStepping(true);
         await stepFrame(v, direction, fpsRef.current);
+        steppingTimer.current = window.setTimeout(() => setStepping(false), FRAME_SHOWN_MS);
       }),
     [],
   );
@@ -639,25 +687,54 @@ export function Player({
     online: !link && !local,
   });
 
-  // A phone or tablet has no window to make fullscreen: its button fits the picture inside the
-  // screen or fills the screen with it, cropping the edges (#148, #149). Autocrop (Settings →
-  // Advanced) still takes the black bars off a fitted picture.
-  const { videoFill, tvFrameStep } = usePrefs();
-  const fill = !isDesktop && videoFill;
+  // Fit or Fill (#148, #149, #183): the picture inside the screen or window, or covering it with its
+  // edges cropped. A phone or tablet has no window to make fullscreen, so its button there does this;
+  // desktop has its own button and shortcut. Kept on this device. Autocrop (Settings → Advanced)
+  // takes the bars in the video off first, then Fill crops what's left to the window's shape (the
+  // autocrop loop reads mpv's panscan).
+  const { videoFill } = usePrefs();
+  const fill = videoFill;
   useEffect(() => {
-    if (engine === "mpv" && !isDesktop) void mpv.set("panscan", fill ? 1 : 0);
+    if (engine === "mpv") void mpv.set("panscan", fill ? 1 : 0);
   }, [engine, mpv, fill]);
   const toggleFill = useCallback(() => setPrefs({ videoFill: !getPrefs().videoFill }), []);
   const pinch = usePinch((direction) => {
     if (!isDesktop) setPrefs({ videoFill: direction === "out" });
   });
 
+  // --- Pin window (#266): desktop only, where the system lets an app stay on top ---
+  const [canPin, setCanPin] = useState(false);
+  useEffect(() => {
+    if (!isDesktop || tv) return setCanPin(false);
+    let live = true;
+    void win.canPin().then((ok) => live && setCanPin(ok));
+    return () => void (live = false);
+  }, [tv]);
+  const [pinned, setPinned] = useState(false);
+  const pinner = useMemo(() => createWindowPin(win, setPinned), []);
+  // Leaving the player, or switching to TV mode, always unpins: the window is never left on top.
+  useEffect(() => {
+    if (tv) void pinner.unpin();
+  }, [tv, pinner]);
+  useEffect(() => () => void pinner.unpin(), [pinner]);
+  const togglePin = useCallback(() => {
+    const pinning = !pinner.pinned;
+    void pinner.toggle().then(() => {
+      // Said once, the first time: how to get out of it.
+      if (!pinning || !pinner.pinned || pinHintSeen()) return;
+      storeLocal(PIN_HINT, "1");
+      const key = shortcutText("pinWindow");
+      flashNotice(key ? `Window pinned, press ${key} to unpin` : "Window pinned", 3500);
+    });
+  }, [pinner, flashNotice]);
+
   const toggleFullscreen = useCallback(async () => {
     if (tv) return;
     const next = !(await win.isFullscreen());
-    await win.setFullscreen(next);
+    // Going fullscreen unpins first.
+    await pinner.setFullscreen(next);
     setFullscreen(next);
-  }, [tv]);
+  }, [tv, pinner]);
 
   // Fade back to the page first, *then* leave fullscreen: resizing the window
   // while mpv's native picture is up is what flickers, so do it once the page
@@ -842,33 +919,27 @@ export function Player({
           togglePlay();
           return true;
         case "seekBack":
-          // TV, paused, with "Step one frame" chosen in the player's options: Left steps instead.
-          if (tv && tvFrameStep && paused) {
-            stepper.step(-1);
-            return true;
-          }
           seekBy(-seekStep);
           kick("back");
           return true;
         case "seekForward":
-          if (tv && tvFrameStep && paused) {
-            stepper.step(1);
-            return true;
-          }
           seekBy(seekStep);
           kick("forward");
           return true;
         case "frameBack":
         case "frameForward":
-          if (!started) return false;
+          if (!isDesktop || !started || ytId) return false;
           stepper.step(action === "frameBack" ? -1 : 1);
           return true;
         case "volumeUp":
+          // Where the system sets the volume, its keys are the system's.
+          if (systemVolume) return false;
           setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
           pingVolume("up");
           setMuted(false);
           return true;
         case "volumeDown":
+          if (systemVolume) return false;
           setVolume((v) => Math.max(0, +(v - 0.1).toFixed(2)));
           pingVolume("down");
           return true;
@@ -878,6 +949,15 @@ export function Player({
           return true;
         case "fullscreen":
           void toggleFullscreen();
+          return true;
+        case "pinWindow":
+          if (!canPin) return false;
+          togglePin();
+          return true;
+        case "fill":
+          toggleFill();
+          // TV mode has no button showing it: say which it is now.
+          if (tv) flashNotice(getPrefs().videoFill ? "Fill" : "Fit", 1500);
           return true;
         case "skip":
           skip.skipActive();
@@ -989,6 +1069,19 @@ export function Player({
       {engine === "html" && (
         <video ref={setVideoEl} className="player-video" playsInline style={subtitleCueVars(subStyle)} />
       )}
+      {ytId && !ytOutside && (
+        // YouTube's own player, its controls off: the player's controls (and the party) drive it through its API.
+        <iframe
+          ref={setYtFrame}
+          className="player-video player-youtube"
+          src={youtubeEmbed(ytId, { controls: false, api: true })}
+          title={title}
+          allow="autoplay; encrypted-media; picture-in-picture"
+          // It runs its own page and nothing more: no popups, no taking the app's window elsewhere.
+          sandbox="allow-scripts allow-same-origin allow-presentation"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      )}
       {/* Click target over either engine: tap to play/pause, double-click for
           fullscreen (on touch, a side's double-tap seeks), wheel for volume. */}
       <div
@@ -1018,11 +1111,13 @@ export function Player({
             return poke(true);
           }
           if (!isDesktop) return toggleFill();
+          // Pinned, the window stays as it is (#266).
+          if (pinner.pinned) return;
           void toggleFullscreen();
         }}
         onWheel={(e) => {
           const wheel = settings?.wheelAction ?? "volume";
-          if (wheel === "none") return;
+          if (wheel === "none" || (wheel === "volume" && systemVolume)) return;
           if (wheel === "seek") seekBy(-Math.sign(e.deltaY) * seekStep);
           else {
             setVolume((v) => Math.min(1, Math.max(0, +(v - Math.sign(e.deltaY) * 0.05).toFixed(2))));
@@ -1039,13 +1134,14 @@ export function Player({
           <PlayerStatus
             key="status"
             state={source.state}
-            error={error}
+            error={ytOutside ? "On Android, YouTube videos play in YouTube." : error}
             logo={meta?.logo}
             name={link ? title : meta?.name}
             background={meta?.background}
             steps={steps}
-            backend={engine === "html" ? "built-in" : (engine ?? "not chosen yet")}
+            backend={engine === "html" ? "built-in" : engine === "youtube" ? "YouTube's embedded player" : (engine ?? "not chosen yet")}
             onSources={link || local ? undefined : () => setOptions("sources")}
+            onYouTube={ytOutside ? () => void api.openExternal(youtubeUrl(ytOutside)) : undefined}
           />
         )}
       </AnimatePresence>
@@ -1087,11 +1183,12 @@ export function Player({
       {party && <PartyNotes party={party} />}
 
       {/* Top: back, what's playing, window-level controls. Drag lives here. */}
-      <div className="player-top" data-tauri-drag-region>
+      {/* Pinned (#266), nothing moves the window. */}
+      <div className="player-top" data-tauri-drag-region={pinned ? undefined : true}>
         <IconButton variant="player" onClick={() => void exit()} label="Back" title="Back (Esc)">
           <ArrowLeft size={26} />
         </IconButton>
-        <div className="player-heading" data-tauri-drag-region>
+        <div className="player-heading" data-tauri-drag-region={pinned ? undefined : true}>
           <span className="player-heading-title">{heading}</span>
           {current && <span className="player-heading-show">{title}</span>}
         </div>
@@ -1101,23 +1198,47 @@ export function Player({
             <IconButton variant="player" onClick={() => setMuted((m) => !m)} label={muted ? "Unmute" : "Mute"} title={withShortcut("Mute", "mute")}>
               <VolumeIcon size={22} />
             </IconButton>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={muted ? 0 : volume}
-              onChange={(e) => {
-                setVolume(Number(e.target.value));
-                setMuted(false);
-              }}
-              aria-label="Volume"
-              style={{ "--value": `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
-            />
+            {!systemVolume && (
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={muted ? 0 : volume}
+                onChange={(e) => {
+                  setVolume(Number(e.target.value));
+                  setMuted(false);
+                }}
+                aria-label="Volume"
+                style={{ "--value": `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
+              />
+            )}
           </div>
           {airplay.available && (
             <IconButton variant="player" onClick={airplay.pick} label="AirPlay" title="AirPlay" aria-pressed={airplay.casting}>
               <Cast size={22} />
+            </IconButton>
+          )}
+          {canPin && !fullscreen && (
+            <IconButton
+              variant="player"
+              onClick={togglePin}
+              label="Pin window"
+              aria-pressed={pinned}
+              title={withShortcut(pinned ? "Unpin window" : "Pin window on top", "pinWindow")}
+            >
+              <Pin size={22} />
+            </IconButton>
+          )}
+          {!tv && isDesktop && (
+            <IconButton
+              variant="player"
+              onClick={toggleFill}
+              label="Fill window"
+              aria-pressed={fill}
+              title={withShortcut(fill ? "Fit to window" : "Fill window", "fill")}
+            >
+              <FillWindow size={22} />
             </IconButton>
           )}
           {!tv && isDesktop && (
@@ -1131,7 +1252,7 @@ export function Player({
             </IconButton>
           )}
         </div>
-        {!fullscreen && !tv && <WindowControls />}
+        {!fullscreen && !tv && <WindowControls pinned={pinned} />}
       </div>
 
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
@@ -1173,31 +1294,17 @@ export function Player({
       >
         <div className="player-timeline">
           <Scrubber media={media} previews={seekTrack} span={skip.segments?.intro} onSeek={seekTo} />
-          {paused && started && !tv && (
-            <div className="player-frame-step">
-              <IconButton variant="player" onClick={() => stepper.step(-1)} label="Back one frame" title={withShortcut("Back one frame", "frameBack")}>
-                <ChevronLeft size={20} />
-              </IconButton>
-              <IconButton variant="player" onClick={() => stepper.step(1)} label="Forward one frame" title={withShortcut("Forward one frame", "frameForward")}>
-                <ChevronRight size={20} />
-              </IconButton>
-            </div>
-          )}
           <PlayerClock media={media} display={timeDisplay} rate={rate} onCycle={cycleClock} fps={stepping ? (fps ?? DEFAULT_FPS) : null} />
         </div>
         <div className="player-actions">
-          {(!party || tv) && (
-            <ActionButton
-              icon={<Speed size={22} />}
-              label={party ? "Left and Right" : `Speed (${rate}x)`}
-              glyph={pad("speed")}
-              onClick={(el) => openOptions("speed", el)}
-            />
+          {!party && (
+            <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={(el) => openOptions("speed", el)} />
           )}
           {type === "series" && (
             <ActionButton icon={<Episodes size={22} />} label={local ? "In this folder" : "Episodes"} glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
-          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={(el) => openOptions("tracks", el)} />
+          {/* YouTube's player keeps its own captions and audio. */}
+          {!ytId && <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={(el) => openOptions("tracks", el)} />}
           {!link && !local && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
           {canParty && !airplay.casting && (
             <ActionButton
@@ -1222,27 +1329,25 @@ export function Player({
         onClose={() => setOptions(null)}
         media={media}
         columns={[
-          ...(party
-            ? []
-            : [
-                {
-                  title: "Playback Speed",
-                  value: String(rate),
-                  options: SPEEDS.map((r) => ({ id: String(r), label: speedLabel(r) })),
-                  onSelect: (id: string) => setRate(Number(id)),
-                },
-              ]),
-          // TV: what the remote's Left and Right do while paused (#243).
-          ...(tv
+          {
+            title: "Playback Speed",
+            value: String(rate),
+            options: SPEEDS.map((r) => ({ id: String(r), label: speedLabel(r) })),
+            onSelect: (id: string) => setRate(Number(id)),
+          },
+          // Desktop: keep the window on top of the others, locked in place (#266).
+          ...(canPin
             ? [
                 {
-                  title: "Left and Right",
-                  value: tvFrameStep ? "frame" : "seek",
+                  title: "Window",
+                  value: pinned ? "pinned" : "normal",
                   options: [
-                    { id: "seek", label: `Skip ${seekStep} seconds` },
-                    { id: "frame", label: "Step one frame when paused" },
+                    { id: "normal", label: "Normal" },
+                    { id: "pinned", label: "Pinned on top" },
                   ],
-                  onSelect: (id: string) => setPrefs({ tvFrameStep: id === "frame" }),
+                  onSelect: (id: string) => {
+                    if ((id === "pinned") !== pinner.pinned) togglePin();
+                  },
                 },
               ]
             : []),
@@ -1392,7 +1497,7 @@ export function Player({
                     content: (
                       <div className="party-pane">
                         <p className="party-lede">
-                          Start a party on a video file or stream from the web. Everyone's app opens the link itself, after seeing it.
+                          Start a party on a YouTube video, or a video file or stream from the web. Everyone's app opens the link itself, after seeing it.
                         </p>
                         <LinkForm me={profile!} onDone={() => setOptions(null)} />
                       </div>
@@ -1561,8 +1666,26 @@ function ActionButton({
   );
 }
 
-/** The volume last set, 0–1 (1 when none was, or it isn't a number). */
+/** Whether "Window pinned, press P to unpin" (#266) has been shown on this device. */
+const PIN_HINT = "polar.pinHint";
+function pinHintSeen() {
+  try {
+    return !!localStorage.getItem(PIN_HINT);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Android phones and tablets (#179): their volume buttons and the system's volume panel set the
+ * volume, so the player has no slider and plays at full volume itself (a level set before can't
+ * be left stuck low with nothing to raise it). Android TV keeps the remote's volume HUD.
+ */
+const systemVolume = os === "android" && !isTvDevice;
+
+/** The volume last set, 0–1 (1 when none was, or it isn't a number; always 1 where the system sets it). */
 function savedVolume() {
+  if (systemVolume) return 1;
   const v = Number(localStorage.getItem("polar.volume") ?? 1);
   return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
 }

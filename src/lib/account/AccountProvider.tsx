@@ -8,6 +8,9 @@ import { forgetPlaylists, importLocalPlaylists } from "../library/playlists";
 import { clearRecentSearches } from "../catalog/recentSearches";
 import { forgetSettings, keepDeviceSettings, markDeviceSettings, restoreDeviceSettings, restoreSettings, startProfile } from "./settingsSync";
 import { refreshLocalViews, sync } from "./sync";
+import { deviceLabel, waitForApproval, type TvSignInRequest, type TvWaitResult } from "./tvSignIn";
+import { isTvDevice, os } from "../platform/device";
+import { formFactor } from "../platform/formFactor";
 
 /**
  *  - loading:    restoring the session
@@ -34,6 +37,17 @@ export interface Account {
   /** Email a sign-in code (new emails get an account automatically). */
   sendCode(email: string, captchaToken?: string): Promise<void>;
   verifyCode(email: string, code: string): Promise<void>;
+  /**
+   * Signing in on a TV from a device that's already signed in (#133): `start` and `wait` on the
+   * device signing in (it lands on the profiles once approved), `look` and `answer` on the one
+   * approving it.
+   */
+  tvSignIn: {
+    start(): Promise<TvSignInRequest>;
+    wait(request: TvSignInRequest, signal: AbortSignal): Promise<TvWaitResult>;
+    look(code: string): Promise<string>;
+    answer(code: string, approve: boolean): Promise<void>;
+  };
   /** Signed in but loading profiles failed: try that part again. */
   resume(): Promise<void>;
   continueAsGuest(): void;
@@ -220,6 +234,23 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       async verifyCode(email, code) {
         const u = await need().auth.verifyCode(email.trim().toLowerCase(), code.replace(/\s/g, ""));
         await afterSignIn(u, { launch: false });
+      },
+      tvSignIn: {
+        start: () => need().tvSignIn.start(deviceLabel(os, formFactor().form, isTvDevice)),
+        wait(request, signal) {
+          const b = need();
+          return waitForApproval(request, {
+            claim: b.tvSignIn.claim,
+            signal,
+            async onApproved(tokenHash) {
+              const u = await b.tvSignIn.finish(tokenHash);
+              // A new device: "Who's watching?" unless the account has one profile.
+              await afterSignIn(u, { launch: true });
+            },
+          });
+        },
+        look: (code) => need().tvSignIn.look(code),
+        answer: (code, approve) => need().tvSignIn.answer(code, approve),
       },
       async resume() {
         const u = await need().auth.current();

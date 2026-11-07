@@ -63,6 +63,40 @@ export const WEIGHTS = {
   slowStart: -3,
 } as const;
 
+export type Factor = keyof typeof WEIGHTS;
+
+/**
+ * Each factor's row in a source's info (#274), in WEIGHTS' order: every source gets every row,
+ * "n/a" and 0 where the factor doesn't apply. The row's input is what scoreOne says about the
+ * source ("1080p on a 1080p screen"), its points what it gave. tests/bestMatch.test.ts fails when
+ * a factor here has no row.
+ */
+export const FACTOR_LABELS: Record<Factor, string> = {
+  resolution: "Resolution",
+  overScreen: "Bigger than the screen",
+  direct: "Direct link",
+  cam: "CAM or telesync",
+  otherEpisode: "Another episode",
+  bitrateLow: "Bitrate for its resolution",
+  bitrateBelowOthers: "Bitrate under the others",
+  bitrateAboveOthers: "Bitrate above the others",
+  connectionTooSlow: "More than the connection carries",
+  connectionTight: "Close to the connection's limit",
+  hdr: "HDR",
+  dolbyVision: "Dolby Vision",
+  dolbyVisionUnsupported: "Dolby Vision this device can't show",
+  efficientCodec: "Hardware decoding",
+  softwareDecode: "Software decoding",
+  audioLanguage: "Audio language",
+  audioMulti: "Multi-audio",
+  preferredTag: "Preferred tags",
+  preferredGroup: "Preferred release group",
+  failRate: "Failed here before",
+  playedThrough: "Played through here before",
+  recentFail: "Failed recently",
+  slowStart: "Slow to start here",
+};
+
 /** Mbps below which a file of each height is a re-encode squeezed too small. */
 export const BITRATE_FLOOR: Record<number, number> = { 2160: 8, 1440: 4, 1080: 2.5, 720: 1.2, 0: 0.6 };
 export const MIN_TRIES = 2;
@@ -110,9 +144,21 @@ export interface MatchContext {
   now: number;
 }
 
+/** One row of a source's score table: `input` null where the factor doesn't apply. */
+export interface FactorRow {
+  factor: Factor;
+  label: string;
+  input: string | null;
+  points: number;
+}
+
 export interface Match {
   score: number;
   reasons: ScoreReason[];
+  /** Every factor in WEIGHTS, in order; their points add up to `score`. */
+  factors: FactorRow[];
+  /** Where the score puts it in the list it was scored with (ties share a place); only from scoreSources. */
+  rank?: { position: number; of: number };
 }
 
 /** No device, connection, preferences or history known: only what the files say. */
@@ -165,7 +211,9 @@ export function scoreSources(streams: RankedStream[], ctx: MatchContext = NEUTRA
   }
   // Fewer than three files of a height with a known size aren't much to compare with.
   const middle = new Map([...rates].filter(([, xs]) => xs.length >= 3).map(([k, xs]) => [k, median(xs)]));
-  return new Map(streams.map((r) => [r, scoreOne(r, ctx, middle.get(bucket(r)) ?? null)]));
+  const scored = streams.map((r) => [r, scoreOne(r, ctx, middle.get(bucket(r)) ?? null)] as const);
+  const of = scored.length;
+  return new Map(scored.map(([r, m]) => [r, { ...m, rank: { position: 1 + scored.filter(([, o]) => o.score > m.score).length, of } }]));
 }
 
 /** One source's score; `middle` is the middle bitrate of the other files of its height, when there are enough. */
@@ -174,57 +222,61 @@ export function scoreOne(r: RankedStream, ctx: MatchContext = NEUTRAL, middle: n
   const q = r.quality;
   const d = ctx.device;
   const reasons: ScoreReason[] = [];
-  const add = (reason: string, points: number) => {
-    if (points) reasons.push({ reason, points: Math.round(points * 10) / 10 });
+  const by = new Map<Factor, ScoreReason[]>();
+  const add = (factor: Factor, reason: string, points: number) => {
+    if (!points) return;
+    const x = { reason, points: Math.round(points * 10) / 10 };
+    reasons.push(x);
+    by.set(factor, [...(by.get(factor) ?? []), x]);
   };
 
   // The picture.
   const h = q.resolution;
   const onScreen = d.preferScreen ? ` on a ${resName(d.screen)} screen` : "";
-  if (h == null) add("Unknown resolution", W.resolution.unknown);
-  else if (h >= 2160) add(`4K${onScreen}`, W.resolution[2160]);
-  else if (h >= 1440) add(`1440p${onScreen}`, W.resolution[1440]);
-  else if (h >= 1080) add(`1080p${onScreen}`, W.resolution[1080]);
-  else if (h >= 720) add(`720p${onScreen}`, W.resolution[720]);
-  else add("Below 720p", W.resolution.below);
-  if (d.preferScreen && d.screen < 1300 && (h ?? 0) > Math.max(d.screen, 1080)) add("Bigger than this screen shows", W.overScreen);
-  if (q.direct) add("Direct link", W.direct);
-  if (q.lowQualitySource) add("CAM or telesync", W.cam);
-  if (r.otherEpisode) add(`The file says ${r.fileEpisode ?? "another episode"}`, W.otherEpisode);
+  if (h == null) add("resolution", "Unknown resolution", W.resolution.unknown);
+  else if (h >= 2160) add("resolution", `4K${onScreen}`, W.resolution[2160]);
+  else if (h >= 1440) add("resolution", `1440p${onScreen}`, W.resolution[1440]);
+  else if (h >= 1080) add("resolution", `1080p${onScreen}`, W.resolution[1080]);
+  else if (h >= 720) add("resolution", `720p${onScreen}`, W.resolution[720]);
+  else add("resolution", "Below 720p", W.resolution.below);
+  if (d.preferScreen && d.screen < 1300 && (h ?? 0) > Math.max(d.screen, 1080)) add("overScreen", "Bigger than this screen shows", W.overScreen);
+  if (q.direct) add("direct", "Direct link", W.direct);
+  if (q.lowQualitySource) add("cam", "CAM or telesync", W.cam);
+  if (r.otherEpisode) add("otherEpisode", `The file says ${r.fileEpisode ?? "another episode"}`, W.otherEpisode);
 
   // Bitrate, against the others of its height and the connection.
   const rate = bitrateMbps(r, ctx.runtimeSec);
   if (rate != null && !q.lowQualitySource) {
     const b = bucket(r);
     const fits = ctx.connectionMbps == null || rate < ctx.connectionMbps * 0.6;
-    if (rate < BITRATE_FLOOR[b]) add(`${mbps(rate)} is low for ${b ? resName(b) : "its size"}`, W.bitrateLow);
-    else if (middle != null && rate < middle * 0.5) add(`${mbps(rate)}, under half the other ${b ? resName(b) : "small"} files' ${mbps(middle)}`, W.bitrateBelowOthers);
-    else if (middle != null && rate >= middle * 1.3 && fits) add(`${mbps(rate)}, more detail than the other ${b ? resName(b) : "small"} files' ${mbps(middle)}`, W.bitrateAboveOthers);
+    if (rate < BITRATE_FLOOR[b]) add("bitrateLow", `${mbps(rate)} is low for ${b ? resName(b) : "its size"}`, W.bitrateLow);
+    else if (middle != null && rate < middle * 0.5) add("bitrateBelowOthers", `${mbps(rate)}, under half the other ${b ? resName(b) : "small"} files' ${mbps(middle)}`, W.bitrateBelowOthers);
+    else if (middle != null && rate >= middle * 1.3 && fits) add("bitrateAboveOthers", `${mbps(rate)}, more detail than the other ${b ? resName(b) : "small"} files' ${mbps(middle)}`, W.bitrateAboveOthers);
     if (ctx.connectionMbps != null) {
-      if (rate >= ctx.connectionMbps * 0.9) add(`${mbps(rate)} is more than this connection carries (${mbps(ctx.connectionMbps)})`, W.connectionTooSlow);
-      else if (rate >= ctx.connectionMbps * 0.6) add(`${mbps(rate)} is close to this connection's ${mbps(ctx.connectionMbps)}`, W.connectionTight);
+      if (rate >= ctx.connectionMbps * 0.9) add("connectionTooSlow", `${mbps(rate)} is more than this connection carries (${mbps(ctx.connectionMbps)})`, W.connectionTooSlow);
+      else if (rate >= ctx.connectionMbps * 0.6) add("connectionTight", `${mbps(rate)} is close to this connection's ${mbps(ctx.connectionMbps)}`, W.connectionTight);
     }
   }
 
   // The device.
-  if (q.dolbyVision && !q.hdr && d.dolbyVision === false) add("Dolby Vision only, which this device can't show", W.dolbyVisionUnsupported);
-  else if (q.dolbyVision && d.hdr && d.dolbyVision) add("Dolby Vision on an HDR screen", W.dolbyVision);
-  else if ((q.hdr || q.dolbyVision) && d.hdr) add("HDR on an HDR screen", W.hdr);
+  if (q.dolbyVision && !q.hdr && d.dolbyVision === false) add("dolbyVisionUnsupported", "Dolby Vision only, which this device can't show", W.dolbyVisionUnsupported);
+  else if (q.dolbyVision && d.hdr && d.dolbyVision) add("dolbyVision", "Dolby Vision on an HDR screen", W.dolbyVision);
+  else if ((q.hdr || q.dolbyVision) && d.hdr) add("hdr", "HDR on an HDR screen", W.hdr);
   const codec = q.codec === "HEVC" ? d.hevc : q.codec === "AV1" ? d.av1 : undefined;
-  if (codec === true) add(`${q.codec}, decoded by this device's hardware`, W.efficientCodec);
-  else if (codec === false) add(`${q.codec} without hardware decoding here`, W.softwareDecode * ((h ?? 0) >= 2160 ? 2 : 1));
+  if (codec === true) add("efficientCodec", `${q.codec}, decoded by this device's hardware`, W.efficientCodec);
+  else if (codec === false) add("softwareDecode", `${q.codec} without hardware decoding here`, W.softwareDecode * ((h ?? 0) >= 2160 ? 2 : 1));
 
   // Preferences.
   const pref = ctx.audioLanguage;
   if (pref) {
     const langs = q.languages ?? [];
-    if (langs.some((l) => langMatches(l, pref))) add(`Audio in ${languageName(pref) ?? pref}, your language`, W.audioLanguage);
-    else if (langs.includes("multi")) add("Multi-audio, may have your language", W.audioMulti);
+    if (langs.some((l) => langMatches(l, pref))) add("audioLanguage", `Audio in ${languageName(pref) ?? pref}, your language`, W.audioLanguage);
+    else if (langs.includes("multi")) add("audioMulti", "Multi-audio, may have your language", W.audioMulti);
   }
   const tags = groupTags(r);
-  for (const t of ctx.preferredTags) if (tags.includes(t)) add(`${TAG_NAMES[t] ?? t}, which you prefer`, W.preferredTag);
+  for (const t of ctx.preferredTags) if (tags.includes(t)) add("preferredTag", `${TAG_NAMES[t] ?? t}, which you prefer`, W.preferredTag);
   const group = q.source ? ctx.preferredGroups.findIndex((g) => groupKey(g) === groupKey(q.source!)) : -1;
-  if (group >= 0) add(`${q.source}, a release group you prefer`, W.preferredGroup[Math.min(group, W.preferredGroup.length - 1)]);
+  if (group >= 0) add("preferredGroup", `${q.source}, a release group you prefer`, W.preferredGroup[Math.min(group, W.preferredGroup.length - 1)]);
 
   // What happened before.
   const seen: [string, SourceRecord | undefined][] = [
@@ -234,15 +286,20 @@ export function scoreOne(r: RankedStream, ctx: MatchContext = NEUTRAL, middle: n
   let lastFail = 0;
   for (const [who, rec] of seen) {
     if (!rec) continue;
-    if (rec.tries >= MIN_TRIES && rec.fails) add(`${who} failed ${rec.fails} of ${rec.tries} times here`, W.failRate * (rec.fails / rec.tries));
-    if (rec.starts >= MIN_TRIES && rec.through) add(`${who} played through ${rec.through} of ${rec.starts} times here`, W.playedThrough * (rec.through / rec.starts));
+    if (rec.tries >= MIN_TRIES && rec.fails) add("failRate", `${who} failed ${rec.fails} of ${rec.tries} times here`, W.failRate * (rec.fails / rec.tries));
+    if (rec.starts >= MIN_TRIES && rec.through) add("playedThrough", `${who} played through ${rec.through} of ${rec.starts} times here`, W.playedThrough * (rec.through / rec.starts));
     if (rec.starts >= MIN_TRIES && rec.startMs / rec.starts > SLOW_START_MS)
-      add(`${who} takes ${Math.round(rec.startMs / rec.starts / 1000)} s to start here`, W.slowStart);
+      add("slowStart", `${who} takes ${Math.round(rec.startMs / rec.starts / 1000)} s to start here`, W.slowStart);
     lastFail = Math.max(lastFail, rec.lastFail ?? 0);
   }
   const hours = (ctx.now - lastFail) / 3_600_000;
   if (lastFail && hours >= 0 && hours < RECENT_FAIL_HOURS)
-    add(`Failed here ${hours < 1 ? "within the hour" : `${Math.floor(hours)} h ago`}`, W.recentFail * (1 - hours / RECENT_FAIL_HOURS));
+    add("recentFail", `Failed here ${hours < 1 ? "within the hour" : `${Math.floor(hours)} h ago`}`, W.recentFail * (1 - hours / RECENT_FAIL_HOURS));
 
-  return { score: Math.round(reasons.reduce((n, x) => n + x.points, 0) * 10) / 10, reasons };
+  const total = (xs: ScoreReason[]) => Math.round(xs.reduce((n, x) => n + x.points, 0) * 10) / 10;
+  const factors = (Object.keys(W) as Factor[]).map((factor) => {
+    const xs = by.get(factor) ?? [];
+    return { factor, label: FACTOR_LABELS[factor], input: xs.length ? xs.map((x) => x.reason).join("; ") : null, points: total(xs) };
+  });
+  return { score: total(reasons), reasons, factors };
 }
