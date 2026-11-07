@@ -21,6 +21,7 @@ import { normalizeAvatar } from "./avatars";
 import { fromHex, toHex } from "../library/playlistCodec";
 import { decodeEntries, encodeEntries, newestAt, type EntryToPack } from "./progressCodec";
 import { keychainStorage } from "../platform/keychain";
+import { normalizeTvCode, type TvClaim, type TvSignInRequest } from "./tvSignIn";
 import { warnFailed } from "../errors";
 
 const PAGE = 1000;
@@ -48,6 +49,15 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
   });
 
   const toUser = (u: User): AccountUser => ({ id: u.id, email: u.email ?? "" });
+  /** One step of the tv-sign-in Edge Function; its `{ error }` answers become `AccountError`s. */
+  const tvFunction = async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const { data, error } = await db.functions.invoke("tv-sign-in", { body });
+    if (!error) return isRecord(data) ? data : {};
+    const context = (error as { context?: unknown }).context;
+    const res = context instanceof Response ? context : null;
+    const answer: unknown = res ? await res.json().catch(() => null) : null;
+    throw tvSignInError(error.name, res?.status ?? 0, isRecord(answer) ? str(answer.error) : undefined);
+  };
   const everyEpisode = serverKeepsEveryEpisode(async () => await db.rpc("polar_every_episode"));
 
   return {
@@ -154,6 +164,38 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
         const { error } = await db.rpc("delete_own_account");
         if (error) throw dbError(error);
         await db.auth.signOut({ scope: "local" });
+      },
+    },
+
+    // supabase/functions/tv-sign-in (#133). The client sends the session's token along when there is one.
+    tvSignIn: {
+      async start(device) {
+        const r = await tvFunction({ action: "start", device });
+        const code = str(r.code);
+        const poll = str(r.poll);
+        const expiresIn = count(r.expiresIn);
+        if (!code || !poll || expiresIn === undefined) throw new AccountError("unknown", "The server's answer didn't make sense.");
+        // Counted from now on this device's clock, which may not agree with the server's.
+        return { code, poll, expiresAt: Date.now() + expiresIn * 1000 } satisfies TvSignInRequest;
+      },
+      async claim(poll) {
+        const r = await tvFunction({ action: "claim", poll });
+        const tokenHash = str(r.tokenHash);
+        if (r.state === "approved" && tokenHash) return { state: "approved", tokenHash };
+        return { state: r.state === "pending" || r.state === "denied" ? r.state : "expired" } satisfies TvClaim;
+      },
+      async finish(tokenHash) {
+        const { data, error } = await db.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
+        if (error) throw authError(error);
+        if (!data.user) throw new AccountError("invalid_code", "That code is wrong or has expired.");
+        return toUser(data.user);
+      },
+      async look(code) {
+        const r = await tvFunction({ action: "look", code: normalizeTvCode(code) });
+        return str(r.device) ?? "a device";
+      },
+      async answer(code, approve) {
+        await tvFunction({ action: "answer", code: normalizeTvCode(code), approve });
       },
     },
 
@@ -513,6 +555,26 @@ function authError(e: AuthError): AccountError {
     return new AccountError("network", "Can't reach the server. Check your connection.");
   }
   return new AccountError("unknown", e.message || "Something went wrong.");
+}
+
+/**
+ * What a failed tv-sign-in call means for the user: the function's own `error`, or, without one,
+ * the function not deployed (404) or the server out of reach.
+ */
+export function tvSignInError(name: string, status: number, code: string | undefined): AccountError {
+  switch (code) {
+    case "invalid_code":
+      return new AccountError("invalid_code", "That code is wrong or has expired. Check the code on the TV.");
+    case "rate_limited":
+      return new AccountError("rate_limited", "Too many attempts. Try again in a few minutes.");
+    case "signed_out":
+      return new AccountError("unknown", "Your sign-in on this device has expired. Sign in again first.");
+  }
+  if (name === "FunctionsFetchError" || name === "FunctionsRelayError") {
+    return new AccountError("network", "Can't reach the server. Check your connection.");
+  }
+  if (status === 404) return new AccountError("not_set_up", "Signing in with a code isn't set up on this account server yet.");
+  return new AccountError("unknown", "Something went wrong. Try again.");
 }
 
 /** The limit triggers `raise exception 'profile_limit'`, `'library_limit'`… (SQLSTATE P0001, the name as the message). */

@@ -1,7 +1,7 @@
 // A Postgres (PGlite, in memory) with just enough of Supabase for the migrations: the roles,
 // auth.users and auth.uid() read from the request's JWT claim, and the realtime table the
 // watch-party policies name. Row-level security is enforced as on Supabase once `as(user)` has
-// switched to the `authenticated` role.
+// switched to the `authenticated` role; `as(db, SERVICE)` acts as the service role (Edge Functions).
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
@@ -18,7 +18,7 @@ export const migrations = () =>
 
 export async function supabaseDb() {
   const db = new PGlite();
-  await db.exec(`create role anon; create role authenticated; create schema auth;
+  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
 create table auth.users (id uuid primary key, email text, created_at timestamptz not null default now());
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;
@@ -28,9 +28,18 @@ create schema realtime; create table realtime.messages (extension text); create 
 
 export type Db = PGlite;
 
+/** Stands for the service role in `as`: what an Edge Function's admin client acts as. */
+export const SERVICE = "service_role";
+
 /** Acts as `user` from now on (null: back to the owner, which bypasses row-level security). */
 export const as = (db: Db, user: string | null) =>
-  db.exec(user ? `reset role; select set_config('request.jwt.claim.sub', '${user}', false); set role authenticated;` : `reset role`);
+  db.exec(
+    user === SERVICE
+      ? `reset role; select set_config('request.jwt.claim.sub', '', false); set role service_role;`
+      : user
+        ? `reset role; select set_config('request.jwt.claim.sub', '${user}', false); set role authenticated;`
+        : `reset role`,
+  );
 
 /** True when the statement is refused. */
 export const fails = async (db: Db, sql: string) => {

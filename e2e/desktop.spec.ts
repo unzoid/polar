@@ -827,3 +827,42 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(partySurfaces(app)).toHaveCount(1);
   });
 });
+
+test.describe("signing in with another device (#133)", () => {
+  test("signed out: the code waits for approval, then the app opens on the account", async ({ app }) => {
+    await app.goto("/fake.html?account=signed-out");
+    await app.getByRole("button", { name: "Sign in with another device" }).click();
+    await expect(app.locator(".auth-device-code")).toHaveText(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+    await expect(app.getByText(/Waiting for approval · the code expires in 4:5\d|5:00/)).toBeVisible();
+    await app.evaluate(() => (globalThis as unknown as { __polarFakeTv: { answer(a: boolean): void } }).__polarFakeTv.answer(true));
+    // One profile: straight in.
+    await expect(app.getByRole("navigation", { name: "Primary" })).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("Settings → Account → Sign in a TV: the code, then Approve", async ({ app }) => {
+    await app.goto("/fake.html?account=1");
+    type Fake = { __polarFakeTv: { waiting(d: string): string; state(c: string): string } };
+    const code = await app.evaluate(() => (globalThis as unknown as Fake).__polarFakeTv.waiting("Living room TV"));
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Settings" }).click();
+    const settings = app.getByRole("dialog", { name: /^Settings/ });
+    await settings.getByRole("button", { name: "Account", exact: true }).click();
+    await settings.getByRole("button", { name: /^Sign in a TV/ }).click();
+    const field = settings.getByRole("textbox", { name: "Code from the TV" });
+    await field.fill("hjkm npq0");
+    await expect(settings.getByText("That isn't a code from the TV.", { exact: false })).toBeVisible();
+    await field.fill("stuv");
+    await expect(settings.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await field.fill(code.toLowerCase());
+    await expect(field).toHaveValue("HJKM-NPQR");
+    await settings.getByRole("button", { name: "Continue" }).click();
+    await expect(settings.getByText("Sign in on Living room TV?")).toBeVisible();
+    await settings.getByRole("button", { name: "Approve" }).click();
+    await expect(settings.getByRole("status").filter({ hasText: "Living room TV is signing in." })).toBeVisible();
+    expect(await app.evaluate((c) => (globalThis as unknown as Fake).__polarFakeTv.state(c), code)).toBe("approved");
+    // The same code again: it's been answered.
+    await field.fill(code);
+    await settings.getByRole("button", { name: "Continue" }).click();
+    await expect(settings.getByText(/That code is wrong or has expired/)).toBeVisible();
+  });
+});

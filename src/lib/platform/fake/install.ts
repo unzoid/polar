@@ -1,7 +1,7 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
 import * as fx from "./fixtures";
-import { fakeAccount } from "./account";
+import { fakeAccount, startSignedOut } from "./account";
 import type { Download } from "../../library/downloads";
 import type { AnimeLink } from "../../library/identity";
 import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
@@ -27,7 +27,9 @@ params.delete("films"); // and its README-screenshot switch
 const secretsPlace = params.get("secretsPlace") ?? "keychain"; // Settings → Account's "On this device"
 params.delete("secretsPlace");
 // `fake.html?account=1`: signed in, with watch parties in this page (account.ts); read by lib/account in dev builds only.
+// `?account=signed-out`: the same account, starting at the sign-in screen.
 if (params.get("account")) (globalThis as { __polarFakeAccount?: unknown }).__polarFakeAccount = fakeAccount;
+if (params.get("account") === "signed-out") startSignedOut();
 params.delete("account");
 let settings: Settings = { ...fx.settings, ...Object.fromEntries(params) };
 
