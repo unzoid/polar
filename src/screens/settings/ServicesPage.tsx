@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "../../components/ui/Switch";
 import { TextField } from "../../components/ui/TextField";
-import { Grid, Picture, Star } from "../../components/icons";
+import { Grid, LayoutList, Picture, Star } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { keys, useSettings } from "../../lib/net";
@@ -10,6 +10,8 @@ import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../components/settings/rows";
 import { useSecretsNote } from "../../components/settings/secretsNote";
 import { useKeyGate, type KeyKind } from "../../components/settings/KeyWarning";
+import { AniListImport } from "../../components/settings/AniListImport";
+import { anilistAuthorizeUrl, linkAniList, NotASignIn, SignedOut, unlinkAniList, useAniListLink } from "../../lib/lists";
 
 /** Which warning a save needs: one for each key it sets that wasn't set to that before. */
 function added(pairs: [next: string, before: string | null | undefined][]): KeyKind | null {
@@ -25,6 +27,7 @@ export function ServicesPage() {
       <ArtworkRow {...expand("artwork")} />
       <RatingsRow {...expand("ratings")} />
       <PreviewsRow {...expand("previews")} />
+      <AniListRow {...expand("anilist")} />
     </Card>
   );
 }
@@ -93,6 +96,90 @@ function RatingsRow(props: Expandable) {
         </Button>
       </form>
       {gate.warning}
+    </ExpandRow>
+  );
+}
+
+/**
+ * The profile's AniList account (#83): signed in through AniList's page, whose code is pasted back
+ * here. The link stays on this device, in the system's keychain, and is never synced.
+ */
+function AniListRow(props: Expandable) {
+  const { space, link, state } = useAniListLink();
+  const [code, setCode] = useState("");
+  const url = anilistAuthorizeUrl();
+  const signIn = useMutation({
+    mutationFn: (text: string) => linkAniList(space, text),
+    onSuccess: () => setCode(""),
+  });
+  const unlink = useMutation({ mutationFn: () => unlinkAniList(space) });
+  if (state === undefined) return null;
+  const error = signIn.error
+    ? signIn.error instanceof NotASignIn
+      ? "That isn't the code AniList shows. Copy the whole code and paste it again."
+      : signIn.error instanceof SignedOut
+        ? "AniList didn't accept that code. Open AniList and sign in again."
+        : "Couldn't reach AniList. Check your connection."
+    : null;
+
+  return (
+    <ExpandRow
+      icon={LayoutList}
+      title="AniList"
+      setting="anilist"
+      caption="Episodes you watch update this profile's AniList list, and you can change it from an anime's page"
+      value={state === "linked" ? "Linked" : state === "none" ? "Off" : "Sign in again"}
+      {...props}
+    >
+      {state === "linked" && link ? (
+        <>
+          <p className="settings-expand-text">
+            Linked as <strong>{link.userName || "your AniList account"}</strong>. The sign-in stays on this device and lasts a year.
+          </p>
+          <div className="settings-expand-form">
+            <Button variant="danger" disabled={unlink.isPending} onClick={() => unlink.mutate()}>
+              {unlink.isPending ? "Unlinking…" : "Unlink"}
+            </Button>
+          </div>
+          <AniListImport link={link} />
+        </>
+      ) : !url ? (
+        <p className="settings-expand-text">Not set up in this build: signing in to AniList needs Polarity registered with AniList first.</p>
+      ) : (
+        <>
+          <p className="settings-expand-text">
+            {state === "expired"
+              ? "The sign-in to AniList has run out. "
+              : state === "refused"
+                ? "AniList no longer accepts this sign-in. "
+                : ""}
+            Open AniList, allow Polarity, then copy the code AniList shows and paste it here. The sign-in stays on this device.
+          </p>
+          <div className="settings-expand-form">
+            <Button variant="glass" onClick={() => void api.openExternal(url)}>
+              Open AniList
+            </Button>
+          </div>
+          <FormRow
+            look="expand"
+            type="password"
+            placeholder="Paste the code"
+            aria-label="AniList code"
+            autoComplete="off"
+            value={code}
+            onChange={(v) => {
+              setCode(v);
+              signIn.reset();
+            }}
+            submit="Link"
+            pending={signIn.isPending}
+            pendingLabel="Linking…"
+            onSubmit={(text) => signIn.mutate(text)}
+          />
+          {error && <p className="settings-expand-text settings-error">{error}</p>}
+        </>
+      )}
+      {unlink.isError && <p className="settings-expand-text settings-error">Couldn't unlink. Try again.</p>}
     </ExpandRow>
   );
 }

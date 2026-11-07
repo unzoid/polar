@@ -5,6 +5,7 @@ import { AnimeCharacters } from "../components/anime/AnimeCharacters";
 import { AnimeDetails } from "../components/anime/AnimeDetails";
 import { AnimeEpisodes, SeasonTabs, type Franchise } from "../components/anime/AnimeEpisodes";
 import { AnimeHero } from "../components/anime/AnimeHero";
+import { AnimeListPanel } from "../components/anime/AnimeListPanel";
 import { AnimeRelated } from "../components/anime/AnimeRelated";
 import { Img } from "../components/Img";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -161,6 +162,7 @@ function Body({ anime, franchise, switching }: { anime: Anime; franchise?: Franc
           <SeasonTabs franchise={franchise} />
         </section>
       )}
+      <AnimeListPanel key={`list-${anime.id}`} anime={anime} />
       {anime.characters.edges.length > 0 && <AnimeCharacters anime={anime} />}
       <h2 className="t-title2 anime-section-title">Details</h2>
       <AnimeDetails anime={anime} />
