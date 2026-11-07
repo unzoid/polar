@@ -283,6 +283,19 @@ export const SETTINGS: SettingDef[] = [
       { value: "title", label: "What you're watching" },
     ]),
   },
+  {
+    id: "discordJoin",
+    page: "playback",
+    title: "Who can join from Discord",
+    caption: "In a watch party, a Join watch party button on your Discord profile. Ask me: you allow or decline each request.",
+    keywords: "discord watch party join invite ask friends button",
+    bind: p("discordJoin"),
+    control: choice([
+      { value: "nobody", label: "Nobody" },
+      { value: "ask", label: "Ask me" },
+      { value: "anyone", label: "Anyone who sees it" },
+    ]),
+  },
   { id: "rememberSpeed", page: "playback", title: "Remember playback speed", keywords: "rate faster slower" },
   {
     id: "timeDisplay",

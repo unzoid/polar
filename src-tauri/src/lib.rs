@@ -2,6 +2,7 @@
 mod automation;
 mod commands;
 mod controllers;
+mod deep_link;
 mod discord;
 mod disk;
 mod downloads;
@@ -183,7 +184,19 @@ async fn install_bundled_addons(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // First, so a second launch (a polarity:// link opened while Polarity runs, or the app started again) hands over
+    // to the running app before anything starts; the running window comes to the front.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init());
+    builder
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
             // Videos dropped on the window open in the player (#204).
@@ -199,6 +212,7 @@ pub fn run() {
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
                 app.handle().plugin(tauri_plugin_dialog::init())?;
+                deep_link::init(app);
             }
             let dir = app.path().app_data_dir()?;
             let path = data_file(&dir);
@@ -315,6 +329,7 @@ pub fn run() {
             streamcheck::stream_ready,
             discord::discord_available,
             discord::discord_presence,
+            deep_link::deep_links_take,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,
