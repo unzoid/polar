@@ -248,6 +248,32 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await expect(player).toHaveCount(0);
 });
 
+test("the player fits or fills the window, by its button or Z, and remembers it (#183)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  const player = app.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  const fill = player.getByRole("button", { name: "Fill window" });
+  const video = player.locator(".player-video");
+  // Fit by default.
+  await expect(fill).toHaveAttribute("aria-pressed", "false");
+  await expect(video).toHaveCSS("object-fit", "contain");
+  await player.hover();
+  await fill.click();
+  await expect(fill).toHaveAttribute("aria-pressed", "true");
+  await expect(video).toHaveCSS("object-fit", "cover");
+  // Remembered for the next video.
+  await player.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(player).toHaveCount(0);
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(player).toHaveAttribute("data-started", "true");
+  await expect(video).toHaveCSS("object-fit", "cover");
+  await app.keyboard.press("z");
+  await expect(video).toHaveCSS("object-fit", "contain");
+  await expect(fill).toHaveAttribute("aria-pressed", "false");
+});
+
 test("the player steps one frame at a time with , and . and the buttons by the clock, which shows the frame (#243)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();

@@ -11,7 +11,7 @@ use polar_player::tune::Tune;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
-use super::autocrop::autocrop;
+use super::autocrop::{autocrop, panscan_fills};
 #[cfg(windows)]
 use super::mpv_binary;
 #[cfg(mpv_apple)]
@@ -122,7 +122,7 @@ pub async fn mpv_load(
         if let Ok(osd) = state.mpv.request(json!(["get_property", "osd-dimensions"])).await {
             let int = |k: &str| osd.get(k).and_then(Value::as_i64).filter(|n| *n > 0);
             if let (Some(w), Some(h)) = (int("w"), int("h")) {
-                let zoom = zoom_for(f.bars, f.full, f.display, (w, h));
+                let zoom = zoom_for(f.bars, f.full, f.display, (w, h), panscan_fills(&state.mpv).await);
                 state.mpv.request(json!(["set_property", "video-zoom", zoom])).await.ok();
             }
         }

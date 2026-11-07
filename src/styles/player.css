@@ -17,7 +17,7 @@
   object-fit: contain;
   background: #000;
 }
-/* A phone's Fill: the picture covers the screen, its edges cropped (mpv does it with panscan). */
+/* Fill (#149, #183): the picture covers the screen or window, its edges cropped (mpv does it with panscan). */
 .player[data-fill="true"] .player-video {
   object-fit: cover;
 }

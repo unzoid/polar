@@ -6,6 +6,7 @@ import {
   Close,
   Episodes,
   ExitFullscreen,
+  FillWindow,
   LayoutList,
   LayoutRow,
   Fullscreen,
@@ -632,13 +633,15 @@ export function Player({
     online: !link && !local,
   });
 
-  // A phone or tablet has no window to make fullscreen: its button fits the picture inside the
-  // screen or fills the screen with it, cropping the edges (#148, #149). Autocrop (Settings →
-  // Advanced) still takes the black bars off a fitted picture.
+  // Fit or Fill (#148, #149, #183): the picture inside the screen or window, or covering it with its
+  // edges cropped. A phone or tablet has no window to make fullscreen, so its button there does this;
+  // desktop has its own button and shortcut. Kept on this device. Autocrop (Settings → Advanced)
+  // takes the bars in the video off first, then Fill crops what's left to the window's shape (the
+  // autocrop loop reads mpv's panscan).
   const { videoFill, tvFrameStep } = usePrefs();
-  const fill = !isDesktop && videoFill;
+  const fill = videoFill;
   useEffect(() => {
-    if (engine === "mpv" && !isDesktop) void mpv.set("panscan", fill ? 1 : 0);
+    if (engine === "mpv") void mpv.set("panscan", fill ? 1 : 0);
   }, [engine, mpv, fill]);
   const toggleFill = useCallback(() => setPrefs({ videoFill: !getPrefs().videoFill }), []);
   const pinch = usePinch((direction) => {
@@ -871,6 +874,11 @@ export function Player({
           return true;
         case "fullscreen":
           void toggleFullscreen();
+          return true;
+        case "fill":
+          toggleFill();
+          // TV mode has no button showing it: say which it is now.
+          if (tv) flashNotice(getPrefs().videoFill ? "Fill" : "Fit", 1500);
           return true;
         case "skip":
           skip.skipActive();
@@ -1111,6 +1119,17 @@ export function Player({
           {airplay.available && (
             <IconButton variant="player" onClick={airplay.pick} label="AirPlay" title="AirPlay" aria-pressed={airplay.casting}>
               <Cast size={22} />
+            </IconButton>
+          )}
+          {!tv && isDesktop && (
+            <IconButton
+              variant="player"
+              onClick={toggleFill}
+              label="Fill window"
+              aria-pressed={fill}
+              title={withShortcut(fill ? "Fit to window" : "Fill window", "fill")}
+            >
+              <FillWindow size={22} />
             </IconButton>
           )}
           {!tv && isDesktop && (
