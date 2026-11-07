@@ -4,6 +4,7 @@ mod commands;
 mod controllers;
 mod deep_link;
 mod discord;
+mod disk;
 mod downloads;
 mod imdb;
 mod introdb;
@@ -292,6 +293,7 @@ pub fn run() {
             commands::settings_reset,
             commands::settings_defaults,
             commands::open_external,
+            commands::window_can_pin,
             commands::anime_episode_flags,
             commands::anime_ids,
             commands::anime_cache,
@@ -307,6 +309,7 @@ pub fn run() {
             downloads::download_resume,
             downloads::download_remove,
             downloads::download_reveal,
+            downloads::downloads_storage,
             controllers::controllers_list,
             sync::space_activate,
             sync::space_import_local,

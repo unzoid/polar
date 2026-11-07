@@ -911,6 +911,239 @@
   width: 36px;
   height: 36px;
 }
+/* #15: the page's head - the totals, then the filter, search, sort and the page-wide deletes. */
+.downloads-summary {
+  margin-bottom: 1rem;
+}
+.downloads-summary p {
+  margin: 0;
+}
+.downloads-folder {
+  margin-top: 0.125rem !important;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.downloads-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.downloads-toolbar-gap {
+  flex: 1;
+}
+.downloads-search {
+  width: 14rem;
+}
+.downloads-selectbar {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.375rem 0.375rem 0.375rem 1rem;
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  box-shadow: 0 0 0 1px var(--hairline);
+}
+.downloads-selectbar > span {
+  flex: 1;
+}
+.downloads-bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.btn.downloads-bulk.confirm-delete[data-armed] {
+  background: rgb(255 107 94 / 0.18);
+  color: var(--danger);
+}
+.btn.downloads-bulk-sm {
+  height: 32px;
+  padding: 0 0.75rem;
+  font-size: var(--fs-sm);
+}
+.downloads-heading {
+  margin: 0 0 0.5rem;
+}
+.downloads-active {
+  margin-bottom: 2rem;
+}
+.downloads-active-head {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+.downloads-active-bar {
+  width: 10rem;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--fill-2);
+}
+.downloads-active-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--progress);
+  transform-origin: left;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+/* A title as one compact row: its poster, name and totals; a show opens to its episodes. */
+.download-title .download-group-fold {
+  padding-bottom: 0;
+}
+/* Room for focus rings at the edges, which the folds would otherwise clip. */
+.download-title > .download-group-fold,
+.download-fold-inner {
+  margin-inline: -6px;
+  padding-inline: 6px;
+}
+.download-title-head,
+.download-season-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-top: 1px solid var(--hairline);
+}
+.download-title-head {
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+.download-title-toggle,
+.download-season-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  text-align: left;
+}
+.download-title-toggle {
+  gap: 1rem;
+}
+.download-title-poster {
+  position: relative;
+  flex: none;
+  width: 2.75rem;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--fill-2);
+}
+.download-title-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.download-title-chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-3);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.download-title[data-open] > .download-group-fold > .download-title-head .download-title-chevron,
+.download-season[data-open] > .download-group-fold > .download-season-head .download-title-chevron {
+  transform: rotate(180deg);
+}
+.download-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-out);
+}
+.download-fold[data-open] {
+  grid-template-rows: 1fr;
+}
+.download-fold-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.download-title-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 0 0 0.5rem;
+}
+.download-title .download-rows,
+.download-season {
+  padding-left: 3.75rem;
+}
+.download-season .download-rows {
+  padding-left: 1.5rem;
+}
+.download-season-head {
+  padding: 0.25rem 0;
+}
+.download-season-toggle {
+  gap: 0.625rem;
+  min-height: 40px;
+}
+.download-season-toggle .download-title-chevron {
+  margin-left: 0;
+}
+.download-season .download-group-fold {
+  padding-bottom: 0;
+}
+.downloads .download-row-still {
+  width: 7rem;
+}
+.downloads .download-row-inner {
+  padding: 0.5rem 0;
+}
+/* A movie's own row is the title's row: no indent, its poster in place of a still. */
+.download-title:not([data-open]) > .download-group-fold > .download-rows {
+  padding-left: 0;
+}
+.download-row-watched {
+  color: var(--text-2);
+}
+.download-row-watched svg {
+  display: inline;
+  vertical-align: -2px;
+  color: var(--progress);
+}
+.download-row[data-watched] .download-row-still img {
+  opacity: 0.6;
+}
+.download-check {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--progress);
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .download-fold,
+  .download-title-chevron,
+  .downloads-active-bar > span {
+    transition: none;
+  }
+}
+:root[data-form="phone"] .downloads-toolbar > :first-child {
+  flex: 1 1 100%;
+}
+:root[data-form="phone"] .downloads-search {
+  flex: 1;
+  width: auto;
+}
+:root[data-form="phone"] .downloads-toolbar-gap {
+  display: none;
+}
+:root[data-form="phone"] .download-title .download-rows,
+:root[data-form="phone"] .download-season,
+:root[data-form="phone"] .download-season .download-rows {
+  padding-left: 0;
+}
+:root[data-form="phone"] .downloads .download-row-still {
+  width: 5.5rem;
+}
+:root[data-form="phone"] .download-season-head {
+  flex-wrap: wrap;
+}
 /* --- Calendar: one row per day, the date on the left, episodes beside it. */
 .calendar-sub {
   margin: 0.25rem 0 0;

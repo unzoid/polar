@@ -657,6 +657,24 @@ pub fn open_external(app: tauri::AppHandle, url: String) -> Result<()> {
     app.opener().open_url(url, None::<&str>).map_err(|e| CmdError::Other(e.to_string()))
 }
 
+/// Whether the window can be pinned on top of the others (the player's Pin
+/// window, #266). Not on Wayland, where most compositors don't let an app
+/// keep itself on top; through XWayland (`GDK_BACKEND=x11`) it can.
+#[tauri::command]
+pub fn window_can_pin() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let wayland = std::env::var("XDG_SESSION_TYPE").is_ok_and(|s| s.eq_ignore_ascii_case("wayland"))
+            || std::env::var_os("WAYLAND_DISPLAY").is_some();
+        let x11 = std::env::var("GDK_BACKEND").is_ok_and(|b| b.starts_with("x11"));
+        !wayland || x11
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
+}
+
 // Inside this module so it can build the result types above, whose fields are private.
 #[cfg(test)]
 #[path = "contract.rs"]

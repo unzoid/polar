@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { useLayoutEffect, useRef, useState } from "react";
-import { Sources } from "../icons";
+import { Sources, Trailer as TrailerIcon } from "../icons";
 import { Img } from "../Img";
 import { Button } from "../ui/Button";
 import { ease } from "../../lib/ui";
@@ -34,6 +34,7 @@ export function PlayerStatus({
   steps,
   backend,
   onSources,
+  onYouTube,
 }: {
   state: ReturnType<typeof useSource>["state"];
   error: string | null;
@@ -44,6 +45,8 @@ export function PlayerStatus({
   backend: string;
   /** Left out where there's nothing else to choose (a pasted link). */
   onSources?: () => void;
+  /** A YouTube video that can't play here (Android): open it in YouTube. */
+  onYouTube?: () => void;
 }) {
   const failed = state.status === "failed" || !!error;
   const stageAt = failed ? failedStage(steps) : undefined;
@@ -95,6 +98,11 @@ export function PlayerStatus({
             {onSources && (
               <Button variant="primary" onClick={onSources} autoFocus>
                 <Sources size={17} /> Choose Another Source
+              </Button>
+            )}
+            {onYouTube && (
+              <Button variant="primary" onClick={onYouTube} autoFocus>
+                <TrailerIcon size={17} /> Open in YouTube
               </Button>
             )}
             <CopyDetails steps={steps} backend={backend} outcome={message} stage={stageAt} />

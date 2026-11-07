@@ -1,4 +1,4 @@
-import type { AccountBackend, PartyHandlers, PartyPresence, Profile } from "../../account/backend";
+import type { AccountBackend, FriendEntry, FriendPresence, FriendSettings, FriendsHandlers, PartyHandlers, PartyPresence, Profile } from "../../account/backend";
 import { normalizeAvatar } from "../../account/avatars";
 
 /**
@@ -6,6 +6,11 @@ import { normalizeAvatar } from "../../account/avatars";
  * party rooms without a server (#247), so a browser test can start a party. Rooms reach the other
  * fake pages of the same browser over a BroadcastChannel, so two pages can be two members (#154).
  * Nothing is stored; sync rounds come back empty.
+ *
+ * Friends (#135) live here too, off until turned on: Sam, a friend in a watch party on an open film, and Alex, who has sent
+ * a request (online, watching nothing shown, once accepted). Any other code sends a request to Kai,
+ * who doesn't answer. `__polarFakeFriendInvite()` has Sam invite this profile into Sam's party;
+ * `fake.html?account=1&friends=1` starts with Friends on.
  */
 
 type Member = { key: string; handlers: PartyHandlers; presence: PartyPresence };
@@ -47,6 +52,31 @@ if (bus) {
   // A page closed: its members are gone from the others' rooms.
   addEventListener("pagehide", () => rooms.forEach((room, code) => room.forEach((m) => post({ code, kind: "p", key: m.key, presence: null }))));
 }
+const SAM = "00000000-0000-4000-8000-00000000005a";
+const ALEX = "00000000-0000-4000-8000-0000000000a1";
+const KAI = "00000000-0000-4000-8000-0000000000ca";
+const SAM_PARTY = "SAMPTY";
+const people: Record<string, Omit<FriendEntry, "state" | "incoming">> = {
+  [SAM]: { id: SAM, name: "Sam", avatar: normalizeAvatar("lagoon") },
+  [ALEX]: { id: ALEX, name: "Alex", avatar: normalizeAvatar("coral") },
+  [KAI]: { id: KAI, name: "Kai", avatar: normalizeAvatar("dusk") },
+};
+const online: Record<string, FriendPresence> = {
+  [SAM]: { id: SAM, seq: 1, party: SAM_PARTY, watching: { type: "movie", metaId: "tt0000001", title: "Big Buck Bunny" } },
+  [ALEX]: { id: ALEX, seq: 1 },
+};
+const FRIENDS_ON: FriendSettings = { code: "FAKE2345", online: true, watching: true, join: true };
+let friendSettings: FriendSettings | null = new URLSearchParams(location.search).get("friends") ? { ...FRIENDS_ON } : null;
+let friendList: FriendEntry[] = [
+  { ...people[SAM], state: "accepted", incoming: false },
+  { ...people[ALEX], state: "pending", incoming: true },
+];
+let friendHandlers: FriendsHandlers | null = null;
+const setState = (id: string, patch: Partial<FriendEntry> | null) => {
+  friendList = patch ? friendList.map((f) => (f.id === id ? { ...f, ...patch } : f)) : friendList.filter((f) => f.id !== id);
+};
+(globalThis as { __polarFakeFriendInvite?: () => void }).__polarFakeFriendInvite = () =>
+  soon(() => friendHandlers?.onInvite({ from: SAM, party: SAM_PARTY }));
 
 const profile: Profile = { id: "fake-profile", name: "Robin", avatar: normalizeAvatar(""), position: 0 };
 
@@ -78,6 +108,39 @@ export const fakeAccount: AccountBackend = {
           post({ code, kind: "p", key: member.key, presence: null });
           if (room.size) announce(code);
           else rooms.delete(code);
+        },
+      };
+    },
+  },
+  friends: {
+    settings: async () => friendSettings && { ...friendSettings },
+    on: async () => ({ ...(friendSettings ??= { ...FRIENDS_ON }) }),
+    off: async () => void (friendSettings = null),
+    resetCode: async () => (friendSettings ? (friendSettings.code = "NEWC2345") : ""),
+    setPrivacy: async (_p, v) => void (friendSettings &&= { ...friendSettings, ...v }),
+    list: async () => friendList.map((f) => ({ ...f })),
+    request: async (_p, code) => {
+      if (code === friendSettings?.code) return "already";
+      if (friendList.some((f) => f.id === KAI)) return "already";
+      friendList = [...friendList, { ...people[KAI], state: "pending", incoming: false }];
+      return "sent";
+    },
+    respond: async (_p, other, accept) => setState(other, accept ? { state: "accepted" } : null),
+    remove: async (_p, other) => setState(other, null),
+    block: async (_p, other) => setState(other, { state: "blocked" }),
+    unblock: async (_p, other) => setState(other, null),
+    invite: async () => {},
+    connect(_profileId, handlers) {
+      friendHandlers = handlers;
+      let followed: string[] = [];
+      return {
+        track: () => {},
+        follow: (ids) => {
+          followed = ids;
+          for (const id of ids) if (online[id]) soon(() => followed.includes(id) && handlers.onPresence(id, online[id]));
+        },
+        close: () => {
+          if (friendHandlers === handlers) friendHandlers = null;
         },
       };
     },

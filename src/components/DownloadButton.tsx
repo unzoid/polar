@@ -20,6 +20,7 @@ import { Spinner } from "./Spinner";
 import { StreamList } from "./StreamList";
 import { buttonClass } from "./ui/Button";
 import { MenuHeader, MenuItem, MenuPopup, MenuRoot, MenuSeparator, MenuTrigger } from "./ui/Menu";
+import { isTvMode } from "../tv/tvMode";
 
 /**
  * The download control, as on Netflix and Apple TV: an arrow to start; while
@@ -159,7 +160,16 @@ function DownloadMenu({ d, className, glyph, onRetry, what }: { d: DownloadRecor
 
   return (
     <MenuRoot modal={false}>
-      <MenuTrigger className={className} data-download={d.state} aria-label={label} title={label}>
+      <MenuTrigger
+        className={className}
+        data-download={d.state}
+        aria-label={label}
+        title={label}
+        // In TV mode up and down move on to the next control (the Downloads page's rows, #15); A opens the menu.
+        onKeyDown={(e) => {
+          if (isTvMode() && (e.key === "ArrowDown" || e.key === "ArrowUp")) e.preventBaseUIHandler();
+        }}
+      >
         {glyph}
       </MenuTrigger>
       <MenuPopup side="bottom" align="center" sideOffset={8} collisionPadding={12} aria-label="Download">

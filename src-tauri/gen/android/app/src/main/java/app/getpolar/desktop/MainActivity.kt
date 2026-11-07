@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Bundle
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -20,6 +21,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.JavaScriptReplyProxy
+import androidx.webkit.WebMessageCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import org.json.JSONArray
 
 class MainActivity : TauriActivity() {
@@ -83,9 +88,22 @@ class MainActivity : TauriActivity() {
     webView.settings.setSupportZoom(false)
     webView.settings.builtInZoomControls = false
     webView.settings.displayZoomControls = false
-    webView.addJavascriptInterface(PolarDevice(this, isTelevision()), "polarDevice")
+    // A JavaScript interface is visible to every frame in the page, a trailer's YouTube frame too. So it only
+    // answers isTv(); what changes the window (leave, immersive) or the app (links) comes as a message, which the
+    // web view hands over only from the app's own pages. A web view too old for that keeps the calls on the interface.
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+      webView.addJavascriptInterface(PolarDevice(isTelevision()), "polarDevice")
+      WebViewCompat.addWebMessageListener(webView, "polarActions", appOrigins(), DeviceActions(this))
+    } else {
+      webView.addJavascriptInterface(PolarDeviceWithActions(this, isTelevision()), "polarDevice")
+    }
     this.webView = webView
   }
+
+  // The app's pages as Tauri serves them on Android. A debug build may load them from a dev server on any
+  // address instead (`tauri android dev`), so it takes messages from any page.
+  private fun appOrigins(): Set<String> =
+    if (BuildConfig.DEBUG) setOf("*") else setOf("http://tauri.localhost", "https://tauri.localhost")
 
   private fun isTelevision(): Boolean {
     val uiMode = getSystemService(UI_MODE_SERVICE) as? UiModeManager
@@ -94,45 +112,74 @@ class MainActivity : TauriActivity() {
   }
 }
 
-/** What the web view may ask of the device; nothing else is exposed. */
-class PolarDevice(private val activity: Activity, private val tv: Boolean) {
+/** What every frame of the web view may read: whether this is a TV. */
+open class PolarDevice(private val tv: Boolean) {
   @JavascriptInterface
   fun isTv(): Boolean = tv
+}
 
-  // Back at the root (src/lib/platform/back.ts): to the background, as Android 12 and later do for a
-  // launcher's activity. Ending the process instead ran its exit handlers under the web view's render
-  // threads, which crashed.
-  @JavascriptInterface
-  fun leave() {
-    activity.runOnUiThread { activity.moveTaskToBack(true) }
-  }
-
-  // The player open (src/lib/platform/back.ts, #178): the status and navigation bars hide, and a swipe from
-  // the edge shows them for a moment. Closed, they come back.
-  // The page listens for stremio:// links (#163): the ones waiting come as a `polar-deep-link` event
-  // (MainActivity.deliverLinks), untrusted text for src/lib/deepLink.
-  @JavascriptInterface
-  fun linksReady() {
-    (activity as? MainActivity)?.let { main -> activity.runOnUiThread { main.deliverLinks(fromPage = true) } }
-  }
-
-  // Settings → Add-ons → Open Stremio links in Polarity (#163): the activity alias that receives them
-  // (AndroidManifest.xml) is off until this turns it on. With Stremio installed too, Android asks which app.
-  @JavascriptInterface
-  fun setStremioLinks(on: Boolean) {
-    val alias = ComponentName(activity.packageName, "app.getpolar.desktop.StremioLinks")
-    val state = if (on) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-    activity.packageManager.setComponentEnabledSetting(alias, state, PackageManager.DONT_KILL_APP)
-  }
-
-  @JavascriptInterface
-  fun immersive(on: Boolean) {
-    activity.runOnUiThread {
-      val bars = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-      bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-      if (on) bars.hide(WindowInsetsCompat.Type.systemBars()) else bars.show(WindowInsetsCompat.Type.systemBars())
+/**
+ * The window and app changes, as messages from the app's own pages (src/lib/platform/back.ts, deepLinks.ts):
+ * `leave`, `immersive:on|off`, `links-ready`, `stremio-links:on|off`.
+ */
+class DeviceActions(private val activity: Activity) : WebViewCompat.WebMessageListener {
+  override fun onPostMessage(view: WebView, message: WebMessageCompat, sourceOrigin: Uri, isMainFrame: Boolean, replyProxy: JavaScriptReplyProxy) {
+    if (!isMainFrame) return
+    when (message.data) {
+      "leave" -> leave(activity)
+      "immersive:on" -> immersive(activity, true)
+      "immersive:off" -> immersive(activity, false)
+      "links-ready" -> linksReady(activity)
+      "stremio-links:on" -> setStremioLinks(activity, true)
+      "stremio-links:off" -> setStremioLinks(activity, false)
     }
   }
+}
+
+/** A web view without message listeners: the window and app changes stay on the interface. */
+class PolarDeviceWithActions(private val activity: Activity, tv: Boolean) : PolarDevice(tv) {
+  @JavascriptInterface
+  fun leave() = leave(activity)
+
+  @JavascriptInterface
+  fun immersive(on: Boolean) = immersive(activity, on)
+
+  @JavascriptInterface
+  fun linksReady() = linksReady(activity)
+
+  @JavascriptInterface
+  fun setStremioLinks(on: Boolean) = setStremioLinks(activity, on)
+}
+
+// Back at the root (src/lib/platform/back.ts): to the background, as Android 12 and later do for a
+// launcher's activity. Ending the process instead ran its exit handlers under the web view's render
+// threads, which crashed.
+private fun leave(activity: Activity) {
+  activity.runOnUiThread { activity.moveTaskToBack(true) }
+}
+
+// The player open (src/lib/platform/back.ts, #178): the status and navigation bars hide, and a swipe from
+// the edge shows them for a moment. Closed, they come back.
+private fun immersive(activity: Activity, on: Boolean) {
+  activity.runOnUiThread {
+    val bars = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+    bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    if (on) bars.hide(WindowInsetsCompat.Type.systemBars()) else bars.show(WindowInsetsCompat.Type.systemBars())
+  }
+}
+
+// The page listens for stremio:// links (#163): the ones waiting come as a `polar-deep-link` event
+// (MainActivity.deliverLinks), untrusted text for src/lib/deepLink.
+private fun linksReady(activity: Activity) {
+  (activity as? MainActivity)?.let { main -> activity.runOnUiThread { main.deliverLinks(fromPage = true) } }
+}
+
+// Settings → Add-ons → Open Stremio links in Polarity (#163): the activity alias that receives them
+// (AndroidManifest.xml) is off until this turns it on. With Stremio installed too, Android asks which app.
+private fun setStremioLinks(activity: Activity, on: Boolean) {
+  val alias = ComponentName(activity.packageName, "app.getpolar.desktop.StremioLinks")
+  val state = if (on) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+  activity.packageManager.setComponentEnabledSetting(alias, state, PackageManager.DONT_KILL_APP)
 }
 
 /**

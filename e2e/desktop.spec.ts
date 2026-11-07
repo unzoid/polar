@@ -249,31 +249,61 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await expect(player).toHaveCount(0);
 });
 
-test("the player steps one frame at a time with , and . and the buttons by the clock, which shows the frame (#243)", async ({ app }) => {
+test("the player fits or fills the window, by its button or Z, and remembers it (#183)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  const player = app.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  const fill = player.getByRole("button", { name: "Fill window" });
+  const video = player.locator(".player-video");
+  // Fit by default.
+  await expect(fill).toHaveAttribute("aria-pressed", "false");
+  await expect(video).toHaveCSS("object-fit", "contain");
+  await player.hover();
+  await fill.click();
+  await expect(fill).toHaveAttribute("aria-pressed", "true");
+  await expect(video).toHaveCSS("object-fit", "cover");
+  // Remembered for the next video.
+  await player.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(player).toHaveCount(0);
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(player).toHaveAttribute("data-started", "true");
+  await expect(video).toHaveCSS("object-fit", "cover");
+  await app.keyboard.press("z");
+  await expect(video).toHaveCSS("object-fit", "contain");
+  await expect(fill).toHaveAttribute("aria-pressed", "false");
+});
+
+test("the player steps one frame at a time with , and ., and the clock shows the frame for a moment after (#243, #273)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
   await app.getByRole("button", { name: "Play", exact: true }).click();
   await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
-  const back = app.getByRole("button", { name: "Back one frame" });
-  const forward = app.getByRole("button", { name: "Forward one frame" });
-  // Only while paused; "." pauses first.
-  await expect(forward).toHaveCount(0);
+  // Keys only: no step buttons, playing or paused (#273).
+  const buttons = app.getByRole("button", { name: /one frame/ });
+  await expect(buttons).toHaveCount(0);
   await app.waitForTimeout(1200);
+  // "." pauses first.
   await app.keyboard.press(".");
   await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
-  await expect(forward).toBeVisible();
+  await expect(buttons).toHaveCount(0);
   const frame = async () => Number((await clock(app))?.match(/Frame (\d+)/)?.[1] ?? NaN);
   await expect.poll(frame).toBeGreaterThan(0);
   const start = await frame();
-  await forward.click();
+  await app.keyboard.press(".");
   await expect.poll(frame).toBe(start + 1);
   await app.keyboard.press(",");
   await expect.poll(frame).toBe(start);
-  await back.click();
+  await app.keyboard.press(",");
   await expect.poll(frame).toBe(start - 1);
-  // Playing again: the buttons go and the clock is the clock again.
+  // Still paused, a few seconds on: the clock is the clock again.
+  await expect.poll(() => clock(app), { timeout: 6000 }).not.toContain("Frame");
+  await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  // Playing again after a step drops the frame at once.
+  await app.keyboard.press(".");
+  await expect.poll(frame).toBe(start);
   await app.keyboard.press(" ");
-  await expect(forward).toHaveCount(0);
   await expect.poll(() => clock(app)).not.toContain("Frame");
 });
 
@@ -534,6 +564,19 @@ test("a movie's page has a Download button that names what it downloads; a show'
   await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
 });
 
+test("on a new install Discord shows only that something plays, never the title (#150)", async ({ app }) => {
+  const sent = () => app.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as ({ details: string; image?: string } | null)[]);
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "Watching" });
+  expect(JSON.stringify(await sent())).not.toContain("Glass Orchard");
+  expect((await sent()).at(-1)?.image).toBeUndefined();
+  await app.keyboard.press("Escape");
+  await expect.poll(async () => (await sent()).at(-1)).toBeNull();
+});
+
 test("with Show on Discord set to the title, the player sends what plays, its pause, and clears it on close (#31)", async ({ app }) => {
   const sent = () => app.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as ({ details: string; state?: string; end?: number } | null)[]);
   await app.getByRole("button", { name: /^Profile/ }).click();
@@ -705,11 +748,18 @@ test("a source's i button shows what the source carries with every key masked, o
   await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
   await expect(panel).toContainText("Request header Authorization");
   await expect(panel).toContainText("Direct link");
+  // Best Match as a table, every factor a row, then the total and the rank (#274).
+  const table = panel.getByRole("table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Factor", "This source", "Points"]);
+  await expect(table.getByRole("rowheader", { name: "Resolution", exact: true })).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: "Total" })).toBeVisible();
+  await expect(panel).toContainText(/Rank\s*\d+(st|nd|rd|th) of \d+/);
   expect(await panel.textContent()).not.toContain("TOKEN0000");
   await panel.getByRole("button", { name: "Copy" }).click();
   await expect(panel.getByRole("button", { name: "Copied" })).toBeVisible();
   const copied = await app.evaluate(() => (window as unknown as { __copied: string }).__copied);
   expect(copied).toContain("Request header Authorization: •••");
+  expect(copied).toMatch(/Best Match\n  Factor +This source +Points\n/);
   expect(copied).toContain("Mirror https://mirror.example.org/•••/film.mkv apikey=•••");
   expect(copied).not.toContain("TOKEN0000");
   // Esc closes the panel only, back on the row it came from.
@@ -898,6 +948,64 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(app.getByRole("button", { name: "Copy Invite" })).toBeFocused();
   });
 
+  test("Friends: off until turned on; then a code, requests, friends with what they're doing, and joining a friend's party (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Friends" }).click();
+    const panel = app.getByRole("dialog", { name: "Friends" });
+    await expect(panel.getByRole("button", { name: "Turn On Friends" })).toBeVisible();
+    await panel.getByRole("button", { name: "Turn On Friends" }).click();
+    await expect(panel.getByLabel(/^Friend code \w /)).toHaveText("FAKE-2345");
+    // Alex asked; Sam is a friend, in a party on an open film.
+    const alex = panel.getByRole("region", { name: "Requests" }).getByRole("listitem").filter({ hasText: "Alex" });
+    await expect(alex).toContainText("Wants to be friends");
+    const sam = panel.getByRole("region", { name: "Friends" }).getByRole("listitem").filter({ hasText: "Sam" });
+    await expect(sam).toContainText("In a watch party · Big Buck Bunny");
+    await alex.getByRole("button", { name: "Accept" }).click();
+    await expect(panel.getByRole("region", { name: "Requests" })).toHaveCount(0);
+    await expect(panel.getByRole("region", { name: "Friends" }).getByRole("listitem").filter({ hasText: "Alex" })).toContainText("Online");
+    // Adding by code: typed with a dash, and never this profile's own.
+    await panel.getByRole("textbox", { name: "Friend code" }).fill("fake-2345");
+    await panel.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(panel.getByText("That's your own friend code.")).toBeVisible();
+    await panel.getByRole("textbox", { name: "Friend code" }).fill("wxyz-6789");
+    await panel.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(panel.getByRole("region", { name: "Sent" }).getByRole("listitem")).toContainText("Kai");
+    // One press joins Sam's party: this profile is now joining it (nobody hosts it here, so it stays at that).
+    await sam.getByRole("button", { name: "Join" }).click();
+    await expect(panel.getByText("Joining the watch party…")).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(1);
+  });
+
+  test("a friend's invite shows as a toast; Join opens the Friends panel while joining (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Friends" }).click();
+    await app.getByRole("button", { name: "Turn On Friends" }).click();
+    await expect(app.getByLabel(/^Friend code \w /)).toBeVisible();
+    await app.keyboard.press("Escape");
+    await expect(partySurfaces(app)).toHaveCount(0);
+    await app.evaluate(() => (globalThis as { __polarFakeFriendInvite?: () => void }).__polarFakeFriendInvite?.());
+    const toast = app.locator('[data-kind="friend-invite"]');
+    await expect(toast).toContainText("Sam invited you to a watch party");
+    await toast.getByRole("button", { name: "Join" }).click();
+    await expect(app.getByRole("dialog", { name: "Friends" }).getByText("Joining the watch party…")).toBeVisible();
+    await expect(toast).toHaveCount(0);
+  });
+
+  test("Settings → Account → Friends: on and off for this profile, and what friends see (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Account" }).click();
+    const row = app.locator('[data-setting="friendsEnabled"]');
+    await expect(row).toBeVisible();
+    await expect(app.locator('[data-setting="friendsOnline"]')).toHaveCount(0);
+    await row.getByRole("switch").click();
+    await expect(app.locator('[data-setting="friendsOnline"]')).toBeVisible();
+    await app.locator('[data-setting="friendsOnline"]').getByRole("combobox").click();
+    await app.getByRole("option", { name: "Nobody" }).click();
+    // Nobody sees it's online: nobody can join from their list either.
+    await expect(app.locator('[data-setting="friendsJoin"]').getByRole("switch")).toBeDisabled();
+    await app.locator('[data-setting="friendsJoin"]').getByRole("switch").isChecked().then((on) => expect(on).toBe(false));
+  });
+
   test("a link watched from the Join a Watch Party dialog closes the dialog before the player's panel opens (#247)", async ({ app }) => {
     await app.getByRole("button", { name: /^Profile/ }).click();
     await app.getByRole("menuitem", { name: "Join Watch Party" }).click();
@@ -911,6 +1019,123 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(app.getByRole("button", { name: "End Party" })).toBeVisible();
     await expect(partySurfaces(app)).toHaveCount(1);
   });
+
+  test("a YouTube link plays in YouTube's embedded player, driven by the player's controls (#201)", async ({ app }) => {
+    // A stand-in for YouTube's embed that speaks its IFrame Player API messages: no request leaves the machine.
+    const commands: string[] = [];
+    await app.exposeFunction("ytCommand", (f: string) => void commands.push(f));
+    await app.route("https://www.youtube-nocookie.com/**", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: `<!doctype html><body style="background:#123"><script>
+          let host = null;
+          const say = (event, info) => host.postMessage(JSON.stringify({ event, info, id: 1 }), "*");
+          addEventListener("message", (e) => {
+            const m = JSON.parse(e.data);
+            if (m.event === "listening" && !host) { host = e.source; say("onReady"); }
+            if (m.event !== "command") return;
+            window.ytCommand?.(m.func);
+            if (m.func === "playVideo") say("infoDelivery", { playerState: 1, currentTime: 0, duration: 120, videoData: { title: "An Open Film" } });
+            if (m.func === "pauseVideo") say("onStateChange", 2);
+          });
+        </script></body>`,
+      }),
+    );
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Join Watch Party" }).click();
+    await app.getByRole("textbox", { name: "Video link" }).fill("https://youtu.be/abc-DEF_123?si=xxx");
+    await app.getByRole("button", { name: "Watch", exact: true }).click();
+    const frame = app.locator("iframe.player-youtube");
+    await expect(frame).toHaveAttribute("src", /^https:\/\/www\.youtube-nocookie\.com\/embed\/abc-DEF_123\?.*enablejsapi=1/);
+    await expect(frame).toHaveAttribute("src", /controls=0/);
+    await expect(app.locator(".player video")).toHaveCount(0);
+    await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+    await expect(app.locator(".player")).toHaveAttribute("data-engine", "youtube");
+    await expect(app.locator(".player")).toContainText("An Open Film");
+    await app.locator(".player").hover();
+    await app.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+    expect(commands).toContain("pauseVideo");
+  });
+});
+
+test("Downloads with 50+ downloads: collapsed titles, totals, search, one-action deletes, remembered groups (#15)", async ({ app }) => {
+  await app.goto("/fake.html?downloads=many");
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Library", exact: true }).click();
+  await app.getByRole("button", { name: /^Downloads/ }).first().click();
+
+  // The totals without adding anything up, and the active ones in their own section.
+  await expect(app.locator(".downloads-summary")).toContainText("75 downloads · 77.5 GB");
+  await expect(app.getByRole("region", { name: "In progress" }).locator(".download-row")).toHaveCount(3);
+  // Collapsed: one row per title, no episode rows showing.
+  const titles = app.locator(".downloads-library > .download-title");
+  await expect(titles).toHaveCount(13);
+  await expect(app.locator(".download-fold[data-open]")).toHaveCount(0);
+
+  // A show opens to its seasons, and stays open after a reload.
+  const show = titles.filter({ hasText: "Fieldwork" });
+  await show.getByRole("button", { name: /^Fieldwork/ }).click();
+  await expect(show.getByRole("button", { name: /^Season 1/ })).toBeVisible();
+  await app.reload();
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Library", exact: true }).click();
+  await app.getByRole("button", { name: /^Downloads/ }).first().click();
+  await expect(app.locator(".downloads-library > .download-title").filter({ hasText: "Fieldwork" }).getByRole("button", { name: /^Season 1/ })).toBeVisible();
+
+  // Search finds a title; In Progress shows only what's coming down.
+  await app.getByRole("searchbox", { name: "Search downloads" }).fill("blue h");
+  await expect(app.locator(".downloads-library > .download-title")).toHaveCount(1);
+  await app.getByRole("searchbox", { name: "Search downloads" }).fill("");
+  await app.getByRole("radio", { name: "In Progress" }).click();
+  await expect(app.locator(".downloads-library")).toHaveCount(0);
+  await app.getByRole("radio", { name: "All" }).click();
+
+  // Everything watched goes in one action (two clicks: arm, then delete).
+  const deleteWatched = app.getByRole("button", { name: /^Delete All Watched \(9\)$/ });
+  await deleteWatched.click();
+  await app.getByRole("button", { name: /^Click again: Delete All Watched/ }).click();
+  await expect(app.locator(".downloads-summary")).toContainText("66 downloads");
+  await expect(app.getByRole("button", { name: /^Delete All Watched/ })).toHaveCount(0);
+
+  // A selection across titles goes at once too.
+  await app.getByRole("button", { name: "Select", exact: true }).click();
+  await app.getByRole("checkbox", { name: "Select Northbound" }).check();
+  await titles.filter({ hasText: "Fieldwork" }).getByRole("checkbox", { name: "Select every episode of Season 2" }).check();
+  await app.getByRole("button", { name: /^Delete Selected \(4\)$/ }).click();
+  await app.getByRole("button", { name: /^Click again: Delete Selected/ }).click();
+  await expect(app.locator(".downloads-summary")).toContainText("62 downloads");
+  await expect(titles.filter({ hasText: "Northbound" })).toHaveCount(0);
+});
+
+test("the player pins the window on top and locks it, P unpins, and leaving the player always unpins (#266)", async ({ app }) => {
+  const told = () => app.evaluate(() => (window as unknown as { __window?: Record<string, unknown> }).__window ?? {});
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  const player = app.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  await player.hover();
+  const pin = player.getByRole("button", { name: "Pin window" });
+  await expect(pin).toHaveAttribute("aria-pressed", "false");
+  await pin.click();
+  await expect(pin).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(told).toEqual({ set_always_on_top: true, set_resizable: false, set_minimizable: false, set_maximizable: false });
+  // Locked in place: nothing to drag the window by, minimise and maximise off, close still there.
+  await expect(player.locator("[data-tauri-drag-region]")).toHaveCount(0);
+  await expect(player.getByRole("button", { name: "Minimize" })).toBeDisabled();
+  await expect(player.getByRole("button", { name: "Maximize" })).toBeDisabled();
+  await expect(player.getByRole("button", { name: "Close" })).toBeEnabled();
+  // The first time, it says how to get out of it.
+  await expect(player).toContainText("Window pinned, press P to unpin");
+  await app.keyboard.press("p");
+  await expect(pin).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(told).toEqual({ set_always_on_top: false, set_resizable: true, set_minimizable: true, set_maximizable: true });
+  await expect(player.locator("[data-tauri-drag-region]")).toHaveCount(2);
+  // Pinned again, then out of the player: the window goes back.
+  await app.keyboard.press("p");
+  await expect.poll(async () => (await told()).set_always_on_top).toBe(true);
+  await player.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(player).toHaveCount(0);
+  await expect.poll(told).toEqual({ set_always_on_top: false, set_resizable: true, set_minimizable: true, set_maximizable: true });
 });
 
 test.describe("stremio:// links (#163)", () => {

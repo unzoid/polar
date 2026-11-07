@@ -135,6 +135,11 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "copySetup", page: "account", title: "Add-ons and Keys", keywords: "copy addons api keys profile guest device start" },
   { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
+  // Friends (#135): kept on the account server per profile, drawn by the page (components/friends/FriendsSettings.tsx).
+  { id: "friendsEnabled", page: "account", title: "Friends", keywords: "friends friend code list online invite watch party join social" },
+  { id: "friendsOnline", page: "account", title: "Who sees you're online", keywords: "friends privacy online status presence hide invisible" },
+  { id: "friendsWatching", page: "account", title: "Who sees what you watch", keywords: "friends privacy watching activity title hide" },
+  { id: "friendsJoin", page: "account", title: "Friends can join your watch party", keywords: "friends join watch party one tap privacy" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback
@@ -851,6 +856,27 @@ export const SETTINGS: SettingDef[] = [
     bind: p("animeSeparateEntries"),
     control: toggle,
     tv: "Seasons as Separate Shows",
+  },
+  {
+    id: "animeReadOn",
+    page: "anime",
+    title: "Open manga and novels on",
+    caption: "Also in This Franchise opens manga, novels and entries Polarity can't play on this site, in your browser",
+    keywords: "anime manga novel light novel one-shot myanimelist mal anilist franchise browser",
+    bind: p("animeReadOn"),
+    control: choice([
+      { value: "myanimelist", label: "MyAnimeList" },
+      { value: "anilist", label: "AniList" },
+    ]),
+  },
+  {
+    id: "animeHideUnplayable",
+    page: "anime",
+    title: "Only shows and films in Also in This Franchise",
+    caption: "Leave out manga, novels, music videos and other entries Polarity can't play",
+    keywords: "anime manga novel music video pv short franchise hide unplayable",
+    bind: p("animeHideUnplayable"),
+    control: toggle,
   },
   {
     id: "animeScheduleAll",

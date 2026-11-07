@@ -60,10 +60,11 @@ These never go to the account server:
   **Stremio export file** if you import one: it's read on your device and only the library and add-ons you choose are
   kept.
 - **API keys and add-on links** on your device are kept in the system's keychain where there is one.
-- **Discord Rich Presence**, if you turn it on in Settings → Playback (it's off by default), talks only to the
-  Discord app on the same computer. What it shows (Polarity, or the title you're watching, as you choose) then
-  appears on your Discord profile, so Discord and the people who can see your profile see it, under
-  [Discord's privacy policy](https://discord.com/privacy). People who see it also see up to two buttons:
+- **Discord Rich Presence** talks only to the Discord app on the same computer, while something plays. By default it
+  shows only that you're watching something in Polarity, no title; in Settings → Playback → Show on Discord you can
+  turn it off, or choose to show the title you're watching. What it shows appears on your Discord profile, so Discord
+  and the people who can see your profile see it, under [Discord's privacy policy](https://discord.com/privacy).
+  People who see it also see up to two buttons:
   - **Watch in Polarity** (only when it shows the title): a link to a page on getpolar.app carrying the title's
     public id (IMDb's or Kitsu's), which opens that title in their own Polarity.
   - **Join watch party** (only while you're in a watch party and "Who can join from Discord" isn't Nobody): a
@@ -94,8 +95,8 @@ terms apply:
 - **Updates and the add-on list:** GitHub, to check for and download updates and to load the list of add-ons in
   Settings.
 - **Sign-in check:** Cloudflare Turnstile, only if the account server asks for one before sending a login code.
-- **Trailers:** IMDb's video files, or YouTube's player in its privacy-enhanced mode (youtube-nocookie.com), when
-  you open a trailer.
+- **Trailers and YouTube links:** IMDb's video files, or YouTube's player in its privacy-enhanced mode
+  (youtube-nocookie.com), when you open a trailer or play a YouTube link put on with "Watch a link".
 
 The full list of data sources, with what each is used for, is in Settings → About → Credits.
 

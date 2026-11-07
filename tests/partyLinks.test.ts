@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test";
-import { checkLink, isLinkId, isStreamLink, LINK_MAX, linkId, linkLabel, linkMedia } from "../src/lib/party/links";
+import { describe, expect, test } from "bun:test";
+import { checkLink, isLinkId, isStreamLink, LINK_MAX, linkId, linkLabel, linkMedia, youtubeId, youtubeLink, youtubeLinkProblem } from "../src/lib/party/links";
 import { parseMessage, parseMedia } from "../src/lib/party/messages";
 import { pushed, type Entry, type Route } from "../src/lib/router";
 
@@ -64,4 +64,70 @@ test("a link's player has no title page under it", () => {
   const play: Route = { name: "player", type: "movie", metaId: media.metaId, videoId: media.videoId, stream: { url: FILM } };
   const stack: Entry[] = [{ key: 0, route: { name: "home" } }];
   expect(pushed(stack, play, () => 1).map((e) => e.route.name)).toEqual(["home", "player"]);
+});
+
+// YouTube links play in YouTube's own embedded player (#201). Made-up video ids.
+const YT = "abc-DEF_123";
+
+test("every way a YouTube video is linked comes to the same video", () => {
+  for (const url of [
+    `https://www.youtube.com/watch?v=${YT}`,
+    `https://youtube.com/watch?v=${YT}&t=42s&list=xxx`,
+    `https://m.youtube.com/watch?feature=share&v=${YT}`,
+    `http://www.youtube.com/watch?v=${YT}`,
+    `https://youtu.be/${YT}?si=xxx`,
+    `https://www.youtube.com/shorts/${YT}`,
+    `https://www.youtube.com/live/${YT}`,
+    `https://www.youtube.com/embed/${YT}?autoplay=1`,
+    `https://www.youtube-nocookie.com/embed/${YT}`,
+    `https://WWW.YouTube.com/watch?v=${YT}`,
+  ]) {
+    expect(youtubeId(url)).toBe(YT);
+    expect(checkLink(url)).toEqual({ ok: true, url: youtubeLink(YT) });
+  }
+  expect(youtubeLink(YT)).toBe(`https://www.youtube.com/watch?v=${YT}`);
+});
+
+test("other YouTube pages, other hosts and bad ids aren't YouTube videos", () => {
+  for (const url of [
+    "https://www.youtube.com/",
+    "https://www.youtube.com/@SomeChannel",
+    "https://www.youtube.com/playlist?list=xxx",
+    "https://www.youtube.com/results?search_query=open+film",
+    "https://www.youtube.com/watch",
+    "https://www.youtube.com/watch?v=short",
+    "https://www.youtube.com/watch?v=abc-DEF_123x",
+    "https://www.youtube.com/watch?v=abc%20DEF_12",
+    `https://www.youtube.com/shorts/${YT}/extra`,
+    `https://youtu.be/${YT}/extra`,
+    `https://youtube.example.com/watch?v=${YT}`,
+    `https://www.youtube.com.example.com/watch?v=${YT}`,
+    `https://media.example.com/watch?v=${YT}`,
+    `ftp://www.youtube.com/watch?v=${YT}`,
+    "not a link",
+  ]) {
+    expect(youtubeId(url)).toBeUndefined();
+  }
+  // Still a web link: the readiness check is what says it's a page.
+  expect(checkLink("https://www.youtube.com/@SomeChannel")).toEqual({ ok: true, url: "https://www.youtube.com/@SomeChannel" });
+});
+
+test("a YouTube video goes through the room as its one address", () => {
+  const url = youtubeLink(YT);
+  const media = linkMedia(url);
+  expect(media).toEqual({ type: "movie", metaId: linkId(url), videoId: linkId(url), url, label: "YouTube video" });
+  expect(parseMedia(media)).toEqual(media);
+  // Another way of writing it isn't the address the app shares.
+  const other = `https://youtu.be/${YT}`;
+  expect(parseMedia({ type: "movie", metaId: linkId(other), videoId: linkId(other), url: other })).toBeUndefined();
+});
+
+describe("YouTube links on Android (#201)", () => {
+  test("Watch a Link turns a YouTube video away on Android, where YouTube opens outside the app", () => {
+    const yt = "https://www.youtube.com/watch?v=aaaaaaaaaaa";
+    expect(youtubeLinkProblem(yt, "android")).toContain("Android");
+    for (const o of ["windows", "macos", "linux", "ios"] as const) expect(youtubeLinkProblem(yt, o)).toBeUndefined();
+    // Anything that isn't a YouTube video is checked as before.
+    expect(youtubeLinkProblem("https://media.example.com/film.mkv", "android")).toBeUndefined();
+  });
 });

@@ -15,6 +15,7 @@ import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, typ
 import { StremioImport } from "../../components/settings/StremioImport";
 import { CopySetup } from "../../components/settings/CopySetup";
 import { SettingRow } from "../../components/settings/SettingRow";
+import { FriendsSettings } from "../../components/friends/FriendsSettings";
 
 export function AccountPage() {
   const account = useAccount();
@@ -65,6 +66,8 @@ export function AccountPage() {
           </p>
         )}
       </Card>
+
+      <FriendsSettings />
 
       <CopySetup />
 

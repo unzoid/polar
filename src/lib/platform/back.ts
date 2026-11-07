@@ -19,16 +19,26 @@ export async function onSystemBack(handler: () => void): Promise<Unlisten> {
   return () => void listener.unregister();
 }
 
-type LeaveBridge = { polarDevice?: { leave?: () => void } };
+/**
+ * Android's shell (gen/android MainActivity.kt) takes the window changes as messages on `polarActions`, which
+ * only the app's own pages get; `polarDevice` is seen by every frame, a trailer's too, and carries these calls
+ * only where the web view is too old for messages.
+ */
+type Actions = { postMessage?: (message: string) => void };
+type LeaveBridge = { polarActions?: Actions; polarDevice?: { leave?: () => void } };
 
 /**
  * Leave the app the way Back at the root does on Android: the activity goes to the background with the
- * system's transition (`polarDevice.leave` from gen/android MainActivity.kt, what Android 12 and later
- * do on their own), and the app is there as it was when it's opened again. Ending the process instead
- * (`exit`, still the way where the bridge is missing) ran its exit handlers while the web view's render
- * threads were still drawing, and crashed it.
+ * system's transition (what Android 12 and later do on their own), and the app is there as it was when it's
+ * opened again. Ending the process instead (`exit`, still the way where the bridge is missing) ran its exit
+ * handlers while the web view's render threads were still drawing, and crashed it.
  */
 export function leaveApp(scope: LeaveBridge = globalThis as LeaveBridge, quit: () => Promise<void> = () => exit(0)): Promise<void> {
+  const actions = scope.polarActions;
+  if (typeof actions?.postMessage === "function") {
+    actions.postMessage("leave");
+    return Promise.resolve();
+  }
   const device = scope.polarDevice;
   if (typeof device?.leave === "function") {
     device.leave();
@@ -37,16 +47,17 @@ export function leaveApp(scope: LeaveBridge = globalThis as LeaveBridge, quit: (
   return quit();
 }
 
-type ImmersiveBridge = { polarDevice?: { immersive?: (on: boolean) => void } };
+type ImmersiveBridge = { polarActions?: Actions; polarDevice?: { immersive?: (on: boolean) => void } };
 
 /**
  * Hide Android's status and navigation bars while the player is open, and bring them back after (#178).
- * A swipe from the edge shows them for a moment, as in other video apps (`polarDevice.immersive` from
- * gen/android MainActivity.kt). Elsewhere there's no bridge and it does nothing.
+ * A swipe from the edge shows them for a moment, as in other video apps. Elsewhere there's no bridge and it
+ * does nothing.
  */
 export function setImmersive(on: boolean, scope: ImmersiveBridge = globalThis as ImmersiveBridge): void {
   try {
-    scope.polarDevice?.immersive?.(on);
+    if (typeof scope.polarActions?.postMessage === "function") scope.polarActions.postMessage(on ? "immersive:on" : "immersive:off");
+    else scope.polarDevice?.immersive?.(on);
   } catch {
     // An older shell without the call: the bars stay, as before.
   }
