@@ -1,14 +1,23 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import "./storageStub";
-
-// autoPickOrder asks for this screen's resolution.
-(globalThis as { window?: unknown }).window ??= { screen: { width: 1920, height: 1080 }, devicePixelRatio: 1 };
 import { getPrefs } from "../src/lib/settings/prefs";
 import { choicesOf, readSetting, settingDef } from "../src/lib/settings/schema";
 import { autoPickOrder, defaultFilter } from "../src/lib/playback/sources";
 import { NEUTRAL, scoreSources } from "../src/lib/playback/bestMatch";
 import { rememberLanguage, settingsForTitle, titleIdOf, titleLanguages } from "../src/lib/playback/titleLanguages";
 import type { RankedStream, Settings } from "../src/lib/types";
+
+// autoPickOrder asks for this screen's resolution. Only while these tests run: a `window` left behind
+// makes later files in the same run (PGlite's) take Bun for a browser.
+const g = globalThis as { window?: unknown };
+const before = g.window;
+beforeAll(() => {
+  g.window ??= { screen: { width: 1920, height: 1080 }, devicePixelRatio: 1 };
+});
+afterAll(() => {
+  if (before === undefined) delete g.window;
+  else g.window = before;
+});
 
 // Only what these tests read; the rest of Settings doesn't matter here.
 const FIXTURE_SETTINGS = { language: "en-US", animeAudioLanguage: "same", animeSubtitleLanguage: "same" } as Settings;
