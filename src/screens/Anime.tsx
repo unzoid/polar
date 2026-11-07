@@ -40,6 +40,7 @@ import {
   untilAiring,
   useCardsShown,
   useAnimeTitle,
+  useFranchiseBanners,
   useShelfVisible,
 } from "../lib/anime";
 import { useViewportPlace } from "../lib/ui";
@@ -146,8 +147,8 @@ export function Anime() {
             return card ? handlers(card) : { onClick: () => {}, onContextMenu: (e) => e.preventDefault() };
           }}
           content={(item) => {
-            const card = hero.cards.find((a) => item.id === animePreviewId(a));
-            return card && <AnimeHeroContent card={card} item={item} />;
+            const i = hero.cards.findIndex((a) => item.id === animePreviewId(a));
+            return i >= 0 && <AnimeHeroContent card={hero.cards[i]} item={item} part={hero.parts[i]} />;
           }}
         />
       )}
@@ -193,32 +194,48 @@ function AnimeNav() {
 const HERO_COUNT = 6;
 const HERO_POOL = 10;
 
-/** The carousel's titles: trending shows with widescreen art, held back until ani.zip answers so the art doesn't swap mid-view. */
+/**
+ * The carousel's titles: trending shows with widescreen art, held back until ani.zip answers so the art doesn't swap mid-view.
+ * With seasons grouped, each shows its franchise's base title's art and logo, as the page it opens does, and `parts` names
+ * which part is trending (#325).
+ */
 function useAnimeHero(trending?: Card[]) {
   const { animeTitles } = usePrefs();
   const pool = useMemo(() => trending?.slice(0, HERO_POOL), [trending]);
   const zips = useQueries({ queries: (pool ?? []).map((a) => aniZipQuery(a.id)) });
   const settled = !!pool && zips.every((z) => !z.isLoading);
   const updated = zips.map((z) => z.dataUpdatedAt).join();
-  return useMemo(() => {
-    if (!pool || !settled) return { items: undefined as MetaPreview[] | undefined, cards: [] as Card[] };
-    const picks = pool
+  const picks = useMemo(() => {
+    if (!pool || !settled) return undefined;
+    return pool
       .map((card, i) => ({ card, zip: zips[i]?.data }))
       .filter(({ card, zip }) => card.bannerImage || zip?.images?.some((m) => m.coverType === "Fanart"))
       .slice(0, HERO_COUNT);
-    return { items: picks.map(({ card, zip }) => animePreview(card, zip, animeTitles)), cards: picks.map((p) => p.card) };
     // `zips` is a new array every render; `updated` says when its contents changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pool, settled, updated, animeTitles]);
+  }, [pool, settled, updated]);
+  const cards = useMemo(() => picks?.map((p) => p.card), [picks]);
+  const banners = useFranchiseBanners(cards);
+  return useMemo(() => {
+    if (!picks || !banners) return { items: undefined as MetaPreview[] | undefined, cards: [] as Card[], parts: [] as (string | undefined)[] };
+    const items = picks.map(({ card, zip }, i) => {
+      const own = animePreview(card, zip, animeTitles);
+      const b = banners[i];
+      return b ? { ...own, name: b.name, background: b.background ?? own.background, logo: b.logo } : own;
+    });
+    return { items, cards: picks.map((p) => p.card), parts: banners.map((b) => b?.label) };
+  }, [picks, banners, animeTitles]);
 }
 
-function AnimeHeroContent({ card, item }: { card: Card; item: MetaPreview }) {
+function AnimeHeroContent({ card, item, part }: { card: Card; item: MetaPreview; part?: string }) {
   const open = useOpenAnime(card);
   const { animeCardCountdown } = usePrefs();
   const next = animeCardCountdown ? card.nextAiringEpisode : undefined;
   return (
     <div className="hero-content">
       <TitleHeading name={item.name} logo={item.logo} backdrop={item.background} look="hero" />
+      {/* The franchise's logo above: which of its parts is trending (#325). */}
+      {part && <p className="hero-part t-caption">{part}</p>}
       <p className="hero-kind t-callout tabular">
         {joinFacts([card.format && FORMAT_LABEL[card.format], ...(card.genres ?? []).slice(0, 2), next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`])}
       </p>

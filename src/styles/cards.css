@@ -185,6 +185,12 @@
   font-weight: 600;
   color: var(--text);
 }
+/* Which part of the franchise is trending, under its logo (Anime tab, #325). */
+.hero-part {
+  margin: -0.5rem 0 0;
+  font-weight: 600;
+  color: var(--text-2);
+}
 .hero-description {
   color: var(--text-2);
   display: -webkit-box;

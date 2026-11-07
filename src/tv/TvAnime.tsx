@@ -27,6 +27,7 @@ import {
   untilAiring,
   useAnimeScore,
   useAniZip,
+  useFranchiseBanners,
   useLinkedImdb,
   useShelfVisible,
   withLinkedArt,
@@ -92,7 +93,7 @@ export function TvAnime() {
   ];
   const lead = [
     ...rail("season", `Airing This ${SEASON_LABEL[now.season]}`, "poster", data?.season),
-    ...rail("trending", "Trending Now", "poster", data?.trending),
+    ...(visible("trending") ? [{ key: "trending", render: () => <TvAnimeRail title="Trending Now" items={data?.trending} shape="poster" franchise /> }] : []),
   ];
   const rows: RailRow[] = [
     ...lead,
@@ -130,11 +131,14 @@ export function TvAnimeRail({
   items,
   shape,
   chip,
+  franchise = false,
 }: {
   title: string;
   items?: AnimeCard[];
   shape: Shape;
   chip?: (a: AnimeCard) => string | undefined;
+  /** The featured row: the stage shows each franchise's base title's art and logo, and names the trending part (#325). */
+  franchise?: boolean;
 }) {
   const { matureContent } = usePrefs();
   // Waiting its turn behind AniList's limit: said beside the title (#109).
@@ -149,13 +153,13 @@ export function TvAnimeRail({
   return (
     <TvRail title={title}>
       {shown.map((a, i) => (
-        <TvAnimeCard key={a.id} card={a} shape={shape} chip={chip?.(a)} eager={i === 0} />
+        <TvAnimeCard key={a.id} card={a} shape={shape} chip={chip?.(a)} eager={i === 0} franchise={franchise} />
       ))}
     </TvRail>
   );
 }
 
-function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Shape; chip?: string; eager: boolean }) {
+function TvAnimeCard({ card, shape, chip, eager, franchise }: { card: AnimeCard; shape: Shape; chip?: string; eager: boolean; franchise: boolean }) {
   const { navigate } = useRouter();
   const qc = useQueryClient();
   const stage = useStage();
@@ -177,15 +181,25 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
     () => withLinkedArt(animePreview(card, zip, prefs.animeTitles), imdb, shape, separateArt),
     [card, zip, prefs.animeTitles, shape, imdb, separateArt],
   );
+  // On the featured row with seasons grouped, the stage shows the franchise's base title's art and logo, as the page does, and
+  // names the trending part (#325); nothing until they're known. The card itself keeps the entry's own poster and name.
+  const grouped = franchise && !separateArt;
+  const banners = useFranchiseBanners(useMemo(() => (grouped && wanted ? [card] : undefined), [grouped, wanted, card]));
+  const banner = grouped ? (banners ? banners[0] : undefined) : null;
+  const staged = useMemo(() => {
+    if (banner === null) return item;
+    if (!banner) return { ...item, background: undefined, logo: undefined };
+    return { ...item, name: banner.name, background: banner.background ?? item.background, logo: banner.logo };
+  }, [item, banner]);
   const next = prefs.animeCardCountdown ? card.nextAiringEpisode : undefined;
   const nextText = next && `Episode ${next.episode} in ${countdown(untilAiring(next.airingAt))}`;
   // What's on the card stays artwork; when it airs goes on the stage above.
-  const kicker = missing ? NO_SOURCE : [score && `★ ${score}`, chip ?? nextText].filter(Boolean).join(" · ") || undefined;
+  const kicker = missing ? NO_SOURCE : [banner?.label, score && `★ ${score}`, chip ?? nextText].filter(Boolean).join(" · ") || undefined;
 
   // The art and logo arrived, or the show turned out not to be playable, while you're on it.
   useEffect(() => {
-    if (focused.current) stage({ item, kicker });
-  }, [item, kicker, stage]);
+    if (focused.current) stage({ item: staged, kicker });
+  }, [staged, kicker, stage]);
 
   const open = async () => {
     const z = await qc.fetchQuery(aniZipQuery(card.id)).catch(() => null);
@@ -215,6 +229,7 @@ function TvAnimeCard({ card, shape, chip, eager }: { card: AnimeCard; shape: Sha
       artFallbacks={fallbacks}
       kicker={kicker}
       localOnly
+      staged={staged}
       onOpen={() => void open()}
       onFocusChange={(f) => {
         focused.current = f;
