@@ -111,6 +111,13 @@ pub async fn search(state: State<'_, AppState>, query: String) -> Result<SearchR
     Ok(SearchResults { movies: movies?, series: series? })
 }
 
+/// Films only, narrowed to a release year where the catalog can: what an
+/// import matching titles by name and year asks (#87).
+#[tauri::command]
+pub async fn search_movies(state: State<'_, AppState>, query: String, year: Option<u16>) -> Result<Vec<MetaPreview>> {
+    Ok(state.indexer().search_in("movie", &query, year).await?)
+}
+
 #[tauri::command]
 pub async fn meta(state: State<'_, AppState>, ty: String, id: String) -> Result<Meta> {
     if id.starts_with("tt") {

@@ -135,6 +135,12 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "copySetup", page: "account", title: "Add-ons and Keys", keywords: "copy addons api keys profile guest device start" },
   { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
+  {
+    id: "letterboxdImport",
+    page: "account",
+    title: "Import from Letterboxd",
+    keywords: "import letterboxd watchlist watched diary films movies export zip csv file",
+  },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback

@@ -236,6 +236,17 @@
 .settings-expand-form-stack .text-field {
   flex: 1 1 12rem;
 }
+/* A film to pick (Settings → Import from Letterboxd): its title, then what was found, then a search. */
+.settings-pick {
+  flex-direction: column;
+  align-items: stretch;
+}
+.settings-pick-choices {
+  flex-wrap: wrap;
+}
+.settings-pick .text-field {
+  flex: 1 1 12rem;
+}
 /* A card holding a group of chips (Settings → Sources). */
 .settings-chip-row {
   min-height: 0;

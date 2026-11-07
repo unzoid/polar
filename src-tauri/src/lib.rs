@@ -245,6 +245,7 @@ pub fn run() {
             commands::catalog,
             commands::recommend,
             commands::search,
+            commands::search_movies,
             commands::meta,
             commands::streams,
             commands::resolve_stream,

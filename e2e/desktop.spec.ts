@@ -1,3 +1,4 @@
+import { deflateRawSync } from "node:zlib";
 import { card, clock, expect, partySurfaces, test } from "./fixtures";
 import type { Locator } from "@playwright/test";
 
@@ -496,7 +497,7 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   const settings = app.getByRole("dialog", { name: /^Settings/ });
   // Signed out (as here), it's under Advanced; signed in, under Account.
   await settings.getByRole("button", { name: "Advanced", exact: true }).click();
-  await settings.locator('input[type="file"]').setInputFiles({ name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await settings.locator('input[type="file"][accept*="json"]').setInputFiles({ name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
   await expect(settings.getByText("1 title Polarity can show")).toBeVisible();
   await expect(settings.getByRole("switch", { name: /^Where you left off/ })).toBeChecked();
   const addon = settings.getByRole("switch", { name: /^Example One/ });
@@ -504,6 +505,64 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   await settings.getByRole("button", { name: "Import", exact: true }).click();
   await expect(settings.getByText("Added 1 title to your library and 1 progress entry.")).toBeVisible();
   await expect(addon).toHaveCount(0);
+});
+
+/** A ZIP of deflated files, as Letterboxd's export is (CRCs left 0: the import doesn't check them). */
+function zipOf(files: Record<string, string>): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const [path, text] of Object.entries(files)) {
+    const name = Buffer.from(path);
+    const raw = Buffer.from(text);
+    const body = deflateRawSync(raw);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(body.length, 18);
+    local.writeUInt32LE(raw.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(body.length, 20);
+    central.writeUInt32LE(raw.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, name, body);
+    centrals.push(central, name);
+    offset += 30 + name.length + body.length;
+  }
+  const dir = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(centrals.length / 2, 8);
+  end.writeUInt16LE(centrals.length / 2, 10);
+  end.writeUInt32LE(dir.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, dir, end]);
+}
+
+test("a Letterboxd export ZIP is read on the device, its films found by title and year, the rest left to pick (#87)", async ({ app }) => {
+  // The fake catalog has The Glass Orchard (2024) and Northbound (2023); the third film is in no catalog.
+  const zip = zipOf({
+    "letterboxd-someone/watched.csv": "Date,Name,Year,Letterboxd URI\n2026-01-02,The Glass Orchard,2024,https://boxd.example.com/a\n2026-01-03,A Film Nobody Lists,1990,https://boxd.example.com/b\n",
+    "letterboxd-someone/watchlist.csv": "Date,Name,Year,Letterboxd URI\n2026-01-01,Northbound,2023,https://boxd.example.com/c\n",
+    "letterboxd-someone/ratings.csv": "Date,Name,Year,Letterboxd URI,Rating\n2026-01-02,The Glass Orchard,2024,https://boxd.example.com/a,4\n",
+  });
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Advanced", exact: true }).click();
+  await settings.locator('input[type="file"][accept*="zip"]').setInputFiles({ name: "letterboxd-someone.zip", mimeType: "application/zip", buffer: zip });
+  await expect(settings.getByText("3 films", { exact: true })).toBeVisible();
+  await expect(settings.getByText(/Ratings aren't imported/)).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Found 2 films: added 1 film to your library and marked 1 film watched\. 1 film to pick below\./)).toBeVisible();
+  const pick = settings.locator(".settings-pick");
+  await expect(pick.getByText("A Film Nobody Lists (1990)")).toBeVisible();
+  await pick.getByRole("button", { name: "Skip" }).click();
+  await expect(pick).toHaveCount(0);
 });
 
 test("Download Season downloads every released episode of the season, then says so (#24)", async ({ app }) => {

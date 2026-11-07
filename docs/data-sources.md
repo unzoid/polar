@@ -28,6 +28,7 @@ first (see `AGENTS.md`).
 | Add-ons the user installs | Streams, subtitles, catalogs | `crates/addon/src/client.rs`, `src-tauri/src/commands.rs` | Per add-on | Each add-on's own |
 | Add-on list | The curated list in Settings → Add-ons | `src/lib/catalog/marketplace.ts` | None | — |
 | GitHub releases API | Release notes for updates | `src/lib/updater.ts` | None | 60 unauthenticated requests an hour |
+| Letterboxd export (a file) | Watchlist and watched films the user imports (#87) | `src/lib/library/letterboxdImport.ts`, `src/components/settings/LetterboxdImport.tsx` | None | Read on the device; nothing is fetched from Letterboxd and its `boxd.it` links are never followed. Films are found through the catalog above, two searches at a time |
 | Supabase | Accounts and sync, the owner's project | `src/lib/account/` | Owner's publishable key | `docs/supabase-storage.md` |
 
 Every host the web view fetches from is listed in its `connect-src` policy
@@ -41,6 +42,10 @@ Every host the web view fetches from is listed in its `connect-src` policy
 - **Fillers:** Jikan first, animefillerlist.com when Jikan knows none, answers cached 24 h on disk.
 - **Anime ids:** ani.zip first; Fribb/anime-lists, downloaded when first needed and refreshed weekly, when it can't be
   reached. The list is fetched at runtime, not shipped with the app.
+- **Letterboxd:** its API is by invitation only, so there is no account link. The import reads the export the user
+  downloads from Letterboxd's settings. The export carries no IMDb or TMDB ids, so each film is matched by title and year
+  through the catalog (TMDB's search narrowed to the year, Cinemeta's plain search). A row that matches no film, or more
+  than one, is left for the user to pick. Ratings aren't imported: Polarity has no rating of its own.
 - **Credits:** Settings → About → Credits names every source and shows TMDB's notice and logo (`src/lib/settings/credits.ts`).
 
 ## 3. What the app keeps on disk

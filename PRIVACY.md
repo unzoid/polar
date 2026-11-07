@@ -59,6 +59,9 @@ These never go to the account server:
 - **Downloads**, **local files** you open (and their Recent files list and where you stopped in them), and the
   **Stremio export file** if you import one: it's read on your device and only the library and add-ons you choose are
   kept.
+- The **Letterboxd export** if you import one: it's read on your device. Each film's title and year is looked up in the
+  catalog (TMDB or Cinemeta), as a search would be, and nothing is sent to Letterboxd. Only the library and watched
+  films you import are kept.
 - **API keys and add-on links** on your device are kept in the system's keychain where there is one.
 - **Discord Rich Presence**, if you turn it on in Settings → Playback (it's off by default), talks only to the
   Discord app on the same computer. What it shows (Polarity, or the title you're watching, as you choose) then
