@@ -43,6 +43,9 @@ export function AboutPage() {
         <PickRow title="Version" caption={status}>
           <span className="settings-row-value settings-version">{version ?? "…"}</span>
         </PickRow>
+        <PickRow title="Commit" caption="The last commit this build is from">
+          <span className="settings-row-value settings-version">{__GIT_COMMIT__}</span>
+        </PickRow>
         <div className="settings-row">
           <RowText title="Software update" caption={s.phase === "ready" ? "Takes a few seconds; Polarity reopens by itself" : undefined} />
           <div className="settings-expand-actions">
