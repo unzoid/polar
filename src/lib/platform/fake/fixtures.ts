@@ -54,7 +54,7 @@ const MOVIE_NAMES = [
   "Meridian",
 ];
 const SERIES_NAMES = [
-  "Station Eleven Below",
+  "Low Water Station",
   "The Understudies",
   "Fieldwork",
   "Blue Hour",

@@ -53,6 +53,19 @@ The browser has to play H.264, so the script uses Google Chrome, or the Chromium
 `POLAR_E2E_CHROMIUM`. Which second of each film it uses is at the top of the script. The README
 credits all three films under each screenshot.
 
+## The feature table
+
+The four smaller pictures in the README's "What's in it" (`show.webp`, `library.webp`, `party.webp`,
+`settings.webp`) show only the fake shell's made-up titles and the art it draws for them, so they need no
+film and no credit beyond the line under the table that says so:
+
+```sh
+bun scripts/readme-shots.ts --only show,library,party,settings
+```
+
+Any Chromium will do for these (no video is decoded). `--only` takes any of `home`, `tvmode`, `show`,
+`library`, `party` and `settings`; the films are asked for only with `home` or `tvmode`.
+
 ## Playing one in Polarity
 
 Polarity plays streams from addons, so `scripts/open-films-addon.ts` is a small local addon that offers
