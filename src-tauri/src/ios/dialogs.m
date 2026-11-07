@@ -32,6 +32,10 @@ static WKWebView *find_web(UIView *view) {
     return nil;
 }
 
+/// The app's web view (back.m too).
+WKWebView *polar_web_view(void);
+WKWebView *polar_web_view(void) { return find_web(polar_app_window()); }
+
 /// What presents: the window's root, or whatever it already presents on top.
 static UIViewController *presenter(void) {
     UIViewController *vc = polar_app_window().rootViewController;

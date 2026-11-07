@@ -104,6 +104,10 @@ export interface Prefs {
   animeCardCountdown: boolean;
   /** Each AniList entry (season, part, film) as its own card and page, not one per franchise. Display only (#22). */
   animeSeparateEntries: boolean;
+  /** Where a manga, novel or other entry Polarity can't play opens from Also in This Franchise (#192). */
+  animeReadOn: "myanimelist" | "anilist";
+  /** Also in This Franchise leaves out what isn't an anime series or film Polarity can play (#192). */
+  animeHideUnplayable: boolean;
   /** AniList scores out of ten (8.6) or as a percentage (86%). */
   animeScoreFormat: "ten" | "percent";
   /** The schedule lists everything airing, not just shows people are following. */
@@ -174,6 +178,8 @@ const DEFAULTS: Prefs = {
   animeCardScores: true,
   animeCardCountdown: true,
   animeSeparateEntries: false,
+  animeReadOn: "myanimelist",
+  animeHideUnplayable: false,
   animeScoreFormat: "ten",
   animeScheduleAll: false,
   animeHideRecaps: false,
@@ -219,6 +225,8 @@ export const SYNCED_PREFS = [
   "animeCardScores",
   "animeCardCountdown",
   "animeSeparateEntries",
+  "animeReadOn",
+  "animeHideUnplayable",
   "animeScoreFormat",
   "animeScheduleAll",
   "animeHideRecaps",

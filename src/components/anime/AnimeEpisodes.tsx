@@ -11,6 +11,7 @@ import {
   playContext,
   regularEpisodes,
   rememberStill,
+  stillFor,
   useAnimeTitle,
   useEpisodeFlags,
 } from "../../lib/anime";
@@ -72,7 +73,8 @@ export function AnimeEpisodes({
         season: 1,
         episode: e.number,
         released: e.airDate ?? e.video?.released,
-        thumbnail: e.image ?? e.video?.thumbnail,
+        // Another source's still when this one has none: the addon's, then one another entry's ani.zip record lined up (#192).
+        thumbnail: e.image ?? e.video?.thumbnail ?? (e.video && stillFor(e.video.id)),
         overview: e.overview ?? e.video?.overview,
         tag: f?.filler ? "Filler" : f?.recap ? "Recap" : undefined,
       };
@@ -217,6 +219,8 @@ export function AnimeEpisodes({
         episodes={visible}
         progress={pb.byVideo}
         runtime={anime.duration ? `${anime.duration} min` : undefined}
+        // No still anywhere (web shorts, often): the entry's banner, dimmed, rather than an empty card (#192).
+        stillFallback={anime.bannerImage ?? anime.coverImage.extraLarge ?? undefined}
         upNextId={upNextId}
         onPlay={(v) => {
           const req = request(v);

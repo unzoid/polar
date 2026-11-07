@@ -4,7 +4,8 @@
 // the video's view behind it: mpv_view.m) moves into whichever tab is current. One web view serves
 // every tab: the web app shows the section the tab bar says, and tells it which one that is. On
 // iOS 26 and later the bar is the floating Liquid Glass one, on older iOS the classic one, and on
-// an iPad from iOS 18 the tab bar that can turn into a sidebar. The bar is part of the safe area
+// an iPad from iOS 18 the tab bar that can turn into a sidebar. The tab with the id "search" is
+// the system's search tab from iOS 18 (on iOS 26 it floats apart from the others). The bar is part of the safe area
 // the web view sees, so the pages keep clear of it as they keep clear of the home indicator.
 
 #import <UIKit/UIKit.h>
@@ -23,6 +24,8 @@ extern void polar_tab_chosen(const char *id);
 /// The tab the web app last said is current: a page that appears as anything else was picked by the user.
 @property(nonatomic, copy) NSString *current;
 @property(nonatomic) BOOL barHidden;
+/// The search tab (iOS 18 and later): UIKit gives it its own identifier, so it's kept to tell it apart.
+@property(nonatomic, strong) UITab *searchTab API_AVAILABLE(ios(18.0));
 @property(nonatomic) BOOL sidebarWasShown;
 - (void)hostIn:(UIViewController *)page;
 - (void)fitHost;
@@ -129,7 +132,13 @@ static PolarTabs *controller;
     self.signature = signature;
     if (@available(iOS 18.0, *)) {
         NSMutableArray<UITab *> *tabs = [NSMutableArray array];
+        self.searchTab = nil;
         for (PolarTabPage *page in list) {
+            if ([page.tabId isEqualToString:@"search"]) {
+                self.searchTab = [[UISearchTab alloc] initWithViewControllerProvider:^UIViewController *(UITab *t) { return page; }];
+                [tabs addObject:self.searchTab];
+                continue;
+            }
             UITab *tab = [[UITab alloc] initWithTitle:page.title
                                                 image:page.tabBarItem.image
                                            identifier:page.tabId
@@ -148,7 +157,7 @@ static PolarTabs *controller;
     PolarTabPage *page = self.pages[tabId];
     if (!page) return;
     if (@available(iOS 18.0, *)) {
-        UITab *tab = [self tabForIdentifier:tabId];
+        UITab *tab = [tabId isEqualToString:@"search"] ? self.searchTab : [self tabForIdentifier:tabId];
         if (tab && self.selectedTab != tab) self.selectedTab = tab;
     } else if (self.shownPage != page) {
         self.selectedViewController = page;
@@ -192,7 +201,7 @@ static PolarTabs *controller;
 }
 
 - (BOOL)tabBarController:(UITabBarController *)tabs shouldSelectTab:(UITab *)tab API_AVAILABLE(ios(18.0)) {
-    if (tab == tabs.selectedTab) [self picked:tab.identifier];
+    if (tab == tabs.selectedTab) [self picked:tab == self.searchTab ? @"search" : tab.identifier];
     return YES;
 }
 

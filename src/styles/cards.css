@@ -1044,6 +1044,8 @@
   inset: 0;
   z-index: var(--z-modal);
   display: grid;
+  /* A column as wide as the window less the padding, so the box's 100% is never wider than that. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: calc(var(--nav-h) * 0.6) var(--gutter) var(--gutter);
   background: rgb(0 0 0 / 0.78);
@@ -1092,6 +1094,69 @@ video.trailer-video {
 .trailer-source {
   flex: none;
   color: var(--text-3);
+}
+.trailer-close {
+  margin-inline-start: auto;
+}
+/* A phone (#289): the picture letterboxed inside the safe area, the name on a line of its own above the buttons. */
+:root[data-form="phone"] .trailer-layer {
+  --trailer-pad: 0.75rem;
+  padding: calc(var(--safe-top) + var(--trailer-pad)) calc(var(--safe-right) + var(--trailer-pad)) calc(var(--safe-bottom) + var(--trailer-pad))
+    calc(var(--safe-left) + var(--trailer-pad));
+}
+:root[data-form="phone"] .trailer-box {
+  width: min(100%, calc((100dvh - var(--safe-top) - var(--safe-bottom) - 2 * var(--trailer-pad) - 6.5rem) * 16 / 9));
+}
+:root[data-form="phone"] .trailer-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  row-gap: 0.25rem;
+}
+:root[data-form="phone"] .trailer-name {
+  grid-area: 1 / 1 / 2 / 4;
+}
+:root[data-form="phone"] .trailer-source {
+  grid-area: 2 / 1;
+}
+:root[data-form="phone"] .trailer-yt {
+  grid-area: 2 / 2;
+}
+:root[data-form="phone"] .trailer-close {
+  grid-area: 2 / 3;
+}
+/* Sideways the picture takes the whole height and the buttons stand in a column beside it, Close on top. */
+@media (orientation: landscape) {
+  :root[data-form="phone"] .trailer-box {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    width: min(100%, calc((100dvh - var(--safe-top) - var(--safe-bottom) - 2 * var(--trailer-pad)) * 16 / 9 + var(--hit) + 0.875rem));
+  }
+  :root[data-form="phone"] .trailer-bar {
+    display: flex;
+    flex-direction: column;
+  }
+  :root[data-form="phone"] .trailer-yt {
+    width: var(--hit);
+    padding: 0;
+    justify-content: center;
+  }
+  :root[data-form="phone"] :is(.trailer-name, .trailer-source) {
+    display: none;
+  }
+  :root[data-form="phone"] .trailer-close {
+    order: -1;
+    margin-inline-start: 0;
+  }
+  /* The YouTube button keeps its name for screen readers, shown as its icon only. */
+  :root[data-form="phone"] .trailer-yt-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 /* A shelf waiting its turn behind a rate limit (#109): beside its heading, quiet. */
 .row-note {

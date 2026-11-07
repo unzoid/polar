@@ -211,7 +211,8 @@ iOS type-checked); the Objective-C was written from Apple's documentation and is
 To check on an iPhone and an iPad on iOS 26, and an iPhone on iOS 17 or 18:
 1. The tab bar shows the sections with their icons; the current one is marked; tapping one opens it;
    tapping the current one on a title page goes back to the section's top. Back (the edge swipe), a title
-   opened from search and joining a watch party move the marked tab with them; search marks none.
+   opened from search and joining a watch party move the marked tab with them; search typed from a section
+   keeps that section marked.
 2. iOS 26: the floating glass bar; content scrolls under it and the last row of a page clears it. Whether it
    shrinks while scrolling: the pages scroll inside the web view, not the web view itself, so probably not.
 3. Older iOS: the classic bar, the last row clears it.
@@ -260,6 +261,28 @@ doesn't show within 0.6 s, or before iOS 17.4, an action sheet comes instead. On
     submenus with the playing tracks ticked, and Subtitle Settings, which opens the full-screen picker with
     the subtitle settings and the preview. Picking a track switches to it. Sources and Episodes keep the
     full-screen picker.
+
+The search tab, the back button and the sheets' detents (`ios/tabs.m`, `ios/back.m`, `native_back`,
+`components/NativeBack.tsx`, `components/Sheet.tsx`). The detents ran in the phone e2e with an iPhone's user
+agent (Chromium); the button and the search tab only as unit tests, their Objective-C compiled only by CI:
+19. The search tab: last in the bar; on iOS 26 apart from the sections, on its right; on iOS 18 to 25 the
+    system's search tab, on iOS 17 a tab like the others. Tapping it opens the search page with the field
+    in the top bar focused and the keyboard up; with nothing typed the page says what it searches. Typing
+    shows results; another tab leaves it and empties the field; tapping the search tab again focuses the
+    field again.
+20. On a title page (and any page opened from another): Back at the top left is the system's button, glass
+    on iOS 26, a chevron before, standing exactly where the web Back was (no second chevron under it, the
+    logo beside it not covered). A tap goes back one page. A long press lists the pages behind, nearest
+    first, by name (the title's name, Movies, Saved, ...); picking one goes back to it.
+21. The button goes away while a sheet (Sources), a menu, Settings or the player is open and comes back
+    after; it isn't there on a section's top page; an alert or the share sheet draws over it.
+22. Settings on an iPhone: in a section, the back button top left is the system's; a tap goes to the list
+    of sections; on the list it's gone. On an iPad (Settings as a panel) none shows.
+23. Sheets on an iPhone (Sources, a download's sheet, Anime's Filters, release notes): they open at half the
+    screen; dragging the header up rests them nearly full height, down from there rests at half or closes
+    when let go past it; a flick goes as far as it was thrown; pushing the list up at half height brings
+    the sheet up first; tapping the grabber toggles the two heights; VoiceOver reads the grabber as Expand
+    or Collapse. Turning the phone keeps the sheet at its height. An iPad keeps the side sheet.
 
 ## macOS release: sources of the bundled libraries
 
