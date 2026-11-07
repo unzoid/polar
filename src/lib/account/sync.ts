@@ -25,6 +25,7 @@ import {
   unpushedPlaylists,
 } from "../library/playlists";
 import { setListSpace } from "../lists/listSync";
+import { setSimklSpace } from "../simkl/simklSync";
 import { setTraktSpace } from "../trakt/traktSync";
 import { keys } from "../net/queryKeys";
 import { pushEach, pushSpace, unpushedCount, type PushDeps } from "./spacePush";
@@ -176,6 +177,7 @@ export const sync = {
     setPlaylistSpace(profileId);
     setListSpace(profileId);
     setTraktSpace(profileId);
+    setSimklSpace(profileId);
     interval = window.setInterval(run, PERIOD_MS);
     window.addEventListener("focus", onWake);
     window.addEventListener("online", onWake);
@@ -186,6 +188,7 @@ export const sync = {
     setPlaylistSpace(null);
     setListSpace(null);
     setTraktSpace(null);
+    setSimklSpace(null);
     window.clearInterval(interval);
     window.clearTimeout(pending);
     pending = undefined;

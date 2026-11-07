@@ -280,6 +280,25 @@
 .detail-play {
   min-width: 200px;
 }
+/* The title on the profile's Simkl lists (components/title/SimklPanel.tsx, #86): list, rating, a link to its Simkl page. */
+.simkl-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.simkl-page {
+  margin-inline: -0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--r-xs);
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  outline: none;
+}
+.simkl-page:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
 .detail-credits {
   margin: 0;
   max-width: 340px;
@@ -1080,6 +1099,9 @@
 :root[data-form="phone"] .detail-actions > .btn.btn-icon {
   width: 48px;
   height: 48px;
+}
+:root[data-form="phone"] .detail-hero-main > .simkl-panel {
+  justify-content: center;
 }
 :root[data-form="phone"] .detail-credits {
   max-width: none;

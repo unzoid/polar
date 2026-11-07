@@ -944,6 +944,44 @@ its client id in `VITE_TRAKT_CLIENT_ID`:
     sign in; nothing about the Trakt account appears in the Supabase tables. On each desktop system the sign-in is in
     the system's keychain (`polar.link.trakt.…`).
 
+## Simkl account link (#86)
+
+Checked here: unit tests (`tests/simklLink.test.ts`: the PIN sign-in, refreshing and revoking the tokens, the daily
+allowance; `tests/simklSync.test.ts`: scrobbling, the history queue both ways, the Plan to Watch switch;
+`tests/simklPull.test.ts`; `tests/simklRatings.test.ts`; `tests/simklImport.test.ts`), component tests
+(`tests/dom/simklLink.test.tsx`, `simklScrobble`, `simklPanel`) and a desktop e2e test on the fake shell with a
+made-up account (a linked profile imports its Plan to Watch and what it watched, then unlinks). Not run against Simkl
+(no client id). To check, after creating an app at https://simkl.com/settings/developer/ and building with its client
+id in `VITE_SIMKL_CLIENT_ID`:
+1. Settings → Services → Simkl → Get a code: enter it at simkl.com/pin and allow Polarity. The row shows "Linked as
+   <your Simkl name>". Check that the token answer works without a client secret, and that a sign-in which doesn't
+   grant write access is refused and said.
+2. Play a film or episode that has an IMDb id, and an anime played from a Kitsu id: Simkl shows each as watching;
+   stop past 80%: it is in the history once (for the anime, the right episode under the anime). Stop at 50%: no
+   history entry.
+3. Mark an episode watched by hand, then unwatched: Simkl's history follows both. Offline, mark one, reconnect: it
+   arrives.
+4. Watch something in another Simkl app (or mark it on simkl.com), bring Polarity's window back after 15 minutes: it
+   shows as watched. Check the answer of the `simkl_ids_only` read (status and IMDb/Kitsu ids in it), and that a
+   title removed on Simkl stays in Polarity.
+5. Turn on "Keep the library and Simkl's Plan to Watch in step": add a film, a show and a Kitsu anime to the library:
+   each lands on Plan to Watch (the anime under anime). Remove one still on Plan to Watch: it leaves Simkl. A title
+   already Watching on Simkl doesn't move back to Plan to Watch.
+6. On a title page, pick a list and a rating 1 to 10: simkl.com shows both; change them on simkl.com: the page shows
+   them after the next look. Check the ratings answer's shape (`user_rating`, anime under `anime`, a removed rating as
+   null). "View on Simkl" opens the title's page, also for a title reached through `/redirect` with a Kitsu id.
+   "Remove from Simkl" takes it off every list, its history and its rating.
+7. Import from Simkl…: the counts match the account; Import adds Plan to Watch and the watched marks, and running it
+   again adds nothing new.
+8. Unwatching a film removes it from Simkl's lists too (Simkl's own behaviour): check that this is still so.
+9. Tokens: after a week the access token renews and changes still go out. Revoke Polarity in Simkl's settings: the
+   next change makes the row say Simkl no longer accepts the sign-in.
+10. The account's daily allowance: `X-RateLimit-Remaining` comes back on each answer; a day of normal use stays far
+    below it.
+11. Unlink: Polarity disappears from Simkl's connected apps. A second profile and device each show Off until they
+    sign in; nothing about the Simkl account appears in the Supabase tables. On each desktop system the sign-in is in
+    the system's keychain (`polar.link.simkl.…`).
+
 ## Friends (#135)
 
 Checked here: the migration in PGlite (`tests/sql/friends.test.ts`: codes, requests, accepting, blocking,

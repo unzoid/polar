@@ -114,7 +114,7 @@ test("the sign-in shows the code, waits for Trakt and links the profile", async 
   const view = await wrap(<TraktSignIn space={null} />);
   await click(byText(view.container, "button", "Get a code"));
   await settle();
-  expect(view.container.querySelector(".trakt-code")?.textContent).toBe("5055CC52");
+  expect(view.container.querySelector(".device-code")?.textContent).toBe("5055CC52");
   expect(view.container.textContent).toContain("trakt.tv/activate");
   expect(view.container.textContent).toContain("Waiting for you to allow Polarity on Trakt");
   // Two polls a second apart: still waiting, then allowed.

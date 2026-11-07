@@ -224,8 +224,8 @@
   -webkit-user-select: text;
   user-select: text;
 }
-/* Trakt's sign-in code (#85): big enough to read from the couch and type on a phone. */
-.trakt-code {
+/* A device sign-in code (Trakt #85, Simkl #86): big enough to read from the couch and type on a phone. */
+.device-code {
   margin: 0;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 2rem;

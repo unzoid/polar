@@ -113,6 +113,13 @@ terms apply:
   read to import them and to bring in what you watch elsewhere. Anime played from Kitsu ids aren't sent. The sign-in
   stays on your device (the system's keychain where there is one) and never goes to Polarity's account server;
   unlinking revokes it and removes it.
+- **Simkl:** only for a profile that links a Simkl account in Settings → Services. While it plays a film or an
+  episode that has an IMDb id, or an anime played from a Kitsu id, Simkl is told what is playing and how far along it
+  is; what you finish or mark watched goes to your Simkl history, and the list and rating you pick on a title page go
+  to Simkl. With the Plan to Watch switch on, titles you add to your library are added to Simkl's Plan to Watch, and
+  titles you remove leave it while they are still there. Your Simkl lists, history and ratings are read to show them,
+  to import them and to bring in what you watch elsewhere. The sign-in stays on your device (the system's keychain
+  where there is one) and never goes to Polarity's account server; unlinking revokes it and removes it.
 - **Updates and the add-on list:** GitHub, to check for and download updates and to load the list of add-ons in
   Settings.
 - **Sign-in check:** Cloudflare Turnstile, only if the account server asks for one before sending a login code.

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "../../components/ui/Switch";
 import { TextField } from "../../components/ui/TextField";
-import { Grid, LayoutList, Picture, Star, Tv } from "../../components/icons";
+import { Bookmark, Grid, LayoutList, Picture, Star, Tv } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { keys, useSettings } from "../../lib/net";
@@ -13,6 +13,8 @@ import { useKeyGate, type KeyKind } from "../../components/settings/KeyWarning";
 import { ListImport } from "../../components/settings/ListImport";
 import { TraktImport } from "../../components/settings/TraktImport";
 import { TraktSignIn } from "../../components/settings/TraktSignIn";
+import { SimklImport } from "../../components/settings/SimklImport";
+import { SimklSignIn } from "../../components/settings/SimklSignIn";
 import {
   anilistAuthorizeUrl,
   linkAniList,
@@ -26,6 +28,7 @@ import {
   useListLink,
 } from "../../lib/lists";
 import { onTraktFull, setTraktWatchlist, traktReady, unlinkTrakt, useTraktLink } from "../../lib/trakt";
+import { setSimklWatchlist, simklReady, unlinkSimkl, useSimklLink } from "../../lib/simkl";
 import { TRAKT_NOTICE } from "../../lib/settings";
 
 /** Which warning a save needs: one for each key it sets that wasn't set to that before. */
@@ -45,6 +48,7 @@ export function ServicesPage() {
       <AniListRow {...expand("anilist")} />
       <MalRow {...expand("mal")} />
       <TraktRow {...expand("trakt")} />
+      <SimklRow {...expand("simkl")} />
     </Card>
   );
 }
@@ -346,6 +350,55 @@ function TraktRow(props: Expandable) {
         </>
       )}
       <p className="settings-expand-text t-caption">{TRAKT_NOTICE}</p>
+      {unlink.isError && <p className="settings-expand-text settings-error">Couldn't unlink. Try again.</p>}
+    </ExpandRow>
+  );
+}
+
+/**
+ * The profile's Simkl account (#86): signed in with a code entered on Simkl's site. The link stays
+ * on this device, in the system's keychain, is never synced, and renews itself while it is used.
+ */
+function SimklRow(props: Expandable) {
+  const { space, link, state } = useSimklLink();
+  const unlink = useMutation({ mutationFn: () => unlinkSimkl(space) });
+  const watchlist = useMutation({ mutationFn: (on: boolean) => setSimklWatchlist(space, on) });
+  if (state === undefined) return null;
+
+  return (
+    <ExpandRow
+      icon={Bookmark}
+      title="Simkl"
+      setting="simkl"
+      caption="What you watch goes to this profile's Simkl lists, films, shows and anime alike"
+      value={state === "linked" ? "Linked" : state === "none" ? "Off" : "Sign in again"}
+      {...props}
+    >
+      {state === "linked" && link ? (
+        <>
+          <p className="settings-expand-text">
+            Linked as <strong>{link.name}</strong>. The sign-in stays on this device and renews itself while you use Polarity at least once every few
+            months.
+          </p>
+          <div className="settings-expand-form">
+            <Button variant="danger" disabled={unlink.isPending} onClick={() => unlink.mutate()}>
+              {unlink.isPending ? "Unlinking…" : "Unlink"}
+            </Button>
+          </div>
+          <label className="settings-expand-toggle">
+            <span>Keep the library and Simkl's Plan to Watch in step</span>
+            <Switch checked={!!link.watchlist} disabled={watchlist.isPending} onChange={(on) => watchlist.mutate(on)} />
+          </label>
+          <SimklImport space={space} />
+        </>
+      ) : !simklReady() ? (
+        <p className="settings-expand-text">Not set up in this build: signing in to Simkl needs Polarity registered with Simkl first.</p>
+      ) : (
+        <>
+          {state === "refused" && <p className="settings-expand-text">Simkl no longer accepts this sign-in.</p>}
+          <SimklSignIn space={space} />
+        </>
+      )}
       {unlink.isError && <p className="settings-expand-text settings-error">Couldn't unlink. Try again.</p>}
     </ExpandRow>
   );
