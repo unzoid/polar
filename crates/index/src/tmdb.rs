@@ -177,9 +177,16 @@ impl Tmdb {
         found[bucket][0]["id"].as_u64().ok_or(IndexError::NotFound)
     }
 
-    pub async fn search(&self, ty: &str, query: &str) -> Result<Vec<MetaPreview>> {
+    /// A search, narrowed to titles released in `year` (any region's release
+    /// for films) when one is given.
+    pub async fn search(&self, ty: &str, query: &str, year: Option<u16>) -> Result<Vec<MetaPreview>> {
         let path = format!("/search/{}", tmdb_kind(ty));
-        let list: Paged = self.get(&path, &[("query", query)]).await?;
+        let year = year.map(|y| y.to_string());
+        let mut params = vec![("query", query)];
+        if let Some(y) = &year {
+            params.push((if ty == "series" { "first_air_date_year" } else { "year" }, y));
+        }
+        let list: Paged = self.get(&path, &params).await?;
         self.previews(ty, list.results).await
     }
 
@@ -218,6 +225,12 @@ impl Tmdb {
         };
         self.lookups.insert(key, found.clone());
         Ok(found)
+    }
+
+    /// The IMDb id of TMDB's title `tmdb_id`, if TMDB lists one ("Open in Polarity" from a TMDB
+    /// page, #208). The same cached details request as list results.
+    pub async fn imdb_of(&self, ty: &str, tmdb_id: u64) -> Result<Option<String>> {
+        Ok(self.lookup(ty, tmdb_id).await?.imdb_id)
     }
 
     pub async fn meta(&self, ty: &str, imdb_id: &str) -> Result<Meta> {
@@ -648,7 +661,13 @@ mod tests {
                         .and_then(|p| p.parse().ok())
                         .unwrap_or(1);
                     counter.fetch_add(1, Ordering::SeqCst);
-                    let (status, body) = if path == "/movie/popular" {
+                    let (status, body) = if path == "/search/movie" {
+                        // A year narrows the search to one of its three films.
+                        let ids: &[u64] = if query.contains("year=2001") { &[401] } else { &[401, 402, 403] };
+                        let results: Vec<Value> =
+                            ids.iter().map(|id| json!({ "id": id, "title": format!("T{id}") })).collect();
+                        ("200 OK", json!({ "results": results }).to_string())
+                    } else if path == "/movie/popular" {
                         if page == 1 && refused.fetch_add(1, Ordering::SeqCst) == 0 {
                             ("429 Too Many Requests", String::new())
                         } else {
@@ -743,6 +762,27 @@ mod tests {
         let before = hits.load(Ordering::SeqCst);
         assert_eq!(tmdb.catalog("movie", "popular", 0, None).await.unwrap().len(), PAGE_SIZE as usize);
         assert_eq!(hits.load(Ordering::SeqCst), before, "a page already read was asked for again");
+    }
+
+    #[tokio::test]
+    async fn a_tmdb_id_gives_its_imdb_id() {
+        let (api, hits) = fake_tmdb().await;
+        let tmdb = local(api);
+        assert_eq!(tmdb.imdb_of("movie", 101).await.unwrap().as_deref(), Some("tt101"));
+        // TMDB lists none for this one.
+        assert_eq!(tmdb.imdb_of("movie", 100).await.unwrap(), None);
+        let before = hits.load(Ordering::SeqCst);
+        tmdb.imdb_of("movie", 101).await.unwrap();
+        assert_eq!(hits.load(Ordering::SeqCst), before, "a title already looked up was asked for again");
+    }
+
+    #[tokio::test]
+    async fn a_search_can_be_narrowed_to_a_year() {
+        let (api, _) = fake_tmdb().await;
+        let tmdb = local(api);
+        let ids = |list: Vec<MetaPreview>| list.into_iter().map(|m| m.id).collect::<Vec<_>>();
+        assert_eq!(ids(tmdb.search("movie", "t", Some(2001)).await.unwrap()), ["tt401"]);
+        assert_eq!(ids(tmdb.search("movie", "t", None).await.unwrap()), ["tt401", "tt402", "tt403"]);
     }
 
     #[test]

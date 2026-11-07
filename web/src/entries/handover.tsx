@@ -2,10 +2,11 @@ import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { Layout } from "../components/Layout";
 
 /**
- * The /watch and /party pages (#153): the buttons on someone's Discord profile land here. The page
- * opens the polarity:// link at once; if Polarity doesn't take over within a moment (not installed,
- * or the browser asks first), it offers the download and a button to try again. The link is made
- * from the page's own query, checked first: nothing is fetched and nothing is sent anywhere.
+ * The /watch and /party pages (#153, #208): the buttons on someone's Discord profile and the browser
+ * extension land here. The page opens the polarity:// link at once; if Polarity doesn't take over
+ * within a moment (not installed, or the browser asks first), it offers the download and a button to
+ * try again. The link is made from the page's own address (web/src/lib/appLinks.ts), checked first:
+ * nothing is fetched and nothing is sent anywhere.
  */
 export function Handover(props: { title: string; lede: string; link: string | null; afterInstall: string }) {
   // How long Polarity has to take over before the page offers the download.

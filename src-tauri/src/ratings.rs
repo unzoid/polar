@@ -1,5 +1,6 @@
 //! Critics' and audience scores from elsewhere (Rotten Tomatoes, Metacritic,
-//! Letterboxd, Trakt), for a title's page. Neither source is keyless, so both
+//! Letterboxd, Trakt, TMDB, IMDb), for a title's page, each with a link to
+//! the title on that site. Neither source is keyless, so both
 //! are opt-in under Settings → Services:
 //!
 //! * MDBList (mdblist.com) — every score above, one request.
@@ -8,7 +9,7 @@
 //! With both keys, MDBList answers and OMDb fills what it left out. "Nothing
 //! known" is an empty result, never an error.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -36,6 +37,11 @@ pub struct Ratings {
     /// Out of 10.
     pub imdb: Option<f64>,
     pub imdb_votes: Option<u64>,
+    /// TMDB user score, percent.
+    pub tmdb: Option<u32>,
+    /// The title's page on each site with a score, keyed like the fields above
+    /// ("rottenTomatoes", "audience", "metacritic", "letterboxd", "trakt", "tmdb", "imdb").
+    pub links: BTreeMap<&'static str, String>,
     /// "Won 3 Oscars. 120 wins & 300 nominations total."
     pub awards: Option<String>,
     /// Certification, e.g. "PG-13" or "TV-MA".
@@ -51,6 +57,10 @@ impl Ratings {
         self.trakt = self.trakt.or(o.trakt);
         self.imdb = self.imdb.or(o.imdb);
         self.imdb_votes = self.imdb_votes.or(o.imdb_votes);
+        self.tmdb = self.tmdb.or(o.tmdb);
+        for (k, v) in o.links {
+            self.links.entry(k).or_insert(v);
+        }
         self.awards = self.awards.take().or(o.awards);
         self.rated = self.rated.take().or(o.rated);
     }
@@ -103,6 +113,9 @@ impl RatingsClient {
         if let Some(b) = b {
             out.fill_from(b);
         }
+        if out.imdb.is_some() {
+            out.links.insert("imdb", format!("https://www.imdb.com/title/{imdb_id}/"));
+        }
         self.cache.locked().insert(key, (Instant::now(), out.clone()));
         out
     }
@@ -121,7 +134,8 @@ impl RatingsClient {
     }
 
     async fn mdblist(&self, imdb_id: &str, ty: &str, key: &str) -> Option<Ratings> {
-        let kind = if ty == "series" { "show" } else { "movie" };
+        let series = ty == "series";
+        let kind = if series { "show" } else { "movie" };
         // The current API, then the older single endpoint (older keys).
         let v = match self.json(&format!("https://api.mdblist.com/imdb/{kind}/{imdb_id}"), &[("apikey", key)]).await {
             Some(v) if v["ratings"].is_array() => v,
@@ -132,18 +146,48 @@ impl RatingsClient {
             let value = item["value"].as_f64().or_else(|| item["value"].as_str().and_then(|s| s.parse().ok()));
             let Some(value) = value.filter(|v| *v > 0.0) else { continue };
             let pct = || Some(value.round().clamp(0.0, 100.0) as u32);
+            // The site's path for the title ("/m/heat_1995"), where MDBList knows it.
+            let path = item["url"].as_str().filter(|p| p.starts_with('/'));
+            let mut link = |field: &'static str, base: &str| {
+                if let Some(p) = path {
+                    r.links.insert(field, format!("{base}{p}"));
+                }
+            };
             match item["source"].as_str().unwrap_or_default() {
-                "tomatoes" => r.rotten_tomatoes = pct(),
-                "popcorn" | "tomatoesaudience" => r.audience = pct(),
-                "metacritic" => r.metacritic = pct(),
-                "letterboxd" => r.letterboxd = Some(value),
+                "tomatoes" => {
+                    link("rottenTomatoes", "https://www.rottentomatoes.com");
+                    r.rotten_tomatoes = pct();
+                }
+                "popcorn" | "tomatoesaudience" => {
+                    link("audience", "https://www.rottentomatoes.com");
+                    r.audience = pct();
+                }
+                "metacritic" => {
+                    link(
+                        "metacritic",
+                        if series { "https://www.metacritic.com/tv" } else { "https://www.metacritic.com/movie" },
+                    );
+                    r.metacritic = pct();
+                }
+                "letterboxd" => {
+                    link("letterboxd", "https://letterboxd.com");
+                    r.letterboxd = Some(value);
+                }
                 "trakt" => r.trakt = pct(),
+                "tmdb" => r.tmdb = pct(),
                 "imdb" => {
                     r.imdb = Some(value);
                     r.imdb_votes = item["votes"].as_u64().filter(|n| *n > 0);
                 }
                 _ => {}
             }
+        }
+        if r.trakt.is_some() {
+            r.links
+                .insert("trakt", format!("https://app.trakt.tv/{}/{imdb_id}", if series { "shows" } else { "movies" }));
+        }
+        if let Some(id) = v["ids"]["tmdb"].as_u64().filter(|_| r.tmdb.is_some()) {
+            r.links.insert("tmdb", format!("https://www.themoviedb.org/{}/{id}", if series { "tv" } else { "movie" }));
         }
         r.rated = v["certification"].as_str().filter(|s| !s.is_empty()).map(str::to_owned);
         Some(r)

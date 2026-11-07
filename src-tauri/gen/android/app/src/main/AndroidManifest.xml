@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Whether the connection is mobile data: torrent sources wait for Wi-Fi unless allowed (#207) -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Notifications about the shows you follow and your downloads (#209), asked for when first switched on -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

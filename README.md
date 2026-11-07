@@ -163,12 +163,16 @@ Every shortcut can be changed, or given a second key, in Settings → Controls &
 <summary><b>Torrent streams from your own add-ons</b></summary>
 
 > [!IMPORTANT]
-> When one of your own add-ons returns a torrent stream, the desktop app plays it with a built-in engine, after a
+> When one of your own add-ons returns a torrent stream, the desktop and Android apps play it with a built-in engine, after a
 > one-time notice of what that does: while it plays, Polarity downloads the file from other people who share it
 > and uploads the parts it has to them, and they can see your IP address. You're responsible for what you play.
 
 For torrents from your add-ons, Settings → Sources → Torrent Sources has a cache limit, an upload limit (on by default) and an optional download
 limit. Nothing is shared after playback unless you turn that on.
+
+On Android, torrent streams from your add-ons wait for Wi-Fi unless "Play torrent streams on mobile data" is on,
+the engine stops when Polarity has been in the background for half a minute, and nothing is shared after playback
+while battery saver is on. iPhone and iPad don't play them.
 
 </details>
 

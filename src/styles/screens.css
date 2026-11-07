@@ -224,6 +224,17 @@
   -webkit-user-select: text;
   user-select: text;
 }
+/* A device sign-in code (Trakt #85, Simkl #86): big enough to read from the couch and type on a phone. */
+.device-code {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--text);
+  -webkit-user-select: all;
+  user-select: all;
+}
 .settings-expand-form,
 .settings-expand-actions {
   display: flex;
@@ -234,6 +245,17 @@
   flex-wrap: wrap;
 }
 .settings-expand-form-stack .text-field {
+  flex: 1 1 12rem;
+}
+/* A film to pick (Settings → Import from Letterboxd): its title, then what was found, then a search. */
+.settings-pick {
+  flex-direction: column;
+  align-items: stretch;
+}
+.settings-pick-choices {
+  flex-wrap: wrap;
+}
+.settings-pick .text-field {
   flex: 1 1 12rem;
 }
 /* Settings → Add-ons: an add-on's lists on Home and their order (#206). */

@@ -91,6 +91,9 @@
   --brand-imdb: #f5c518;
   --brand-rt: #fa320a;
   --brand-letterboxd: #00e054;
+  --brand-tmdb: #01b4e4;
+  --brand-trakt: #ed1c24;
+  --brand-metacritic: #ffcc34;
 
   /* The plain CSS curve, named so it can be tuned in one place. */
   --ease-std: ease;

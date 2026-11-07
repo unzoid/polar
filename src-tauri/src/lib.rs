@@ -253,7 +253,7 @@ pub fn run() {
                 fillers: polar_anime::Fillers::new(cache.clone()),
                 anime_lists: polar_anime::AnimeLists::new(cache.clone()),
             });
-            #[cfg(desktop)]
+            #[cfg(not(target_os = "ios"))]
             torrent::manage(app.handle(), cache);
             app.manage(controllers::Controllers::default());
             controllers::watch(app.handle().clone());
@@ -268,7 +268,9 @@ pub fn run() {
             commands::catalog,
             commands::recommend,
             commands::search,
+            commands::search_movies,
             commands::meta,
+            commands::imdb_for_tmdb,
             commands::streams,
             commands::resolve_stream,
             torrent::torrent_open,

@@ -63,7 +63,13 @@ const commands: Record<string, (a: Args) => unknown> = {
     if (fx.WORST === "empty") return { movies: [], series: [] };
     return { movies: fx.movies.filter(hit), series: fx.series.filter(hit) };
   },
+  search_movies: (a) => {
+    const q = String(a.query).toLowerCase();
+    return fx.movies.filter((m) => m.name.toLowerCase().includes(q) && (a.year == null || m.releaseInfo === String(a.year)));
+  },
   meta: (a) => fx.meta(String(a.id)) ?? Promise.reject({ code: "not_found", message: "not found" }),
+  // TMDB title N is the fixtures' Nth movie or show here (tt9100000 + N, tt9200000 + N); from 900000 on there's no IMDb id (#208).
+  imdb_for_tmdb: (a) => (Number(a.id) < 900000 ? `tt${(a.ty === "series" ? 9200000 : 9100000) + Number(a.id)}` : null),
   streams: () => fx.streams(),
   subtitles: () => [],
   skip_segments: () => ({}),
@@ -72,7 +78,9 @@ const commands: Record<string, (a: Args) => unknown> = {
   mal_token: () => Promise.reject({ code: "upstream", message: "not in the fake shell" }),
   seek_previews: () => null,
   ratings: () =>
-    fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
+    fx.WORST
+      ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100, tmdb: 0, imdb: 10 }
+      : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9, trakt: 84, tmdb: 81, imdb: 8.2 },
   trailer: () => null,
   addons_list: () => addons,
   // Install links (#163): any example.com add-on answers; an address with "broken" in it doesn't. Installs are counted.
@@ -156,7 +164,7 @@ const commands: Record<string, (a: Args) => unknown> = {
   torrent_open: () => {
     const w = window as { __torrentOpens?: number };
     w.__torrentOpens = (w.__torrentOpens ?? 0) + 1;
-    return Promise.reject({ code: "unsupported", message: "Torrent sources play in the desktop app." });
+    return Promise.reject({ code: "unsupported", message: "Torrent sources play in the app, not in the browser." });
   },
   torrent_close: () => undefined,
   stream_probe: (a) => a.url,

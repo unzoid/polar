@@ -450,6 +450,10 @@
 .t3s .settings-row-button {
   gap: 0.75rem;
 }
+/* A Letterboxd film to pick: its title, the films found and the search, closer than a row's columns. */
+.t3s .settings-pick {
+  gap: 0.75rem;
+}
 .t3s .settings-row-button .settings-row-value {
   margin-left: 1.25rem;
 }
