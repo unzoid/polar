@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "../../components/ui/Switch";
 import { TextField } from "../../components/ui/TextField";
-import { Grid, LayoutList, Picture, Star } from "../../components/icons";
+import { Grid, LayoutList, Picture, Star, Tv } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { keys, useSettings } from "../../lib/net";
@@ -11,6 +11,8 @@ import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../co
 import { useSecretsNote } from "../../components/settings/secretsNote";
 import { useKeyGate, type KeyKind } from "../../components/settings/KeyWarning";
 import { ListImport } from "../../components/settings/ListImport";
+import { TraktImport } from "../../components/settings/TraktImport";
+import { TraktSignIn } from "../../components/settings/TraktSignIn";
 import {
   anilistAuthorizeUrl,
   linkAniList,
@@ -23,6 +25,8 @@ import {
   unlinkList,
   useListLink,
 } from "../../lib/lists";
+import { onTraktFull, setTraktWatchlist, traktReady, unlinkTrakt, useTraktLink } from "../../lib/trakt";
+import { TRAKT_NOTICE } from "../../lib/settings";
 
 /** Which warning a save needs: one for each key it sets that wasn't set to that before. */
 function added(pairs: [next: string, before: string | null | undefined][]): KeyKind | null {
@@ -40,6 +44,7 @@ export function ServicesPage() {
       <PreviewsRow {...expand("previews")} />
       <AniListRow {...expand("anilist")} />
       <MalRow {...expand("mal")} />
+      <TraktRow {...expand("trakt")} />
     </Card>
   );
 }
@@ -284,6 +289,63 @@ function MalRow(props: Expandable) {
         </>
       )}
       <p className="settings-expand-text t-caption">Uses the MyAnimeList API.</p>
+      {unlink.isError && <p className="settings-expand-text settings-error">Couldn't unlink. Try again.</p>}
+    </ExpandRow>
+  );
+}
+
+/**
+ * The profile's Trakt account (#85): signed in with a code entered on Trakt's site. The link stays
+ * on this device, in the system's keychain, is never synced, and renews itself while it is used.
+ */
+function TraktRow(props: Expandable) {
+  const { space, link, state } = useTraktLink();
+  const unlink = useMutation({ mutationFn: () => unlinkTrakt(space) });
+  const watchlist = useMutation({ mutationFn: (on: boolean) => setTraktWatchlist(space, on) });
+  const [full, setFull] = useState(false);
+  useEffect(() => onTraktFull((list) => list === "watchlist" && setFull(true)), []);
+  if (state === undefined) return null;
+
+  return (
+    <ExpandRow
+      icon={Tv}
+      title="Trakt"
+      setting="trakt"
+      caption="What you watch goes to this profile's Trakt history, with its watchlist and ratings kept in step"
+      value={state === "linked" ? "Linked" : state === "none" ? "Off" : "Sign in again"}
+      {...props}
+    >
+      {state === "linked" && link ? (
+        <>
+          <p className="settings-expand-text">
+            Linked as <strong>{link.name}</strong>. The sign-in stays on this device and renews itself while you use Polarity at least once every few
+            months.
+          </p>
+          <div className="settings-expand-form">
+            <Button variant="danger" disabled={unlink.isPending} onClick={() => unlink.mutate()}>
+              {unlink.isPending ? "Unlinking…" : "Unlink"}
+            </Button>
+          </div>
+          <label className="settings-expand-toggle">
+            <span>Keep the library and the Trakt watchlist in step</span>
+            <Switch checked={!!link.watchlist} disabled={watchlist.isPending} onChange={(on) => watchlist.mutate(on)} />
+          </label>
+          {full && (
+            <p className="settings-expand-text settings-error" role="alert">
+              Your Trakt watchlist is full, so some titles weren't added. Trakt's free accounts hold a limited number of titles.
+            </p>
+          )}
+          <TraktImport space={space} />
+        </>
+      ) : !traktReady() ? (
+        <p className="settings-expand-text">Not set up in this build: signing in to Trakt needs Polarity registered with Trakt first.</p>
+      ) : (
+        <>
+          {state === "refused" && <p className="settings-expand-text">Trakt no longer accepts this sign-in.</p>}
+          <TraktSignIn space={space} />
+        </>
+      )}
+      <p className="settings-expand-text t-caption">{TRAKT_NOTICE}</p>
       {unlink.isError && <p className="settings-expand-text settings-error">Couldn't unlink. Try again.</p>}
     </ExpandRow>
   );

@@ -1431,3 +1431,59 @@ test("Settings → Services: a linked MyAnimeList profile reads its list for the
   await expect(settings.getByText(/signing in to MyAnimeList needs Polarity registered/)).toBeVisible();
   expect(await app.evaluate(() => localStorage.getItem("polar.link.mal.local"))).toBeNull();
 });
+
+test("Settings → Services: a linked Trakt profile imports its watchlist and what it watched, and unlinks (#85)", async ({ app }) => {
+  // A link made earlier on this device; Trakt's answers are made up here.
+  const link = { token: "TOKEN", refreshToken: "REFRESH", expiresAt: Date.now() + 5 * 86_400_000, slug: "lanternfield-fan", name: "Lanternfield Fan" };
+  await app.evaluate((v) => localStorage.setItem("polar.link.trakt.local", v), JSON.stringify(link));
+  const film = (imdb: string | undefined, title: string) => ({ title, ids: { trakt: 1, ...(imdb ? { imdb } : {}) } });
+  const asked: { path: string; auth: string }[] = [];
+  await app.route("https://api.trakt.tv/**", async (route) => {
+    const url = new URL(route.request().url());
+    asked.push({ path: url.pathname, auth: route.request().headers()["authorization"] ?? "" });
+    const json =
+      url.pathname === "/sync/watchlist"
+        ? [
+            { type: "movie", listed_at: "2026-01-02T00:00:00.000Z", movie: film("tt0000001", "Night Train") },
+            { type: "show", listed_at: "2026-01-03T00:00:00.000Z", show: film("tt0000002", "Harbour Lights") },
+            { type: "movie", listed_at: "2026-01-04T00:00:00.000Z", movie: film(undefined, "No Page") },
+          ]
+        : url.pathname === "/sync/watched/movies"
+          ? [{ plays: 1, last_watched_at: "2026-02-01T00:00:00.000Z", movie: film("tt0000003", "Paper Moon Lane") }]
+          : url.pathname === "/sync/watched/shows"
+            ? [
+                {
+                  plays: 2,
+                  last_watched_at: "2026-03-01T00:00:00.000Z",
+                  show: film("tt0000002", "Harbour Lights"),
+                  seasons: [{ number: 1, episodes: [{ number: 1, last_watched_at: "2026-02-21T00:00:00.000Z" }, { number: 2 }] }],
+                },
+              ]
+            : url.pathname === "/sync/last_activities"
+              ? { all: "2026-03-01T00:00:00.000Z" }
+              : {};
+    await route.fulfill({ json });
+  });
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^Trakt/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await settings.getByRole("button", { name: "Import from Trakt…" }).click();
+  await expect(
+    settings.getByText("1 film and 1 show on your watchlist. 1 film and 2 episodes watched. 1 title without an IMDb page left out."),
+  ).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Added 2 titles to your library and 3 watched films and episodes\.$/)).toBeVisible();
+  expect(asked.filter((a) => a.path.startsWith("/sync/")).every((a) => a.auth === `Bearer ${link.token}`)).toBe(true);
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no Trakt client id, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/signing in to Trakt needs Polarity registered/)).toBeVisible();
+  expect(asked.some((a) => a.path === "/oauth/revoke")).toBe(true);
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.trakt.local"))).toBeNull();
+});

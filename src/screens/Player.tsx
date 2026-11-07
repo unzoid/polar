@@ -120,6 +120,7 @@ import { useMediaTime } from "../components/player/useMediaTime";
 import { usePlayerChrome } from "../components/player/usePlayerChrome";
 import { usePlayerKeyboard } from "../components/player/usePlayerKeyboard";
 import { useProgressSaver } from "../components/player/useProgressSaver";
+import { useTraktScrobble } from "../components/player/useTraktScrobble";
 import { useAirPlay } from "../components/player/useAirPlay";
 
 const win = appWindow;
@@ -214,6 +215,7 @@ export function Player({
   // Before AirPlay: leaving the player saves the receiver's position before the cast ends.
   const current = meta?.videos.find((v) => v.id === videoId);
   const { save, saveIfDue } = useProgressSaver({ media: videoRef, meta, type, metaId, videoId, current, state: source.state });
+  useTraktScrobble({ media: videoRef, videoId, type, playing: started && !paused, enabled: !local });
 
   // --- AirPlay (#19) ----------------------------------------------------------
   const playingUrl = source.state.status === "ready" && started ? source.state : undefined;

@@ -224,6 +224,17 @@
   -webkit-user-select: text;
   user-select: text;
 }
+/* Trakt's sign-in code (#85): big enough to read from the couch and type on a phone. */
+.trakt-code {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--text);
+  -webkit-user-select: all;
+  user-select: all;
+}
 .settings-expand-form,
 .settings-expand-actions {
   display: flex;

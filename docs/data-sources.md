@@ -18,6 +18,7 @@ first (see `AGENTS.md`).
 | AniList GraphQL | Anime catalog, seasons, schedule, relations, characters, search | `src/lib/anime/anilist.ts`, `src/lib/net/limiter.ts` | None | 90 a minute (30 while degraded); a 429 means a minute's wait. Requests wait in one queue, most urgent first (an opened page, then rows on screen); rows and pages are kept on the device up to a day |
 | AniList account | The profile's AniList list: watched episodes, status and score from an anime's page, and the list import in Settings → Services | `src/lib/lists/`, `src/screens/settings/ServicesPage.tsx`, `src/components/anime/AnimeListPanel.tsx` | The user's own sign-in, made on AniList's page for Polarity's API client (not registered yet: the sign-in says it isn't set up) | The catalog's budget. Changes wait in a queue per profile and go out together; entries changed on AniList are read on start, 50 at most |
 | MyAnimeList account | The profile's MyAnimeList list: watched episodes, status and score from an anime's page, and the list import in Settings → Services | `src/lib/lists/malList.ts`, `malSignIn.ts`, `src-tauri/src/mal.rs` | The user's own sign-in (OAuth with PKCE, no client secret) through Polarity's MyAnimeList API client, whose id the release build is given as `VITE_MAL_CLIENT_ID` (none yet: the sign-in says it isn't set up). Requests go through the app's native side, which lets only the list paths through | None published; MAL answers 403 when it thinks it is flooded, which waits like a 429. Changes wait in a queue per profile; entries changed on MAL are read on start, 50 at most |
+| Trakt account | The profile's Trakt history (scrobbling while playing, watched marks both ways), watchlist (kept in step with the library when switched on), film and show ratings from a title page, and the import in Settings → Services | `src/lib/trakt/`, `src/screens/settings/ServicesPage.tsx`, `src/components/settings/TraktSignIn.tsx`, `TraktImport.tsx`, `src/components/title/TraktRating.tsx`, `src/components/player/useTraktScrobble.ts` | The user's own sign-in (device code entered on Trakt's site; no client secret is sent) through Polarity's Trakt API app, whose client id the release build is given as `VITE_TRAKT_CLIENT_ID` (none yet: the sign-in says it isn't set up) | 500 reads per 5 minutes per user, of which Polarity uses at most 90 a minute; 1 write a second. A 429 waits for its Retry-After once. Watched marks and watchlist changes wait in a queue per profile and go out in batches; what changed on Trakt is read after its `last_activities`, on start and when the window comes back at most every few minutes |
 | Jikan | Filler and recap episodes | `crates/anime/src/fillers.rs` | None | 60 a minute, 3 a second; 400 ms between pages |
 | animefillerlist.com | Filler episodes when Jikan knows none | `crates/anime/src/fillers.rs` | None | One page per show, cached 24 h |
 | ani.zip | Ids across anime and general sources, per-episode data, art | `src/lib/anime/anizip.ts` | None | None published |
@@ -51,6 +52,13 @@ Every host the web view fetches from is listed in its `connect-src` policy
   `VITE_MAL_CLIENT_ID`, and a build without one hides the sign-in. The tokens are refreshed before they run out, so a
   profile signs in again only after a month without opening Polarity. The row and the anime page say "Uses the
   MyAnimeList API".
+- **Trakt account:** the sign-in stays on the device (the system's keychain, else the web view's storage) and is never
+  sent to Polarity's database; each device and profile signs in itself. Trakt's CORS answers the web view, so requests
+  go straight to `api.trakt.tv` (listed in `connect-src`). The client id isn't in the source: the release build gets it
+  from `VITE_TRAKT_CLIENT_ID`, and a build without one says the sign-in isn't set up. Only titles with an IMDb id are
+  sent; anime played from Kitsu ids say on their page that they aren't. What is removed on Trakt (a play, a watchlist
+  title) isn't followed. The row and the credits carry Trakt's line "Polarity is not endorsed or certified by Trakt."
+  Unlinking revokes the token and removes the sign-in, the queue, the ratings kept and the last look.
 - **Credits:** Settings → About → Credits names every source and shows TMDB's notice and logo (`src/lib/settings/credits.ts`).
 
 ## 3. What the app keeps on disk

@@ -913,6 +913,37 @@ and building with its id in `VITE_MAL_CLIENT_ID`:
 9. A second profile and a second device each show Off until they sign in; nothing about the MAL account appears in the
    Supabase tables.
 
+## Trakt account link (#85)
+
+Checked here: unit tests (`tests/traktLink.test.ts`: the device code sign-in, refreshing and revoking the tokens, the
+limits; `tests/traktSync.test.ts`: scrobbling, the history queue both ways, the pull after `last_activities`, the
+watchlist switch, ratings; `tests/traktImport.test.ts`), component tests (`tests/dom/traktLink.test.tsx`,
+`traktScrobble`, `traktRating`) and a desktop e2e test on the fake shell with a made-up account (a linked profile
+imports its watchlist and what it watched, then unlinks). Not run against Trakt (no client id). To check, after
+creating an API app at https://trakt.tv/oauth/applications (redirect `urn:ietf:wg:oauth:2.0:oob`) and building with
+its client id in `VITE_TRAKT_CLIENT_ID`:
+1. Settings → Services → Trakt → Get a code: enter the code at trakt.tv/activate and allow Polarity. The row shows
+   "Linked as <your Trakt name>". Check whether Trakt's device token answer works without a client secret; if Trakt
+   refuses it, the sign-in says "Trakt didn't accept the sign-in" and the PR stays held.
+2. Play a film or episode that has an IMDb id: your Trakt profile shows it as watching now; pause, then stop past
+   80%: it is in the history once. Stop at 50%: no history entry, and the next play resumes there in Polarity.
+3. Mark an episode watched by hand, then unwatched: Trakt's history follows both. Offline, mark one, reconnect: it
+   arrives.
+4. Watch something with another Trakt app (or check it in on trakt.tv), bring Polarity's window back after a few
+   minutes: it shows as watched.
+5. Turn on "Keep the library and the Trakt watchlist in step": add and remove a title in the library, then on
+   trakt.tv: both sides follow. On a free account with a full watchlist, the row says it is full.
+6. Rate a film and a show 1 to 10 on its title page: trakt.tv shows the ratings; a rating changed on trakt.tv shows
+   on the title page after the next look.
+7. Import from Trakt…: the counts match the account; Import adds the watchlist and the watched marks, and running it
+   again adds nothing new.
+8. An anime played from a Kitsu id says on its page that it isn't sent to Trakt, and nothing reaches Trakt.
+9. Tokens: the access token's real lifetime; after it, a change still goes out and the row stays "Linked". Revoke
+   Polarity in Trakt's settings: the next change makes the row say Trakt no longer accepts the sign-in.
+10. Unlink: Polarity disappears from Trakt's connected apps. A second profile and device each show Off until they
+    sign in; nothing about the Trakt account appears in the Supabase tables. On each desktop system the sign-in is in
+    the system's keychain (`polar.link.trakt.…`).
+
 ## Friends (#135)
 
 Checked here: the migration in PGlite (`tests/sql/friends.test.ts`: codes, requests, accepting, blocking,
