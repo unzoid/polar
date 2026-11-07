@@ -23,4 +23,8 @@ installed by the user.
 Third-party logos (TMDB's in Settings → About → Credits) are shown only as credits and links to
 those services, following their guidelines.
 
+| Logo | Whose, and where from | Where |
+| --- | --- | --- |
+| Simkl's monochrome mark, `src/assets/simkl-mark.svg` (#319) | A trademark of Simkl. The file is Simkl's own, unchanged: the monochrome SVG its API rules list for attribution (api.simkl.org/api-rules), downloaded from `https://us.simkl.in/img_favicon/v2/safari-pinned-tab.svg` on 07/11/2026 (2029 bytes, sha256 `e6b3dcd9485afabf762c36b7820e565700123a32e9dd2a351d7233b9c1e6ed25`) | Inside the "View on Simkl" link on a title page, drawn in the link's colour as a CSS mask; credited in Settings → About → Credits (`SIMKL_MARK_CREDIT` in `src/lib/settings/credits.ts`) |
+
 What the project doesn't accept: see `AGENTS.md` and `CONTRIBUTING.md`.

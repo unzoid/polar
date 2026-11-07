@@ -19,6 +19,10 @@ export const TMDB_NOTICE = "This application uses TMDB and the TMDB APIs but is 
 /** Trakt's required line for apps using its API (developer.trakt.tv, API use policy). */
 export const TRAKT_NOTICE = "Polarity is not endorsed or certified by Trakt.";
 
+/** Simkl's mark beside "View on Simkl" (#319): whose it is and where the file came from. */
+export const SIMKL_MARK_CREDIT =
+  "The Simkl mark is a trademark of Simkl, shown unchanged from the file its API rules provide (api.simkl.org/api-rules); Polarity is not endorsed by Simkl.";
+
 export const CREDITS: Credit[] = [
   { name: "TMDB", url: "https://www.themoviedb.org", use: "Catalogs, search, details, episodes, images and trailers, with your TMDB key" },
   { name: "Cinemeta (Stremio)", url: "https://www.stremio.com", use: "Catalogs and details without a TMDB key, and artwork" },
@@ -30,7 +34,7 @@ export const CREDITS: Credit[] = [
   { name: "MyAnimeList, via Jikan", url: "https://jikan.moe", use: "Which anime episodes are filler or recaps" },
   { name: "MyAnimeList", url: "https://myanimelist.net", use: "Your MyAnimeList list, when a profile links it (uses the MyAnimeList API)" },
   { name: "Trakt", url: "https://trakt.tv", use: `Your Trakt history, watchlist and ratings, when a profile links it. ${TRAKT_NOTICE}` },
-  { name: "Simkl", url: "https://simkl.com", use: "Your Simkl lists, history and ratings, when a profile links it (uses the Simkl API)" },
+  { name: "Simkl", url: "https://simkl.com", use: `Your Simkl lists, history and ratings, when a profile links it (uses the Simkl API). ${SIMKL_MARK_CREDIT}` },
   { name: "Anime Filler List", url: "https://www.animefillerlist.com", use: "Filler episodes when Jikan has none" },
   { name: "AniSkip", url: "https://aniskip.com", use: "Anime opening and ending times" },
   { name: "IntroDB", url: "https://introdb.app", use: "Intro, recap and credits times" },

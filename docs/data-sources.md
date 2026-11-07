@@ -69,7 +69,8 @@ Every host the web view fetches from is listed in its `connect-src` policy
   isn't offered: Kitsu's API signs a user in only by sending their Kitsu password through the app. Removals on Simkl
   aren't followed into Polarity; removing a title on its page takes it off every Simkl list and its watched history,
   as Simkl does. The credits say "uses the Simkl API" in text; Simkl's API rules ask for its logo; the owner decided it
-  is shown (Simple Icons mark) on the Settings → Services row. Unlinking revokes the token and removes the sign-in, the queue, the
+  is shown (Simple Icons mark) on the Settings → Services row, and Simkl's own monochrome mark sits in a title
+  page's "View on Simkl" link (#319, credited in docs/licensing.md). Unlinking revokes the token and removes the sign-in, the queue, the
   lists and ratings kept and the last look.
 - **Letterboxd:** its API is by invitation only, so there is no account link. The import reads the export the user
   downloads from Letterboxd's settings. The export carries no IMDb or TMDB ids, so each film is matched by title and year
