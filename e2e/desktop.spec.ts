@@ -248,31 +248,35 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await expect(player).toHaveCount(0);
 });
 
-test("the player steps one frame at a time with , and . and the buttons by the clock, which shows the frame (#243)", async ({ app }) => {
+test("the player steps one frame at a time with , and ., and the clock shows the frame for a moment after (#243, #273)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
   await app.getByRole("button", { name: "Play", exact: true }).click();
   await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
-  const back = app.getByRole("button", { name: "Back one frame" });
-  const forward = app.getByRole("button", { name: "Forward one frame" });
-  // Only while paused; "." pauses first.
-  await expect(forward).toHaveCount(0);
+  // Keys only: no step buttons, playing or paused (#273).
+  const buttons = app.getByRole("button", { name: /one frame/ });
+  await expect(buttons).toHaveCount(0);
   await app.waitForTimeout(1200);
+  // "." pauses first.
   await app.keyboard.press(".");
   await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
-  await expect(forward).toBeVisible();
+  await expect(buttons).toHaveCount(0);
   const frame = async () => Number((await clock(app))?.match(/Frame (\d+)/)?.[1] ?? NaN);
   await expect.poll(frame).toBeGreaterThan(0);
   const start = await frame();
-  await forward.click();
+  await app.keyboard.press(".");
   await expect.poll(frame).toBe(start + 1);
   await app.keyboard.press(",");
   await expect.poll(frame).toBe(start);
-  await back.click();
+  await app.keyboard.press(",");
   await expect.poll(frame).toBe(start - 1);
-  // Playing again: the buttons go and the clock is the clock again.
+  // Still paused, a few seconds on: the clock is the clock again.
+  await expect.poll(() => clock(app), { timeout: 6000 }).not.toContain("Frame");
+  await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  // Playing again after a step drops the frame at once.
+  await app.keyboard.press(".");
+  await expect.poll(frame).toBe(start);
   await app.keyboard.press(" ");
-  await expect(forward).toHaveCount(0);
   await expect.poll(() => clock(app)).not.toContain("Frame");
 });
 
