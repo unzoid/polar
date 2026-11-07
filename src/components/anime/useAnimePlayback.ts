@@ -72,7 +72,7 @@ export function useAnimePlayback(anime: AnimeCard | Anime) {
     const lined = episodes.flatMap((e): [string, number][] => (e.video ? [[e.video.id, e.number]] : []));
     // Kitsu and MAL ids are this entry's, so each episode keeps its number in it; one past the entry's end is dropped.
     const count = anime.episodes ?? undefined;
-    playContext.remember(metaId, { mal: malId, kitsu, count }, episodes.flatMap((e): LinedEpisode[] => (e.video ? [[e.video.id, e.number, e.absolute]] : [])));
+    playContext.remember(metaId, { mal: malId, kitsu, anilist: anime.id, count }, episodes.flatMap((e): LinedEpisode[] => (e.video ? [[e.video.id, e.number, e.absolute]] : [])));
     // Which entry these episodes are, for cards with seasons as separate shows (#22).
     const shown = { title: anime.title, cover: anime.coverImage.extraLarge ?? anime.coverImage.large, banner: anime.bannerImage };
     if (!isMovie) animeEntries.remember(metaId, anime.id, shown, lined);

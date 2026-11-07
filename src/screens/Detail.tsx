@@ -21,6 +21,7 @@ import { type PlayRequest, trailerFor, useFileTrailer, usePlayTarget } from "../
 import { prefetchStreams, useMeta, useProgress, useStreams } from "../lib/net";
 import type { ContentType, Meta, MetaPreview, Video } from "../lib/types";
 import { IconButton } from "../components/ui/Button";
+import { SimklPanel } from "../components/title/SimklPanel";
 import { TitleActions } from "../components/title/TitleActions";
 import { EmptyState } from "../components/ui/EmptyState";
 import { BatchDownload } from "../components/BatchDownload";
@@ -33,7 +34,7 @@ import { errorMessage } from "../lib/errors";
  * seasons/episodes peek in below. Scrolling down blurs the art into an
  * ambient backdrop (scroll-driven CSS — no JS on scroll).
  */
-export function Detail({ type, id, preview }: { type: ContentType; id: string; preview?: MetaPreview }) {
+export function Detail({ type, id, preview, episode }: { type: ContentType; id: string; preview?: MetaPreview; episode?: string }) {
   const { data: meta, isError, error } = useMeta(type, id);
   // Render instantly from the catalog preview; fill in when full meta arrives.
   const shown: MetaPreview | undefined = meta ?? preview;
@@ -80,7 +81,7 @@ export function Detail({ type, id, preview }: { type: ContentType; id: string; p
       >
         {phone && art}
         <DetailHero item={shown} meta={meta} onSheet={onSheet} trailer={trailer} />
-        {type === "series" && meta && <SeriesBody meta={meta} onSheet={onSheet} />}
+        {type === "series" && meta && <SeriesBody meta={meta} onSheet={onSheet} episode={episode} />}
         {type === "movie" && meta && (
           <section className="about">
             <h2 className="t-title2">About</h2>
@@ -161,6 +162,7 @@ function DetailHero({
             </IconButton>
           )}
         </TitleActions>
+        <SimklPanel item={item} />
       </div>
 
       {(meta?.cast?.length || meta?.director?.length) ? (
@@ -184,10 +186,10 @@ function DetailHero({
 }
 
 /** A show below the fold: its episodes, then everything else about it, as a movie's About. */
-function SeriesBody({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => void }) {
+function SeriesBody({ meta, onSheet, episode }: { meta: Meta; onSheet: (open: boolean) => void; episode?: string }) {
   return (
     <>
-      <Seasons meta={meta} onSheet={onSheet} />
+      <Seasons meta={meta} onSheet={onSheet} episode={episode} />
       <section className="about about-series">
         <h2 className="t-title2">About</h2>
         <TitleDetails meta={meta} />
@@ -196,11 +198,13 @@ function SeriesBody({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) =>
   );
 }
 
-function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => void }) {
+function Seasons({ meta, onSheet, episode }: { meta: Meta; onSheet: (open: boolean) => void; episode?: string }) {
   const { data: progress } = useProgress(meta.id);
   const seasons = useMemo(() => seasonsOf(meta), [meta]);
   const next = useMemo(() => upNext(meta, progress ?? []), [meta, progress]);
-  const [season, setSeason] = useState<number | undefined>();
+  // A link to one episode (#163) opens on its season, with its sources listed (nothing plays by itself).
+  const linked = episode ? meta.videos.find((v) => v.id === episode) : undefined;
+  const [season, setSeason] = useState<number | undefined>(linked?.season);
   const picker = useSourcePicker(onSheet);
 
   // Open on the season you're actually in, not always season 1 — so wait
@@ -222,6 +226,13 @@ function Seasons({ meta, onSheet }: { meta: Meta; onSheet: (open: boolean) => vo
     resumable: map.has(v.id),
     subtitle: `${episodeCode(v.season, v.episode)} · ${v.title}`,
   });
+  const offered = useRef(false);
+  useEffect(() => {
+    if (!linked || offered.current || progress === undefined) return;
+    offered.current = true;
+    picker.choose(request(linked));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linked, progress]);
 
   return (
     <section className="seasons">

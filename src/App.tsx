@@ -15,6 +15,7 @@ import { Search } from "./screens/Search";
 import { Detail } from "./screens/Detail";
 import { Anime, AnimeBrowse, AnimeSchedule } from "./screens/Anime";
 import { useAccount } from "./lib/account";
+import { useNotifications } from "./lib/notifications";
 import { ControllerToast } from "./tv/TvChrome";
 import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
 import { dismissDepth, lazyNamed, pressEscape, systemBackAction, usePageFocus, useSystemBack } from "./lib/ui";
@@ -26,6 +27,7 @@ import { startUpdateChecks } from "./lib/updater";
 import { appWindow, leaveApp, longPressMenus, onLongPress, openContextMenu, systemBack } from "./lib/platform";
 import { PartyHost } from "./components/party/PartyHost";
 import { DeepLinks } from "./components/DeepLinks";
+import { FriendsHost } from "./components/friends/FriendsHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { StoreProblemToast } from "./components/StoreProblemToast";
@@ -51,7 +53,7 @@ function Screen({ route }: { route: Route }) {
     case "home":
       return <Home />;
     case "discover":
-      return <Discover type={route.type} catalog={route.catalog} genre={route.genre} />;
+      return <Discover type={route.type} catalog={route.catalog} genre={route.genre} addon={route.addon} />;
     case "library":
       return <Library />;
     case "library-collection":
@@ -65,7 +67,7 @@ function Screen({ route }: { route: Route }) {
     case "settings":
       return <SettingsRoute page={route.page} />;
     case "detail":
-      return <TitleRoute type={route.type} id={route.id} preview={route.preview} />;
+      return <TitleRoute type={route.type} id={route.id} preview={route.preview} episode={route.episode} />;
     case "anime":
       return <Anime />;
     case "anime-detail":
@@ -88,7 +90,7 @@ function Screen({ route }: { route: Route }) {
  * page, and which page it is is settled before either renders: a skeleton until then, never one
  * page swapped for the other.
  */
-function TitleRoute({ type, id, preview }: { type: ContentType; id: string; preview?: MetaPreview }) {
+function TitleRoute({ type, id, preview, episode }: { type: ContentType; id: string; preview?: MetaPreview; episode?: string }) {
   const { data: page } = useQuery(titlePageQuery(type, id, preview));
   const loading = <Skeleton className="detail-loading" />;
   if (!page) return loading;
@@ -98,7 +100,7 @@ function TitleRoute({ type, id, preview }: { type: ContentType; id: string; prev
         <AnimeDetail id={page.anilist} />
       </Suspense>
     );
-  return <Detail type={type} id={id} preview={preview} />;
+  return <Detail type={type} id={id} preview={preview} episode={episode} />;
 }
 
 /**
@@ -208,6 +210,8 @@ function MainApp() {
 
   // Anime turned off (here or on another device) while you're in it: nothing to stay on.
   const { stack, tab } = useRouter();
+  // New episodes, finished downloads, clicks on notes (#209).
+  useNotifications();
   const inAnime = rootTab(stack).name === "anime";
   useEffect(() => {
     if (inAnime && !animeEnabled) tab({ name: "home" });
@@ -261,7 +265,8 @@ function MainApp() {
         <DesktopApp />
       )}
       <PartyHost />
-      <DeepLinks />
+      <DeepLinks tv={tv} />
+      <FriendsHost />
     </>
   );
 }

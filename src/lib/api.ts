@@ -9,6 +9,7 @@ import type {
   ExternalRatings,
   InstalledAddon,
   LibraryItem,
+  Manifest,
   Meta,
   MetaPreview,
   Playable,
@@ -61,6 +62,8 @@ export const api = {
   /** Titles like `id`, for "Because you watched …". */
   recommend: (type: ContentType, id: string) => call<MetaPreview[]>("recommend", { ty: type, id }),
   search: (query: string) => call<SearchResults>("search", { query }),
+  /** Films only, released in `year` where the catalog can narrow it (TMDB); Cinemeta answers the plain search. */
+  searchMovies: (query: string, year?: number) => call<MetaPreview[]>("search_movies", { query, year: year ?? null }),
   // Anime with no IMDb page carry a Kitsu id; no metadata addon serves those, so they're built from AniList.
   meta: (type: ContentType, id: string) => (isKitsuId(id) ? kitsuMeta(type, id) : call<Meta>("meta", { ty: type, id })),
   /** The IMDb id of a TMDB title (a TMDB page opened in Polarity, #208); null without a TMDB key or when TMDB lists none. */
@@ -94,6 +97,11 @@ export const api = {
   addons: () => call<InstalledAddon[]>("addons_list"),
   /** The add-ons the app installs itself, by manifest URL. */
   bundledAddons: () => call<string[]>("addons_bundled"),
+  /** A page of an installed add-on's catalog (#206); `extra` only what the manifest declares (lib/catalog/addonCatalogs.ts). */
+  addonCatalog: (addon: string, type: ContentType, id: string, extra: [string, string][] = []) =>
+    call<MetaPreview[]>("addon_catalog", { addon, ty: type, id, extra }),
+  /** An add-on's manifest, read without installing it (an install link's confirmation, #163). */
+  previewAddon: (url: string) => call<Manifest>("addon_preview", { url }),
   installAddon: (url: string) => call<InstalledAddon>("addon_install", { url }).then(changed),
   removeAddon: (id: string) => call<void>("addon_remove", { id }).then(changed),
 

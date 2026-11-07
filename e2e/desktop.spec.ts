@@ -1,3 +1,4 @@
+import { deflateRawSync } from "node:zlib";
 import { card, clock, expect, partySurfaces, test } from "./fixtures";
 import type { Locator, Page } from "@playwright/test";
 import { serveMedia } from "./media";
@@ -249,31 +250,61 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await expect(player).toHaveCount(0);
 });
 
-test("the player steps one frame at a time with , and . and the buttons by the clock, which shows the frame (#243)", async ({ app }) => {
+test("the player fits or fills the window, by its button or Z, and remembers it (#183)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  const player = app.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  const fill = player.getByRole("button", { name: "Fill window" });
+  const video = player.locator(".player-video");
+  // Fit by default.
+  await expect(fill).toHaveAttribute("aria-pressed", "false");
+  await expect(video).toHaveCSS("object-fit", "contain");
+  await player.hover();
+  await fill.click();
+  await expect(fill).toHaveAttribute("aria-pressed", "true");
+  await expect(video).toHaveCSS("object-fit", "cover");
+  // Remembered for the next video.
+  await player.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(player).toHaveCount(0);
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(player).toHaveAttribute("data-started", "true");
+  await expect(video).toHaveCSS("object-fit", "cover");
+  await app.keyboard.press("z");
+  await expect(video).toHaveCSS("object-fit", "contain");
+  await expect(fill).toHaveAttribute("aria-pressed", "false");
+});
+
+test("the player steps one frame at a time with , and ., and the clock shows the frame for a moment after (#243, #273)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
   await app.getByRole("button", { name: "Play", exact: true }).click();
   await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
-  const back = app.getByRole("button", { name: "Back one frame" });
-  const forward = app.getByRole("button", { name: "Forward one frame" });
-  // Only while paused; "." pauses first.
-  await expect(forward).toHaveCount(0);
+  // Keys only: no step buttons, playing or paused (#273).
+  const buttons = app.getByRole("button", { name: /one frame/ });
+  await expect(buttons).toHaveCount(0);
   await app.waitForTimeout(1200);
+  // "." pauses first.
   await app.keyboard.press(".");
   await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
-  await expect(forward).toBeVisible();
+  await expect(buttons).toHaveCount(0);
   const frame = async () => Number((await clock(app))?.match(/Frame (\d+)/)?.[1] ?? NaN);
   await expect.poll(frame).toBeGreaterThan(0);
   const start = await frame();
-  await forward.click();
+  await app.keyboard.press(".");
   await expect.poll(frame).toBe(start + 1);
   await app.keyboard.press(",");
   await expect.poll(frame).toBe(start);
-  await back.click();
+  await app.keyboard.press(",");
   await expect.poll(frame).toBe(start - 1);
-  // Playing again: the buttons go and the clock is the clock again.
+  // Still paused, a few seconds on: the clock is the clock again.
+  await expect.poll(() => clock(app), { timeout: 6000 }).not.toContain("Frame");
+  await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  // Playing again after a step drops the frame at once.
+  await app.keyboard.press(".");
+  await expect.poll(frame).toBe(start);
   await app.keyboard.press(" ");
-  await expect(forward).toHaveCount(0);
   await expect.poll(() => clock(app)).not.toContain("Frame");
 });
 
@@ -497,7 +528,7 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   const settings = app.getByRole("dialog", { name: /^Settings/ });
   // Signed out (as here), it's under Advanced; signed in, under Account.
   await settings.getByRole("button", { name: "Advanced", exact: true }).click();
-  await settings.locator('input[type="file"]').setInputFiles({ name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await settings.locator('input[type="file"][accept*="json"]').setInputFiles({ name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
   await expect(settings.getByText("1 title Polarity can show")).toBeVisible();
   await expect(settings.getByRole("switch", { name: /^Where you left off/ })).toBeChecked();
   const addon = settings.getByRole("switch", { name: /^Example One/ });
@@ -505,6 +536,64 @@ test("a Stremio export is read, previewed and imported; its add-ons are only lis
   await settings.getByRole("button", { name: "Import", exact: true }).click();
   await expect(settings.getByText("Added 1 title to your library and 1 progress entry.")).toBeVisible();
   await expect(addon).toHaveCount(0);
+});
+
+/** A ZIP of deflated files, as Letterboxd's export is (CRCs left 0: the import doesn't check them). */
+function zipOf(files: Record<string, string>): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const [path, text] of Object.entries(files)) {
+    const name = Buffer.from(path);
+    const raw = Buffer.from(text);
+    const body = deflateRawSync(raw);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(body.length, 18);
+    local.writeUInt32LE(raw.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(body.length, 20);
+    central.writeUInt32LE(raw.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, name, body);
+    centrals.push(central, name);
+    offset += 30 + name.length + body.length;
+  }
+  const dir = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(centrals.length / 2, 8);
+  end.writeUInt16LE(centrals.length / 2, 10);
+  end.writeUInt32LE(dir.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, dir, end]);
+}
+
+test("a Letterboxd export ZIP is read on the device, its films found by title and year, the rest left to pick (#87)", async ({ app }) => {
+  // The fake catalog has The Glass Orchard (2024) and Northbound (2023); the third film is in no catalog.
+  const zip = zipOf({
+    "letterboxd-someone/watched.csv": "Date,Name,Year,Letterboxd URI\n2026-01-02,The Glass Orchard,2024,https://boxd.example.com/a\n2026-01-03,A Film Nobody Lists,1990,https://boxd.example.com/b\n",
+    "letterboxd-someone/watchlist.csv": "Date,Name,Year,Letterboxd URI\n2026-01-01,Northbound,2023,https://boxd.example.com/c\n",
+    "letterboxd-someone/ratings.csv": "Date,Name,Year,Letterboxd URI,Rating\n2026-01-02,The Glass Orchard,2024,https://boxd.example.com/a,4\n",
+  });
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Advanced", exact: true }).click();
+  await settings.locator('input[type="file"][accept*="zip"]').setInputFiles({ name: "letterboxd-someone.zip", mimeType: "application/zip", buffer: zip });
+  await expect(settings.getByText("3 films", { exact: true })).toBeVisible();
+  await expect(settings.getByText(/Ratings aren't imported/)).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Found 2 films: added 1 film to your library and marked 1 film watched\. 1 film to pick below\./)).toBeVisible();
+  const pick = settings.locator(".settings-pick");
+  await expect(pick.getByText("A Film Nobody Lists (1990)")).toBeVisible();
+  await pick.getByRole("button", { name: "Skip" }).click();
+  await expect(pick).toHaveCount(0);
 });
 
 test("Download Season downloads every released episode of the season, then says so (#24)", async ({ app }) => {
@@ -532,6 +621,19 @@ test("a movie's page has a Download button that names what it downloads; a show'
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();
   await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
+});
+
+test("on a new install Discord shows only that something plays, never the title (#150)", async ({ app }) => {
+  const sent = () => app.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as ({ details: string; image?: string } | null)[]);
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "Watching" });
+  expect(JSON.stringify(await sent())).not.toContain("Glass Orchard");
+  expect((await sent()).at(-1)?.image).toBeUndefined();
+  await app.keyboard.press("Escape");
+  await expect.poll(async () => (await sent()).at(-1)).toBeNull();
 });
 
 test("with Show on Discord set to the title, the player sends what plays, its pause, and clears it on close (#31)", async ({ app }) => {
@@ -587,6 +689,58 @@ test("a Home shelf's heading opens its browse page with the filter on, and Back 
   await app.getByRole("button", { name: pick, exact: true }).click();
   await expect(app.getByRole("radiogroup", { name: "Catalog" }).getByRole("radio", { name: "Popular" })).toBeChecked();
   await expect(app.getByRole("combobox", { name: "Genre" })).not.toHaveText(/All Genres/);
+});
+
+test("an add-on's catalogs: off at first, switched on and ordered in Settings, rows on Home, browsed in Discover, searched (#206)", async ({ app }) => {
+  const rowTitles = () => app.locator(".home-rows .row-title").allTextContents();
+  await expect(app.getByText("Continue Watching")).toBeVisible();
+  // Installed but not switched on: Home has none of its lists.
+  expect((await rowTitles()).filter((t) => t.includes("Example Lists"))).toEqual([]);
+
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Add-ons", exact: true }).click();
+  // An add-on without lists has no switch.
+  await settings.getByRole("button", { name: /^Open Films/ }).click();
+  await expect(settings.getByRole("switch", { name: /lists? on Home/ })).toHaveCount(0);
+  await settings.getByRole("button", { name: /^Example Lists/ }).click();
+  // Staff Picks, Weekend Series and Late Night; not the search-only list, the radio list or one that needs a year.
+  await settings.getByRole("switch", { name: "Show its 3 lists on Home" }).check();
+  const order = settings.getByRole("list", { name: "Order on Home" });
+  await expect(order.getByRole("listitem")).toHaveText([/Staff Picks/, /Weekend Series/, /Late Night/]);
+  await settings.getByRole("button", { name: "Move Weekend Series up" }).click();
+  await expect(order.getByRole("listitem")).toHaveText([/Weekend Series/, /Staff Picks/, /Late Night/]);
+  await expect(settings.getByRole("button", { name: "Move Weekend Series up" })).toBeDisabled();
+  await app.keyboard.press("Escape");
+
+  // The rows in that order, right under Continue Watching; Late Night's add-on fails, so its row leaves itself out.
+  const picks = app.getByRole("button", { name: "Staff Picks · Example Lists", exact: true });
+  await expect(picks).toBeVisible();
+  // Below the fold it waits as a skeleton; once near, it fails and leaves.
+  await app.locator('[data-addon-row="late"]').scrollIntoViewIfNeeded();
+  await expect(app.locator('[data-addon-row="late"] .row')).toHaveCount(0);
+  const titles = (await rowTitles()).map((t) => t.trim());
+  expect(titles.slice(0, 3)).toEqual(["Continue Watching", "Weekend Series · Example Lists", "Staff Picks · Example Lists"]);
+  expect(titles).not.toContain("Late Night · Example Lists");
+  await expect(app.locator('[data-addon-row="picks"] .card')).toHaveCount(4);
+
+  // Its heading opens Discover on that list, with the list's own genres.
+  await picks.click();
+  await expect(app.getByRole("heading", { level: 1, name: "Movies" })).toBeVisible();
+  await expect(app.getByRole("combobox", { name: "List" })).toHaveText(/Staff Picks · Example Lists/);
+  await expect(app.getByRole("radiogroup", { name: "Catalog" })).toHaveCount(0);
+  await app.getByRole("combobox", { name: "Genre" }).click();
+  await expect(app.getByRole("option")).toHaveText(["All Genres", "Drama", "Comedy"]);
+  await app.keyboard.press("Escape");
+  // Pages of 4 follow `skip` as the grid scrolls.
+  await expect(app.locator(".scroll .card").nth(4)).toBeAttached();
+
+  // A list that takes a search answers searches, below Polarity's own results.
+  await app.getByRole("textbox", { name: "Search" }).fill("orchard");
+  const found = app.locator(".search-rows .row").filter({ has: app.getByRole("heading", { name: "Search · Example Lists" }) });
+  await expect(found.locator(".card").first()).toBeVisible();
+  await expect(app.locator(".search-rows .row-title").last()).toHaveText("Search · Example Lists");
 });
 
 test("with seasons as separate shows, Continue Watching names the anime entry the episode is part of, and only then (#22)", async ({ app }) => {
@@ -705,11 +859,18 @@ test("a source's i button shows what the source carries with every key masked, o
   await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
   await expect(panel).toContainText("Request header Authorization");
   await expect(panel).toContainText("Direct link");
+  // Best Match as a table, every factor a row, then the total and the rank (#274).
+  const table = panel.getByRole("table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Factor", "This source", "Points"]);
+  await expect(table.getByRole("rowheader", { name: "Resolution", exact: true })).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: "Total" })).toBeVisible();
+  await expect(panel).toContainText(/Rank\s*\d+(st|nd|rd|th) of \d+/);
   expect(await panel.textContent()).not.toContain("TOKEN0000");
   await panel.getByRole("button", { name: "Copy" }).click();
   await expect(panel.getByRole("button", { name: "Copied" })).toBeVisible();
   const copied = await app.evaluate(() => (window as unknown as { __copied: string }).__copied);
   expect(copied).toContain("Request header Authorization: •••");
+  expect(copied).toMatch(/Best Match\n  Factor +This source +Points\n/);
   expect(copied).toContain("Mirror https://mirror.example.org/•••/film.mkv apikey=•••");
   expect(copied).not.toContain("TOKEN0000");
   // Esc closes the panel only, back on the row it came from.
@@ -922,6 +1083,64 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(app.getByRole("button", { name: "Copy Invite" })).toBeFocused();
   });
 
+  test("Friends: off until turned on; then a code, requests, friends with what they're doing, and joining a friend's party (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Friends" }).click();
+    const panel = app.getByRole("dialog", { name: "Friends" });
+    await expect(panel.getByRole("button", { name: "Turn On Friends" })).toBeVisible();
+    await panel.getByRole("button", { name: "Turn On Friends" }).click();
+    await expect(panel.getByLabel(/^Friend code \w /)).toHaveText("FAKE-2345");
+    // Alex asked; Sam is a friend, in a party on an open film.
+    const alex = panel.getByRole("region", { name: "Requests" }).getByRole("listitem").filter({ hasText: "Alex" });
+    await expect(alex).toContainText("Wants to be friends");
+    const sam = panel.getByRole("region", { name: "Friends" }).getByRole("listitem").filter({ hasText: "Sam" });
+    await expect(sam).toContainText("In a watch party · Big Buck Bunny");
+    await alex.getByRole("button", { name: "Accept" }).click();
+    await expect(panel.getByRole("region", { name: "Requests" })).toHaveCount(0);
+    await expect(panel.getByRole("region", { name: "Friends" }).getByRole("listitem").filter({ hasText: "Alex" })).toContainText("Online");
+    // Adding by code: typed with a dash, and never this profile's own.
+    await panel.getByRole("textbox", { name: "Friend code" }).fill("fake-2345");
+    await panel.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(panel.getByText("That's your own friend code.")).toBeVisible();
+    await panel.getByRole("textbox", { name: "Friend code" }).fill("wxyz-6789");
+    await panel.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(panel.getByRole("region", { name: "Sent" }).getByRole("listitem")).toContainText("Kai");
+    // One press joins Sam's party: this profile is now joining it (nobody hosts it here, so it stays at that).
+    await sam.getByRole("button", { name: "Join" }).click();
+    await expect(panel.getByText("Joining the watch party…")).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(1);
+  });
+
+  test("a friend's invite shows as a toast; Join opens the Friends panel while joining (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Friends" }).click();
+    await app.getByRole("button", { name: "Turn On Friends" }).click();
+    await expect(app.getByLabel(/^Friend code \w /)).toBeVisible();
+    await app.keyboard.press("Escape");
+    await expect(partySurfaces(app)).toHaveCount(0);
+    await app.evaluate(() => (globalThis as { __polarFakeFriendInvite?: () => void }).__polarFakeFriendInvite?.());
+    const toast = app.locator('[data-kind="friend-invite"]');
+    await expect(toast).toContainText("Sam invited you to a watch party");
+    await toast.getByRole("button", { name: "Join" }).click();
+    await expect(app.getByRole("dialog", { name: "Friends" }).getByText("Joining the watch party…")).toBeVisible();
+    await expect(toast).toHaveCount(0);
+  });
+
+  test("Settings → Account → Friends: on and off for this profile, and what friends see (#135)", async ({ app }) => {
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Account" }).click();
+    const row = app.locator('[data-setting="friendsEnabled"]');
+    await expect(row).toBeVisible();
+    await expect(app.locator('[data-setting="friendsOnline"]')).toHaveCount(0);
+    await row.getByRole("switch").click();
+    await expect(app.locator('[data-setting="friendsOnline"]')).toBeVisible();
+    await app.locator('[data-setting="friendsOnline"]').getByRole("combobox").click();
+    await app.getByRole("option", { name: "Nobody" }).click();
+    // Nobody sees it's online: nobody can join from their list either.
+    await expect(app.locator('[data-setting="friendsJoin"]').getByRole("switch")).toBeDisabled();
+    await app.locator('[data-setting="friendsJoin"]').getByRole("switch").isChecked().then((on) => expect(on).toBe(false));
+  });
+
   test("a link watched from the Join a Watch Party dialog closes the dialog before the player's panel opens (#247)", async ({ app }) => {
     await app.getByRole("button", { name: /^Profile/ }).click();
     await app.getByRole("menuitem", { name: "Join Watch Party" }).click();
@@ -973,4 +1192,437 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
     expect(commands).toContain("pauseVideo");
   });
+});
+
+test("Downloads with 50+ downloads: collapsed titles, totals, search, one-action deletes, remembered groups (#15)", async ({ app }) => {
+  await app.goto("/fake.html?downloads=many");
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Library", exact: true }).click();
+  await app.getByRole("button", { name: /^Downloads/ }).first().click();
+
+  // The totals without adding anything up, and the active ones in their own section.
+  await expect(app.locator(".downloads-summary")).toContainText("75 downloads · 77.5 GB");
+  await expect(app.getByRole("region", { name: "In progress" }).locator(".download-row")).toHaveCount(3);
+  // Collapsed: one row per title, no episode rows showing.
+  const titles = app.locator(".downloads-library > .download-title");
+  await expect(titles).toHaveCount(13);
+  await expect(app.locator(".download-fold[data-open]")).toHaveCount(0);
+
+  // A show opens to its seasons, and stays open after a reload.
+  const show = titles.filter({ hasText: "Fieldwork" });
+  await show.getByRole("button", { name: /^Fieldwork/ }).click();
+  await expect(show.getByRole("button", { name: /^Season 1/ })).toBeVisible();
+  await app.reload();
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Library", exact: true }).click();
+  await app.getByRole("button", { name: /^Downloads/ }).first().click();
+  await expect(app.locator(".downloads-library > .download-title").filter({ hasText: "Fieldwork" }).getByRole("button", { name: /^Season 1/ })).toBeVisible();
+
+  // Search finds a title; In Progress shows only what's coming down.
+  await app.getByRole("searchbox", { name: "Search downloads" }).fill("blue h");
+  await expect(app.locator(".downloads-library > .download-title")).toHaveCount(1);
+  await app.getByRole("searchbox", { name: "Search downloads" }).fill("");
+  await app.getByRole("radio", { name: "In Progress" }).click();
+  await expect(app.locator(".downloads-library")).toHaveCount(0);
+  await app.getByRole("radio", { name: "All" }).click();
+
+  // Everything watched goes in one action (two clicks: arm, then delete).
+  const deleteWatched = app.getByRole("button", { name: /^Delete All Watched \(9\)$/ });
+  await deleteWatched.click();
+  await app.getByRole("button", { name: /^Click again: Delete All Watched/ }).click();
+  await expect(app.locator(".downloads-summary")).toContainText("66 downloads");
+  await expect(app.getByRole("button", { name: /^Delete All Watched/ })).toHaveCount(0);
+
+  // A selection across titles goes at once too.
+  await app.getByRole("button", { name: "Select", exact: true }).click();
+  await app.getByRole("checkbox", { name: "Select Northbound" }).check();
+  await titles.filter({ hasText: "Fieldwork" }).getByRole("checkbox", { name: "Select every episode of Season 2" }).check();
+  await app.getByRole("button", { name: /^Delete Selected \(4\)$/ }).click();
+  await app.getByRole("button", { name: /^Click again: Delete Selected/ }).click();
+  await expect(app.locator(".downloads-summary")).toContainText("62 downloads");
+  await expect(titles.filter({ hasText: "Northbound" })).toHaveCount(0);
+});
+
+test("the player pins the window on top and locks it, P unpins, and leaving the player always unpins (#266)", async ({ app }) => {
+  const told = () => app.evaluate(() => (window as unknown as { __window?: Record<string, unknown> }).__window ?? {});
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  const player = app.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  await player.hover();
+  const pin = player.getByRole("button", { name: "Pin window" });
+  await expect(pin).toHaveAttribute("aria-pressed", "false");
+  await pin.click();
+  await expect(pin).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(told).toEqual({ set_always_on_top: true, set_resizable: false, set_minimizable: false, set_maximizable: false });
+  // Locked in place: nothing to drag the window by, minimise and maximise off, close still there.
+  await expect(player.locator("[data-tauri-drag-region]")).toHaveCount(0);
+  await expect(player.getByRole("button", { name: "Minimize" })).toBeDisabled();
+  await expect(player.getByRole("button", { name: "Maximize" })).toBeDisabled();
+  await expect(player.getByRole("button", { name: "Close" })).toBeEnabled();
+  // The first time, it says how to get out of it.
+  await expect(player).toContainText("Window pinned, press P to unpin");
+  await app.keyboard.press("p");
+  await expect(pin).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(told).toEqual({ set_always_on_top: false, set_resizable: true, set_minimizable: true, set_maximizable: true });
+  await expect(player.locator("[data-tauri-drag-region]")).toHaveCount(2);
+  // Pinned again, then out of the player: the window goes back.
+  await app.keyboard.press("p");
+  await expect.poll(async () => (await told()).set_always_on_top).toBe(true);
+  await player.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(player).toHaveCount(0);
+  await expect.poll(told).toEqual({ set_always_on_top: false, set_resizable: true, set_minimizable: true, set_maximizable: true });
+});
+
+test.describe("stremio:// links (#163)", () => {
+  const open = (app: Page, link: string) => app.evaluate((l) => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink(l), link);
+  const installs = (app: Page) => app.evaluate(() => (window as { __addonInstalls?: string[] }).__addonInstalls ?? []);
+  const note = (app: Page) => app.locator('.toast[data-kind="link-note"]');
+
+  test("off by default: a link only says how to turn them on; on, each kind of link does its own thing", async ({ app }) => {
+    await open(app, "stremio://addon.example.com/c0nf1g/manifest.json");
+    await expect(note(app)).toContainText("Open Stremio links in Polarity");
+    await expect(app.getByTestId("addon-offer")).toHaveCount(0);
+
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Settings" }).click();
+    const settings = app.getByRole("dialog", { name: /^Settings/ });
+    await settings.getByRole("button", { name: "Add-ons", exact: true }).click();
+    const toggle = settings.getByRole("switch", { name: /^Open Stremio links in Polarity/ });
+    await expect(toggle).not.toBeChecked();
+    await toggle.click();
+    await expect(toggle).toBeChecked();
+    // Turning it on registers the handler; the app's start had made sure it was off.
+    await expect.poll(() => app.evaluate(() => (window as { __stremioLinks?: boolean[] }).__stremioLinks)).toEqual([false, true]);
+    await settings.getByRole("button", { name: "Close settings" }).click();
+
+    // An install link asks, and Cancel installs nothing.
+    await open(app, "stremio://addon.example.com/c0nf1g/manifest.json");
+    const offer = app.getByRole("dialog", { name: "Install Linked Add-on?" });
+    await expect(offer).toContainText("An add-on from an install link.");
+    await expect(offer.getByTestId("addon-offer-url")).toHaveText("https://addon.example.com/c0nf1g/manifest.json");
+    await offer.getByRole("button", { name: "Cancel" }).click();
+    await expect(offer).toHaveCount(0);
+    expect(await installs(app)).toEqual([]);
+
+    // Install installs it, once.
+    await open(app, "stremio://addon.example.com/c0nf1g/manifest.json");
+    await app.getByRole("dialog", { name: "Install Linked Add-on?" }).getByRole("button", { name: "Install" }).click();
+    await expect(note(app)).toContainText("Linked Add-on is installed.");
+    await expect(app.getByRole("dialog", { name: "Install Linked Add-on?" })).toHaveCount(0);
+    expect(await installs(app)).toEqual(["https://addon.example.com/c0nf1g/manifest.json"]);
+
+    // An add-on that can't be read can't be installed.
+    await open(app, "stremio://broken.example.com/manifest.json");
+    const broken = app.getByRole("dialog", { name: "Couldn't read this add-on" });
+    await expect(broken).toBeVisible();
+    await expect(broken.getByRole("button", { name: "Install" })).toHaveCount(0);
+    await app.keyboard.press("Escape");
+    await expect(broken).toHaveCount(0);
+
+    // An episode link: its show, on its season, with its sources listed; nothing plays.
+    await open(app, "stremio:///detail/series/tt9200000/tt9200000:2:3");
+    await expect(app.getByRole("heading", { level: 1, name: "Low Water Station" }).or(app.getByRole("img", { name: "Low Water Station" })).first()).toBeVisible();
+    await expect(app.getByRole("radio", { name: "Season 2" })).toBeChecked();
+    await expect(app.getByRole("dialog").filter({ has: app.getByRole("heading", { name: "Sources" }) })).toContainText("S2, E3");
+    await expect(app.locator(".player")).toHaveCount(0);
+    await app.keyboard.press("Escape");
+
+    // A link it doesn't understand: Home, and a note.
+    await open(app, "stremio:///board");
+    await expect(note(app)).toContainText("can't open this link");
+    await expect(app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Home", exact: true })).toHaveAttribute("aria-current", "page");
+  });
+});
+
+test("notifications: New episodes switched on, a new episode is one note, and its click opens the show (#209)", async ({ app }) => {
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Notifications", exact: true }).click();
+  const episodes = settings.getByRole("switch", { name: /^New episodes/ });
+  await expect(episodes).not.toBeChecked();
+  await episodes.click();
+  await expect(episodes).toBeChecked();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+
+  // The checks remember the first show in the library as it was before its last episode came out.
+  const show = await app.evaluate(async () => {
+    type Video = { id: string; season: number; episode: number; released?: string };
+    const invoke = (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a?: object) => Promise<unknown> } }).__TAURI_INTERNALS__.invoke;
+    const library = (await invoke("library_list")) as { id: string; type: string; name: string }[];
+    const first = library.find((l) => l.type === "series")!;
+    const meta = (await invoke("meta", { ty: "series", id: first.id })) as { videos: Video[] };
+    const out = meta.videos.filter((v) => v.released).sort((a, b) => Date.parse(a.released!) - Date.parse(b.released!));
+    const last = out[out.length - 1];
+    const memory = {
+      shows: { [first.id]: { known: out.slice(0, -1).map((v) => v.id), seasons: [...new Set(out.slice(0, -1).map((v) => v.season))], since: Date.parse(out[0].released!) } },
+      planned: {},
+    };
+    localStorage.setItem("polar.notifications.guest", JSON.stringify(memory));
+    return { id: first.id, name: first.name, code: `S${last.season} E${last.episode}` };
+  });
+
+  // The first check runs a little after launch.
+  await app.clock.install();
+  await app.reload();
+  await app.clock.runFor(16_000);
+  const notes = () => app.evaluate(() => ((window as { __notes?: unknown[] }).__notes ?? []) as { title: string; body: string; payload: string }[]);
+  await expect.poll(async () => (await notes()).length).toBe(1);
+  const [note] = await notes();
+  expect(note.title).toBe(show.name);
+  expect(note.body).toContain(show.code);
+  // Remembered as said, so the next check (or a restart) doesn't repeat it.
+  const remembered = await app.evaluate((id) => JSON.parse(localStorage.getItem("polar.notifications.guest") ?? "{}").shows?.[id]?.notifiedDay, show.id);
+  expect(remembered).toBeTruthy();
+
+  await app.evaluate((payload) => (window as unknown as { __polarFakeNoteClick: (p: string) => void }).__polarFakeNoteClick(payload), note.payload);
+  await expect(app.locator(".detail-actions .detail-play")).toBeVisible();
+  // A payload asking for anything else opens nothing.
+  await app.evaluate(() =>
+    (window as unknown as { __polarFakeNoteClick: (p: string) => void }).__polarFakeNoteClick('{"name":"settings","page":"account"}'),
+  );
+  await expect(app.getByRole("dialog", { name: /^Settings/ })).toHaveCount(0);
+
+  // A restart says nothing again.
+  await app.reload();
+  await app.clock.runFor(16_000);
+  await expect(app.locator("#root > *").first()).toBeAttached();
+  await app.clock.runFor(2_000);
+  expect(await notes()).toHaveLength(0);
+});
+
+test.describe("signing in with another device (#133)", () => {
+  test("signed out: the code waits for approval, then the app opens on the account", async ({ app }) => {
+    await app.goto("/fake.html?account=signed-out");
+    await app.getByRole("button", { name: "Sign in with another device" }).click();
+    await expect(app.locator(".auth-device-code")).toHaveText(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+    await expect(app.getByText(/Waiting for approval · the code expires in 4:5\d|5:00/)).toBeVisible();
+    await app.evaluate(() => (globalThis as unknown as { __polarFakeTv: { answer(a: boolean): void } }).__polarFakeTv.answer(true));
+    // One profile: straight in.
+    await expect(app.getByRole("navigation", { name: "Primary" })).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("Settings → Account → Sign in a TV: the code, then Approve", async ({ app }) => {
+    await app.goto("/fake.html?account=1");
+    type Fake = { __polarFakeTv: { waiting(d: string): string; state(c: string): string } };
+    const code = await app.evaluate(() => (globalThis as unknown as Fake).__polarFakeTv.waiting("Living room TV"));
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Settings" }).click();
+    const settings = app.getByRole("dialog", { name: /^Settings/ });
+    await settings.getByRole("button", { name: "Account", exact: true }).click();
+    await settings.getByRole("button", { name: /^Sign in a TV/ }).click();
+    const field = settings.getByRole("textbox", { name: "Code from the TV" });
+    await field.fill("hjkm npq0");
+    await expect(settings.getByText("That isn't a code from the TV.", { exact: false })).toBeVisible();
+    await field.fill("stuv");
+    await expect(settings.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await field.fill(code.toLowerCase());
+    await expect(field).toHaveValue("HJKM-NPQR");
+    await settings.getByRole("button", { name: "Continue" }).click();
+    await expect(settings.getByText("Sign in on Living room TV?")).toBeVisible();
+    await settings.getByRole("button", { name: "Approve" }).click();
+    await expect(settings.getByRole("status").filter({ hasText: "Living room TV is signing in." })).toBeVisible();
+    expect(await app.evaluate((c) => (globalThis as unknown as Fake).__polarFakeTv.state(c), code)).toBe("approved");
+    // The same code again: it's been answered.
+    await field.fill(code);
+    await settings.getByRole("button", { name: "Continue" }).click();
+    await expect(settings.getByText(/That code is wrong or has expired/)).toBeVisible();
+  });
+});
+
+test("Settings → Services: a linked AniList profile reads its list for the import, and unlinks (#83)", async ({ app }) => {
+  // A link made earlier on this device (the fake shell has no keychain, so it is in the web view's storage).
+  const link = { token: "TOKEN.TOKENTOKEN.TOKENTOKEN", expiresAt: Date.now() + 86_400_000, userId: 7, userName: "Lanternfield Fan", scoreFormat: "POINT_10", adult: false };
+  await app.evaluate((v) => localStorage.setItem("polar.link.anilist.local", v), JSON.stringify(link));
+  const entry = (id: number, status: string, progress: number, episodes: number | null, format: string, isAdult = false) => ({
+    id,
+    mediaId: 100 + id,
+    status,
+    progress,
+    score: 0,
+    repeat: 0,
+    updatedAt: 1_700_000_000,
+    createdAt: 1_690_000_000,
+    media: { episodes, isAdult, format, title: { english: `Show ${id}` }, coverImage: {} },
+  });
+  const sent: string[] = [];
+  await app.route("https://graphql.anilist.co/**", async (route) => {
+    const body = route.request().postData() ?? "";
+    sent.push(route.request().headers()["authorization"] ?? "");
+    const data = body.includes("MediaListCollection")
+      ? {
+          MediaListCollection: {
+            hasNextChunk: false,
+            lists: [{ entries: [entry(1, "CURRENT", 3, 12, "TV"), entry(2, "COMPLETED", 1, 1, "MOVIE"), entry(3, "PLANNING", 0, 24, "TV", true)] }],
+          },
+        }
+      : { Page: { mediaList: [] } };
+    await route.fulfill({ json: { data } });
+  });
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^AniList/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await settings.getByRole("button", { name: "Import List…" }).click();
+  // The adult entry stays out: this account hides them.
+  await expect(settings.getByText(/^1 show and 1 film on your list, 4 episodes and films watched\. 1 adult entry left out/)).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Import", exact: true })).toBeEnabled();
+  expect(sent.length).toBeGreaterThan(0);
+  expect(sent.every((h) => h === `Bearer ${link.token}`)).toBe(true);
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no AniList client, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/^Not set up in this build/)).toBeVisible();
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.anilist.local"))).toBeNull();
+});
+
+test("Settings → Services: a linked MyAnimeList profile reads its list for the import, and unlinks (#84)", async ({ app }) => {
+  // A link made earlier on this device; the fake shell answers MyAnimeList's relay with a made-up list.
+  const day = 86_400_000;
+  const link = {
+    token: "TOKEN",
+    expiresAt: Date.now() + 20 * day,
+    refreshToken: "REFRESH",
+    refreshBy: Date.now() + 25 * day,
+    userId: 77,
+    userName: "Lanternfield Fan",
+    scoreFormat: "POINT_10",
+    adult: false,
+  };
+  await app.evaluate((v) => localStorage.setItem("polar.link.mal.local", v), JSON.stringify(link));
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^MyAnimeList/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await expect(settings.getByText("Uses the MyAnimeList API.")).toBeVisible();
+  await settings.getByRole("button", { name: "Import List…" }).click();
+  await expect(settings.getByText(/^1 show and 1 film on your list, 4 episodes and films watched\. 1 adult entry left out\.$/)).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Import", exact: true })).toBeEnabled();
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no MyAnimeList client id, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/signing in to MyAnimeList needs Polarity registered/)).toBeVisible();
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.mal.local"))).toBeNull();
+});
+
+test("Settings → Services: a linked Trakt profile imports its watchlist and what it watched, and unlinks (#85)", async ({ app }) => {
+  // A link made earlier on this device; Trakt's answers are made up here.
+  const link = { token: "TOKEN", refreshToken: "REFRESH", expiresAt: Date.now() + 5 * 86_400_000, slug: "lanternfield-fan", name: "Lanternfield Fan" };
+  await app.evaluate((v) => localStorage.setItem("polar.link.trakt.local", v), JSON.stringify(link));
+  const film = (imdb: string | undefined, title: string) => ({ title, ids: { trakt: 1, ...(imdb ? { imdb } : {}) } });
+  const asked: { path: string; auth: string }[] = [];
+  await app.route("https://api.trakt.tv/**", async (route) => {
+    const url = new URL(route.request().url());
+    asked.push({ path: url.pathname, auth: route.request().headers()["authorization"] ?? "" });
+    const json =
+      url.pathname === "/sync/watchlist"
+        ? [
+            { type: "movie", listed_at: "2026-01-02T00:00:00.000Z", movie: film("tt0000001", "Night Train") },
+            { type: "show", listed_at: "2026-01-03T00:00:00.000Z", show: film("tt0000002", "Harbour Lights") },
+            { type: "movie", listed_at: "2026-01-04T00:00:00.000Z", movie: film(undefined, "No Page") },
+          ]
+        : url.pathname === "/sync/watched/movies"
+          ? [{ plays: 1, last_watched_at: "2026-02-01T00:00:00.000Z", movie: film("tt0000003", "Paper Moon Lane") }]
+          : url.pathname === "/sync/watched/shows"
+            ? [
+                {
+                  plays: 2,
+                  last_watched_at: "2026-03-01T00:00:00.000Z",
+                  show: film("tt0000002", "Harbour Lights"),
+                  seasons: [{ number: 1, episodes: [{ number: 1, last_watched_at: "2026-02-21T00:00:00.000Z" }, { number: 2 }] }],
+                },
+              ]
+            : url.pathname === "/sync/last_activities"
+              ? { all: "2026-03-01T00:00:00.000Z" }
+              : {};
+    await route.fulfill({ json });
+  });
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^Trakt/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await settings.getByRole("button", { name: "Import from Trakt…" }).click();
+  await expect(
+    settings.getByText("1 film and 1 show on your watchlist. 1 film and 2 episodes watched. 1 title without an IMDb page left out."),
+  ).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Added 2 titles to your library and 3 watched films and episodes\.$/)).toBeVisible();
+  expect(asked.filter((a) => a.path.startsWith("/sync/")).every((a) => a.auth === `Bearer ${link.token}`)).toBe(true);
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no Trakt client id, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/signing in to Trakt needs Polarity registered/)).toBeVisible();
+  expect(asked.some((a) => a.path === "/oauth/revoke")).toBe(true);
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.trakt.local"))).toBeNull();
+});
+
+test("Settings → Services: a linked Simkl profile imports its Plan to Watch and what it watched, and unlinks (#86)", async ({ app }) => {
+  // A link made earlier on this device; Simkl's answers are made up here.
+  const link = { token: "TOKEN", refreshToken: "REFRESH", expiresAt: Date.now() + 5 * 86_400_000, account: 1, name: "Lanternfield Fan" };
+  await app.evaluate((v) => localStorage.setItem("polar.link.simkl.local", v), JSON.stringify(link));
+  const T = "2026-02-01T00:00:00Z";
+  const lists: Record<string, unknown> = {
+    movies: {
+      movies: [
+        { status: "plantowatch", added_to_watchlist_at: T, movie: { title: "Night Train", ids: { simkl: 1, imdb: "tt0000001" } } },
+        { status: "completed", last_watched_at: T, movie: { title: "Paper Moon Lane", ids: { simkl: 2, imdb: "tt0000003" } } },
+        { status: "plantowatch", movie: { title: "No Page", ids: { simkl: 3 } } },
+      ],
+    },
+    shows: {
+      shows: [
+        {
+          status: "watching",
+          show: { title: "Harbour Lights", ids: { simkl: 4, imdb: "tt0000002" } },
+          seasons: [{ number: 1, episodes: [{ number: 1, watched_at: T }, { number: 2, watched_at: T }] }],
+        },
+      ],
+    },
+    anime: { anime: [{ status: "plantowatch", show: { title: "Paper Kites", ids: { simkl: 5, kitsu: 5 } } }] },
+  };
+  const asked: { path: string; auth: string }[] = [];
+  await app.route("https://api.simkl.com/**", async (route) => {
+    const url = new URL(route.request().url());
+    asked.push({ path: url.pathname, auth: route.request().headers()["authorization"] ?? "" });
+    const kind = url.pathname.match(/^\/sync\/all-items\/(\w+)$/)?.[1];
+    const json = kind ? (lists[kind] ?? {}) : url.pathname === "/sync/activities" ? { all: T } : {};
+    await route.fulfill({ json });
+  });
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^Simkl/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await settings.getByRole("button", { name: "Import from Simkl…" }).click();
+  await expect(
+    settings.getByText("2 titles on Plan to Watch. 1 film and 2 episodes watched. 1 title without an IMDb page or a Kitsu entry left out."),
+  ).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Added 2 titles to your library and 3 watched films and episodes\.$/)).toBeVisible();
+  expect(asked.filter((a) => a.path.startsWith("/sync/")).every((a) => a.auth === `Bearer ${link.token}`)).toBe(true);
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no Simkl client id, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/signing in to Simkl needs Polarity registered/)).toBeVisible();
+  expect(asked.some((a) => a.path === "/oauth2/revoke")).toBe(true);
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.simkl.local"))).toBeNull();
 });

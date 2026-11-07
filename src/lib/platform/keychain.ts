@@ -3,8 +3,9 @@ import { errorCode, errorMessage } from "../errors";
 
 /**
  * Where the sign-in session is kept: in the system's keychain through
- * src-tauri/src/keychain.rs, which takes only the auth client's own names (`polar.auth…`) and
- * settings sync's copy of the keys (`polar.sync.…`, lib/account/localSecrets.ts).
+ * src-tauri/src/keychain.rs, which takes only the auth client's own names (`polar.auth…`),
+ * settings sync's copy of the keys (`polar.sync.…`, lib/account/localSecrets.ts) and linked list
+ * services' sign-ins (`polar.link.…`, lib/lists/linkStore.ts).
  *
  * The web view's storage is the fallback: outside the shell, where there is no keychain (a
  * Linux desktop without a Secret Service, phone builds for now), or when it refuses. A value

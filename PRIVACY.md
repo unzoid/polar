@@ -28,6 +28,11 @@ in, it keeps:
 - **Your email address**, which you sign in with (a login code is emailed to you; there's no password), and the
   times you signed in. Supabase's sign-in service also keeps its own logs of requests, which include your IP address.
   How long those are kept: 1 day
+- **Signing in on a TV with a code** (Settings → Account → Sign in a TV): while a code is waiting, at most five
+  minutes, the server keeps the kind of device that asked (for example "Android TV"), a scrambled form of its IP
+  address (to limit how many codes one address can ask for) and, once you approve, which account approved it. It's
+  deleted when the TV signs in, or when the code expires. Each code you look up is counted for ten minutes, to stop
+  guessing.
 - **Profiles:** each profile's name and the avatar picked for it (one of the app's built-in pictures, never a photo).
 - **Library:** which titles are in each profile's library, by id (for example an IMDb or Kitsu id), and when they
   were added. Not their names or pictures.
@@ -54,16 +59,23 @@ These never go to the account server:
   or stream links, or what you watch. It leaves your device only if you copy it yourself, for example with "Copy
   details" on a playback error, which is redacted the same way.
 - **Recent searches**, while "Remember recent searches" is on (Settings → Browsing).
+- **Notifications**, if you turn any on (Settings → Notifications, off by default): which episodes of the shows you
+  follow were already out, so the next check can tell what's new. The checks look those shows up as title pages do;
+  the notes are shown by your system, and there is no notification server.
 - **Caches** of catalog and anime data (most kept up to a day, the anime id list a week). Settings → About → Cache
   shows and clears them.
 - **Downloads**, **local files** you open (and their Recent files list and where you stopped in them), and the
   **Stremio export file** if you import one: it's read on your device and only the library and add-ons you choose are
   kept.
+- The **Letterboxd export** if you import one: it's read on your device. Each film's title and year is looked up in the
+  catalog (TMDB or Cinemeta), as a search would be, and nothing is sent to Letterboxd. Only the library and watched
+  films you import are kept.
 - **API keys and add-on links** on your device are kept in the system's keychain where there is one.
-- **Discord Rich Presence**, if you turn it on in Settings → Playback (it's off by default), talks only to the
-  Discord app on the same computer. What it shows (Polarity, or the title you're watching, as you choose) then
-  appears on your Discord profile, so Discord and the people who can see your profile see it, under
-  [Discord's privacy policy](https://discord.com/privacy). People who see it also see up to two buttons:
+- **Discord Rich Presence** talks only to the Discord app on the same computer, while something plays. By default it
+  shows only that you're watching something in Polarity, no title; in Settings → Playback → Show on Discord you can
+  turn it off, or choose to show the title you're watching. What it shows appears on your Discord profile, so Discord
+  and the people who can see your profile see it, under [Discord's privacy policy](https://discord.com/privacy).
+  People who see it also see up to two buttons:
   - **Watch in Polarity** (only when it shows the title): a link to a page on getpolar.app carrying the title's
     public id (IMDb's or Kitsu's), which opens that title in their own Polarity.
   - **Join watch party** (only while you're in a watch party and "Who can join from Discord" isn't Nobody): a
@@ -97,9 +109,29 @@ terms apply:
   entered a key).
 - **Subtitles:** the OpenSubtitles add-on Polarity starts with, and any subtitle add-ons you install.
 - **Your own add-ons:** the add-ons you install are run by other people. They see your IP address and which titles
-  you ask them about. Polarity doesn't choose, check or vouch for them.
+  you ask them about. Add-ons with a catalog that takes a search also receive what you type in search. Polarity
+  doesn't choose, check or vouch for them.
 - **Torrent playback:** while a torrent source plays (and afterwards, only if you turned on Keep sharing after playback), the
   other people in that torrent see your IP address and which pieces of the file you download and upload.
+- **Linked list accounts:** only for a profile that links an AniList or MyAnimeList account in Settings → Services.
+  The anime episodes and films it watches, and the changes you make on an anime's page, go to that service under
+  your account, and its list is read to show and import it. The sign-in and what is read from the list stay on your
+  device (the system's keychain where there is one) and never go to Polarity's account server. Unlinking removes them.
+- **Trakt:** only for a profile that links a Trakt account in Settings → Services. While it plays a film or an
+  episode that has an IMDb id, Trakt is told what is playing and how far along it is (Trakt shows this as "watching
+  now" on your profile, as public as your Trakt profile is); what you finish or mark watched goes to your Trakt
+  history, and ratings you give on a title page go to Trakt. With the watchlist switch on, titles you add to or remove
+  from your library are added to or removed from your Trakt watchlist. Your Trakt history, watchlist and ratings are
+  read to import them and to bring in what you watch elsewhere. Anime played from Kitsu ids aren't sent. The sign-in
+  stays on your device (the system's keychain where there is one) and never goes to Polarity's account server;
+  unlinking revokes it and removes it.
+- **Simkl:** only for a profile that links a Simkl account in Settings → Services. While it plays a film or an
+  episode that has an IMDb id, or an anime played from a Kitsu id, Simkl is told what is playing and how far along it
+  is; what you finish or mark watched goes to your Simkl history, and the list and rating you pick on a title page go
+  to Simkl. With the Plan to Watch switch on, titles you add to your library are added to Simkl's Plan to Watch, and
+  titles you remove leave it while they are still there. Your Simkl lists, history and ratings are read to show them,
+  to import them and to bring in what you watch elsewhere. The sign-in stays on your device (the system's keychain
+  where there is one) and never goes to Polarity's account server; unlinking revokes it and removes it.
 - **Updates and the add-on list:** GitHub, to check for and download updates and to load the list of add-ons in
   Settings.
 - **Sign-in check:** Cloudflare Turnstile, only if the account server asks for one before sending a login code.

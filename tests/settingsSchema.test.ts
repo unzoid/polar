@@ -38,7 +38,9 @@ describe("settings schema", () => {
       "src/components/Marketplace.tsx",
       "src/components/ShortcutSettings.tsx",
       "src/components/settings/StremioImport.tsx",
+      "src/components/settings/LetterboxdImport.tsx",
       "src/components/settings/CopySetup.tsx",
+      "src/components/friends/FriendsSettings.tsx",
       "src/components/player/SubtitleSettings.tsx",
       "src/lib/catalog/marketplace.ts",
     ];

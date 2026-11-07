@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { MARKET_CATEGORIES, MARKETPLACE_REPO, searchMarketplace, useMarketplace, type MarketCategory } from "../lib/catalog";
 import { keys, useAddons } from "../lib/net";
 import { openSettings } from "../lib/settings";
-import { Captions, Check, Info, Play, type Icon } from "./icons";
+import { Captions, Check, Info, LayoutList, Play, type Icon } from "./icons";
 import { Button } from "./ui/Button";
 import { SearchField } from "./ui/SearchField";
 import { Card } from "./settings/rows";
@@ -14,6 +14,7 @@ const CATEGORY_ICON: Record<MarketCategory, Icon> = {
   Subtitles: Captions,
   Streams: Play,
   Metadata: Info,
+  Catalogs: LayoutList,
 };
 
 /** Settings → Marketplace: add-ons by category, in the same rows as the rest of Settings. */

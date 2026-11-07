@@ -831,6 +831,32 @@ with `cd extension && bun run build`, Polarity installed and signed in, and the 
    the item isn't there.
 6. Polarity not installed: the page offers the download after a moment.
 
+## Opening Stremio links in Polarity (#163)
+
+Checked here: link parsing and where each kind goes, the setting's off state, and that an install link
+never installs without Install (`tests/stremioLinks.test.ts`); the shell keeping stremio:// links
+(`deep_link.rs` test); end to end in the browser shell (e2e: off by default, turning it on, Cancel and
+Install, an add-on that can't be read, an episode link, an unknown link). src-tauri is type-checked for
+Windows, macOS, Linux, Android and iOS but doesn't link here; the Android Kotlin compiles in CI only.
+Not run: a real handler registration on any system. With an add-on configuration page that has an
+"Install" button for Stremio (or a test page with a `stremio://addon.example.com/manifest.json` link
+pointing at a real add-on you trust), check on each system, with and without Stremio installed:
+1. Settings → Add-ons → Open Stremio links in Polarity is off on a fresh install. With Stremio installed,
+   its links still open Stremio; without it, Windows and Linux say no app opens them; macOS may open
+   Polarity, which only says the setting is off.
+2. Turn it on. Windows: the link opens Polarity (a running Polarity comes to the front). Turn it off:
+   with a per-user Stremio, its links open Stremio again; with no Stremio, nothing opens them.
+   Linux: `xdg-mime query default x-scheme-handler/stremio` names Polarity's handler while on, and no
+   longer once off. macOS: on, links open Polarity; off, they go back to Stremio when it's installed.
+   Android: on, a link offers Polarity (with Stremio installed too, Android asks which app); off, it
+   doesn't.
+3. An install link shows the add-on's name, description and address with Install and Cancel. Cancel:
+   not in Settings → Add-ons. Install: listed there.
+4. A title link (`stremio:///detail/movie/tt…`) opens its page; an episode link
+   (`stremio:///detail/series/tt…/tt…:1:2`) opens the show on that season with that episode's sources
+   listed, nothing playing. A show Polarity opens on its anime page opens there, without picking the episode.
+5. Any other stremio:// link opens Home with a note that Polarity can't open it.
+
 ## Watch party reliability (#203)
 
 The party log, the heals and their harness: `lib/party/log.ts`, `lib/party/room.ts`, the reconnect in
@@ -866,6 +892,162 @@ whether the window resets on a channel rejoin over the same socket (assumed not)
 3. With A paused, B presses play while A can't see B's entry (hard to force by hand: the logs show it as
    "refused vN by …"): B goes back to paused within a second or two.
 
+## Letterboxd export import (#87)
+
+Letterboxd doesn't publish its export's columns. The parser reads `Name`, `Year`, `Date`, `Watched Date` and
+`Rating` by header name (any order, any case) from `watched.csv`, `diary.csv`, `ratings.csv` and `watchlist.csv`.
+It was written from exports users have described, not from a real one. The tests use invented files of that shape.
+To check, with a Letterboxd account that has a few watched, logged, rated and watchlisted films:
+1. Letterboxd → Settings → Data → Export your data. In Polarity: Settings → Account (or Advanced when signed out) →
+   Import from Letterboxd → Choose File… → the ZIP. The counts match the account: Watchlist, Watched, and Ratings
+   with "Ratings aren't imported".
+2. Import, with and without a TMDB key. The films land in the library (watchlist) and in History (watched) on the
+   right days. A film logged twice in the diary shows its latest day.
+3. Films with a common title (remakes) or with a different year on Letterboxd and the catalog are listed under
+   "Films to pick". Picking one imports it, Search finds others, and Skip drops it.
+4. Import the same ZIP again: nothing new is added.
+5. Unzip the export and pick `watched.csv` and `watchlist.csv` together. The same counts show.
+
+## AniList account link (#83)
+
+Checked here: unit tests (`tests/listSync.test.ts`: the sign-in code, the queue, the watched rule, sending and
+reading back; `tests/listLinking.test.ts`; `tests/listImport.test.ts`), component tests
+(`tests/dom/anilistLink.test.tsx`) and a desktop e2e test on the fake shell with a made-up AniList answer (a linked
+profile reads its list for the import, then unlinks). Not run against AniList (not reachable here), and this build
+has no AniList API client yet (`ANILIST_CLIENT_ID` in `src/lib/lists/signIn.ts` is empty, so Settings → Services →
+AniList says it isn't set up). To check, after registering a client in AniList's developer settings with
+`https://anilist.co/api/v2/oauth/pin` as its redirect and putting its id there:
+1. Settings → Services → AniList → Open AniList: AniList's page asks to allow the client; copy the code it shows,
+   paste it, Link. The row shows "Linked as <your AniList name>".
+2. Play an episode of an anime on your list past the watched point (or mark it watched): within a few seconds
+   AniList shows that episode count; the last episode of a show sets it to Completed.
+3. An anime's page shows its AniList entry above the cast: change the status, the episode count and the score
+   (in the account's score format); AniList shows each change. Several quick changes arrive as one.
+4. Offline: mark an episode watched, then reconnect: the change reaches AniList after reconnecting or the next start.
+5. Change an entry on AniList's site, restart Polarity: the anime page shows the new entry.
+6. Import List…: the counts match the list (adult entries left out unless the account shows them); Import adds the
+   shows and films to the library with their watched episodes; running it again adds nothing new.
+7. Revoke Polarity in AniList's settings (Apps): the next change makes the row say "Sign in again".
+8. A second profile, and a second device: each shows Off until it signs in itself; nothing about the AniList
+   account appears in the Supabase tables.
+9. On each desktop system, the sign-in is in the system's keychain (`polar.link.anilist.…`), not the web view's
+   storage; on phones (no keychain yet) it is in the web view's storage.
+
+## MyAnimeList account link (#84)
+
+Checked here: unit tests (`tests/malList.test.ts`: reading and writing MAL's list format, the sign-in with PKCE,
+refreshing the tokens, the queue renewing a refused token, episodes going to each linked service), the relay's path
+checks (`src-tauri/src/mal.rs` tests, type-checked here, run in CI), component tests (`tests/dom/malLink.test.tsx`)
+and a desktop e2e test on the fake shell with a made-up list (a linked profile reads its list for the import, then
+unlinks). Not run against MyAnimeList (no client id, and the relay only runs in the app). To check, after registering
+a client at https://myanimelist.net/apiconfig (App Type "other", redirect `http://localhost/polarity-mal-sign-in`)
+and building with its id in `VITE_MAL_CLIENT_ID`:
+1. Settings → Services → MyAnimeList → Open MyAnimeList: allow Polarity; the browser goes to a page that doesn't load.
+   Copy its address, paste it, Link. The row shows "Linked as <your MAL name>".
+2. Play an episode of an anime on your list past the watched point (or mark it watched): MAL shows that episode count;
+   the last episode sets it to Completed.
+3. An anime's page shows "Your MyAnimeList" above the cast: change the status, episodes and score (0–10); MAL shows
+   each change. Watching a completed show again: MAL shows it as re-watching (check that MAL's site shows
+   `is_rewatching` the way Polarity sends it: status Completed with Re-watching ticked).
+4. Offline: mark an episode watched, reconnect: the change arrives.
+5. Change an entry on MAL's site, restart Polarity: the anime page shows the new entry.
+6. Import List…: the counts match the list (adult entries are always left out: MAL's API doesn't say whether the
+   account shows them); Import adds the titles with their watched episodes.
+7. Tokens: the access token's real lifetime (MAL's page says both an hour and about a month). After it, a change still
+   goes out (the link renews itself) and the row stays "Linked".
+8. Revoke Polarity in MAL's settings: the next change makes the row say "Sign in again".
+9. A second profile and a second device each show Off until they sign in; nothing about the MAL account appears in the
+   Supabase tables.
+
+## Trakt account link (#85)
+
+Checked here: unit tests (`tests/traktLink.test.ts`: the device code sign-in, refreshing and revoking the tokens, the
+limits; `tests/traktSync.test.ts`: scrobbling, the history queue both ways, the pull after `last_activities`, the
+watchlist switch, ratings; `tests/traktImport.test.ts`), component tests (`tests/dom/traktLink.test.tsx`,
+`traktScrobble`, `traktRating`) and a desktop e2e test on the fake shell with a made-up account (a linked profile
+imports its watchlist and what it watched, then unlinks). Not run against Trakt (no client id). To check, after
+creating an API app at https://trakt.tv/oauth/applications (redirect `urn:ietf:wg:oauth:2.0:oob`) and building with
+its client id in `VITE_TRAKT_CLIENT_ID`:
+1. Settings → Services → Trakt → Get a code: enter the code at trakt.tv/activate and allow Polarity. The row shows
+   "Linked as <your Trakt name>". Check whether Trakt's device token answer works without a client secret; if Trakt
+   refuses it, the sign-in says "Trakt didn't accept the sign-in" and the PR stays held.
+2. Play a film or episode that has an IMDb id: your Trakt profile shows it as watching now; pause, then stop past
+   80%: it is in the history once. Stop at 50%: no history entry, and the next play resumes there in Polarity.
+3. Mark an episode watched by hand, then unwatched: Trakt's history follows both. Offline, mark one, reconnect: it
+   arrives.
+4. Watch something with another Trakt app (or check it in on trakt.tv), bring Polarity's window back after a few
+   minutes: it shows as watched.
+5. Turn on "Keep the library and the Trakt watchlist in step": add and remove a title in the library, then on
+   trakt.tv: both sides follow. On a free account with a full watchlist, the row says it is full.
+6. Rate a film and a show 1 to 10 on its title page: trakt.tv shows the ratings; a rating changed on trakt.tv shows
+   on the title page after the next look.
+7. Import from Trakt…: the counts match the account; Import adds the watchlist and the watched marks, and running it
+   again adds nothing new.
+8. An anime played from a Kitsu id says on its page that it isn't sent to Trakt, and nothing reaches Trakt.
+9. Tokens: the access token's real lifetime; after it, a change still goes out and the row stays "Linked". Revoke
+   Polarity in Trakt's settings: the next change makes the row say Trakt no longer accepts the sign-in.
+10. Unlink: Polarity disappears from Trakt's connected apps. A second profile and device each show Off until they
+    sign in; nothing about the Trakt account appears in the Supabase tables. On each desktop system the sign-in is in
+    the system's keychain (`polar.link.trakt.…`).
+
+## Simkl account link (#86)
+
+Checked here: unit tests (`tests/simklLink.test.ts`: the PIN sign-in, refreshing and revoking the tokens, the daily
+allowance; `tests/simklSync.test.ts`: scrobbling, the history queue both ways, the Plan to Watch switch;
+`tests/simklPull.test.ts`; `tests/simklRatings.test.ts`; `tests/simklImport.test.ts`), component tests
+(`tests/dom/simklLink.test.tsx`, `simklScrobble`, `simklPanel`) and a desktop e2e test on the fake shell with a
+made-up account (a linked profile imports its Plan to Watch and what it watched, then unlinks). Not run against Simkl
+(no client id). To check, after creating an app at https://simkl.com/settings/developer/ and building with its client
+id in `VITE_SIMKL_CLIENT_ID`:
+1. Settings → Services → Simkl → Get a code: enter it at simkl.com/pin and allow Polarity. The row shows "Linked as
+   <your Simkl name>". Check that the token answer works without a client secret, and that a sign-in which doesn't
+   grant write access is refused and said.
+2. Play a film or episode that has an IMDb id, and an anime played from a Kitsu id: Simkl shows each as watching;
+   stop past 80%: it is in the history once (for the anime, the right episode under the anime). Stop at 50%: no
+   history entry.
+3. Mark an episode watched by hand, then unwatched: Simkl's history follows both. Offline, mark one, reconnect: it
+   arrives.
+4. Watch something in another Simkl app (or mark it on simkl.com), bring Polarity's window back after 15 minutes: it
+   shows as watched. Check the answer of the `simkl_ids_only` read (status and IMDb/Kitsu ids in it), and that a
+   title removed on Simkl stays in Polarity.
+5. Turn on "Keep the library and Simkl's Plan to Watch in step": add a film, a show and a Kitsu anime to the library:
+   each lands on Plan to Watch (the anime under anime). Remove one still on Plan to Watch: it leaves Simkl. A title
+   already Watching on Simkl doesn't move back to Plan to Watch.
+6. On a title page, pick a list and a rating 1 to 10: simkl.com shows both; change them on simkl.com: the page shows
+   them after the next look. Check the ratings answer's shape (`user_rating`, anime under `anime`, a removed rating as
+   null). "View on Simkl" opens the title's page, also for a title reached through `/redirect` with a Kitsu id.
+   "Remove from Simkl" takes it off every list, its history and its rating.
+7. Import from Simkl…: the counts match the account; Import adds Plan to Watch and the watched marks, and running it
+   again adds nothing new.
+8. Unwatching a film removes it from Simkl's lists too (Simkl's own behaviour): check that this is still so.
+9. Tokens: after a week the access token renews and changes still go out. Revoke Polarity in Simkl's settings: the
+   next change makes the row say Simkl no longer accepts the sign-in.
+10. The account's daily allowance: `X-RateLimit-Remaining` comes back on each answer; a day of normal use stays far
+    below it.
+11. Unlink: Polarity disappears from Simkl's connected apps. A second profile and device each show Off until they
+    sign in; nothing about the Simkl account appears in the Supabase tables. On each desktop system the sign-in is in
+    the system's keychain (`polar.link.simkl.…`).
+
+## Friends (#135)
+
+Checked here: the migration in PGlite (`tests/sql/friends.test.ts`: codes, requests, accepting, blocking,
+the caps, invites, and who may listen to or show presence on `friends:<profile>` and `invites:<profile>`
+as `friend_topic_allowed` decides), the store against a fake server (`tests/friendsStore.test.ts`), the
+parsing (`tests/friends.test.ts`), and the panel, invite toast, settings and TV row in the browser with the
+fake account (`fake.html?account=1`, e2e). Not checked against Supabase: Realtime itself. To check, apply
+`supabase/migrations/20261108000000_friends.sql`, then with two accounts A and B on two devices:
+1. A: profile menu → Friends → Turn On Friends; a code shows. B does the same, types A's code, Add: A's
+   list shows B under Requests within a second or two (the server's "changed" broadcast), without reopening.
+2. A accepts: B's list shows A as a friend, Online, with a green dot.
+3. A starts a watch party on a title: within 15 s B sees "In a watch party · <title>"; B presses Join and
+   ends up in A's party (or waits for A to let them in, if A asks first).
+4. A, in the party, presses Invite on another online friend C: C gets the toast and joins from it.
+5. A sets "Who sees what you watch" to Nobody: B sees "In a watch party" without the title. A sets "Who sees
+   you're online" to Nobody: A shows Offline on B within 15 s; after B restarts, Realtime refuses B's join
+   of `friends:<A>` (Dashboard → Logs → Realtime).
+6. Throughout a party with Friends on, Realtime's logs show no ClientPresenceRateLimitReached (friends'
+   presence shares the connection with the party's; it updates at most once per 15 s).
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,
@@ -882,6 +1064,20 @@ same network:
 - Without mpv (built-in player) the same, with the element on screen sent as it is.
 - Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
   untested. Subtitles inside the file aren't sent.
+
+## Downloads page (#15)
+
+Checked here: grouping, seasons, sorting, filters, search, totals and the saved view (`tests/downloadsView.test.ts`);
+the page with 75 made-up downloads in the browser shell (`fake.html?downloads=many`) on desktop, phone and TV
+(e2e: collapsed titles, a title kept open after a reload, search, In Progress, Delete All Watched, Delete Selected,
+D-pad through titles and seasons); `disk.rs` type-checked for Linux, Windows, Android, macOS and iOS. Needs the app:
+- The summary's "N GB free" matches the free space of the disk holding the downloads folder (Windows: the drive's
+  free space in Explorer; macOS/Linux: `df -h` on the folder). It's left out, not wrong, when the system won't say.
+- "Saved in" names the real folder (Videos/Polarity, or the app's folder on iOS and Android).
+- Deleting many at once (Delete All Watched with a few dozen episodes) removes the files from that folder, and the
+  rows fold away together without a jump.
+- TV with a remote or controller: up and down pass over the downloads still coming down without opening their menu;
+  A opens it.
 
 ## Scrolling long pages (#134)
 
@@ -903,6 +1099,44 @@ To check on Windows (WebView2), and on Linux and macOS:
   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`, open `edge://inspect` in Edge,
   inspect the app and record a Performance trace while scrolling; it names what's left. Still known: a shelf's first appearance costs a
   long frame (its cards styled and drawn for the first time).
+
+## Signing in on a TV with a code (#133)
+
+Checked here: the migration in PGlite, the Edge Function's steps against an in-memory database, the app's
+waiting loop, and the screens in the browser shell with its stand-in account (e2e: desktop, TV, Settings →
+Account → Sign in a TV). Not checked: a real Supabase project, Deno, or a real TV.
+
+1. Apply `supabase/migrations/20261109000000_tv_sign_in.sql`; deploy with
+   `supabase functions deploy tv-sign-in --no-verify-jwt`.
+2. On a signed-out device (TV mode, or a second computer): Sign in with your phone / another device. A code shows.
+3. On a signed-in device: Settings → Account → Sign in a TV, enter the code. "Sign in on <device>?" names the
+   kind of device. Approve: within a few seconds the first device opens on "Who's watching?" (or the only profile).
+4. Sign out on one device: the other stays signed in. Supabase → Authentication → Users shows two sessions.
+5. Deny, and wait out a code (5 minutes): the first device says so and offers a new code. The same code twice is refused.
+6. Table editor: `tv_sign_in` is empty after each sign-in; no plain codes or addresses in it.
+7. Six codes from one network within five minutes: the sixth is refused ("Too many attempts").
+8. Supabase's own projects with the new publishable keys: check `generateLink` + `verifyOtp({ token_hash, type:
+   "magiclink" })` still signs in (the function and the app use supabase-js 2).
+
+## Notifications (#209)
+
+Checked here: what's new (time zones, undated episodes, a whole season at once, the one-a-day rule,
+nothing repeated after a restart, plans on phones) in `tests/notifications.test.ts`; Settings →
+Notifications, a new episode's note and its click opening the show in the fake shell
+(`e2e/desktop.spec.ts`); the native code type-checks for all five systems, Android's Kotlin compiles. None of
+it was shown by a real system. To check, with New episodes, New seasons and Downloads switched on:
+- **Each system**: a show in the library whose next episode comes out within the next hours shows one
+  note when it does (or within three hours after); clicking it opens that show. A download finishing shows
+  "Download finished"; clicking it opens the title. Turning a switch off stops that kind.
+- **Windows**: only the installed app (its Start menu shortcut carries the app id `app.getpolar.desktop`);
+  Settings → System → Notifications lists Polarity, and turning it off there makes Settings → Notifications
+  say so.
+- **macOS**: only the bundled `.app`; the first switch turned on asks for permission once; a note shows as a
+  banner with Polarity in front too.
+- **Linux**: GNOME and KDE show the note; a click on it (not just on Open) opens the show.
+- **Android 13 and later**: the first switch asks for permission; with Polarity closed (swiped away), an
+  episode with a listed air date still arrives at that time; a click with the app closed opens the show.
+- **iOS**: as Android; background refresh isn't used, so only listed air dates arrive with the app closed.
 
 ## Screens in headless Chromium (T-051)
 

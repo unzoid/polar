@@ -1,0 +1,215 @@
+/* Friends (#135): the panel from the profile menu (on the Watch Party dialog's look, party.css),
+   the invite toast, and TV Home's Friends row. */
+
+.friends-dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.friends-loading {
+  display: grid;
+  place-items: center;
+  min-height: 6rem;
+  color: var(--text-2);
+}
+.friends-fine {
+  margin: -0.75rem 0 1.25rem;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.friends-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  margin-top: 1.25rem;
+  text-align: left;
+}
+
+/* Own code: read out, copied, or swapped for a new one. */
+.friends-code-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.friends-code {
+  margin-top: 0.125rem;
+  font-size: 1.625rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.friends-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.friends-add .party-join-note,
+.friends-add .party-join-error {
+  margin: -0.125rem 0 0 1rem;
+}
+
+/* Sections of people. */
+.friends-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.friends-empty {
+  margin: 0.25rem 0;
+  font-size: var(--fs-md);
+  color: var(--text-2);
+}
+.friends-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.25rem;
+}
+.friends-face {
+  position: relative;
+  flex: none;
+}
+.friends-face .avatar {
+  width: 2.5rem;
+  border-radius: 28%;
+}
+/* Online: a dot on the face's corner. */
+.friends-row[data-online] .friends-face::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--online);
+  box-shadow: 0 0 0 2px var(--glass-heavy);
+}
+.friends-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.friends-who > strong {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.friends-who > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.friends-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.375rem;
+}
+.friends-row-error {
+  flex-basis: 100%;
+  margin-left: 3.25rem;
+  font-size: var(--fs-sm);
+  color: var(--danger);
+}
+.friends-dialog .party-join-note {
+  text-align: center;
+}
+.friends-settings-link {
+  align-self: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+@media (hover: hover) and (pointer: fine) {
+  .friends-settings-link:hover {
+    color: var(--text);
+  }
+}
+
+/* The invite toast's face, where the toast's icon goes. */
+.friends-toast .friends-toast-face {
+  flex: none;
+  width: 2rem;
+  border-radius: 28%;
+}
+
+/* Phones: the actions go under the name. */
+:root[data-form="phone"] .friends-actions {
+  flex-basis: 100%;
+  justify-content: flex-end;
+}
+
+/* --- TV Home's Friends row */
+.tv-friend {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1rem;
+  width: 24rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--r-panel);
+  background: var(--glass-control);
+  text-align: left;
+  transition:
+    background-color var(--dur-fast) var(--ease-std),
+    transform var(--dur-fast) var(--ease-out);
+}
+.tv-friend:focus {
+  outline: none;
+  background: var(--pill-light);
+  color: var(--text-on-light);
+  transform: scale(1.04);
+}
+.tv-friend .tv-friend-face {
+  position: relative;
+  flex: none;
+  width: 3.5rem;
+  border-radius: 28%;
+}
+.tv-friend[data-online] .tv-friend-face {
+  box-shadow: 0 0 0 3px var(--online);
+}
+.tv-friend-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tv-friend-who > strong {
+  font-size: 1.15rem;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tv-friend-who > span {
+  font-size: 0.95rem;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-friend:focus {
+    transform: none;
+  }
+}

@@ -24,6 +24,7 @@ function icon(large: HeroIcon, mini: HeroIcon, micro: HeroIcon): Icon {
 }
 
 export const AlertCircle = icon(S24.ExclamationCircleIcon, S20.ExclamationCircleIcon, S16.ExclamationCircleIcon);
+export const ArrowDown = icon(S24.ArrowDownIcon, S20.ArrowDownIcon, S16.ArrowDownIcon);
 export const ArrowUp = icon(S24.ArrowUpIcon, S20.ArrowUpIcon, S16.ArrowUpIcon);
 export const ArrowUpRight = icon(S24.ArrowUpRightIcon, S20.ArrowUpRightIcon, S16.ArrowUpRightIcon);
 export const ArrowLeft =icon(S24.ArrowLeftIcon, S20.ArrowLeftIcon, S16.ArrowLeftIcon);
@@ -36,10 +37,13 @@ export const ChevronRight = icon(S24.ChevronRightIcon, S20.ChevronRightIcon, S16
 export const Close = icon(S24.XMarkIcon, S20.XMarkIcon, S16.XMarkIcon);
 export const Controls = icon(S24.CommandLineIcon, S20.CommandLineIcon, S16.CommandLineIcon);
 export const Desktop = icon(S24.ComputerDesktopIcon, S20.ComputerDesktopIcon, S16.ComputerDesktopIcon);
+export const Bell = icon(S24.BellIcon, S20.BellIcon, S16.BellIcon);
 export const Edit = icon(S24.PencilIcon, S20.PencilIcon, S16.PencilIcon);
 export const Episodes = icon(S24.RectangleStackIcon, S20.RectangleStackIcon, S16.RectangleStackIcon);
 export const ExitFullscreen = icon(S24.ArrowsPointingInIcon, S20.ArrowsPointingInIcon, S16.ArrowsPointingInIcon);
 export const Fullscreen = icon(S24.ArrowsPointingOutIcon, S20.ArrowsPointingOutIcon, S16.ArrowsPointingOutIcon);
+/** The player's Fit / Fill on desktop (#183), where the arrows are fullscreen's. */
+export const FillWindow = icon(S24.ViewfinderCircleIcon, S20.ViewfinderCircleIcon, S16.ViewfinderCircleIcon);
 export const Grid = icon(S24.Squares2X2Icon, S20.Squares2X2Icon, S16.Squares2X2Icon);
 export const Hidden = icon(S24.EyeSlashIcon, S20.EyeSlashIcon, S16.EyeSlashIcon);
 export const Info = icon(S24.InformationCircleIcon, S20.InformationCircleIcon, S16.InformationCircleIcon);
@@ -53,6 +57,8 @@ export const More = icon(S24.EllipsisHorizontalIcon, S20.EllipsisHorizontalIcon,
 export const Warning = icon(S24.ExclamationTriangleIcon, S20.ExclamationTriangleIcon, S16.ExclamationTriangleIcon);
 export const Pause = icon(S24.PauseIcon, S20.PauseIcon, S16.PauseIcon);
 export const Picture = icon(S24.PhotoIcon, S20.PhotoIcon, S16.PhotoIcon);
+/** The player's Pin window (#266). */
+export const Pin = icon(S24.MapPinIcon, S20.MapPinIcon, S16.MapPinIcon);
 export const PlaylistIcon = icon(S24.ListBulletIcon, S20.ListBulletIcon, S16.ListBulletIcon);
 export const Play =icon(S24.PlayIcon, S20.PlayIcon, S16.PlayIcon);
 export const Plus = icon(S24.PlusIcon, S20.PlusIcon, S16.PlusIcon);

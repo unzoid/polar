@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import "./storageStub";
-import { NEUTRAL, scoreOne, scoreSources, WEIGHTS, type Device, type MatchContext, type SourceRecord } from "../src/lib/playback/bestMatch";
+import { FACTOR_LABELS, NEUTRAL, scoreOne, scoreSources, WEIGHTS, type Device, type Factor, type MatchContext, type SourceRecord } from "../src/lib/playback/bestMatch";
 import { deviceCaps } from "../src/lib/playback/device";
 import { autoPickOrder } from "../src/lib/playback/sources";
 import {
@@ -233,4 +233,49 @@ test("the history is kept per add-on and per release group, on this device", () 
   expect(connectionMbps()).toBe(17);
   // Nothing about a title or a link is kept.
   expect(localStorage.getItem("polar.sourceHistory")).not.toContain("http");
+});
+
+// --- The table in a source's info (#274) ---------------------------------------
+
+test("every factor in WEIGHTS has a row, in order, and the rows add up to the score", () => {
+  const rec = (r: Partial<SourceRecord>): SourceRecord => ({ tries: 4, starts: 4, fails: 2, through: 2, startMs: 60_000, lastFail: 1e12 - 3_600_000, ...r });
+  const c = ctx({
+    device: device({ screen: 1080, hdr: true, dolbyVision: false, hevc: false, av1: true }),
+    connectionMbps: 30,
+    audioLanguage: "en",
+    preferredTags: ["remux", "atmos", "dv", "hdr"],
+    preferredGroups: ["INVENTED", "NOTREAL"],
+    history: () => rec({}),
+  });
+  const list = [...FILM, source("Harbor.Lights.2031.HDCAM-NOTREAL", { lowQualitySource: true }), { ...source("Harbor.Lights.S01E06.WEB-NOTREAL"), otherEpisode: true }];
+  const scores = scoreSources(list, c);
+  for (const r of list) {
+    const m = scores.get(r)!;
+    expect(m.factors.map((f) => f.factor)).toEqual(Object.keys(WEIGHTS) as Factor[]);
+    for (const f of m.factors) {
+      expect(f.label).toBe(FACTOR_LABELS[f.factor]);
+      expect(f.label?.length).toBeGreaterThan(0);
+      if (f.input == null) expect(f.points).toBe(0);
+    }
+    expect(m.factors.reduce((n, f) => n + f.points, 0)).toBeCloseTo(m.score, 5);
+    // Every reason lands in exactly one row.
+    expect(m.factors.filter((f) => f.input).reduce((n, f) => n + f.input!.split("; ").length, 0)).toBe(m.reasons.length);
+  }
+  // The labels name each factor once.
+  expect(new Set(Object.values(FACTOR_LABELS)).size).toBe(Object.keys(WEIGHTS).length);
+});
+
+test("the rank is the score's place in the list, ties sharing it", () => {
+  const a = source("Quiet.Orchard.2030.2160p.WEB-NOTREAL", { resolution: 2160 });
+  const b = source("Quiet.Orchard.2030.1080p.WEB-NOTREAL");
+  const b2 = source("Quiet.Orchard.2030.1080p.WEB-OTHER");
+  const c = source("Quiet.Orchard.2030.720p.WEB-NOTREAL", { resolution: 720 });
+  const scores = scoreSources([c, b, a, b2], ctx({ device: device({ screen: 2160 }) }));
+  expect([a, b, b2, c].map((r) => scores.get(r)!.rank)).toEqual([
+    { position: 1, of: 4 },
+    { position: 2, of: 4 },
+    { position: 2, of: 4 },
+    { position: 4, of: 4 },
+  ]);
+  expect(scoreOne(a).rank).toBeUndefined();
 });

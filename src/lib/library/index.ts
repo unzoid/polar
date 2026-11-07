@@ -3,12 +3,15 @@
 
 export * from "./batchDownloads";
 export * from "./downloads";
+export * from "./downloadsView";
 export * from "./episodeState";
 export * from "./episodes";
 export * from "./identity";
+export * from "./letterboxdImport";
 export * from "./playlistChecklist";
 export * from "./playlistCodec";
 export * from "./playlists";
 export * from "./stremioImport";
 export * from "./titleActions";
 export * from "./watched";
+export * from "./zipText";

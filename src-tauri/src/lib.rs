@@ -4,6 +4,7 @@ mod commands;
 mod controllers;
 mod deep_link;
 mod discord;
+mod disk;
 mod downloads;
 mod imdb;
 mod introdb;
@@ -11,14 +12,17 @@ mod keychain;
 mod local_files;
 mod locks;
 mod logging;
+mod mal;
 mod native_back;
 mod native_dialogs;
 mod native_tabs;
+mod notifications;
 mod player;
 mod ratings;
 mod seekr;
 mod store;
 mod streamcheck;
+mod stremio_links;
 mod sync;
 mod torrent;
 mod trailers;
@@ -47,6 +51,8 @@ pub struct AppState {
     pub seekr: seekr::Seekr,
     pub mpv: player::Mpv,
     pub introdb: introdb::IntroDb,
+    /// A linked MyAnimeList list's requests (#84).
+    pub mal: mal::Mal,
     pub ratings: ratings::RatingsClient,
     /// Filler and recap episodes, cached in the app's cache folder.
     pub fillers: polar_anime::Fillers,
@@ -188,7 +194,8 @@ pub fn run() {
     // to the running app before anything starts; the running window comes to the front.
     #[cfg(desktop)]
     let builder = builder
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            deep_link::from_args(app, &args);
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
                 let _ = w.set_focus();
@@ -218,6 +225,7 @@ pub fn run() {
             migrate_legacy_store(&dir, &path);
             downloads::manage(app.handle(), &dir)?;
             local_files::manage(app.handle())?;
+            notifications::manage(app.handle());
             let mut store = store::Store::load(path);
             let (vault, secrets) = keychain::open_vault(&store.data);
             store.data.fill_secrets(&secrets);
@@ -240,6 +248,7 @@ pub fn run() {
                 seekr: seekr::Seekr::default(),
                 mpv: player::Mpv::default(),
                 introdb: introdb::IntroDb::default(),
+                mal: mal::Mal::default(),
                 ratings: ratings::RatingsClient::default(),
                 fillers: polar_anime::Fillers::new(cache.clone()),
                 anime_lists: polar_anime::AnimeLists::new(cache.clone()),
@@ -259,6 +268,7 @@ pub fn run() {
             commands::catalog,
             commands::recommend,
             commands::search,
+            commands::search_movies,
             commands::meta,
             commands::imdb_for_tmdb,
             commands::streams,
@@ -270,9 +280,13 @@ pub fn run() {
             commands::seek_previews,
             commands::seekr_validate,
             commands::skip_segments,
+            commands::mal_api,
+            commands::mal_token,
             commands::ratings,
             commands::addons_list,
+            commands::addon_catalog,
             commands::addons_bundled,
+            commands::addon_preview,
             commands::addon_install,
             commands::addon_remove,
             commands::library_list,
@@ -290,6 +304,7 @@ pub fn run() {
             commands::settings_reset,
             commands::settings_defaults,
             commands::open_external,
+            commands::window_can_pin,
             commands::anime_episode_flags,
             commands::anime_ids,
             commands::anime_cache,
@@ -305,6 +320,7 @@ pub fn run() {
             downloads::download_resume,
             downloads::download_remove,
             downloads::download_reveal,
+            downloads::downloads_storage,
             controllers::controllers_list,
             sync::space_activate,
             sync::space_import_local,
@@ -328,6 +344,7 @@ pub fn run() {
             discord::discord_available,
             discord::discord_presence,
             deep_link::deep_links_take,
+            stremio_links::stremio_links_set,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,
@@ -338,6 +355,11 @@ pub fn run() {
             native_back::native_back,
             native_dialogs::native_dialog,
             native_dialogs::native_share,
+            notifications::notifications_permission,
+            notifications::notifications_request,
+            notifications::notifications_show,
+            notifications::notifications_plan,
+            notifications::notifications_take_launch,
         ])
         .build(tauri::generate_context!())
         .expect("error while building polar")

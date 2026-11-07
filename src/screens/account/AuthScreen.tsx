@@ -4,7 +4,8 @@ import { ease, springs } from "../../lib/ui";
 import logo from "../../assets/polarity-white.png";
 import { Button } from "../../components/ui/Button";
 import { TextField, type TextFieldProps } from "../../components/ui/TextField";
-import { AccountError, useAccount } from "../../lib/account";
+import { AccountError, formatTvCode, useAccount, type TvSignInRequest } from "../../lib/account";
+import { useTvMode } from "../../tv/tvMode";
 import { api } from "../../lib/api";
 import { PRIVACY_URL, TERMS_URL } from "../../lib/settings";
 import { errorMessage } from "../../lib/errors";
@@ -16,13 +17,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESEND_AFTER_S = 60;
 
 type Failure = { message: string; signedIn?: boolean };
-type Step = "start" | "email" | "code";
+type Step = "start" | "email" | "code" | "device";
 
 /**
  * Passwordless sign-in, laid out like Linear's: a narrow centred column on a
  * dark vertical gradient - the mark, one short question, pill buttons - one
  * step at a time. Start → "What's your email address?" → "Check your email"
- * with the code field. New emails get an account automatically.
+ * with the code field. New emails get an account automatically. Or "Sign in with another device"
+ * (first on a TV, #133): a code to approve on a phone or computer that's signed in.
  *
  * Changing step, as Linear does: everything but the logo fades out with a
  * barely-there sink (98%), then the next step fades in and settles to full
@@ -92,6 +94,7 @@ export function AuthScreen() {
     void attempt(() => account.verifyCode(email.trim(), value), { signedIn: true });
   };
 
+  const tv = useTvMode();
   const skip = account.canCancelSignIn ? account.cancelSignIn : account.continueAsGuest;
 
   return (
@@ -117,9 +120,20 @@ export function AuthScreen() {
           <>
             <h1 className="auth-title">Sign in to Polarity</h1>
             <div className="auth-actions">
-              <Button variant="accent" size="block" onClick={() => go("email")}>
+              {/* On a TV, typing an email with a remote is the slow way: the phone comes first. */}
+              {tv && (
+                <Button variant="accent" size="block" onClick={() => go("device")}>
+                  Sign in with your phone
+                </Button>
+              )}
+              <Button variant={tv ? undefined : "accent"} size="block" onClick={() => go("email")}>
                 Continue with email
               </Button>
+              {!tv && (
+                <Button size="block" onClick={() => go("device")}>
+                  Sign in with another device
+                </Button>
+              )}
               <Button size="block" onClick={skip}>
                 Continue without an account
               </Button>
@@ -216,11 +230,93 @@ export function AuthScreen() {
             </button>
           </form>
         )}
+
+        {step === "device" && <DeviceStep tv={tv} onBack={() => go("start")} />}
         </motion.div>
         </AnimatePresence>
       </div>
     </AccountShell>
   );
+}
+
+type DeviceState =
+  | { kind: "loading" }
+  | { kind: "code"; request: TvSignInRequest }
+  | { kind: "signing-in" }
+  | { kind: "over"; message: string };
+
+/**
+ * Signing in from another device (#133): a code to enter on a phone or computer that's signed in,
+ * until it's approved (the account then moves on to the profiles), denied or expired.
+ */
+function DeviceStep({ tv, onBack }: { tv: boolean; onBack: () => void }) {
+  const account = useAccount();
+  const [state, setState] = useState<DeviceState>({ kind: "loading" });
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    const stop = new AbortController();
+    setState({ kind: "loading" });
+    void (async () => {
+      try {
+        const request = await account.tvSignIn.start();
+        if (stop.signal.aborted) return;
+        setState({ kind: "code", request });
+        const end = await account.tvSignIn.wait(request, stop.signal);
+        if (end === "denied") setState({ kind: "over", message: "The sign-in was denied on the other device." });
+        else if (end === "expired") setState({ kind: "over", message: "That code has expired." });
+        else if (end === "approved") setState({ kind: "signing-in" });
+      } catch (e) {
+        if (!stop.signal.aborted) setState({ kind: "over", message: errorMessage(e) });
+      }
+    })();
+    return () => stop.abort();
+    // `account` changes as sign-in moves on; one request per round.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round]);
+  const left = useLeft(state.kind === "code" ? state.request.expiresAt : 0);
+  return (
+    <div className="auth-form">
+      <h1 className="auth-title">{tv ? "Sign in with your phone" : "Sign in with another device"}</h1>
+      <p className="auth-sub">
+        On a phone or computer that's signed in to Polarity, open <strong>Settings → Account → Sign in a TV</strong> and enter this code.
+      </p>
+      <div className="auth-device-code" aria-live="polite" data-state={state.kind}>
+        {state.kind === "code" ? formatTvCode(state.request.code) : state.kind === "signing-in" ? "Signing in…" : state.kind === "loading" ? "········" : ""}
+      </div>
+      {state.kind === "code" && (
+        <p className="auth-fine">
+          Waiting for approval · the code expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
+        </p>
+      )}
+      {state.kind === "over" && (
+        <>
+          <ErrorLine error={{ message: state.message }} />
+          <div className="auth-actions">
+            <Button variant="accent" size="block" onClick={() => setRound((n) => n + 1)}>
+              Get a new code
+            </Button>
+          </div>
+        </>
+      )}
+      <button type="button" className="auth-link" onClick={onBack}>
+        Back to sign in
+      </button>
+    </div>
+  );
+}
+
+/** Seconds until `at` (epoch ms), counting down each second; 0 without one. */
+function useLeft(at: number) {
+  const left = () => Math.max(0, Math.ceil((at - Date.now()) / 1000));
+  const [value, setValue] = useState(left);
+  useEffect(() => {
+    setValue(left());
+    if (!at) return;
+    const t = window.setInterval(() => setValue(left()), 1000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at]);
+  return at ? value : 0;
 }
 
 function useCountdown(from: number, seconds: number) {
