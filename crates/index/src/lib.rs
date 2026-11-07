@@ -234,7 +234,7 @@ impl Indexer {
                 match imdb {
                     Ok(imdb) => meta.videos = polar_addon::numbering::renumber(meta.videos, &imdb.videos),
                     // TMDB's own numbers rather than nothing; addons may miss some episodes.
-                    Err(e) => tracing::warn!("no IMDb numbering for {id}, keeping TMDB's: {e}"),
+                    Err(e) => tracing::warn!("no IMDb numbering for a show, keeping TMDB's: {e}"),
                 }
                 meta
             }

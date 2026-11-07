@@ -91,9 +91,9 @@ impl IntroDb {
             _ => query.push(("is_movie", "true".to_owned())),
         }
 
-        let res = self.http.get(API).query(&query).send().await.map_err(|e| e.to_string())?;
+        let res = self.http.get(API).query(&query).send().await.map_err(|e| e.without_url().to_string())?;
         let segments = if res.status().is_success() {
-            let raw: Raw = res.json().await.map_err(|e| e.to_string())?;
+            let raw: Raw = res.json().await.map_err(|e| e.without_url().to_string())?;
             Segments {
                 intro: span(raw.intro),
                 recap: span(raw.recap),

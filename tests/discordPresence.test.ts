@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { discordActivity, sameActivity, type Playing } from "../src/lib/playback/discordPresence";
 
 const now = 1_000_000;
-const film: Playing = { name: "The Lantern Keepers", poster: "https://media.example.com/poster.jpg", paused: false, ended: false, current: 60, duration: 600, rate: 1 };
+const film: Playing = { name: "The Lantern Keepers", poster: "https://image.tmdb.org/t/p/w500/abc.jpg", paused: false, ended: false, current: 60, duration: 600, rate: 1 };
 const episode: Playing = { ...film, episode: { season: 2, episode: 5, title: "The Long Night" } };
 
 describe("Discord Rich Presence (#31)", () => {
@@ -18,7 +18,7 @@ describe("Discord Rich Presence (#31)", () => {
       state: "S2 E5 · The Long Night",
       start: now - 60_000,
       end: now + 540_000,
-      image: "https://media.example.com/poster.jpg",
+      image: "https://image.tmdb.org/t/p/w500/abc.jpg",
       imageText: "The Lantern Keepers",
     });
     // At double speed it ends twice as soon.
@@ -58,6 +58,22 @@ describe("Discord Rich Presence (#31)", () => {
     expect(discordActivity("title", { ...film, episode: { season: 1, episode: 4, title: "Episode 4" } }, now)?.state).toBe("S1 E4");
     expect(discordActivity("title", { ...film, duration: Infinity }, now)?.end).toBeUndefined();
     expect(discordActivity("title", { ...film, poster: "http://media.example.com/p.jpg" }, now)?.image).toBeUndefined();
+  });
+
+  test("an add-on's own picture links stay on this device: only the art services Polarity reads", () => {
+    const image = (poster: string) => discordActivity("title", { ...film, poster }, now);
+    expect(image("https://media.kitsu.app/anime/poster_images/1/medium.jpg")?.image).toBe("https://media.kitsu.app/anime/poster_images/1/medium.jpg");
+    for (const poster of [
+      "https://addon.example.com/TOKEN/poster/tt0000000.jpg",
+      "https://image.tmdb.org.example.com/t/p/w500/abc.jpg",
+      "https://image.tmdb.org/t/p/w500/abc.jpg?key=xxx",
+      "https://user:xxx@image.tmdb.org/t/p/w500/abc.jpg",
+      "https://image.tmdb.org:8443/t/p/w500/abc.jpg",
+      "not a link",
+    ]) {
+      expect(image(poster)).not.toHaveProperty("image");
+      expect(image(poster)).not.toHaveProperty("imageText");
+    }
   });
 
   test("the clock drifting a little isn't news; a seek or a pause is", () => {

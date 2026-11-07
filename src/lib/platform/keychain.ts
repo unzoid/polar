@@ -8,7 +8,7 @@ import { errorCode, errorMessage } from "../errors";
  * services' sign-ins (`polar.link.…`, lib/lists/linkStore.ts).
  *
  * The web view's storage is the fallback: outside the shell, where there is no keychain (a
- * Linux desktop without a Secret Service, phone builds for now), or when it refuses. A value
+ * Linux desktop without a Secret Service), or when it refuses. A value
  * found there was written before this version or while the keychain failed, so it is the
  * newer one: it moves into the keychain the first time the keychain takes it.
  *
