@@ -32,6 +32,7 @@ import { Skeleton } from "../ui/Skeleton";
  */
 export function AnimeHero({
   item,
+  facts = item,
   anime,
   logo,
   background,
@@ -40,6 +41,8 @@ export function AnimeHero({
   trailer,
 }: {
   item: AnimeCard;
+  /** The entry the facts line (format, season, length, status) describes: a grouped page's base title (#246). */
+  facts?: AnimeCard;
   anime?: Anime;
   /** The franchise's logo (`franchiseArt`), the same on every season tab: this entry's name shows under it. */
   logo?: string;
@@ -92,10 +95,10 @@ export function AnimeHero({
             </span>
           )}
           {joinFacts([
-            item.format && FORMAT_LABEL[item.format],
-            item.season && item.seasonYear ? `${SEASON_LABEL[item.season]} ${item.seasonYear}` : item.seasonYear,
-            item.format === "MOVIE" ? item.duration && `${item.duration} min` : item.episodes && `${item.episodes} episodes`,
-            item.status && STATUS_LABEL[item.status],
+            facts.format && FORMAT_LABEL[facts.format],
+            facts.season && facts.seasonYear ? `${SEASON_LABEL[facts.season]} ${facts.seasonYear}` : facts.seasonYear,
+            facts.format === "MOVIE" ? facts.duration && `${facts.duration} min` : facts.episodes && `${facts.episodes} episodes`,
+            facts.status && STATUS_LABEL[facts.status],
             studio,
           ])}
         </p>

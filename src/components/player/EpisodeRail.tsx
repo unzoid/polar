@@ -4,7 +4,8 @@ import { formatDate, formatRemaining, shortRuntime } from "../../lib/format";
 import type { Meta, Progress, Video } from "../../lib/types";
 import { DownloadButton } from "../DownloadButton";
 import { buttonClass } from "../ui/Button";
-import { Check, ChevronLeft, ChevronRight, Play } from "../icons";
+import { Check, Play } from "../icons";
+import { RowPaddle } from "../Row";
 import { Img } from "../Img";
 import { StillPlaceholder } from "../StillPlaceholder";
 import { prefersReducedMotion } from "../../lib/ui";
@@ -15,8 +16,9 @@ import { prefersReducedMotion } from "../../lib/ui";
  * and scrolled into view; picking another plays it (the season is chosen above, in the column's head).
  *
  * Every episode can be reached (#226): trackpads and fingers scroll it natively, a mouse wheel's
- * up/down turns into left/right, paddles at the ends page it on desktop, and the arrow keys move
- * card by card (OptionsOverlay's moveFocus), the focused card scrolled into view.
+ * up/down turns into left/right, Home's shelf paddles (RowPaddle, #250) at the ends page it on
+ * desktop, and the arrow keys move card by card (OptionsOverlay's moveFocus), the focused card
+ * scrolled into view.
  */
 export function EpisodeRail({
   meta,
@@ -83,8 +85,6 @@ export function EpisodeRail({
     };
   }, [shown]);
 
-  // A paddle never takes the focus: the arrow keys go on from the card they were on.
-  const keepFocus = (e: React.PointerEvent) => e.preventDefault();
   const page = (dir: 1 | -1) => {
     const el = rail.current;
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: prefersReducedMotion() ? "auto" : "smooth" });
@@ -93,13 +93,9 @@ export function EpisodeRail({
   if (!episodes.length) return <p className="options-empty">No episodes in this season yet.</p>;
 
   return (
-    <div className="episode-rail-viewport" data-start={edges.start} data-end={edges.end}>
-      <button className="episode-rail-paddle" data-dir="prev" onPointerDown={keepFocus} onClick={() => page(-1)} aria-label="Scroll left" tabIndex={-1}>
-        <ChevronLeft size={24} />
-      </button>
-      <button className="episode-rail-paddle" data-dir="next" onPointerDown={keepFocus} onClick={() => page(1)} aria-label="Scroll right" tabIndex={-1}>
-        <ChevronRight size={24} />
-      </button>
+    <div className="row-viewport episode-rail-viewport" data-start={edges.start} data-end={edges.end}>
+      <RowPaddle dir="prev" onPage={page} />
+      <RowPaddle dir="next" onPage={page} />
       <div className="episode-rail" ref={rail}>
         {episodes.map((v) => {
           const p = progress.get(v.id);

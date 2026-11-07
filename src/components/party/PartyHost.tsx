@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "../../lib/account";
-import { dismissExit, getParty, leaveParty, setJoinPartyOpen, useJoinPartyOpen, useParty, usePartyExit, type Member, type PartyMedia } from "../../lib/party";
+import {
+  closePartySurface,
+  dismissExit,
+  getParty,
+  leaveParty,
+  openPartySurface,
+  setJoinPartyOpen,
+  setPartyMenuOpen,
+  useJoinPartyOpen,
+  useParty,
+  usePartyExit,
+  type Member,
+  type PartyMedia,
+} from "../../lib/party";
 import { useRouter } from "../../lib/router";
 import { Dialog } from "@base-ui/react/dialog";
 import { Close, WatchParty } from "../icons";
@@ -18,6 +31,9 @@ import { useTvMode } from "../../tv/tvMode";
  *
  * A link someone else put on (#136) is shown, with who sent it, before it
  * plays here: Play opens it, Not Now stays out of the player.
+ *
+ * Each of these is a party surface (lib/party/surface.ts): one at a time,
+ * and the join dialog and party menu close when the player comes up (#247).
  */
 export function PartyHost() {
   const party = useParty();
@@ -68,6 +84,23 @@ export function PartyHost() {
   const tv = useTvMode();
   const { profile } = useAccount();
   const inPlayer = current.name === "player";
+
+  // A dialog that led into the player is gone before the player's own panel can open (#247).
+  useEffect(() => {
+    if (!inPlayer) return;
+    setJoinPartyOpen(false);
+    setPartyMenuOpen(false);
+  }, [inPlayer]);
+  useEffect(() => {
+    if (!asking) return;
+    openPartySurface("link");
+    return () => closePartySurface("link");
+  }, [asking]);
+  useEffect(() => {
+    if (!exit) return;
+    openPartySurface("over");
+    return () => closePartySurface("over");
+  }, [exit]);
   // A centred dialog: one short question, not a place you browse.
   return (
     <>

@@ -20,7 +20,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { anchorOf, appWindow, isDesktop, isMac, nativeDialogsAvailable, showNativeDialog } from "../lib/platform";
+import { anchorOf, appWindow, isDesktop, isMac, nativeDialogsAvailable, setImmersive, showNativeDialog } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -54,6 +54,7 @@ import { EpisodeRail } from "../components/player/EpisodeRail";
 import { Dropdown } from "../components/Dropdown";
 import { SkipTransport } from "../components/player/SkipTransport";
 import { useTracks } from "../components/player/useTracks";
+import { usePinch } from "../components/player/usePinch";
 import { pickedSpeed, pickedTrack, speedLabel, speedMenu, tracksMenu } from "../components/player/nativeMenus";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -77,8 +78,21 @@ import { playContext, stillFor } from "../lib/anime";
 import { useMpvTune } from "../components/player/useMpvTune";
 import { useTvMode } from "../tv/tvMode";
 import { usePadGlyph } from "../tv/TvChrome";
-import { fileStream, isFileId, recentPosition } from "../lib/localFiles";
-import { getParty, isLinkId, linkLabel, linkMedia, partyAvailable, partyPosition, startParty, streamHint, useParty } from "../lib/party";
+import { fileId, filePlace, fileStream, isFileId, recentPosition, useRecentFiles } from "../lib/localFiles";
+import {
+  closePartySurface,
+  getParty,
+  isLinkId,
+  linkLabel,
+  linkMedia,
+  openPartySurface,
+  partyAvailable,
+  partyPosition,
+  startParty,
+  streamHint,
+  useParty,
+  usePartySurface,
+} from "../lib/party";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { LinkForm, PartyBadge, PartyHold, PartyInvite, PartyMembers, PartyNotes, PartyStart } from "../components/party/PartyUI";
@@ -123,6 +137,11 @@ export function Player({
   const tv = useTvMode();
   // With a controller in TV mode, controls show the button that triggers them.
   const pad = usePadGlyph(tv);
+  // On Android the system bars hide while the player is open (#178), and come back when it closes.
+  useEffect(() => {
+    setImmersive(true);
+    return () => setImmersive(false);
+  }, []);
   // A link pasted into a watch party (#136): no title behind it, so no title page, episodes, sources,
   // progress or lookups by id; it plays the URL it came with.
   const link = isLinkId(metaId) ? stream?.url : undefined;
@@ -199,6 +218,18 @@ export function Player({
   const [ended, setEnded] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
   const [options, setOptions] = useState<"speed" | "tracks" | "episodes" | "sources" | "party" | null>(null);
+  // The Watch Party panel is a party surface (lib/party/surface.ts, #247): another one coming up closes it.
+  const partySurface = usePartySurface();
+  useEffect(() => {
+    if (options !== "party") return;
+    openPartySurface("panel");
+    return () => closePartySurface("panel");
+  }, [options]);
+  const lastSurface = useRef(partySurface);
+  useEffect(() => {
+    if (lastSurface.current === "panel" && partySurface !== "panel") setOptions((o) => (o === "party" ? null : o));
+    lastSurface.current = partySurface;
+  }, [partySurface]);
   // iOS's own menu is up (Speed, Subtitles & Audio): the controls stay while it is.
   const [nativeMenu, setNativeMenu] = useState(false);
   const updateSettings = useUpdateSettings();
@@ -576,6 +607,9 @@ export function Player({
     if (engine === "mpv" && !isDesktop) void mpv.set("panscan", fill ? 1 : 0);
   }, [engine, mpv, fill]);
   const toggleFill = useCallback(() => setPrefs({ videoFill: !getPrefs().videoFill }), []);
+  const pinch = usePinch((direction) => {
+    if (!isDesktop) setPrefs({ videoFill: direction === "out" });
+  });
 
   const toggleFullscreen = useCallback(async () => {
     if (tv) return;
@@ -642,6 +676,22 @@ export function Player({
         }),
     [meta, shownSeason, progressById],
   );
+  // A file on this device (#242): the other videos in its folder, in order, with how long each is and
+  // where it stopped as Recent files has them. The paths stay on this device (lib/localFiles).
+  const { data: recentFiles } = useRecentFiles();
+  const folderItems = useMemo<OptionItem[]>(() => {
+    if (!local) return [];
+    const recent = new Map((recentFiles ?? []).map((r) => [fileId(r.path), r]));
+    return (meta?.videos ?? []).map((v) => {
+      const { length, stopped } = filePlace(recent.get(v.id));
+      return {
+        id: v.id,
+        label: v.title,
+        detail: length === undefined ? undefined : stopped === undefined ? formatTime(length) : formatRemaining(stopped, length),
+        progress: length && stopped !== undefined ? stopped / length : undefined,
+      };
+    });
+  }, [local, meta, recentFiles]);
 
   const rankedStreams = useMemo(() => streams.data?.streams ?? [], [streams.data]);
   const currentKey = source.state.status === "ready" ? streamKey(source.state) : undefined;
@@ -886,7 +936,12 @@ export function Player({
         // Respond immediately; double-click adds fullscreen on top. Settings
         // can make a click only show/hide the controls instead; a tap always
         // does, as on every phone player (Play/Pause is in the controls).
-        onPointerDown={() => (chromeAtPress.current = chrome.visible)}
+        // A pinch out fills the screen and a pinch in fits the picture, as phone players do (#176).
+        {...pinch}
+        onPointerDown={(e) => {
+          chromeAtPress.current = chrome.visible;
+          pinch.onPointerDown(e);
+        }}
         onClick={() => {
           if (!touch && settings?.clickAction !== "controls") return togglePlay();
           if (chromeAtPress.current) hideChrome();
@@ -1065,7 +1120,7 @@ export function Player({
             <ActionButton icon={<Speed size={22} />} label={`Speed (${rate}x)`} glyph={pad("speed")} onClick={(el) => openOptions("speed", el)} />
           )}
           {type === "series" && (
-            <ActionButton icon={<Episodes size={22} />} label="Episodes" glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
+            <ActionButton icon={<Episodes size={22} />} label={local ? "In this folder" : "Episodes"} glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
           <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={(el) => openOptions("tracks", el)} />
           {!link && !local && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
@@ -1079,7 +1134,7 @@ export function Player({
           {next && (
             <ActionButton
               icon={<SkipForward size={22} fill="currentColor" />}
-              label="Next Episode"
+              label={local ? "Next video" : "Next Episode"}
               glyph={skip.active ? null : pad("skipOrNext", "nextEpisode")}
               onClick={() => playVideo(next.id)}
             />
@@ -1173,7 +1228,7 @@ export function Player({
             </div>
             <div className="next-up-text">
               <span className="next-up-kicker">
-                {ended && stillWatching ? "Are you still watching?" : `Up Next · ${episodeCode(next.season, next.episode)}`}
+                {ended && stillWatching ? "Are you still watching?" : local ? "Up Next" : `Up Next · ${episodeCode(next.season, next.episode)}`}
               </span>
               {skipped.length > 0 && !(ended && stillWatching) && (
                 <span className="next-up-skipping">
@@ -1219,7 +1274,8 @@ export function Player({
                     onSelect: () => {},
                     content: (
                       <div className="party-pane-stack">
-                        <PartyInvite party={party} leave={false} />
+                        {/* Focus comes here when the party starts: what it replaces is gone (#247). */}
+                        <PartyInvite party={party} leave={false} autoFocus />
                         <PartyActions party={party} onGo={() => setOptions(null)} />
                       </div>
                     ),
@@ -1259,7 +1315,21 @@ export function Player({
         onClose={() => setOptions(null)}
         media={media}
         columns={
-          episodeLayout === "list" || !meta
+          local
+            ? [
+                {
+                  title: "In this folder",
+                  size: "wide",
+                  value: videoId,
+                  options: folderItems,
+                  onSelect: (id) => {
+                    if (id === videoId) return;
+                    setOptions(null);
+                    playVideo(id);
+                  },
+                },
+              ]
+            : episodeLayout === "list" || !meta
             ? [
                 {
                   title: "Seasons",

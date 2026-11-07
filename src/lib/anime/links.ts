@@ -1,11 +1,11 @@
-import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, type QueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { sync } from "../account/sync";
 import { api } from "../api";
 import { inShell } from "../platform/bridge";
 import { aliasTable, type AnimeLink } from "../library/identity";
 import { keys } from "../net/queryKeys";
-import { linkedImdb, useListedImdb } from "./landscapeArt";
+import { linkedImdb, listedImdbQuery, useListedImdb } from "./landscapeArt";
 
 /**
  * The anime links of the active space (docs/anime-identity.md): which id
@@ -49,4 +49,12 @@ export function useLinkedImdb(anilistId: number) {
   const listed = useListedImdb(anilistId);
   const { data: links } = useQuery({ queryKey: keys.animeLinks, queryFn: animeLinks, staleTime: Infinity });
   return linkedImdb(anilistId, listed, links);
+}
+
+/** {@link useLinkedImdb} for several entries at once (a franchise's season tabs), as a lookup by AniList id. */
+export function useLinkedImdbs(anilistIds: number[]): (anilistId: number) => string | null | undefined {
+  const listed = useQueries({ queries: anilistIds.map(listedImdbQuery) });
+  const { data: links } = useQuery({ queryKey: keys.animeLinks, queryFn: animeLinks, staleTime: Infinity });
+  const byId = new Map(anilistIds.map((id, i) => [id, linkedImdb(id, listed[i]?.data, links)]));
+  return (id) => byId.get(id);
 }

@@ -712,6 +712,21 @@
     background: rgb(0 0 0 / 0.68);
   }
 }
+/* Android: mpv's picture is a surface behind the clear page, shown live under the shade (no frosted
+   copy, OptionsOverlay.tsx). The shade deepens so the options read over a sharp picture, and nothing
+   blends with or filters what's under it: over the surface both redrew wrongly as the panel opened (#181). */
+html[data-os="android"] .options-shade {
+  background: rgb(0 0 0 / 0.68);
+}
+html[data-os="android"] .options-shade::after {
+  content: none;
+}
+html[data-os="android"] .options-columns {
+  transition: transform 340ms var(--ease-reveal);
+  @starting-style {
+    filter: none;
+  }
+}
 
 /* --- Scrubber: a tvOS bar — thick, rounded, no knob at rest. */
 .scrubber {
@@ -1184,8 +1199,8 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
   position: absolute;
   inset: 0;
   z-index: 1;
-  /* A double tap is ours (seek, fullscreen), never the browser's zoom. */
-  touch-action: manipulation;
+  /* Taps, double taps (seek, fullscreen) and pinches (Fit / Fill, #176) are ours, never the browser's zoom. */
+  touch-action: none;
 }
 .player-status {
   z-index: 2; /* above the surface so its buttons work; chrome still on top */
@@ -1900,46 +1915,12 @@ html[data-player="mpv"] .app[data-player-leaving="true"] .main {
     scroll-snap-type: x mandatory;
   }
 }
-/* Paging on desktop (#226): round buttons over the stills' ends, only while there's more that way. */
-.episode-rail-paddle {
-  position: absolute;
-  z-index: 1;
-  top: calc(3px + var(--rail-card-w) * 9 / 32);
-  translate: 0 -50%;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--r-round);
-  background: rgb(0 0 0 / 0.55);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
-  color: #fff;
-  transition:
-    opacity var(--dur-fast) var(--ease-std),
-    transform var(--dur-press) var(--ease-out);
-}
-.episode-rail-paddle[data-dir="prev"] {
-  left: 0.5rem;
-}
-.episode-rail-paddle[data-dir="next"] {
-  right: 0.5rem;
-}
-.episode-rail-paddle:active {
-  transform: scale(0.92);
-}
-.episode-rail-viewport[data-start="true"] .episode-rail-paddle[data-dir="prev"],
-.episode-rail-viewport[data-end="true"] .episode-rail-paddle[data-dir="next"] {
-  opacity: 0;
-  pointer-events: none;
-}
-/* Fingers swipe and remotes step through the cards: no paddles there. */
-@media not ((hover: hover) and (pointer: fine)) {
-  .episode-rail-paddle {
-    display: none;
-  }
-}
-:root[data-tv="true"] .episode-rail-paddle {
-  display: none;
+/* Paging on desktop (#226): Home's shelf paddles (RowPaddle, cards.css), their blurred edge over
+   the stills only. Remotes step through the cards: no paddles on TV. */
+.episode-rail-viewport .row-paddle {
+  top: 3px;
+  bottom: auto;
+  height: calc(var(--rail-card-w) * 9 / 16);
 }
 .episode-rail-card {
   position: relative;

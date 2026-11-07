@@ -13,6 +13,7 @@ import {
   type Anime,
   animeArt,
   type AnimeCard as Card,
+  baseTitle,
   franchiseArt,
   isSeason,
   useAnime,
@@ -20,6 +21,7 @@ import {
   useAnimeTitle,
   useAniZip,
   useLinkedImdb,
+  useLinkedImdbs,
 } from "../lib/anime";
 import { useMeta } from "../lib/net";
 import { usePrefs } from "../lib/settings";
@@ -62,29 +64,40 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
   // A phone's page scrolls as one, the art at its top (Detail.tsx).
   const phone = useFormFactor().form === "phone";
 
+  // The franchise's base title (#246): the series most of its TV entries play from, else its earliest TV
+  // entry, not the chain's first entry (a prequel film would cover the whole series with its art).
+  const linkedOf = useLinkedImdbs(found ? found.map((s) => s.card.id) : []);
+  const base = found && baseTitle(found.map((s) => s.card), linkedOf);
+
   // The IMDb trailer behind the page, as a show's page has (test report 1, item 17): one IMDb id
-  // covers the whole franchise and its trailer is the first season's, so only on the first entry.
+  // covers the whole franchise and its trailer is the base title's, so only on that entry.
   const root = useRef<HTMLDivElement>(null);
   const onTop = usePageOnTop(root);
   const [imdb, setImdb] = useState<string | null>();
   const [scrolledAway, setScrolledAway] = useState(false);
   const bigTrailer = !!useTrailerOpen();
-  // An entry on its own (separate shows) is the first when no season comes before it.
-  const firstKnown = separate ? !!opened : !seasonsLoading;
+  // An entry on its own (separate shows) is the base when no season comes before it.
+  const firstKnown = separate ? !!opened : !seasonsLoading && (!found || !!base);
   const firstEntry = separate
     ? !!opened && !opened.relations.edges.some((e) => e.relationType === "PREQUEL" && e.node.type !== "MANGA" && isSeason(e.node))
-    : firstKnown && (!found || found[0].card.id === activeId);
+    : firstKnown && (!base || base.card.id === activeId);
   const trailer = useBackdropTrailer(firstEntry && imdb?.startsWith("tt") ? imdb : undefined, { active: onTop, paused: scrolledAway || bigTrailer });
   const onImdb = useCallback((id: string | null | undefined) => setImdb(id), []);
 
-  // One background and logo for every season tab (#27): the first entry's linked title's, else its ani.zip art.
+  // One background and logo for every season tab (#27): the base title's linked series, else its ani.zip art.
   // A later entry on its own page (separate shows) has its own ani.zip art.
-  const first = found?.[0].card ?? shown;
+  const first = found ? base?.card : shown;
   const { data: firstZip } = useAniZip(first?.id ?? 0, !!first);
   const firstLinked = useLinkedImdb(first?.id ?? 0);
   const anyMovie = first?.format === "MOVIE" || shown?.format === "MOVIE";
-  // A later entry whose first one has no known link: the title this one plays from, unless a movie is involved (its own title).
-  const resolved = !firstKnown ? undefined : firstEntry ? imdb : separate ? null : (firstLinked ?? (anyMovie ? null : imdb));
+  // Another entry when the base has no known link: the title this one plays from, unless a movie is involved (its own title).
+  const resolved = !firstKnown
+    ? undefined
+    : firstEntry
+      ? (base?.imdb ?? imdb)
+      : separate
+        ? null
+        : (base?.imdb ?? firstLinked ?? (anyMovie ? null : imdb));
   // Kept once found, so switching tabs (each finds its own id again) never blanks the art.
   const kept = useRef<{ first: number; imdb: string | null }>(undefined);
   if (first && resolved !== undefined && kept.current?.first !== first.id) kept.current = { first: first.id, imdb: resolved };
@@ -123,7 +136,7 @@ export function AnimeDetail({ id, preview }: { id: number; preview?: Card }) {
         onScroll={(e) => setScrolledAway(e.currentTarget.scrollTop > e.currentTarget.clientHeight * 0.25)}
       >
         {phone && backdrop}
-        <AnimeHero item={shown} anime={anime} logo={art.logo} background={art.background} name={title(shown.title)} onImdb={onImdb} trailer={trailer} />
+        <AnimeHero item={shown} facts={base?.card} anime={anime} logo={art.logo} background={art.background} name={title(shown.title)} onImdb={onImdb} trailer={trailer} />
         {loaded && <Body anime={loaded} franchise={franchise} switching={!anime} />}
       </div>
     </div>

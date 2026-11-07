@@ -4,7 +4,8 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
 import { IconButton } from "../ui/Button";
-import type { MediaLike } from "./mpvMedia";
+import { isMpv, type MediaLike } from "./mpvMedia";
+import { os } from "../../lib/platform";
 import { prefersReducedMotion, useLayer } from "../../lib/ui";
 import { nearest } from "../../tv/spatial";
 
@@ -162,7 +163,9 @@ export function OptionsOverlay({
       }}
       onPointerCancel={() => (press.current = null)}
     >
-      <VideoBackdrop media={media} />
+      {/* On Android mpv draws on a surface behind the clear page: a frosted snapshot over it jumped every
+          time it was retaken (#181), so the live picture shows through the shade instead. */}
+      {!(os === "android" && isMpv(media)) && <VideoBackdrop media={media} />}
       <div className="options-shade" aria-hidden />
       <IconButton variant="player" className="options-close" onClick={onClose} label="Close" title="Close (Esc)">
         <Close size={26} />

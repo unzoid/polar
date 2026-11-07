@@ -42,16 +42,19 @@ export function posterArt({ imdb, cover, separate = false }: { imdb: string | nu
  * undefined while looking, null when it has none.
  */
 export function useListedImdb(anilistId: number) {
-  return useQuery({
-    queryKey: keys.anime.listedImdb(anilistId),
-    queryFn: () =>
-      call<{ imdb_id?: string | null } | null>("anime_ids", { key: "anilist_id", value: String(anilistId) })
-        .then((m) => m?.imdb_id ?? null)
-        .catch(() => null),
-    staleTime: Infinity,
-    gcTime: 60 * 60_000,
-  }).data;
+  return useQuery(listedImdbQuery(anilistId)).data;
 }
+
+/** The query behind {@link useListedImdb}, for asking several entries at once. */
+export const listedImdbQuery = (anilistId: number) => ({
+  queryKey: keys.anime.listedImdb(anilistId),
+  queryFn: () =>
+    call<{ imdb_id?: string | null } | null>("anime_ids", { key: "anilist_id", value: String(anilistId) })
+      .then((m) => m?.imdb_id ?? null)
+      .catch(() => null),
+  staleTime: Infinity,
+  gcTime: 60 * 60_000,
+});
 
 /**
  * The IMDb id a card links an AniList entry to (#34): the one its page found when it was opened (a stored

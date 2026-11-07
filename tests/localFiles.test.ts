@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { describeDrag, fileId, fileKind, filesMeta, fileTitle, isFileId } from "../src/lib/localFiles";
+import { describeDrag, fileId, fileKind, filePlace, filesMeta, fileTitle, isFileId } from "../src/lib/localFiles";
 import { parseMedia } from "../src/lib/party/messages";
 import { pushed, type Entry } from "../src/lib/router";
 
@@ -55,4 +55,12 @@ test("a file plays without a title page under it", () => {
   const id = fileId("/media/Open Film.mkv");
   const next = pushed(stack, { name: "player", type: "movie", metaId: id, videoId: id }, () => 1);
   expect(next.map((e) => e.route.name)).toEqual(["home", "player"]);
+});
+
+test("the folder list shows a file's length, and its progress only part-way through (#242)", () => {
+  expect(filePlace(undefined)).toEqual({});
+  expect(filePlace({ position: 0, duration: 0 })).toEqual({});
+  expect(filePlace({ position: 0, duration: 1440 })).toEqual({ length: 1440, stopped: undefined });
+  expect(filePlace({ position: 600, duration: 1440 })).toEqual({ length: 1440, stopped: 600 });
+  expect(filePlace({ position: 1440, duration: 1440 })).toEqual({ length: 1440, stopped: undefined });
 });

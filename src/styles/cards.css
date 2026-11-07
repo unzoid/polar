@@ -501,6 +501,10 @@
     --edge-shown: 1;
   }
 }
+/* A card reached by the keys shows them too: there's more that way. */
+.row-viewport:has(:focus-visible) .row-paddle {
+  --edge-shown: 1;
+}
 .row-viewport[data-start="true"] .row-paddle[data-dir="prev"],
 .row-viewport[data-end="true"] .row-paddle[data-dir="next"] {
   --edge-shown: 0;
@@ -522,6 +526,10 @@
     transition: opacity var(--dur-fast) var(--ease-std);
   }
 }
+.row-viewport:has(:focus-visible) .row-paddle .edge-blur i {
+  backdrop-filter: var(--edge-filter);
+  transition: opacity var(--dur-fast) var(--ease-std);
+}
 .row-viewport[data-start="true"] .row-paddle[data-dir="prev"] .edge-blur i,
 .row-viewport[data-end="true"] .row-paddle[data-dir="next"] .edge-blur i {
   backdrop-filter: none;
@@ -533,6 +541,10 @@
   .row-paddle {
     display: none;
   }
+}
+/* Nor with a remote, whose focus would otherwise show them. */
+:root[data-tv="true"] .row-paddle {
+  display: none;
 }
 
 /* --- Edge blur: the navbar's progressive blur, pointed any way. Stacked
