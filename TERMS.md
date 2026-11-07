@@ -1,6 +1,6 @@
 # Terms of Use
 
-Last updated: 06/11/2026
+Last updated: 07/11/2026
 
 These terms apply to the Polarity app and its account service. Polarity is a project run by the maintainers of the
 [github.com/unzoid/polarity](https://github.com/unzoid/polarity) repository. Contact: support@getpolar.app, or an issue on that repository.

@@ -22,12 +22,12 @@ for anything that isn't private.
 
 ## What the account server stores
 
-The account server runs on [Supabase](https://supabase.com). Hosted in: eu-west-3. When you sign
-in, it keeps:
+The account server runs on [Supabase](https://supabase.com). Hosted in the EU: Supabase's eu-west-3 region (Paris,
+France). When you sign in, it keeps:
 
 - **Your email address**, which you sign in with (a login code is emailed to you; there's no password), and the
-  times you signed in. Supabase's sign-in service also keeps its own logs of requests, which include your IP address.
-  How long those are kept: 1 day
+  times you signed in. Supabase's sign-in service also keeps its own logs of requests, which include your IP address;
+  those logs are kept for 1 day.
 - **Signing in on a TV with a code** (Settings → Account → Sign in a TV): while a code is waiting, at most five
   minutes, the server keeps the kind of device that asked (for example "Android TV"), a scrambled form of its IP
   address (to limit how many codes one address can ask for) and, once you approve, which account approved it. It's
@@ -48,8 +48,8 @@ Polarity's account server doesn't keep what you search for, which sources you pi
 downloads or your local files.
 
 **How long:** until you delete it. Removing a title or playlist leaves a small marker so your other devices remove it
-too; markers older than 90 days are cleared when a profile reaches its size limit. Whether and for how long the
-server's backups keep deleted data: **[to fill in from the Supabase plan]**.
+too; markers older than 90 days are cleared when a profile reaches its size limit. Backups of the account server are
+kept for 1 day, so something you delete is gone from them a day later.
 
 ## What stays on your device
 
@@ -96,6 +96,11 @@ These never go to the account server:
   public id (as Watch in Polarity above); for a video to watch together, the video's link is in the part of the
   address after `#`, which browsers don't send to the website. Polarity shows the link and asks before a watch
   party starts with it.
+
+**Android's system backup:** on Android, the system's own backup, if it's on, may copy Polarity's library, watch
+progress and settings to your Google account, as it does for other apps, under
+[Google's privacy policy](https://policies.google.com/privacy). It never copies your keys, add-on links or sign-ins:
+Polarity keeps those out of it. You can turn backups off in your phone's settings.
 
 ## Services your device talks to
 
