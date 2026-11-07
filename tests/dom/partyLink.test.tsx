@@ -3,7 +3,8 @@ import { act } from "react";
 import { LinkConfirm } from "../../src/components/party/LinkConfirm";
 import { usePlayerKeyboard } from "../../src/components/player/usePlayerKeyboard";
 import { LinkForm } from "../../src/components/party/PartyUI";
-import { getParty, leaveParty, linkId } from "../../src/lib/party";
+import { TogetherOffer } from "../../src/components/party/TogetherOffer";
+import { dismissTogether, getParty, getPartySurface, leaveParty, linkId, offerTogether } from "../../src/lib/party";
 import { byText, click, press, render } from "./render";
 
 // Watching a pasted link together (#136).
@@ -23,6 +24,7 @@ const checked: string[] = [];
 afterEach(() => {
   checked.length = 0;
   leaveParty();
+  dismissTogether();
 });
 
 async function typeLink(container: HTMLElement, text: string) {
@@ -94,5 +96,69 @@ test("a YouTube video's link starts the party on its one address, with no file t
   await typeLink(container, "https://youtu.be/abc-DEF_123?si=xxx");
   expect(checked).toEqual([]);
   expect(getParty()?.playback?.media).toMatchObject({ videoId: linkId(url), url, label: "YouTube video" });
+  await unmount();
+});
+
+// Watching together from the browser extension (#208): a polarity://together link only asks.
+
+const SAM = { name: "Sam", avatar: "a1" };
+
+test("a watch-together link shows the link, the page's title and the start, and starts nothing until asked", async () => {
+  const { unmount } = await render(<TogetherOffer />);
+  await act(async () => offerTogether({ url: FILM, at: 75, name: "An open film" }, SAM));
+  expect(document.body.textContent).toContain("Watch together?");
+  expect(document.querySelector("[data-testid='party-link-url']")!.textContent).toBe(FILM);
+  expect(document.querySelector("[data-testid='party-together-name']")!.textContent).toBe("“An open film”");
+  expect(document.body.textContent).toContain("It starts at 1:15");
+  expect(getPartySurface()).toBe("together");
+  expect(getParty()).toBeNull();
+  expect(checked).toEqual([]);
+
+  await press("Escape");
+  expect(document.body.textContent).not.toContain("Watch together?");
+  expect(getParty()).toBeNull();
+
+  await act(async () => offerTogether({ url: FILM, at: 75 }, SAM));
+  // Another link arriving while this one is asked doesn't take its place.
+  await act(async () => offerTogether({ url: "https://media.example.com/other.mp4", at: 0 }, SAM));
+  expect(document.querySelector("[data-testid='party-link-url']")!.textContent).toBe(FILM);
+  await click(byText(document.body, "button", "Watch Together"));
+  await settle();
+  expect(checked).toEqual([FILM]);
+  expect(getParty()?.playback).toMatchObject({ media: { videoId: linkId(FILM), url: FILM }, position: 75, paused: false });
+  expect(document.body.textContent).not.toContain("Watch together?");
+  expect(getPartySurface()).toBeNull();
+  await unmount();
+});
+
+test("a watch-together link to a page says why on the card; signed out it doesn't offer to start", async () => {
+  const { unmount } = await render(<TogetherOffer />);
+  await act(async () => offerTogether({ url: "https://media.example.com/watch.html", at: 0 }, SAM));
+  await click(byText(document.body, "button", "Watch Together"));
+  await settle();
+  expect(document.querySelector("[role='alert']")!.textContent).toContain("That page isn't a video Polarity can play");
+  expect(getParty()).toBeNull();
+  await click(byText(document.body, "button", "OK"));
+  expect(document.body.textContent).not.toContain("Couldn't watch together");
+
+  await act(async () => offerTogether({ url: FILM, at: 0 }, null));
+  expect(document.body.textContent).toContain("Sign in to Polarity to watch together.");
+  expect([...document.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["OK"]);
+  await unmount();
+});
+
+test("in a party, a watch-together link puts the video on for everyone once asked", async () => {
+  const { container, unmount } = await render(
+    <>
+      <LinkForm me={SAM} />
+      <TogetherOffer />
+    </>,
+  );
+  await typeLink(container, FILM);
+  await act(async () => offerTogether({ url: "https://www.youtube.com/watch?v=abc-DEF_123", at: 30 }, SAM));
+  expect(document.body.textContent).toContain("put this on for everyone in your party");
+  await click(byText(document.body, "button", "Watch Together"));
+  await settle();
+  expect(getParty()?.playback?.media.url).toBe("https://www.youtube.com/watch?v=abc-DEF_123");
   await unmount();
 });

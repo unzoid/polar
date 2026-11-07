@@ -124,6 +124,12 @@ pub async fn meta(state: State<'_, AppState>, ty: String, id: String) -> Result<
     Ok(state.addons.meta(&addon.manifest_url, &ty, &id).await?)
 }
 
+/// The IMDb id of a TMDB title (a TMDB page opened in Polarity, #208); `None` without a TMDB key.
+#[tauri::command]
+pub async fn imdb_for_tmdb(state: State<'_, AppState>, ty: String, id: u64) -> Result<Option<String>> {
+    Ok(state.indexer().imdb_for_tmdb(&ty, id).await?)
+}
+
 // --- Streams -------------------------------------------------------------
 
 #[derive(Serialize)]

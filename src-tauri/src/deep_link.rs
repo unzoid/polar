@@ -1,12 +1,14 @@
-//! Links that open Polarity (#153, #154): `polarity://title/…` (a title, from the "Watch in
-//! Polarity" button on someone's Discord profile) and `polarity://party/…` (a watch party's join
-//! link), handed over by the website's /watch and /party pages. The deep-link plugin registers the
+//! Links that open Polarity (#153, #154, #208): `polarity://title/…` and `polarity://anime/…` (a
+//! title, from the "Watch in Polarity" button on someone's Discord profile or the browser
+//! extension's "Open in Polarity"), `polarity://party/…` (a watch party's join link) and
+//! `polarity://together/…` (a video link to watch together, from the browser extension), handed
+//! over by the website's /watch and /party pages. The deep-link plugin registers the
 //! scheme with the system (desktop); the single-instance plugin hands a link opened while Polarity
 //! already runs to the running app instead of starting a second one.
 //!
 //! Links wait here until the webview takes them ([`deep_links_take`]), so one that started the app
 //! isn't lost before the page listens; each arrival is also announced with a `deep-link` event.
-//! The webview reads them as untrusted input (src/lib/links/deepLink.ts): nothing here acts on one.
+//! The webview reads them as untrusted input (src/lib/deepLink/deepLink.ts): nothing here acts on one.
 // The phone apps don't register the scheme yet: nothing arrives there.
 #![cfg_attr(any(target_os = "android", target_os = "ios"), allow(dead_code))]
 
@@ -16,8 +18,9 @@ use crate::locks::Locked;
 
 /// The scheme the website's pages open.
 pub const SCHEME: &str = "polarity";
-/// Longer than any link Polarity makes; anything longer isn't one of ours.
-const MAX_LEN: usize = 512;
+/// Longer than any link Polarity makes (a watch-together link carries a video's address, up to
+/// 2048 characters before it's escaped); anything longer isn't one of ours.
+const MAX_LEN: usize = 8192;
 /// A flood of links (a page opening them in a loop) keeps only the latest few.
 const MAX_WAITING: usize = 8;
 
@@ -82,12 +85,14 @@ mod tests {
     fn keeps_only_polarity_links_and_only_the_latest_few() {
         deep_links_take();
         assert!(keep("polarity://title/movie/tt0000000"));
+        let video = format!("polarity://together/{}", "%2F".repeat(2048));
+        assert!(keep(&video));
         assert!(!keep("https://getpolar.app/watch"));
         assert!(!keep("polarityx://title/movie/tt0000000"));
         assert!(!keep("polarity:title"));
         assert!(!keep("polarity://party/a b"));
-        assert!(!keep(&format!("polarity://party/{}", "a".repeat(600))));
-        assert_eq!(deep_links_take(), ["polarity://title/movie/tt0000000"]);
+        assert!(!keep(&format!("polarity://party/{}", "a".repeat(MAX_LEN))));
+        assert_eq!(deep_links_take(), ["polarity://title/movie/tt0000000".to_string(), video]);
         assert!(deep_links_take().is_empty());
         for n in 0..20 {
             keep(&format!("polarity://party/{n}"));

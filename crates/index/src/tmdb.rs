@@ -220,6 +220,12 @@ impl Tmdb {
         Ok(found)
     }
 
+    /// The IMDb id of TMDB's title `tmdb_id`, if TMDB lists one ("Open in Polarity" from a TMDB
+    /// page, #208). The same cached details request as list results.
+    pub async fn imdb_of(&self, ty: &str, tmdb_id: u64) -> Result<Option<String>> {
+        Ok(self.lookup(ty, tmdb_id).await?.imdb_id)
+    }
+
     pub async fn meta(&self, ty: &str, imdb_id: &str) -> Result<Meta> {
         let tmdb_id = self.find(ty, imdb_id).await?;
         let kind = tmdb_kind(ty);
@@ -743,6 +749,18 @@ mod tests {
         let before = hits.load(Ordering::SeqCst);
         assert_eq!(tmdb.catalog("movie", "popular", 0, None).await.unwrap().len(), PAGE_SIZE as usize);
         assert_eq!(hits.load(Ordering::SeqCst), before, "a page already read was asked for again");
+    }
+
+    #[tokio::test]
+    async fn a_tmdb_id_gives_its_imdb_id() {
+        let (api, hits) = fake_tmdb().await;
+        let tmdb = local(api);
+        assert_eq!(tmdb.imdb_of("movie", 101).await.unwrap().as_deref(), Some("tt101"));
+        // TMDB lists none for this one.
+        assert_eq!(tmdb.imdb_of("movie", 100).await.unwrap(), None);
+        let before = hits.load(Ordering::SeqCst);
+        tmdb.imdb_of("movie", 101).await.unwrap();
+        assert_eq!(hits.load(Ordering::SeqCst), before, "a title already looked up was asked for again");
     }
 
     #[test]

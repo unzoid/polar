@@ -9,23 +9,17 @@ import {
   CODE_LENGTH,
   checkLink,
   deny,
-  getParty,
-  isStreamLink,
   joinParty,
   kick,
   leaveParty,
-  linkMedia,
   makeHost,
   memberStatus,
   normalizeCode,
-  partyAct,
-  startParty,
   useParty,
-  youtubeId,
+  watchLink,
   type Member,
   type PartyState,
 } from "../../lib/party";
-import { api } from "../../lib/api";
 import { Avatar } from "../Avatar";
 import { BusyLabel } from "../BusyLabel";
 import { Spinner } from "../Spinner";
@@ -64,15 +58,7 @@ export function PartyStart({ onStart, me }: { onStart?: () => void; me: Me }) {
   );
 }
 
-/** What the readiness check says of a web page (crates/addon probe.rs). */
-const PAGE = "Answered with a page, not a video";
-
-/**
- * Puts a link on for the whole party (#136), or opens a party on it: once it's a web link that answers
- * with a video, or a YouTube video's link, which plays in YouTube's own embedded player (#201). Other
- * video pages (a site's page around its player) aren't played: the player opens files and HLS/DASH
- * streams only. PartyHost then opens it here, and asks everyone else first.
- */
+/** "Watch a Link" (#136, #201): lib/party/together.ts `watchLink` checks the link and puts it on. */
 export function useWatchLink(me: Me, onDone?: () => void) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -91,36 +77,13 @@ export function useWatchLink(me: Me, onDone?: () => void) {
     if (!link.ok) return setError(link.reason);
     setBusy(true);
     setError(null);
-    const play = () => {
-      const media = linkMedia(link.url);
-      if (getParty()?.playback) partyAct({ media, position: 0, paused: false });
-      else startParty(media, 0, false, me);
+    void watchLink(link.url, me, { wanted: () => alive.current }).then((wrong) => {
+      if (!alive.current) return;
+      setBusy(false);
+      if (wrong) return setError(wrong);
       setText("");
       onDone?.();
-    };
-    // YouTube's player opens it: there's no file to check.
-    if (youtubeId(link.url)) {
-      setBusy(false);
-      return play();
-    }
-    api.streamReady(link.url).then(
-      (r) => {
-        if (!alive.current) return;
-        setBusy(false);
-        // A stream's manifest may come as plain text; the player reads it all the same.
-        if (r.state !== "notReady" || (r.reason === PAGE && isStreamLink(link.url))) return play();
-        setError(
-          r.reason === PAGE
-            ? "That page isn't a video Polarity can play. Paste a YouTube video's link, or the address of a video file or stream (.mp4, .mkv, .m3u8, .mpd…)."
-            : `That link didn't play: ${r.reason}.`,
-        );
-      },
-      (e: Error) => {
-        if (!alive.current) return;
-        setBusy(false);
-        setError(`That link couldn't be checked: ${e.message}`);
-      },
-    );
+    });
   };
   const change = (value: string) => {
     setText(value);

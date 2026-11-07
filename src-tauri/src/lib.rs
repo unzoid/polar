@@ -260,6 +260,7 @@ pub fn run() {
             commands::recommend,
             commands::search,
             commands::meta,
+            commands::imdb_for_tmdb,
             commands::streams,
             commands::resolve_stream,
             torrent::torrent_open,

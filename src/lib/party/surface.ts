@@ -8,6 +8,7 @@
  * - `link`: a link someone put on, shown before it plays here (PartyHost)
  * - `over`: "Watch party over" (removed, or the host ended it)
  * - `discord`: joining from Discord (#154): someone asking to join, or this app joining from a link
+ * - `together`: watching a video together from the browser extension (#208), shown before it starts
  *
  * The player drawn over the app closes `join` and `menu` (PartyHost): a dialog that leads into the
  * player is gone before the player's panel can open. One-time notices that aren't the party's wait
@@ -16,7 +17,7 @@
  */
 import { useSyncExternalStore } from "react";
 
-export type PartySurface = "join" | "menu" | "panel" | "link" | "over" | "discord";
+export type PartySurface = "join" | "menu" | "panel" | "link" | "over" | "discord" | "together";
 
 let current: PartySurface | null = null;
 const listeners = new Set<() => void>();
