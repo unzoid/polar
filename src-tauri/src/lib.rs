@@ -19,6 +19,7 @@ mod ratings;
 mod seekr;
 mod store;
 mod streamcheck;
+mod stremio_links;
 mod sync;
 mod torrent;
 mod trailers;
@@ -188,7 +189,8 @@ pub fn run() {
     // to the running app before anything starts; the running window comes to the front.
     #[cfg(desktop)]
     let builder = builder
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            deep_link::from_args(app, &args);
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
                 let _ = w.set_focus();
@@ -272,6 +274,7 @@ pub fn run() {
             commands::ratings,
             commands::addons_list,
             commands::addons_bundled,
+            commands::addon_preview,
             commands::addon_install,
             commands::addon_remove,
             commands::library_list,
@@ -327,6 +330,7 @@ pub fn run() {
             discord::discord_available,
             discord::discord_presence,
             deep_link::deep_links_take,
+            stremio_links::stremio_links_set,
             player::mpv_command,
             player::mpv_set,
             player::mpv_tune,

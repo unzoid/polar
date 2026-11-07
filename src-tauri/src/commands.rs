@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::join_all;
-use polar_addon::{rank_asked, Asked, Meta, MetaPreview, RankedStream, Stream, WantedEpisode};
+use polar_addon::{rank_asked, Asked, Manifest, Meta, MetaPreview, RankedStream, Stream, WantedEpisode};
 use polar_index::Indexer;
 use polar_library::AnimeLink;
 use serde::Serialize;
@@ -268,6 +268,16 @@ pub fn addons_list(state: State<'_, AppState>) -> Vec<InstalledAddon> {
 #[tauri::command]
 pub fn addons_bundled() -> Vec<String> {
     crate::BUNDLED_ADDONS.iter().map(|u| u.to_string()).collect()
+}
+
+/// An add-on's manifest, read but not installed: what an install link from outside asks the user
+/// to confirm (#163). Only `https://` addresses, the only kind those links stand for.
+#[tauri::command]
+pub async fn addon_preview(state: State<'_, AppState>, url: String) -> Result<Manifest> {
+    if !url.starts_with("https://") || !(url.ends_with("/manifest.json") || url.contains("/manifest.json?")) {
+        return Err(CmdError::Unsupported("Not an add-on's address".into()));
+    }
+    Ok(state.addons.manifest(&url).await?)
 }
 
 #[tauri::command]

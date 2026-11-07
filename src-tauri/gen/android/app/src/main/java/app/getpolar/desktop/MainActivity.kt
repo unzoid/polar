@@ -2,6 +2,9 @@ package app.getpolar.desktop
 
 import android.app.Activity
 import android.app.UiModeManager
+import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.Surface
@@ -17,12 +20,34 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import org.json.JSONArray
 
 class MainActivity : TauriActivity() {
+  private var webView: WebView? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     keepAboveKeyboard()
+    // Recreated (turned, resized): the link that started it was already handed over.
+    if (savedInstanceState == null) IncomingLinks.offer(intent)
+  }
+
+  // A link opened while Polarity runs (the activity is singleTask): to the page at once, once it listens.
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    if (IncomingLinks.offer(intent)) deliverLinks()
+  }
+
+  private var pageListens = false
+
+  // Into the page's main frame only (evaluateJavascript): an embedded frame (a YouTube player) sees
+  // polarDevice too, so links are never returned from a call it could make.
+  fun deliverLinks(fromPage: Boolean = false) {
+    if (fromPage) pageListens = true
+    if (!pageListens) return
+    val links = IncomingLinks.take() ?: return
+    webView?.evaluateJavascript("window.dispatchEvent(new CustomEvent('polar-deep-link', { detail: $links }))", null)
   }
 
   // Edge to edge, the system no longer shrinks the window for the on-screen keyboard (adjustResize is
@@ -59,6 +84,7 @@ class MainActivity : TauriActivity() {
     webView.settings.builtInZoomControls = false
     webView.settings.displayZoomControls = false
     webView.addJavascriptInterface(PolarDevice(this, isTelevision()), "polarDevice")
+    this.webView = webView
   }
 
   private fun isTelevision(): Boolean {
@@ -83,6 +109,22 @@ class PolarDevice(private val activity: Activity, private val tv: Boolean) {
 
   // The player open (src/lib/platform/back.ts, #178): the status and navigation bars hide, and a swipe from
   // the edge shows them for a moment. Closed, they come back.
+  // The page listens for stremio:// links (#163): the ones waiting come as a `polar-deep-link` event
+  // (MainActivity.deliverLinks), untrusted text for src/lib/deepLink.
+  @JavascriptInterface
+  fun linksReady() {
+    (activity as? MainActivity)?.let { main -> activity.runOnUiThread { main.deliverLinks(fromPage = true) } }
+  }
+
+  // Settings → Add-ons → Open Stremio links in Polarity (#163): the activity alias that receives them
+  // (AndroidManifest.xml) is off until this turns it on. With Stremio installed too, Android asks which app.
+  @JavascriptInterface
+  fun setStremioLinks(on: Boolean) {
+    val alias = ComponentName(activity.packageName, "app.getpolar.desktop.StremioLinks")
+    val state = if (on) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+    activity.packageManager.setComponentEnabledSetting(alias, state, PackageManager.DONT_KILL_APP)
+  }
+
   @JavascriptInterface
   fun immersive(on: Boolean) {
     activity.runOnUiThread {
@@ -90,6 +132,36 @@ class PolarDevice(private val activity: Activity, private val tv: Boolean) {
       bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
       if (on) bars.hide(WindowInsetsCompat.Type.systemBars()) else bars.show(WindowInsetsCompat.Type.systemBars())
     }
+  }
+}
+
+/**
+ * Links meant for Stremio that reached the activity (#163), kept until the page takes them: the one
+ * that started the app comes before the page listens. Only stremio:// links, not too long, latest few.
+ */
+object IncomingLinks {
+  private const val MAX_LEN = 4096
+  private const val MAX_WAITING = 8
+  private val waiting = ArrayDeque<String>()
+
+  @Synchronized
+  fun offer(intent: Intent?): Boolean {
+    if (intent?.action != Intent.ACTION_VIEW) return false
+    val link = intent.dataString ?: return false
+    val ours = link.startsWith("stremio://", ignoreCase = true) && link.length <= MAX_LEN && link.all { it in '!'..'~' }
+    if (!ours) return false
+    waiting.addLast(link)
+    while (waiting.size > MAX_WAITING) waiting.removeFirst()
+    return true
+  }
+
+  /** The waiting links as a JSON array, or null when there are none. */
+  @Synchronized
+  fun take(): String? {
+    if (waiting.isEmpty()) return null
+    val links = JSONArray(waiting.toList()).toString()
+    waiting.clear()
+    return links
   }
 }
 

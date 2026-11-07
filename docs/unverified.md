@@ -796,6 +796,32 @@ Polarity signed in. Check:
 6. Linux: the .deb/.rpm register polarity:// on install; an AppImage registers it when it first runs.
    Windows: the installer registers it. macOS: the app bundle does.
 
+## Opening Stremio links in Polarity (#163)
+
+Checked here: link parsing and where each kind goes, the setting's off state, and that an install link
+never installs without Install (`tests/stremioLinks.test.ts`); the shell keeping stremio:// links
+(`deep_link.rs` test); end to end in the browser shell (e2e: off by default, turning it on, Cancel and
+Install, an add-on that can't be read, an episode link, an unknown link). src-tauri is type-checked for
+Windows, macOS, Linux, Android and iOS but doesn't link here; the Android Kotlin compiles in CI only.
+Not run: a real handler registration on any system. With an add-on configuration page that has an
+"Install" button for Stremio (or a test page with a `stremio://addon.example.com/manifest.json` link
+pointing at a real add-on you trust), check on each system, with and without Stremio installed:
+1. Settings → Add-ons → Open Stremio links in Polarity is off on a fresh install. With Stremio installed,
+   its links still open Stremio; without it, Windows and Linux say no app opens them; macOS may open
+   Polarity, which only says the setting is off.
+2. Turn it on. Windows: the link opens Polarity (a running Polarity comes to the front). Turn it off:
+   with a per-user Stremio, its links open Stremio again; with no Stremio, nothing opens them.
+   Linux: `xdg-mime query default x-scheme-handler/stremio` names Polarity's handler while on, and no
+   longer once off. macOS: on, links open Polarity; off, they go back to Stremio when it's installed.
+   Android: on, a link offers Polarity (with Stremio installed too, Android asks which app); off, it
+   doesn't.
+3. An install link shows the add-on's name, description and address with Install and Cancel. Cancel:
+   not in Settings → Add-ons. Install: listed there.
+4. A title link (`stremio:///detail/movie/tt…`) opens its page; an episode link
+   (`stremio:///detail/series/tt…/tt…:1:2`) opens the show on that season with that episode's sources
+   listed, nothing playing. A show Polarity opens on its anime page opens there, without picking the episode.
+5. Any other stremio:// link opens Home with a note that Polarity can't open it.
+
 ## Watch party reliability (#203)
 
 The party log, the heals and their harness: `lib/party/log.ts`, `lib/party/room.ts`, the reconnect in

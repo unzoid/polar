@@ -53,3 +53,8 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 jni = "0.21"
 libc = "0.2"
 ndk-context = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+# "Open Stremio links in Polarity" (#163) keeps and puts back the scheme's registration it replaces;
+# the version the deep-link plugin already uses.
+windows-registry = "0.6"
