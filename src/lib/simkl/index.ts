@@ -12,6 +12,7 @@ export * from "./queue";
 export * from "./ratings";
 export * from "./scrobble";
 export * from "./signIn";
+export * from "./simklImport";
 export * from "./simklSync";
 export * from "./useSimklLink";
 export * from "./useSimklTitle";

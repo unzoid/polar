@@ -50,6 +50,15 @@ beforeEach(() => {
     if (path === "/oauth2/token") return tokenAnswer();
     if (path === "/users/settings") return json({ user: { name: "Someone" }, account: { id: 42 } });
     if (path === "/oauth2/revoke") return json({});
+    if (path === "/sync/all-items/movies")
+      return json({
+        movies: [
+          { status: "completed", last_watched_at: "2026-03-03T00:00:00Z", movie: { title: "Night Train", ids: { simkl: 1, imdb: "tt0000001" } } },
+          { status: "plantowatch", movie: { title: "Morning Ferry", ids: { simkl: 2, imdb: "tt0000004" } } },
+          { status: "plantowatch", movie: { title: "Unknown", ids: { simkl: 3 } } },
+        ],
+      });
+    if (path.startsWith("/sync/all-items/")) return json({});
     return new Response(null, { status: 404 });
   }) as unknown as typeof fetch;
 });
@@ -122,4 +131,40 @@ test("a sign-in allowed read-only isn't kept: it says why and offers a new code"
   expect(asked.at(-1)).toMatchObject({ path: "/oauth2/revoke", body: { token: "NEWR" } });
   expect(byText(view.container, "button", "Get a new code")).toBeTruthy();
   await view.unmount();
+}, 20_000);
+
+test("Settings: a linked profile imports its Simkl Plan to Watch and watched films into the library", async () => {
+  keychain.set(simklLinkName(null), JSON.stringify(link));
+  const imported: { library: { id: string }[]; progress: { videoId: string }[] }[] = [];
+  const w = window as { __TAURI_INTERNALS__?: unknown };
+  w.__TAURI_INTERNALS__ = {
+    invoke: async (cmd: string, args: { library: { id: string }[]; progress: { videoId: string }[] }) => {
+      if (cmd !== "library_import") return null;
+      imported.push(args);
+      return { library: args.library.length, progress: args.progress.length };
+    },
+  };
+  try {
+    const view = await wrap(<ServicesPage />);
+    await settle();
+    await click(byText(view.container, ".settings-row-title, .settings-row-button *", "Simkl").closest("button"));
+    await click(byText(view.container, "button", "Import from Simkl…"));
+    for (let i = 0; i < 100 && !view.container.textContent?.includes("on Plan to Watch."); i++) await settle(10);
+    expect(view.container.textContent).toContain("1 title on Plan to Watch. 1 film watched. 1 title without an IMDb page or a Kitsu entry left out.");
+    expect(asked.filter((a) => a.path.startsWith("/sync/all-items/")).map((a) => a.path)).toEqual([
+      "/sync/all-items/shows",
+      "/sync/all-items/movies",
+      "/sync/all-items/anime",
+    ]);
+    await click(byText(view.container, "label", "Mark watched films and episodes").querySelector("input"));
+    await click(byText(view.container, "button", "Import"));
+    await settle();
+    expect(imported).toHaveLength(1);
+    expect(imported[0].library.map((l) => l.id)).toEqual(["tt0000004"]);
+    expect(imported[0].progress).toEqual([]);
+    expect(view.container.textContent).toContain("Added 1 title to your library and 0 watched films and episodes.");
+    await view.unmount();
+  } finally {
+    delete w.__TAURI_INTERNALS__;
+  }
 }, 20_000);

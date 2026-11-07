@@ -13,6 +13,7 @@ import { useKeyGate, type KeyKind } from "../../components/settings/KeyWarning";
 import { ListImport } from "../../components/settings/ListImport";
 import { TraktImport } from "../../components/settings/TraktImport";
 import { TraktSignIn } from "../../components/settings/TraktSignIn";
+import { SimklImport } from "../../components/settings/SimklImport";
 import { SimklSignIn } from "../../components/settings/SimklSignIn";
 import {
   anilistAuthorizeUrl,
@@ -388,6 +389,7 @@ function SimklRow(props: Expandable) {
             <span>Keep the library and Simkl's Plan to Watch in step</span>
             <Switch checked={!!link.watchlist} disabled={watchlist.isPending} onChange={(on) => watchlist.mutate(on)} />
           </label>
+          <SimklImport space={space} />
         </>
       ) : !simklReady() ? (
         <p className="settings-expand-text">Not set up in this build: signing in to Simkl needs Polarity registered with Simkl first.</p>

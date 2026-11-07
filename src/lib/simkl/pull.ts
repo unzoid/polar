@@ -112,7 +112,7 @@ export function noteSimklItem(space: string | null, id: string, item: SimklItem 
 }
 
 /** One entry of an all-items answer, read: where it is, and what it is in Polarity. */
-interface Entry {
+export interface SimklEntry {
   id: string;
   type: ContentType;
   name: string;
@@ -120,7 +120,7 @@ interface Entry {
   raw: Record<string, unknown>;
 }
 
-function readEntry(kind: SimklKind, v: unknown): Entry | undefined {
+function readEntry(kind: SimklKind, v: unknown): SimklEntry | undefined {
   if (!isRecord(v)) return undefined;
   const title = isRecord(v.movie) ? v.movie : isRecord(v.show) ? v.show : undefined;
   const status = str(v.status) === "notinteresting" ? "dropped" : str(v.status);
@@ -140,7 +140,7 @@ function readEntry(kind: SimklKind, v: unknown): Entry | undefined {
  * seasons; a Kitsu anime's only when Simkl lists them as one season, numbered from the first as
  * Polarity numbers them, and an anime Simkl knows only by IMDb's id not at all.
  */
-export function watchedSince(entry: Entry, since: number): Progress[] {
+export function watchedSince(entry: SimklEntry, since: number): Progress[] {
   const { id, type, name, raw } = entry;
   const base = { metaId: id, type, name, position: 1, duration: 1 };
   if (type === "movie") {
@@ -167,9 +167,10 @@ export function watchedSince(entry: Entry, since: number): Progress[] {
   return out;
 }
 
-const entriesOf = (kind: SimklKind, answer: unknown): Entry[] => {
+/** The entries of an all-items answer Polarity can play: those with an IMDb id, or for anime a Kitsu number. */
+export const entriesOf = (kind: SimklKind, answer: unknown): SimklEntry[] => {
   const list = isRecord(answer) ? answer[kind] : undefined;
-  return Array.isArray(list) ? list.map((v) => readEntry(kind, v)).filter((e): e is Entry => !!e) : [];
+  return Array.isArray(list) ? list.map((v) => readEntry(kind, v)).filter((e): e is SimklEntry => !!e) : [];
 };
 
 /** The bare Simkl numbers of a `simkl_ids_only` answer. */
