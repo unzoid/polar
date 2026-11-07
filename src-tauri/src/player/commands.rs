@@ -89,6 +89,10 @@ pub async fn mpv_load(
     let headers =
         if local { Vec::new() } else { polar_player::headers::playback_headers(&headers.unwrap_or_default()) };
     let url = if local { url } else { crate::streamcheck::prepare(&app, &url, headers.clone(), probe_id).await? };
+    // Where the check ended up must still be a web link (it refuses redirects off the web itself).
+    if !local && !is_web_url(&url) {
+        return Err(CmdError::Unsupported("only http(s) streams, downloads and files you opened can be played".into()));
+    }
     state.mpv.touch();
     state.mpv.ensure(&app, &window).await.map_err(CmdError::Player)?;
     let mut options = String::new();

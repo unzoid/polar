@@ -35,6 +35,8 @@ pub trait Files: Send + Sync + 'static {
 /// The longest request head read; players send a few hundred bytes.
 const MAX_HEAD: usize = 8 * 1024;
 const HEAD_TIMEOUT: Duration = Duration::from_secs(10);
+/// Connections answered at once; a player uses one or two. Past it a new one is closed unanswered.
+const MAX_CONNECTIONS: usize = 32;
 
 pub struct Server {
     addr: SocketAddr,
@@ -48,14 +50,24 @@ impl Server {
         let addr = listener.local_addr()?;
         let token = token()?;
         let prefix = format!("/{token}/");
+        let open = Arc::new(tokio::sync::Semaphore::new(MAX_CONNECTIONS));
         tokio::spawn(async move {
             loop {
-                let Ok((socket, _)) = listener.accept().await else { continue };
+                let socket = match listener.accept().await {
+                    Ok((socket, _)) => socket,
+                    // Out of file handles, say: wait a moment rather than spin.
+                    Err(_) => {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
+                };
+                let Ok(permit) = open.clone().try_acquire_owned() else { continue };
                 let (files, prefix) = (files.clone(), prefix.clone());
                 tokio::spawn(async move {
                     if let Err(e) = answer(socket, &*files, &prefix).await {
                         tracing::debug!("stream request ended: {e}");
                     }
+                    drop(permit);
                 });
             }
         });
@@ -164,7 +176,7 @@ fn parse(head: &str, prefix: &str) -> Result<Request, u16> {
         "HEAD" => true,
         _ => return Err(405),
     };
-    let rest = target.strip_prefix(prefix).ok_or(404u16)?;
+    let rest = strip_token(target, prefix).ok_or(404u16)?;
     let (id, name) = rest.split_once('/').ok_or(404u16)?;
     let id = id.parse().map_err(|_| 404u16)?;
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
@@ -176,6 +188,15 @@ fn parse(head: &str, prefix: &str) -> Result<Request, u16> {
         }
     }
     Ok(Request { id, ext, head, range })
+}
+
+/// `target` after `prefix` (the token), compared in full so the time taken doesn't tell how much of
+/// a guess was right.
+fn strip_token<'a>(target: &'a str, prefix: &str) -> Option<&'a str> {
+    let head = target.as_bytes().get(..prefix.len())?;
+    let differs = head.iter().zip(prefix.as_bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b));
+    // Equal bytes up to a char boundary: the slice below can't split a character.
+    (differs == 0).then(|| &target[prefix.len()..])
 }
 
 fn parse_range(value: &str) -> Option<Range> {
@@ -325,5 +346,37 @@ mod tests {
         assert!(head.starts_with("HTTP/1.1 404"));
         let (head, _) = get(&server, "/wrong-token/7/video.mkv", None).await;
         assert!(head.starts_with("HTTP/1.1 404"));
+    }
+
+    #[tokio::test]
+    async fn idle_connections_past_the_limit_are_closed() {
+        let server = Server::start(Arc::new(Memory(vec![1; 10]))).await.unwrap();
+        let mut held = Vec::new();
+        for _ in 0..MAX_CONNECTIONS {
+            held.push(TcpStream::connect(server.addr).await.unwrap());
+        }
+        // Each held connection has been taken in before the next one knocks.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let mut extra = TcpStream::connect(server.addr).await.unwrap();
+        let mut buf = [0u8; 16];
+        let read = tokio::time::timeout(Duration::from_secs(2), extra.read(&mut buf)).await;
+        assert!(matches!(read, Ok(Ok(0)) | Ok(Err(_))), "{read:?}");
+
+        // One lets go: a new request is answered again.
+        drop(held.pop());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let link = server.url(7, None);
+        let path = &link[link.find(&format!("/{}", server.token)).unwrap()..];
+        let (head, body) = get(&server, path, None).await;
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        assert_eq!(body, vec![1; 10]);
+    }
+
+    #[test]
+    fn the_token_is_compared_whole() {
+        assert_eq!(strip_token("/abc/7/video", "/abc/"), Some("7/video"));
+        assert_eq!(strip_token("/abd/7/video", "/abc/"), None);
+        assert_eq!(strip_token("/ab", "/abc/"), None);
+        assert_eq!(strip_token("", "/abc/"), None);
     }
 }

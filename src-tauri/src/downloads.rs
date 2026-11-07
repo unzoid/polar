@@ -315,8 +315,9 @@ impl Downloads {
         // Always ask for a range, as a video player does: some file hosts
         // refuse a plain GET with 400.
         let mut req = self.http.get(&d.url).header(reqwest::header::RANGE, format!("bytes={have}-"));
-        for (k, v) in &d.headers {
-            req = req.header(k.as_str(), v.as_str());
+        // The same few the player sends (`polar_player::headers`), never one that would change the request itself.
+        for (k, v) in polar_player::headers::playback_headers(&d.headers) {
+            req = req.header(k, v);
         }
         let mut res = match tokio::time::timeout(IDLE, req.send()).await {
             Ok(sent) => sent.map_err(|e| format!("Couldn't reach the source: {e}"))?,
