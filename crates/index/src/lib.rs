@@ -191,17 +191,27 @@ impl Indexer {
     }
 
     pub async fn search(&self, ty: &str, query: &str) -> Result<Vec<MetaPreview>> {
+        self.search_in(ty, query, None).await
+    }
+
+    /// A search narrowed to titles released in `year` where the backend can
+    /// (TMDB); Cinemeta's search has no year, so it answers the plain search.
+    pub async fn search_in(&self, ty: &str, query: &str, year: Option<u16>) -> Result<Vec<MetaPreview>> {
         check_type(ty)?;
         let query = query.trim();
         if query.is_empty() {
             return Ok(Vec::new());
         }
-        let key = format!("{ty}/search/{}", query.to_lowercase());
+        let year = year.filter(|_| matches!(self.backend, Backend::Tmdb(_)));
+        let key = match year {
+            Some(y) => format!("{ty}/search/{y}/{}", query.to_lowercase()),
+            None => format!("{ty}/search/{}", query.to_lowercase()),
+        };
         if let Some(hit) = self.catalogs.get(&key) {
             return Ok(hit);
         }
         let metas = match &self.backend {
-            Backend::Tmdb(t) => t.search(ty, query).await?,
+            Backend::Tmdb(t) => t.search(ty, query, year).await?,
             Backend::Cinemeta(c) => c.search(ty, query).await?,
         };
         self.catalogs.insert(key, metas.clone());
@@ -233,6 +243,19 @@ impl Indexer {
         };
         self.metas.insert(key, meta.clone());
         Ok(meta)
+    }
+
+    /// The IMDb id of a TMDB title, for links that carry TMDB's id (#208). Only TMDB knows its own
+    /// ids: without a TMDB key this is `None`, and so is a title TMDB lists no IMDb id for.
+    pub async fn imdb_for_tmdb(&self, ty: &str, tmdb_id: u64) -> Result<Option<String>> {
+        check_type(ty)?;
+        match &self.backend {
+            Backend::Tmdb(t) => match t.imdb_of(ty, tmdb_id).await {
+                Err(IndexError::NotFound) => Ok(None),
+                found => found,
+            },
+            Backend::Cinemeta(_) => Ok(None),
+        }
     }
 
     /// The addon manifest, so the index can also be mounted as a Stremio addon.
@@ -276,5 +299,17 @@ fn check_type(ty: &str) -> Result<()> {
     match ty {
         "movie" | "series" => Ok(()),
         _ => Err(IndexError::NotFound),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn tmdb_ids_need_a_tmdb_key() {
+        let ix = Indexer::new(IndexConfig::default());
+        assert_eq!(ix.imdb_for_tmdb("movie", 603).await.unwrap(), None);
+        assert!(ix.imdb_for_tmdb("anime", 603).await.is_err());
     }
 }

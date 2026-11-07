@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { batterySaver, detectIpad, detectOs, detectTvDevice, onMobileData } from "../src/lib/platform/device";
+import { batterySaver, canEmbedOtherSites, detectIpad, detectOs, detectTvDevice, onMobileData } from "../src/lib/platform/device";
 
 test("detectOs reads the webview's navigator", () => {
   expect(detectOs({ platform: "Win32", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" })).toBe("windows");
@@ -48,4 +48,9 @@ test("mobile data and battery saver come from Android's bridge, false without it
     },
   };
   expect(onMobileData(broken)).toBe(false);
+});
+
+test("other sites' pages play in a frame inside the app everywhere but Android", () => {
+  expect(canEmbedOtherSites("android")).toBe(false);
+  for (const o of ["windows", "macos", "linux", "ios"] as const) expect(canEmbedOtherSites(o)).toBe(true);
 });

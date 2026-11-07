@@ -67,6 +67,40 @@ function Sections({ sections }: { sections: InfoSection[] }) {
       {sections.map((s) => (
         <section key={s.title} className="source-info-section">
           <h3 className="source-info-heading">{s.title}</h3>
+          {s.table && (
+            // Phones scroll it sideways when it's wider than the card.
+            <div className="source-info-table-wrap">
+              <table className="source-info-table">
+                <thead>
+                  <tr>
+                    {s.table.head.map((h) => (
+                      <th key={h} scope="col">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {s.table.rows.map((cells, i) => (
+                    <tr key={i} data-na={cells[1] === "n/a" || undefined}>
+                      <th scope="row">{cells[0]}</th>
+                      {cells.slice(1).map((x, c) => (
+                        <td key={c}>{x}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">{s.table.total[0]}</th>
+                    {s.table.total.slice(1).map((x, c) => (
+                      <td key={c}>{x}</td>
+                    ))}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
           <dl>
             {s.rows.map((r, i) => (
               <div key={`${r.label}-${i}`} className="source-info-row">

@@ -17,6 +17,27 @@ describe("playContext", () => {
     expect(again.altIds("tt0000102:2:6")).toBeUndefined();
   });
 
+  test("#83, #84: each episode keeps its AniList and MAL entry and that entry's episode count, across a restart", () => {
+    const disk = memory();
+    const s = playContextStore(disk);
+    s.remember("tt0000104", { mal: 51, kitsu: 61, anilist: 71, count: 2 }, [
+      ["tt0000104:1:1", 1],
+      ["tt0000104:1:2", 2],
+    ]);
+    s.remember("tt0000104", { kitsu: 62, anilist: 72 }, [["tt0000104:2:1", 1]]);
+    const again = playContextStore(disk);
+    expect(again.listEpisode("tt0000104:1:2")).toEqual({ anilist: 71, mal: 51, episode: 2, total: 2 });
+    expect(again.listEpisode("tt0000104:2:1")).toEqual({ anilist: 72, episode: 1, total: null });
+    expect(again.episode("tt0000104:1:2")).toEqual({ mal: 51, kitsu: 61, episode: 2 });
+    // Lined up with a MAL id only: a MAL list can still be told.
+    s.remember("tt0000105", { mal: 1 }, [["tt0000105:1:1", 1]]);
+    expect(s.listEpisode("tt0000105:1:1")).toEqual({ mal: 1, episode: 1, total: null });
+    // Neither id (a Kitsu-only entry): nothing to tell a list.
+    s.remember("tt0000107", { kitsu: 3 }, [["tt0000107:1:1", 1]]);
+    expect(s.listEpisode("tt0000107:1:1")).toBeUndefined();
+    expect(s.listEpisode("tt0000104:3:1")).toBeUndefined();
+  });
+
   test("a Kitsu episode carries its own number and Kitsu id", () => {
     const disk = memory();
     const s = playContextStore(disk);

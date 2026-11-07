@@ -40,6 +40,9 @@ test("tabs, a title page and the player by touch", async ({ app }) => {
   await player.tap({ position: { x: 200, y: 300 } });
   await expect(player).toHaveAttribute("data-chrome", "false");
   await player.tap({ position: { x: 200, y: 300 } });
+  // An Android phone's volume buttons set the volume: no slider, Mute still there (#179).
+  await expect(player.getByRole("slider", { name: "Volume" })).toHaveCount(0);
+  await expect(player.getByRole("button", { name: "Mute" })).toBeVisible();
   await player.getByRole("button", { name: "Back", exact: true }).tap();
   await expect(player).toHaveCount(0);
 });
@@ -48,6 +51,19 @@ test("search on a phone", async ({ app }) => {
   await app.getByRole("button", { name: "Search", exact: true }).tap();
   await app.getByRole("textbox", { name: "Search" }).fill("orchard");
   await expect(card(app, "Orchard House")).toBeVisible();
+  expect(await fitsWidth(app)).toBe(true);
+});
+
+test("an add-on's catalogs switched on show as Home rows and fit a phone (#206)", async ({ app }) => {
+  await app.addInitScript(() =>
+    localStorage.setItem("polar.prefs", JSON.stringify({ ...JSON.parse(localStorage.getItem("polar.prefs") ?? "{}"), addonCatalogsHome: '{"on":["example.lists"],"order":[]}' })),
+  );
+  await app.reload();
+  const picks = app.locator('[data-addon-row="picks"]');
+  await expect(picks.getByRole("button", { name: "Staff Picks · Example Lists" })).toBeVisible();
+  await expect(picks.locator(".card")).toHaveCount(4);
+  await picks.locator(".card").first().tap();
+  await expect(app.getByRole("heading", { level: 1 })).toBeVisible();
   expect(await fitsWidth(app)).toBe(true);
 });
 
@@ -240,6 +256,8 @@ test("on a phone, a long press on a source opens its info; no i button shows (#2
   const panel = app.getByRole("dialog", { name: "Source Info" });
   await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
   expect(await panel.textContent()).not.toContain("TOKEN0000");
+  // Best Match's table scrolls sideways inside the card, never the page (#274).
+  await expect(panel.getByRole("table").getByRole("rowheader", { name: "Total" })).toBeAttached();
   expect(await fitsWidth(app)).toBe(true);
   await panel.getByRole("button", { name: "Done" }).tap();
   await expect(panel).toHaveCount(0);

@@ -1,5 +1,5 @@
-//! Discord Rich Presence (#31): what plays, on the user's Discord profile, when they turn it on
-//! (Settings → Playback; off by default). Talks to the Discord app on this machine over its local
+//! Discord Rich Presence (#31): what plays, on the user's Discord profile, as Settings → Playback
+//! has it (by default only that Polarity is in use, #150; the title only when the user picks it). Talks to the Discord app on this machine over its local
 //! IPC socket (a named pipe on Windows): a handshake with the app's client id, then `SET_ACTIVITY`.
 //! The client id is Polarity's Discord application ([`APP_ID`]); a build can use another with
 //! `POLAR_DISCORD_CLIENT_ID`, or none by setting it empty. Without an id, or on a machine where
@@ -25,6 +25,31 @@ pub struct Activity {
     /// An https picture (the poster), and its hover text.
     pub image: Option<String>,
     pub image_text: Option<String>,
+    /// Up to two link buttons others see on the profile (#153): only to the website's hand-over pages.
+    #[serde(default)]
+    pub buttons: Vec<Button>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct Button {
+    pub label: String,
+    pub url: String,
+}
+
+/// Where a button may point: the website's pages that hand over to the app, nothing else.
+const BUTTON_SITE: &str = "https://getpolar.app/";
+
+/// The buttons Discord takes: two at most, a 1-32 character label, a link to [`BUTTON_SITE`] of
+/// 512 characters at most.
+fn buttons(all: &[Button]) -> Vec<Button> {
+    all.iter()
+        .filter(|b| b.url.starts_with(BUTTON_SITE) && b.url.len() <= 512 && b.url.bytes().all(|c| c.is_ascii_graphic()))
+        .filter_map(|b| {
+            let label: String = b.label.trim().chars().take(32).collect();
+            (!label.is_empty()).then(|| Button { label, url: b.url.clone() })
+        })
+        .take(2)
+        .collect()
 }
 
 /// Polarity's application in Discord's Developer Portal, named "Polarity", which is what profiles
@@ -74,6 +99,11 @@ fn payload(a: &Activity) -> serde_json::Value {
             assets["large_text"] = text.into();
         }
         out["assets"] = assets;
+    }
+    // Discord refuses an activity with both buttons and a join secret: Polarity uses buttons only.
+    let buttons = buttons(&a.buttons);
+    if !buttons.is_empty() {
+        out["buttons"] = serde_json::to_value(buttons).unwrap();
     }
     out
 }
@@ -294,6 +324,7 @@ mod tests {
             end: Some(2_000),
             image: Some("https://media.example.com/poster.jpg".into()),
             image_text: Some("The Lantern Keepers".into()),
+            buttons: vec![],
         }
     }
 
@@ -320,10 +351,37 @@ mod tests {
             end: None,
             image: Some("http://media.example.com/poster.jpg".into()),
             image_text: None,
+            buttons: vec![],
         };
         assert_eq!(payload(&a), serde_json::json!({ "type": 3, "details": "x " }));
         let long = Activity { details: "y".repeat(300), ..a };
         assert_eq!(payload(&long)["details"].as_str().unwrap().chars().count(), 128);
+    }
+
+    #[test]
+    fn buttons_only_link_to_the_website_and_keep_to_discords_limits() {
+        let b = |label: &str, url: &str| Button { label: label.into(), url: url.into() };
+        let a = Activity {
+            buttons: vec![
+                b("Watch in Polarity", "https://getpolar.app/watch?type=movie&id=tt0000000"),
+                b("Elsewhere", "https://media.example.com/film.mkv"),
+                b("Look-alike", "https://getpolar.app.example.com/party"),
+                b("   ", "https://getpolar.app/party?t=xxx"),
+                b(&"J".repeat(40), "https://getpolar.app/party?t=xxx"),
+                b("Third", "https://getpolar.app/party?t=yyy"),
+            ],
+            ..activity()
+        };
+        assert_eq!(
+            payload(&a)["buttons"],
+            serde_json::json!([
+                { "label": "Watch in Polarity", "url": "https://getpolar.app/watch?type=movie&id=tt0000000" },
+                { "label": "J".repeat(32), "url": "https://getpolar.app/party?t=xxx" },
+            ])
+        );
+        assert!(payload(&activity()).get("buttons").is_none());
+        let none_left = Activity { buttons: vec![b("Elsewhere", "http://getpolar.app/watch")], ..activity() };
+        assert!(payload(&none_left).get("buttons").is_none());
     }
 
     #[test]

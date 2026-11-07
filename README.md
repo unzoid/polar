@@ -34,7 +34,7 @@
 </p>
 
 Polarity is a player for media you're entitled to watch. It doesn't host, provide, index or recommend
-content, and it comes with nothing to play from: you choose the add-ons you install, and you're responsible for them.
+content, and it comes with nothing to play from: you choose the add-ons you install.
 
 **Contents:** [Download](#download) · [What's in it](#whats-in-it) · [Getting started](#getting-started) ·
 [Your data](#your-data) · [FAQ](#faq) · [Building from source](#building-from-source) · [Contributing](#contributing) ·
@@ -50,7 +50,7 @@ and on Linux as an AppImage, the app updates itself when a new version is out.
 | Windows | `Polarity_<version>_x64-setup.exe`, or the `.msi` | Windows 10 or 11, 64-bit. The installer adds Microsoft's WebView2 if it's missing. |
 | macOS | `Polarity_<version>_aarch64.dmg` | macOS 11 or later on Apple Silicon |
 | Linux | `.AppImage`, `.deb` or `.rpm` | 64-bit, with glibc as new as Ubuntu 22.04's. The `.deb` and `.rpm` install mpv with it. |
-| Android, iOS | not released yet | Built in CI on every push, never yet tried on a device |
+| Android, iOS | not released yet | Built in CI on every push |
 
 > [!NOTE]
 > Not every release carries every platform yet: the releases page lists what each one has. The Windows
@@ -71,6 +71,7 @@ and on Linux as an AppImage, the app updates itself when a new version is out.
         <li>Search with recent searches</li>
         <li>IMDb ratings on cards and title pages, and trailers on the title backdrop</li>
         <li>A calendar built from the shows in your library and the ones you're watching</li>
+        <li>Notifications when a show you follow has a new episode or season, or a download finishes (off until you turn them on)</li>
       </ul>
     </td>
     <td width="50%" valign="top">
@@ -105,7 +106,7 @@ and on Linux as an AppImage, the app updates itself when a new version is out.
       <ul>
         <li>Optional accounts and profiles with their own avatars, synced between your devices</li>
         <li>Watch parties that keep everyone's player in step, with a code to join and host controls</li>
-        <li>Show on Discord what you're watching, or only that you are (desktop, if you turn it on)</li>
+        <li>Show on Discord that you're watching (the default, desktop), what you're watching, or nothing, with buttons to watch the same title or join your watch party</li>
         <li>TV mode for the couch, with a controller or the arrow keys</li>
       </ul>
     </td>
@@ -181,7 +182,7 @@ while battery saver is on. iPhone and iPad don't play them.
 2. Optionally add a free TMDB API key in Settings → Services, for logos, sharper posters and episode details.
 
 > [!TIP]
-> You don't need an account. Polarity works fully signed out; an account only adds sync between your devices,
+> You don't need an account. Polarity works fully signed out, an account only adds sync between your devices,
 > profiles and watch parties.
 
 ## Your data
@@ -272,6 +273,10 @@ You'll need [Rust](https://rustup.rs) and [Bun](https://bun.sh), and for your pl
 bun install
 bun run app
 ```
+
+Notifications (Settings → Notifications) show only from an installed or bundled build: on macOS the `.app`
+(`bunx tauri build --debug --bundles app`), not the bare binary `bun run app` starts; on Windows the installed app,
+whose Start menu shortcut carries the app's id.
 
 Accounts and watch parties need a Supabase project: copy `.env.example` to `.env` and fill it in
 ([docs/supabase-storage.md](docs/supabase-storage.md)). Leave it out and the app runs without accounts.

@@ -10,6 +10,7 @@ import { Card, ExpandRow, useExpanded, type Expandable } from "../../components/
 import { SettingRow } from "../../components/settings/SettingRow";
 import { os } from "../../lib/platform";
 import { useAccount } from "../../lib/account";
+import { LetterboxdImport } from "../../components/settings/LetterboxdImport";
 import { StremioImport } from "../../components/settings/StremioImport";
 
 export function AdvancedPage() {
@@ -44,6 +45,7 @@ export function AdvancedPage() {
       </Card>
       {/* Signed in, it's under Account. */}
       {!account.profile && <StremioImport />}
+      {!account.profile && <LetterboxdImport />}
       <Card title="Reset">
         <ResetRow {...expand("reset")} />
       </Card>

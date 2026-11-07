@@ -135,6 +135,17 @@ export const SETTINGS: SettingDef[] = [
   },
   { id: "copySetup", page: "account", title: "Add-ons and Keys", keywords: "copy addons api keys profile guest device start" },
   { id: "stremioImport", page: "account", title: "Import from Stremio", keywords: "import move switch library history watched progress addons export json file" },
+  {
+    id: "letterboxdImport",
+    page: "account",
+    title: "Import from Letterboxd",
+    keywords: "import letterboxd watchlist watched diary films movies export zip csv file",
+  },
+  // Friends (#135): kept on the account server per profile, drawn by the page (components/friends/FriendsSettings.tsx).
+  { id: "friendsEnabled", page: "account", title: "Friends", keywords: "friends friend code list online invite watch party join social" },
+  { id: "friendsOnline", page: "account", title: "Who sees you're online", keywords: "friends privacy online status presence hide invisible" },
+  { id: "friendsWatching", page: "account", title: "Who sees what you watch", keywords: "friends privacy watching activity title hide" },
+  { id: "friendsJoin", page: "account", title: "Friends can join your watch party", keywords: "friends join watch party one tap privacy" },
   { id: "deleteAccount", page: "account", title: "Delete account", keywords: "danger remove erase" },
 
   // Playback
@@ -276,6 +287,19 @@ export const SETTINGS: SettingDef[] = [
       { value: "off", label: "Off" },
       { value: "app", label: "That you're watching" },
       { value: "title", label: "What you're watching" },
+    ]),
+  },
+  {
+    id: "discordJoin",
+    page: "playback",
+    title: "Who can join from Discord",
+    caption: "In a watch party, a Join watch party button on your Discord profile. Ask me: you allow or decline each request.",
+    keywords: "discord watch party join invite ask friends button",
+    bind: p("discordJoin"),
+    control: choice([
+      { value: "nobody", label: "Nobody" },
+      { value: "ask", label: "Ask me" },
+      { value: "anyone", label: "Anyone who sees it" },
     ]),
   },
   { id: "rememberSpeed", page: "playback", title: "Remember playback speed", keywords: "rate faster slower" },
@@ -1068,6 +1092,16 @@ export const SETTINGS: SettingDef[] = [
   // Add-ons
   { id: "addonsInstalled", page: "addons", title: "Installed", keywords: "add-ons addons remove" },
   { id: "addonUrl", page: "addons", title: "Install from URL", keywords: "add-on addon manifest stremio" },
+  { id: "addonCatalogsHome", page: "addons", title: "Lists on Home", keywords: "add-on addons catalogs catalog rows shelves home order" },
+  {
+    id: "stremioLinks",
+    page: "addons",
+    title: "Open Stremio links in Polarity",
+    caption: "Links on websites meant for the Stremio app, such as an add-on's install button or a title's link, open here instead.",
+    keywords: "stremio links install button scheme handler default app",
+    bind: p("stremioLinks"),
+    control: toggle,
+  },
 
   // Marketplace
   { id: "openSubtitles", page: "marketplace", title: "OpenSubtitles", keywords: "add-ons addons subtitles captions install store" },
@@ -1082,6 +1116,10 @@ export const SETTINGS: SettingDef[] = [
     keywords: "rotten tomatoes metacritic letterboxd trakt mdblist omdb ratings reviews",
   },
   { id: "seekrKey", page: "services", title: "Timeline previews", keywords: "seekr thumbnails scrubbing" },
+  { id: "anilist", page: "services", title: "AniList", keywords: "anime list account link sign in import tracking" },
+  { id: "mal", page: "services", title: "MyAnimeList", keywords: "mal anime list account link sign in import tracking" },
+  { id: "trakt", page: "services", title: "Trakt", keywords: "trakt scrobble history watchlist ratings account link sign in import tracking" },
+  { id: "simkl", page: "services", title: "Simkl", keywords: "simkl scrobble history watchlist ratings anime list account link sign in import tracking" },
 
   // Advanced
   {
@@ -1149,6 +1187,44 @@ export const SETTINGS: SettingDef[] = [
 
   // About & Updates
   { id: "version", page: "about", title: "Version", keywords: "about build number" },
+  {
+    id: "notifyEpisodes",
+    page: "notifications",
+    title: "New episodes",
+    caption: "A show you follow has a new episode out. At most one a day per show.",
+    keywords: "notify notification alert episode air aired out",
+    bind: p("notifyEpisodes"),
+    control: toggle,
+  },
+  {
+    id: "notifySeasons",
+    page: "notifications",
+    title: "New seasons",
+    caption: "A show you follow has a new season out.",
+    keywords: "notify notification alert season premiere",
+    bind: p("notifySeasons"),
+    control: toggle,
+  },
+  {
+    id: "notifyScope",
+    page: "notifications",
+    title: "Shows to follow",
+    keywords: "notify notification library started watching",
+    bind: p("notifyScope"),
+    control: choice([
+      { value: "library", label: "Everything in my library" },
+      { value: "started", label: "Only shows I've started" },
+    ]),
+  },
+  {
+    id: "notifyDownloads",
+    page: "notifications",
+    title: "Downloads",
+    caption: "A download finished or failed.",
+    keywords: "notify notification alert download finished failed",
+    bind: p("notifyDownloads"),
+    control: toggle,
+  },
   { id: "softwareUpdate", page: "about", title: "Software update", keywords: "check for updates upgrade new version install" },
   {
     id: "autoDownloadUpdates",

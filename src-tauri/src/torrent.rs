@@ -83,8 +83,10 @@ mod engine {
         if let Some(engine) = started(app) {
             return Ok(engine);
         }
-        let engine =
-            Engine::start(torrents.dir.clone()).await.map(Arc::new).map_err(|e| format!("The torrent engine didn't start: {e}"))?;
+        let engine = Engine::start(torrents.dir.clone())
+            .await
+            .map(Arc::new)
+            .map_err(|e| format!("The torrent engine didn't start: {e}"))?;
         *torrents.engine.locked() = Some(engine.clone());
         Ok(engine)
     }
@@ -136,7 +138,10 @@ mod android {
     /// The app has been in the background for the grace period: stop the
     /// engine whatever the settings, and tell a player still open.
     #[no_mangle]
-    pub extern "system" fn Java_app_getpolar_desktop_TorrentEngine_background<'a>(_env: JNIEnv<'a>, _this: JObject<'a>) {
+    pub extern "system" fn Java_app_getpolar_desktop_TorrentEngine_background<'a>(
+        _env: JNIEnv<'a>,
+        _this: JObject<'a>,
+    ) {
         let Some(app) = APP.get().cloned() else { return };
         if super::engine::started(&app).is_none() {
             return;

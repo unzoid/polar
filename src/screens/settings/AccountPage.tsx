@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { TextField } from "../../components/ui/TextField";
-import { Edit, Lock, Trash } from "../../components/icons";
+import { Edit, Lock, Trash, Tv } from "../../components/icons";
 import { useEffect, useState } from "react";
 import { keys, useAddons, useSettings } from "../../lib/net";
 import { Avatar } from "../../components/Avatar";
-import { dismissNotice, exposedNames, noticeDue, removeSecretsPassphrase, SECRET_KEYS, secretsState, setSecretsPassphrase, sync, unlockSecrets, useAccount, useSettingsSyncProblem } from "../../lib/account";
+import { dismissNotice, exposedNames, formatTvCode, isTvCode, noticeDue, removeSecretsPassphrase, SECRET_KEYS, secretsState, setSecretsPassphrase, sync, unlockSecrets, useAccount, useSettingsSyncProblem } from "../../lib/account";
 import { deviceStoreText, takeWhereStored, useSecretsNote } from "../../components/settings/secretsNote";
 import { useSecretsPlain } from "../../components/settings/KeyWarning";
 import { errorMessage } from "../../lib/errors";
@@ -12,9 +12,11 @@ import { api } from "../../lib/api";
 import { os } from "../../lib/platform";
 import { Button } from "../../components/ui/Button";
 import { ActionRow, Card, ExpandRow, FormRow, LinkRow, RowText, useExpanded, type Expandable } from "../../components/settings/rows";
+import { LetterboxdImport } from "../../components/settings/LetterboxdImport";
 import { StremioImport } from "../../components/settings/StremioImport";
 import { CopySetup } from "../../components/settings/CopySetup";
 import { SettingRow } from "../../components/settings/SettingRow";
+import { FriendsSettings } from "../../components/friends/FriendsSettings";
 
 export function AccountPage() {
   const account = useAccount();
@@ -43,6 +45,10 @@ export function AccountPage() {
         <ActionRow title="Email" caption={account.user?.email} label="Sign Out" onClick={() => void account.signOut()} />
       </Card>
 
+      <Card footer="The TV gets its own sign-in: signing out there leaves this device signed in, and the other way round.">
+        <TvSignInRow {...expand("tv")} />
+      </Card>
+
       <Card title="Profiles">
         {account.profiles.map((p) => (
           <div className="settings-row" key={p.id}>
@@ -66,9 +72,13 @@ export function AccountPage() {
         )}
       </Card>
 
+      <FriendsSettings />
+
       <CopySetup />
 
       <StremioImport />
+
+      <LetterboxdImport />
 
       <Card title="Danger Zone">
         <DeleteAccountRow {...expand("delete")} />
@@ -236,6 +246,82 @@ function WhereStored({ state }: { state: "plain" | "sealed" | "locked" }) {
       <dt>On this device</dt>
       <dd>{place && deviceStoreText(place, os)}</dd>
     </dl>
+  );
+}
+
+/**
+ * Signing in on a TV (#133): the code the TV shows, then "Sign in on <device>?". Approving gives that
+ * device a session of its own for this account (lib/account/tvSignIn.ts).
+ */
+function TvSignInRow(props: Expandable) {
+  const account = useAccount();
+  const [code, setCode] = useState("");
+  const [asking, setAsking] = useState<{ code: string; device: string } | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const look = useMutation({
+    mutationFn: async (typed: string) => ({ code: typed, device: await account.tvSignIn.look(typed) }),
+    onSuccess: (found) => (setAsking(found), setDone(null)),
+  });
+  const answer = useMutation({
+    mutationFn: async (approve: boolean) => {
+      if (asking) await account.tvSignIn.answer(asking.code, approve);
+      return approve;
+    },
+    onSuccess: (approve) => {
+      setDone(approve ? `${asking?.device} is signing in. Pick a profile there.` : "Denied. That device stays signed out.");
+      setAsking(null);
+      setCode("");
+    },
+  });
+  const typedWrong = code.replace(/[^A-Za-z0-9]/g, "").length >= 8 && !isTvCode(code);
+  return (
+    <ExpandRow setting="tv-sign-in" icon={Tv} title="Sign in a TV" caption="Or another computer or phone, with the code it shows" {...props}>
+      {!asking && (
+        <>
+          <p className="settings-expand-text">
+            On the TV, choose “Sign in with your phone” (on a computer or phone, “Sign in with another device”), then enter the code it shows.
+          </p>
+          <FormRow
+            look="expand"
+            aria-label="Code from the TV"
+            placeholder="ABCD-EFGH"
+            autoComplete="off"
+            autoCapitalize="characters"
+            maxLength={12}
+            value={code}
+            onChange={(v) => (setCode(formatTvCode(v)), look.reset(), setDone(null))}
+            tidy={(v) => (isTvCode(v) ? v : "")}
+            submit="Continue"
+            pending={look.isPending}
+            pendingLabel="Checking…"
+            error={(typedWrong && "That isn't a code from the TV. Check it and try again.") || (look.isError && errorMessage(look.error))}
+            onSubmit={(v) => look.mutate(v)}
+          />
+        </>
+      )}
+      {asking && (
+        <>
+          <p className="settings-expand-text">
+            <strong>Sign in on {asking.device}?</strong> It will be signed in to this account, with all its profiles. Only approve a device that's in
+            front of you.
+          </p>
+          <div className="settings-expand-form">
+            <Button variant="primary" onClick={() => answer.mutate(true)} disabled={answer.isPending}>
+              Approve
+            </Button>
+            <Button onClick={() => answer.mutate(false)} disabled={answer.isPending}>
+              Deny
+            </Button>
+          </div>
+          {answer.isError && <p className="settings-error">{errorMessage(answer.error)}</p>}
+        </>
+      )}
+      {done && (
+        <p className="settings-expand-text" role="status">
+          {done}
+        </p>
+      )}
+    </ExpandRow>
   );
 }
 

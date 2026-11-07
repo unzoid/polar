@@ -1,5 +1,6 @@
 import { PAGE_IDS, PAGE_LABELS, type PageId } from "../../lib/settings";
 import {
+  Bell,
   Captions,
   Controls,
   Desktop,
@@ -25,6 +26,7 @@ const ICONS: Record<PageId, Icon> = {
   appearance: Desktop,
   browsing: Grid,
   anime: Fire,
+  notifications: Bell,
   controls: Controls,
   controller: Gamepad,
   marketplace: Store,

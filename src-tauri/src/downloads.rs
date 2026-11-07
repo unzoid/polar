@@ -315,8 +315,9 @@ impl Downloads {
         // Always ask for a range, as a video player does: some file hosts
         // refuse a plain GET with 400.
         let mut req = self.http.get(&d.url).header(reqwest::header::RANGE, format!("bytes={have}-"));
-        for (k, v) in &d.headers {
-            req = req.header(k.as_str(), v.as_str());
+        // The same few the player sends (`polar_player::headers`), never one that would change the request itself.
+        for (k, v) in polar_player::headers::playback_headers(&d.headers) {
+            req = req.header(k, v);
         }
         let mut res = match tokio::time::timeout(IDLE, req.send()).await {
             Ok(sent) => sent.map_err(|e| format!("Couldn't reach the source: {e}"))?,
@@ -538,6 +539,18 @@ pub fn download_reveal(downloads: Shared<'_>, id: String) -> Result<()> {
     let shown = [PathBuf::from(&file), part(&file)].into_iter().find(|p| p.exists());
     let shown = shown.ok_or_else(|| CmdError::NotFound("The file isn't there any more.".into()))?;
     tauri_plugin_opener::reveal_item_in_dir(&shown).map_err(|e| CmdError::Other(e.to_string()))
+}
+
+/// Where new downloads go, and how much room is left there (`None` when the OS won't say).
+#[derive(Debug, Serialize)]
+pub struct Storage {
+    dir: String,
+    free: Option<u64>,
+}
+
+#[tauri::command]
+pub fn downloads_storage(downloads: Shared<'_>) -> Storage {
+    Storage { dir: downloads.dir.display().to_string(), free: crate::disk::free_bytes(&downloads.dir) }
 }
 
 /// Cancel and delete: the record and the file.

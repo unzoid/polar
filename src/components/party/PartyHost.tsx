@@ -20,6 +20,8 @@ import { Close, WatchParty } from "../icons";
 import { Button, iconButtonClass } from "../ui/Button";
 import { JoinForm, LinkForm, PartyNotes } from "./PartyUI";
 import { LinkConfirm } from "./LinkConfirm";
+import { TogetherOffer } from "./TogetherOffer";
+import { DiscordJoin } from "./DiscordJoin";
 import { useTvMode } from "../../tv/tvMode";
 
 /**
@@ -90,6 +92,7 @@ export function PartyHost() {
     if (!inPlayer) return;
     setJoinPartyOpen(false);
     setPartyMenuOpen(false);
+    closePartySurface("friends");
   }, [inPlayer]);
   useEffect(() => {
     if (!asking) return;
@@ -119,6 +122,8 @@ export function PartyHost() {
           }}
         />
       )}
+      <DiscordJoin />
+      <TogetherOffer />
       {party && !inPlayer && (
         <div className="party-float">
           <PartyNotes party={party} />

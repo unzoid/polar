@@ -19,5 +19,15 @@
         "shadow": true
       }
     ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "polarity",
+          "stremio"
+        ]
+      }
+    }
   }
 }

@@ -1,4 +1,5 @@
-import { type QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { libraryToggled } from "../library/libraryEvents";
 import { useCallback } from "react";
 import { api } from "../api";
 import { errorCode } from "../errors";
@@ -86,6 +87,16 @@ export function useRatings(type: ContentType, id: string) {
 export const useProgress = (metaId: string) =>
   useQuery({ queryKey: keys.progress(metaId), queryFn: () => api.progressFor(metaId), staleTime: 0 });
 
+/** Several titles' progress at once, flattened (the Downloads page's watched marks, #15); the same cache as useProgress. */
+export const useProgressOf = (metaIds: string[]) =>
+  useQueries({
+    queries: metaIds.map((metaId) => ({ queryKey: keys.progress(metaId), queryFn: () => api.progressFor(metaId), staleTime: 0 })),
+    combine: flatProgress,
+  });
+
+// Outside the hook, so the combined list keeps its identity until a result changes.
+const flatProgress = (results: { data?: Progress[] }[]) => results.flatMap((r) => r.data ?? []);
+
 export const useContinueWatching = () =>
   useQuery({ queryKey: keys.continue, queryFn: api.continueWatching, staleTime: 0 });
 
@@ -110,8 +121,9 @@ export function useToggleLibrary() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (item: MetaPreview) => api.toggleLibrary(item),
-    onSuccess: () => {
+    onSuccess: (inLibrary, item) => {
       qc.invalidateQueries({ queryKey: keys.library });
+      libraryToggled(item, inLibrary);
       sync.schedule();
     },
   });

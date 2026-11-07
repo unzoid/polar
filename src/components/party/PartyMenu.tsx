@@ -95,7 +95,7 @@ export function PartySettingsPane({ party, link }: { party: PartyState; link?: R
       {link && (
         <section>
           <h3 className="party-kicker">Watch a link</h3>
-          <p className="party-lede">Put a video file or stream from the web on for everyone. Everyone's app opens the link itself, after seeing it.</p>
+          <p className="party-lede">Put a YouTube video, or a video file or stream from the web, on for everyone. Everyone's app opens the link itself, after seeing it.</p>
           {link}
         </section>
       )}

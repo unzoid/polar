@@ -156,6 +156,26 @@
   font-weight: 400;
   letter-spacing: normal;
 }
+/* The code another device enters (#133): large enough to read across a room. */
+.auth-device-code {
+  margin: 0 0 1rem;
+  font-size: calc(var(--fs-lg) * 2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  color: #f7f8f8;
+  min-height: 1.3em;
+}
+.auth-device-code[data-state="signing-in"],
+.auth-device-code[data-state="loading"] {
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  letter-spacing: normal;
+  color: #8a8f98;
+}
+.auth-device-code + .auth-fine {
+  margin-top: 0;
+}
 .auth-link {
   margin-top: 1.25rem;
   font-size: var(--fs-sm);

@@ -35,6 +35,13 @@ export const isMac = os === "macos";
 /** A desktop system: windows, a pointer and a keyboard first, the app updates itself. */
 export const isDesktop = os === "windows" || os === "macos" || os === "linux";
 
+/**
+ * Whether a page from another site (a YouTube trailer) may play in a frame inside the app. Not on Android: its web
+ * view runs the app's own start-up scripts in every frame of the page, other sites' frames too, so there those
+ * pages open outside the app instead.
+ */
+export const canEmbedOtherSites = (o: Os = os) => o !== "android";
+
 type TvBridge = { polarDevice?: { isTv?: () => boolean } };
 
 /** Whether the device itself is a TV: Android's activity says so through `polarDevice` (gen/android MainActivity.kt) before the page loads. */
