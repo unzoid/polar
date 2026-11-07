@@ -2,6 +2,7 @@ import { api } from "../api";
 import { sync } from "../account/sync";
 import { isReleased, runtimeSeconds } from "../format";
 import { noteWatched } from "../lists/listSync";
+import { noteTraktWatched } from "../trakt/traktSync";
 import { keys, queryClient } from "../net/queries";
 import type { Meta, MetaPreview, Progress, Settings, Video } from "../types";
 
@@ -79,4 +80,9 @@ export async function markWatched(entries: Progress[], watched: boolean) {
   sync.schedule();
   // A linked AniList list hears of episodes marked watched by hand too (#83).
   if (watched) void noteWatched(rows.map((r) => r.videoId));
+  // And a linked Trakt account's history, both ways (#85).
+  void noteTraktWatched(
+    rows.map((r) => ({ videoId: r.videoId, type: r.type })),
+    watched,
+  );
 }
