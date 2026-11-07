@@ -40,6 +40,8 @@ pub struct RankedStream {
     pub addon: String,
     pub quality: StreamQuality,
     pub score: f32,
+    /// What the score adds up (#229).
+    pub score_reasons: Vec<ScoreReason>,
     /// Short human label, e.g. "4K · HDR · 12.4 GB".
     pub label: String,
     /// The id the add-on was asked by (`tt…:1:5`, `kitsu:12:5`): which request brought this source.
@@ -316,32 +318,44 @@ static DUB_WORDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bdub(?:s|
 /// Higher is better. Deliberately simple and explainable; user preferences
 /// (max resolution, avoid HDR on SDR screens, size caps) plug in here later.
 pub fn score(q: &StreamQuality) -> f32 {
-    let mut s = match q.resolution {
-        Some(2160) => 40.0,
-        Some(1440) => 37.0,
-        Some(1080) => 35.0,
-        Some(720) => 22.0,
-        Some(_) => 10.0,
-        None => 15.0,
-    };
+    score_reasons(q).iter().map(|r| r.points).sum()
+}
+
+/// One reason behind a score, as the source info panel shows it (#229).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct ScoreReason {
+    pub reason: &'static str,
+    pub points: f32,
+}
+
+/// What [`score`] adds up, in order: the picture's height first, then each bonus and penalty.
+pub fn score_reasons(q: &StreamQuality) -> Vec<ScoreReason> {
+    let part = |reason, points| ScoreReason { reason, points };
+    let mut parts = vec![match q.resolution {
+        Some(2160) => part("4K", 40.0),
+        Some(1440) => part("1440p", 37.0),
+        Some(1080) => part("1080p", 35.0),
+        Some(720) => part("720p", 22.0),
+        Some(_) => part("Below 720p", 10.0),
+        None => part("Unknown resolution", 15.0),
+    }];
     if q.direct {
-        s += 10.0;
+        parts.push(part("Direct link", 10.0));
     }
     if q.hdr || q.dolby_vision {
-        s += 2.0;
+        parts.push(part(if q.dolby_vision { "Dolby Vision" } else { "HDR" }, 2.0));
     }
     if q.codec == Some("HEVC") || q.codec == Some("AV1") {
-        s += 1.0;
+        parts.push(part(if q.codec == Some("AV1") { "AV1" } else { "HEVC" }, 1.0));
     }
-    if let Some(size) = q.size_bytes {
-        if size > 40_000_000_000 {
-            s -= 12.0; // remux-sized: slow to start for little visible gain
-        }
+    if q.size_bytes.is_some_and(|size| size > 40_000_000_000) {
+        // Remux-sized: slow to start for little visible gain.
+        parts.push(part("Over 40 GB", -12.0));
     }
     if q.low_quality_source {
-        s -= 100.0;
+        parts.push(part("CAM or telesync", -100.0));
     }
-    s
+    parts
 }
 
 pub fn label(q: &StreamQuality) -> String {
@@ -466,6 +480,7 @@ pub fn rank_asked(
             let file = wanted.and(file_episode(&stream));
             RankedStream {
                 score: score(&quality),
+                score_reasons: score_reasons(&quality),
                 label: label(&quality),
                 quality,
                 addon,
@@ -511,6 +526,30 @@ mod tests {
             url: Some(format!("https://example.com/{title}")),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn the_score_is_the_sum_of_its_reasons() {
+        let q = StreamQuality {
+            resolution: Some(2160),
+            dolby_vision: true,
+            codec: Some("HEVC"),
+            size_bytes: Some(60_000_000_000),
+            direct: true,
+            ..Default::default()
+        };
+        let reasons: Vec<_> = score_reasons(&q).iter().map(|r| (r.reason, r.points)).collect();
+        assert_eq!(
+            reasons,
+            [("4K", 40.0), ("Direct link", 10.0), ("Dolby Vision", 2.0), ("HEVC", 1.0), ("Over 40 GB", -12.0)]
+        );
+        assert_eq!(score(&q), 41.0);
+        let cam = StreamQuality { low_quality_source: true, ..Default::default() };
+        assert_eq!(
+            score_reasons(&cam).iter().map(|r| r.reason).collect::<Vec<_>>(),
+            ["Unknown resolution", "CAM or telesync"]
+        );
+        assert_eq!(score(&cam), -85.0);
     }
 
     #[test]

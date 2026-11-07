@@ -1,4 +1,5 @@
-import { Check, Close, Instant } from "../icons";
+import { Check, Close, Info, Instant } from "../icons";
+import { useSourceRowPress } from "../SourceInfo";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
@@ -28,6 +29,10 @@ export interface OptionItem {
   ready?: "yes" | "no";
   /** Hover text. */
   note?: string;
+  /** A source's "i" panel (#229), from the row's "i", a long press or a right-click. */
+  onInfo?: (anchor: HTMLElement) => void;
+  /** TV: the row's menu (Info, Play), from holding OK or the options button. */
+  onMenu?: (anchor: HTMLElement) => void;
 }
 
 export interface OptionColumn {
@@ -79,7 +84,7 @@ export function OptionsOverlay({
   /** A press that may become a click outside the panel. */
   const press = useRef<{ id: number; x: number; y: number } | null>(null);
   const missesPanel = (e: { target: EventTarget; clientX: number; clientY: number; pointerType: string }) => {
-    if ((e.target as Element).closest?.(".options-close, .select-popup, .srcf-popover")) return false;
+    if ((e.target as Element).closest?.(".options-close, .select-popup, .srcf-popover, .source-info, .tv-source-menu-layer")) return false;
     const rects = [...(root.current?.querySelectorAll(".options-column") ?? [])].map((el) => el.getBoundingClientRect());
     return outsidePanel(e.clientX, e.clientY, rects, e.pointerType === "touch" ? MISS_MARGIN.touch : MISS_MARGIN.mouse);
   };
@@ -103,7 +108,7 @@ export function OptionsOverlay({
     // ancestor (even overflow:hidden ones) and would shift the whole layer.
     root.current?.querySelectorAll<HTMLElement>('[aria-checked="true"]').forEach((el) => {
       const list = el.closest<HTMLElement>(".options-list");
-      if (list) list.scrollTop = el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2;
+      if (list) list.scrollTop = topIn(list, el) - list.clientHeight / 2 + el.offsetHeight / 2;
     });
     // The episode rail starts from the one playing (#226). Nothing chosen yet: the layer itself, so Tab and the arrows start inside it.
     const chosen = root.current?.querySelector<HTMLElement>('.episode-rail [aria-current="true"] > .episode-rail-main') ?? root.current?.querySelector<HTMLElement>('[aria-checked="true"]');
@@ -124,8 +129,9 @@ export function OptionsOverlay({
         e.preventDefault();
         moveFocus(root.current, e.key);
       }
-      // Space/Enter act on the focused row natively; keep them from the player.
-      if (e.key === " " || e.key === "Enter") e.stopPropagation();
+      // Space/Enter act on the focused row natively; keep them from the player. A TV source row times
+      // OK itself (held, it opens the row's menu) and keeps it from the player on its own.
+      if ((e.key === " " || e.key === "Enter") && !(e.target as HTMLElement | null)?.closest?.("[data-hold-ok]")) e.stopPropagation();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -197,7 +203,7 @@ export function OptionsOverlay({
 }
 
 /** A dropdown or popover open over the panel. Closed ones can stay in the page (marked data-closed): they don't count (#226). */
-const OPEN_POPUP = ".select-popup:not([data-closed]), .srcf-popover:not([data-closed])";
+const OPEN_POPUP = ".select-popup:not([data-closed]), .srcf-popover:not([data-closed]), .source-info, .tv-source-menu";
 /** Past the panel's content, a click still counts as a miss for this far (px); a finger gets more room. */
 const MISS_MARGIN = { mouse: 24, touch: 40 };
 /** A press that travels further than this (px) is a drag or a scroll, not a click. */
@@ -218,7 +224,8 @@ export function outsidePanel(x: number, y: number, rects: readonly Pick<DOMRect,
 }
 
 function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: boolean; onSelect: (id: string) => void }) {
-  return (
+  const press = useSourceRowPress({ onPick: () => onSelect(o.id), onInfo: (a) => o.onInfo?.(a), onMenu: o.onMenu });
+  const row = (
     <button
       role="radio"
       aria-checked={selected}
@@ -226,8 +233,10 @@ function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: bool
       className="options-item"
       data-rich={!!(o.detail || o.thumbnail)}
       data-ready={o.ready}
+      data-hold-ok={o.onInfo && o.onMenu ? true : undefined}
       title={o.note}
       onClick={() => onSelect(o.id)}
+      {...(o.onInfo ? press : {})}
     >
       <span className="options-check" aria-hidden>
         {selected ? <Check size={20} strokeWidth={2.5} /> : o.ready === "yes" ? <Instant size={17} fill="currentColor" strokeWidth={0} /> : null}
@@ -258,6 +267,16 @@ function Row({ item: o, selected, onSelect }: { item: OptionItem; selected: bool
         </span>
       )}
     </button>
+  );
+  if (!o.onInfo || o.onMenu) return row;
+  // The "i" on the row's right, while it's hovered or focused (player.css).
+  return (
+    <div className="options-item-wrap">
+      {row}
+      <button className="options-info" aria-label="Source info" title="Source info" onClick={(e) => o.onInfo?.(e.currentTarget.previousElementSibling as HTMLElement)}>
+        <Info size={20} />
+      </button>
+    </div>
   );
 }
 
@@ -337,5 +356,10 @@ function show(el: HTMLElement | undefined) {
   const list = el.closest<HTMLElement>(".options-list");
   if (!list) return;
   const smooth = !prefersReducedMotion();
-  list.scrollTo({ top: el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2, behavior: smooth ? "smooth" : "auto" });
+  list.scrollTo({ top: topIn(list, el) - list.clientHeight / 2 + el.offsetHeight / 2, behavior: smooth ? "smooth" : "auto" });
+}
+
+/** Where a row starts in its scrolling list (a source row sits in a wrapper with its "i", so offsetTop won't do). */
+function topIn(list: HTMLElement, el: HTMLElement) {
+  return el.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
 }

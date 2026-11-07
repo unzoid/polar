@@ -9,7 +9,7 @@ use serde::Serialize;
 use serde_json::{json, Map, Value};
 
 use crate::probe::Readiness;
-use crate::rank::{RankedStream, StreamQuality};
+use crate::rank::{RankedStream, ScoreReason, StreamQuality};
 use crate::types::*;
 
 fn keys<T: Serialize>(value: &T) -> Value {
@@ -127,6 +127,7 @@ fn field_names_match_contract() {
     );
     add("Stream", keys(&stream()));
     add("StreamQuality", keys(&StreamQuality::default()));
+    add("ScoreReason", keys(&ScoreReason { reason: "4K", points: 40.0 }));
     add("Readiness.ready", keys(&Readiness::Ready { ms: 1 }));
     add("Readiness.notReady", keys(&Readiness::NotReady { reason: "r".into() }));
     add("Readiness.slow", keys(&Readiness::Slow { ms: 1 }));
@@ -138,6 +139,7 @@ fn field_names_match_contract() {
             addon: "A".into(),
             quality: StreamQuality::default(),
             score: 1.0,
+            score_reasons: vec![],
             label: "1080p".into(),
             request_id: s("tt0000001:1:1"),
             file_episode: s("S01E01"),

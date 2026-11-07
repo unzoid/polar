@@ -6,6 +6,7 @@ import { useTitleActions } from "../lib/library";
 import type { MetaPreview, Progress } from "../lib/types";
 import { useBack, useFocusTrap } from "./shell";
 import { playSound } from "./sounds";
+import { isMenuKey } from "./menuKey";
 import { NamePanel, PlaylistsPanel } from "./TvDetail";
 
 /**
@@ -63,8 +64,7 @@ function closeCardMenu({ restore = true } = {}) {
 
 export const useCardMenuOpen = () => useSyncExternalStore(subscribe, () => !!current);
 
-/** Whether a key press asks for a card's options: the Menu key, Shift+F10, or a controller's X / Square. */
-export const isMenuKey = (e: { key: string; shiftKey: boolean }) => e.key === "ContextMenu" || (e.shiftKey && e.key === "F10");
+export { isMenuKey };
 
 export function TvCardMenuHost() {
   const target = useSyncExternalStore(subscribe, () => current);

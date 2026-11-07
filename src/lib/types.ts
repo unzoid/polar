@@ -139,11 +139,19 @@ export type Readiness =
   | { state: "slow"; ms: number }
   | { state: "unchecked" };
 
+/** One reason behind a source's score: "4K" +40, "Over 40 GB" -12. */
+export interface ScoreReason {
+  reason: string;
+  points: number;
+}
+
 export interface RankedStream {
   stream: Stream;
   addon: string;
   quality: StreamQuality;
   score: number;
+  /** What `score` adds up, as the add-on side worked it out (#229). Missing on sources made in the app (downloads). */
+  scoreReasons?: ScoreReason[];
   label: string;
   /** The id the add-on was asked by (`tt…:1:5`, `kitsu:12:5`): which request brought this source. */
   requestId?: string | null;

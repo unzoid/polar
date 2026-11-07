@@ -188,6 +188,24 @@ test.describe("on a tablet", () => {
   });
 });
 
+test("on a phone, a long press on a source opens its info; no i button shows (#229)", async ({ app }) => {
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).tap();
+  await card(app, "The Glass Orchard").tap();
+  await app.getByRole("button", { name: "Choose source", exact: true }).tap();
+  const row = app.locator(".sheet .stream-row").last();
+  await expect(row).toBeVisible();
+  await expect(app.locator(".sheet .stream-info").first()).toHaveCSS("opacity", "0");
+  // What a held finger sends (lib/platform/longPress.ts sends it on iOS; Android's web view itself).
+  await row.dispatchEvent("contextmenu");
+  const panel = app.getByRole("dialog", { name: "Source Info" });
+  await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
+  expect(await panel.textContent()).not.toContain("TOKEN0000");
+  expect(await fitsWidth(app)).toBe(true);
+  await panel.getByRole("button", { name: "Done" }).tap();
+  await expect(panel).toHaveCount(0);
+  await expect(app.locator(".sheet")).toBeVisible();
+});
+
 test.describe("signed in, on a fresh profile", () => {
   test.use({ account: true });
 
