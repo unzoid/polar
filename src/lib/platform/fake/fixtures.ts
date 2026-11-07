@@ -1,4 +1,5 @@
 import type { InstalledAddon, LibraryItem, Meta, MetaPreview, Progress, Settings, StreamsResult, Video } from "../../types";
+import type { Download } from "../../library/downloads";
 
 /**
  * Made-up titles for the fake shell (fake.html): enough of every kind of data
@@ -310,6 +311,10 @@ const W_ADDONS: InstalledAddon[] = [
       types: ["movie", "series", "anime", "channel", "tv", "other"],
       resources: ["catalog", "meta", "stream", "subtitles", "addon_catalog"],
       behaviorHints: { configurable: true, configurationRequired: true },
+      catalogs: [
+        { type: "movie", id: "everything", name: `${W_LONG} Collection`, extra: [{ name: "skip" }, { name: "search" }] },
+        { type: "series", id: "everything", name: "S", extra: [{ name: "genre", options: Array.from({ length: 60 }, (_, i) => `Genre ${i + 1}`) }] },
+      ],
     },
   },
   { manifestUrl: "https://q.example/manifest.json", manifest: { id: "q", version: "0", name: "Q", types: [], resources: [], behaviorHints: null } },
@@ -339,7 +344,43 @@ export const addons: InstalledAddon[] = WORST === "empty" ? [] : WORST ? W_ADDON
       behaviorHints: { configurable: true, configurationRequired: false },
     },
   },
+  // Lists of titles only (#206): two Home rows, a search, one that never answers, and lists Polarity can't show.
+  {
+    manifestUrl: "https://addons.example/lists/manifest.json",
+    manifest: {
+      id: "example.lists",
+      version: "0.2.0",
+      name: "Example Lists",
+      description: "Hand-picked lists of public-domain films and shows.",
+      types: ["movie", "series"],
+      resources: ["catalog"],
+      behaviorHints: { configurable: false, configurationRequired: false },
+      catalogs: [
+        { type: "movie", id: "picks", name: "Staff Picks", extra: [{ name: "genre", options: ["Drama", "Comedy"] }, { name: "skip" }] },
+        { type: "series", id: "weekend", name: "Weekend Series" },
+        { type: "movie", id: "late", name: "Late Night" },
+        { type: "movie", id: "find", name: "Search", extra: [{ name: "search", isRequired: true }] },
+        { type: "channel", id: "radio", name: "Radio" },
+        { type: "movie", id: "by-year", name: "By Year", extra: [{ name: "year", isRequired: true }] },
+      ],
+    },
+  },
 ];
+
+/**
+ * Example Lists' answers (`addon_catalog`): Staff Picks pages by 4 and filters by genre, Late Night fails
+ * the way a timed-out add-on does, Search matches names.
+ */
+export function addonCatalog(addon: string, type: string, id: string, extra: [string, string][]): MetaPreview[] | Promise<never> {
+  const arg = Object.fromEntries(extra);
+  const list = type === "series" ? series : movies;
+  if (addon !== "example.lists" || id === "late") return Promise.reject({ code: "upstream", message: "Example Lists took too long to answer" });
+  if (id === "find") return list.filter((m) => m.name.toLowerCase().includes(String(arg.search).toLowerCase())).slice(0, 6);
+  if (id === "weekend") return list.slice(2, 10);
+  const genre = arg.genre === "Comedy" ? list.slice(6) : list;
+  const skip = Number(arg.skip ?? 0);
+  return genre.slice(skip, skip + 4);
+}
 
 function worstStreams(): StreamsResult {
   const big = "Community Archive of Restored Public-Domain Cinema (Volunteer Edition, EU West)";
@@ -478,3 +519,66 @@ export const settings: Settings = {
   cardRatingPosition: "poster",
   showCalendar: false,
 } as Settings;
+
+/**
+ * `fake.html?downloads=many` (#15): 50-odd downloads across a dozen titles, as the Downloads page has to
+ * cope with: shows spanning one to three seasons, movies, three still coming down (one paused, one failed),
+ * and the first episodes of some shows watched.
+ */
+export const DOWNLOADS = new URLSearchParams(location.search).get("downloads") === "many";
+const GB = 1_000_000_000;
+
+export function seededDownloads(): { downloads: Download[]; watched: Progress[] } {
+  const downloads: Download[] = [];
+  const watched: Progress[] = [];
+  const base = { quality: "1080p", received: 0, state: "done" as const };
+  series.slice(0, 8).forEach((s, k) => {
+    const seasons = 1 + (k % 3);
+    for (let season = 1; season <= seasons; season++)
+      for (let episode = 1; episode <= 3 + ((k + season) % 4); episode++) {
+        const id = `${s.id}:${season}:${episode}`;
+        const total = Math.round((0.6 + ((k + episode) % 5) * 0.15) * GB);
+        downloads.push({
+          ...base,
+          id,
+          metaId: s.id,
+          type: "series",
+          name: s.name,
+          poster: s.poster,
+          background: s.background,
+          season,
+          episode,
+          episodeTitle: `Chapter ${episode}`,
+          thumbnail: art(`${season}×${episode}`, k + season + episode, 400, 225),
+          file: `/downloads/${id}.mkv`,
+          received: total,
+          total,
+          addedAt: now - (k * 40 + season * 10 + episode) * 3_600_000,
+        });
+        if (k % 2 === 0 && season === 1 && episode <= 2)
+          watched.push({ metaId: s.id, videoId: id, type: "series", name: s.name, season, episode, position: 3000, duration: 3100, updatedAt: now - k * 7_200_000 });
+      }
+  });
+  movies.slice(0, 5).forEach((m, k) => {
+    const total = Math.round((1.8 + k * 0.7) * GB);
+    downloads.push({ ...base, id: m.id, metaId: m.id, type: "movie", name: m.name, poster: m.poster, background: m.background, file: `/downloads/${m.id}.mkv`, received: total, total, addedAt: now - (k * 30 + 5) * 3_600_000 });
+  });
+  // Coming down: one moving, one paused part-way, one failed.
+  const moving = (m: MetaPreview, state: Download["state"], received: number, error?: string): Download => ({
+    ...base,
+    id: m.id,
+    metaId: m.id,
+    type: "movie",
+    name: m.name,
+    poster: m.poster,
+    background: m.background,
+    file: `/downloads/${m.id}.mkv`,
+    received,
+    total: 2 * GB,
+    state,
+    error,
+    addedAt: now - 60_000,
+  });
+  downloads.push(moving(movies[6], "downloading", 0.8 * GB), moving(movies[7], "paused", 0.3 * GB), moving(movies[8], "failed", 0, "The link has expired."));
+  return { downloads, watched };
+}

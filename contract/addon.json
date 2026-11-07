@@ -1,6 +1,8 @@
 {
   "BehaviorHints": ["configurable","configurationRequired"],
+  "CatalogExtra": ["isRequired","name","options"],
   "Manifest": ["behaviorHints","catalogs","description","id","idPrefixes","logo","name","resources","types","version"],
+  "ManifestCatalog": ["extra","id","name","type"],
   "Meta": ["background","cast","description","details","director","genres","id","imdbRating","logo","logos","name","people","poster","releaseInfo","runtime","trailerSource","trailerYtId","type","videos"],
   "MetaDetails": ["awards","budget","countries","episodes","languages","originalLanguage","released","revenue","seasons","status","studios","tagline","tmdbId","votes","writers"],
   "MetaPreview": ["background","description","genres","id","imdbRating","logo","logos","name","poster","releaseInfo","type"],

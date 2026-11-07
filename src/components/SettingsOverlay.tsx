@@ -14,7 +14,7 @@ import { PAGES } from "./settings/pages";
 
 /** Sidebar groups, T3 Code style: an unlabelled first group, then headed ones. */
 const GROUPS: { heading?: string; pages: PageId[] }[] = [
-  { pages: ["account", "playback", "subtitles", "appearance", "browsing", "anime"] },
+  { pages: ["account", "playback", "subtitles", "appearance", "browsing", "anime", "notifications"] },
   { heading: "Input", pages: ["controls", "controller"] },
   { heading: "Sources", pages: ["sources", "marketplace", "addons", "services"] },
   { heading: "System", pages: ["advanced", "about"] },

@@ -6,6 +6,7 @@
       "frameworks": [
         "OpenGLES",
         "AVFoundation",
+        "UserNotifications",
         "vendor/ios/frameworks/Libavcodec.xcframework",
         "vendor/ios/frameworks/Libavfilter.xcframework",
         "vendor/ios/frameworks/Libavformat.xcframework",

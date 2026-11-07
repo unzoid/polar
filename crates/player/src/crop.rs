@@ -56,19 +56,37 @@ pub fn zoom_changed(sent: Option<(u64, f64)>, load: u64, zoom: f64) -> bool {
 /// (each side's thickness: top and bottom, left and right, in video pixels)
 /// fill the window as far as its shape allows.
 ///
+/// With `fill` (the player's Fill, mpv's `panscan` at 1, #183) mpv already
+/// scales the whole frame, bars and all, to cover the window; the zoom then
+/// takes it on to where the picture inside the bars covers it, so the bars go
+/// first and only what's left is cropped to the window's shape.
+///
 /// Zoom rather than `video-crop`: mpv lays ASS subtitles out over the
 /// displayed video, and a crop changes that area's shape, which stretches
 /// dialogue in any script with `LayoutResX/Y` (most anime releases). A zoom
 /// keeps the shape; with `sub-ass-force-margins` and
 /// `sub-ass-scale-with-window` dialogue then stays put at its normal size.
-pub fn zoom_for((v, h): (i64, i64), (w, hgt): (i64, i64), (dw, dh): (i64, i64), (win_w, win_h): (i64, i64)) -> f64 {
+pub fn zoom_for(
+    (v, h): (i64, i64),
+    (w, hgt): (i64, i64),
+    (dw, dh): (i64, i64),
+    (win_w, win_h): (i64, i64),
+    fill: bool,
+) -> f64 {
     if v <= 0 && h <= 0 {
         return 0.0;
     }
     let (sx, sy) = (dw as f64 / w as f64, dh as f64 / hgt as f64);
-    let fit = |pw: f64, ph: f64| (win_w as f64 / pw).min(win_h as f64 / ph);
-    let full = fit(dw as f64, dh as f64);
-    let picture = fit((w - 2 * h) as f64 * sx, (hgt - 2 * v) as f64 * sy);
+    let scale = |pw: f64, ph: f64| {
+        let (x, y) = (win_w as f64 / pw, win_h as f64 / ph);
+        if fill {
+            x.max(y)
+        } else {
+            x.min(y)
+        }
+    };
+    let full = scale(dw as f64, dh as f64);
+    let picture = scale((w - 2 * h) as f64 * sx, (hgt - 2 * v) as f64 * sy);
     (picture / full).log2().max(0.0)
 }
 
@@ -756,16 +774,35 @@ mod tests {
     #[test]
     fn zoom_fills_the_window_only_as_far_as_the_picture_allows() {
         let ultrawide = (2000, 837);
-        assert_eq!(zoom_for((0, 0), HD, HD, ultrawide), 0.0);
+        assert_eq!(zoom_for((0, 0), HD, HD, ultrawide, false), 0.0);
         // A 2.40:1 picture on a 2.39:1 window: limited by the width.
-        let z = zoom_for((140, 0), HD, HD, ultrawide);
+        let z = zoom_for((140, 0), HD, HD, ultrawide, false);
         assert!((2f64.powf(z) - (2000.0 / 1920.0) / (837.0 / 1080.0)).abs() < 1e-9, "{z}");
         // On a 16:9 window the letterbox already fits: nothing to zoom.
-        assert_eq!(zoom_for((140, 0), HD, HD, (1920, 1080)), 0.0);
+        assert_eq!(zoom_for((140, 0), HD, HD, (1920, 1080), false), 0.0);
         // Cropping the sides of a picture that's already pillarboxed changes nothing.
-        assert_eq!(zoom_for((0, 240), HD, HD, ultrawide), 0.0);
+        assert_eq!(zoom_for((0, 240), HD, HD, ultrawide, false), 0.0);
         // Anamorphic 1440x1080 shown as 1920x1080: same as square pixels.
-        assert!((zoom_for((140, 0), (1440, 1080), HD, ultrawide) - z).abs() < 1e-9);
+        assert!((zoom_for((140, 0), (1440, 1080), HD, ultrawide, false) - z).abs() < 1e-9);
+    }
+
+    #[test]
+    fn with_fill_the_bars_go_first_then_the_picture_covers_the_window() {
+        // No bars: panscan alone covers the window.
+        assert_eq!(zoom_for((0, 0), HD, HD, (1920, 1080), true), 0.0);
+        // A letterboxed 2.40:1 picture on a 16:9 window: panscan covers it with the whole frame (scale 1),
+        // the zoom then scales the 800 px picture up to the window's 1080 rows, its sides cropped.
+        let z = zoom_for((140, 0), HD, HD, (1920, 1080), true);
+        assert!((2f64.powf(z) - 1080.0 / 800.0).abs() < 1e-9, "{z}");
+        // Pillarboxed 4:3 on a 16:9 window: up to the window's width.
+        let z = zoom_for((0, 240), HD, HD, (1920, 1080), true);
+        assert!((2f64.powf(z) - 1920.0 / 1440.0).abs() < 1e-9, "{z}");
+        // The picture ends up covering the window, never more than it needs.
+        let (win_w, win_h) = (2000.0, 837.0);
+        let base = (win_w / 1920.0f64).max(win_h / 1080.0);
+        let scale = base * 2f64.powf(zoom_for((140, 0), HD, HD, (2000, 837), true));
+        assert!((1920.0 * scale - win_w).abs() < 1e-6 || (800.0 * scale - win_h).abs() < 1e-6);
+        assert!(1920.0 * scale >= win_w - 1e-6 && 800.0 * scale >= win_h - 1e-6);
     }
 
     #[test]

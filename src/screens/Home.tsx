@@ -21,7 +21,21 @@ import {
 } from "../lib/net";
 import { prefersReducedMotion, useArtGate, useFormFactor, useNearViewport } from "../lib/ui";
 import { useRouter } from "../lib/router";
-import { progressItem, shelfKey, shelfRoute, todaysShelves, useFeatured, useSeeds, useShownAbove, type Shelf as HomeShelf } from "../lib/catalog";
+import {
+  catalogKey,
+  catalogTitle,
+  progressItem,
+  shelfKey,
+  shelfRoute,
+  todaysShelves,
+  useAddonCatalogRow,
+  useFeatured,
+  useHomeCatalogs,
+  useSeeds,
+  useShownAbove,
+  type AddonCatalog,
+  type Shelf as HomeShelf,
+} from "../lib/catalog";
 import { cardMenu } from "../components/CardMenu";
 import type { MetaPreview, Progress } from "../lib/types";
 import { Button, IconButton } from "../components/ui/Button";
@@ -30,6 +44,7 @@ import { Skeleton } from "../components/ui/Skeleton";
 
 /**
  * The page, top to bottom: featured carousel, what you're watching, then the
+ * the add-on catalogs switched on in Settings → Add-ons (#206), then the
  * day's shelves (lib/catalog/shelves.ts). A title already shown higher up (the
  * carousel included) is left out of the shelves below it. Shelves below the
  * fold only fetch when scrolled near.
@@ -49,12 +64,16 @@ export function Home() {
   const { data: watching } = useContinueWatching();
   const watched = useMemo(() => new Set((watching ?? []).map((p) => p.metaId)), [watching]);
   const { data: settings } = useSettings();
+  const addonRows = useHomeCatalogs();
 
   return (
     <div className="scroll home">
       <HeroCarousel items={items} index={index} setIndex={setIndex} />
       <div className="rows home-rows">
         {(settings?.showContinueWatching ?? true) && <ContinueRow />}
+        {addonRows.map((c) => (
+          <AddonShelf key={catalogKey(c)} catalog={c} />
+        ))}
         {shelves.map((shelf, i) => (
           <LazyShelf
             key={shelfKey(shelf).join("/")}
@@ -345,6 +364,28 @@ function LazyShelf({ shelf, eager, exclude }: { shelf: HomeShelf; eager: boolean
   );
 }
 
+/**
+ * An add-on's catalog as a row (#206): fetched once near, left out when the add-on fails, is
+ * too slow or has nothing. Its titles aren't deduplicated against the shelves: it's the user's list.
+ */
+function AddonShelf({ catalog }: { catalog: AddonCatalog }) {
+  const [ref, near] = useNearViewport<HTMLDivElement>();
+  const { data, isError } = useAddonCatalogRow(catalog, near);
+  const { navigate } = useRouter();
+  return (
+    <div ref={ref} data-addon-row={catalog.id}>
+      {!isError && !(data && !data.length) && (
+        <Shelf
+          title={catalogTitle(catalog)}
+          onOpen={() => navigate({ name: "discover", type: catalog.type, catalog: catalog.id, addon: catalog.addon })}
+          items={data}
+          card={(item) => <PosterCard key={item.id} item={item} />}
+        />
+      )}
+    </div>
+  );
+}
+
 function ContinueRow() {
   const { data } = useContinueWatching();
   const items = useMemo(() => data ?? [], [data]);
@@ -407,7 +448,7 @@ function ContinueCard({ progress: p }: { progress: Progress }) {
     >
       {/* The logo names the show; an entry of it goes by its own name. */}
       <ArtTitle name={item.name} logo={entry ? undefined : logo} />
-      {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a progressive blur. */}
+      {/* Where you are, on the picture like Apple TV's: a short bar and the time left, over a gradient (#38). */}
       <div className="card-resume">
         <ProgressBar fraction={fraction} />
         <span className="card-resume-left tabular">{formatRemaining(p.position, p.duration)}</span>

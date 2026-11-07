@@ -1220,6 +1220,18 @@
   padding: 0.45rem 0;
   font-size: var(--fs-lg);
 }
+.tv-source-info .source-info-table {
+  font-size: var(--fs-lg);
+}
+.tv-source-info .source-info-table :is(th, td) {
+  padding: 0.45rem 1.5rem 0.45rem 0;
+}
+.tv-source-info .source-info-table :is(th, td):last-child {
+  padding-right: 0;
+}
+.tv-source-info .source-info-table thead th {
+  font-size: var(--fs-md);
+}
 .tv-source-info .source-info-actions {
   justify-content: flex-start;
   margin-top: 1.5rem;
@@ -2412,4 +2424,22 @@
   .tv-week {
     animation: fade-in var(--dur-base) var(--ease-out);
   }
+}
+
+/* --- Downloads (#15): the desktop page, scrolled by focus, a little larger. */
+.tv-downloads {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 6.5rem var(--tv-gutter) 4rem;
+  font-size: 1.125rem;
+}
+.tv-downloads .downloads {
+  padding: 0;
+}
+.tv-downloads .downloads-selectbar {
+  top: 0;
+}
+.tv-card-more .tv-card-fallback {
+  font-weight: 650;
 }
