@@ -41,6 +41,14 @@ import "./styles/anime.css";
 import "./styles/tv.css";
 import "./styles/updates.css";
 import { installGamepad } from "./tv/gamepad";
+import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
+import flagFont from "country-flag-emoji-polyfill/dist/TwemojiCountryFlags.woff2?url";
+
+// Windows has no flag emoji: 🇬🇧 shows as the letters "GB". Where flags don't draw (checked on a
+// canvas, so macOS, Linux and Android keep their own), a flags-only font is added, bundled with the
+// app; its @font-face covers only the flag characters, so every other glyph keeps the app's font.
+// Twemoji's flags, CC-BY 4.0; the polyfill MIT (docs/licensing.md).
+polyfillCountryFlagEmojis("Twemoji Country Flags", flagFont);
 
 // Font rendering differs by OS; base.css tunes text weight for Windows.
 // "mac" also makes room for the traffic lights (shell.css).
