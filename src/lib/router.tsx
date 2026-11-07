@@ -7,7 +7,8 @@ import { isFileId } from "./localFiles/ids";
 export type TabRoute =
   | { name: "home" }
   /** Movies or Series; from a Home shelf's heading, opened at that shelf's catalog and genre (#48). */
-  | { name: "discover"; type: ContentType; catalog?: string; genre?: string }
+  /** `addon`: `catalog` is that add-on's (#206), not one of Polarity's. */
+  | { name: "discover"; type: ContentType; catalog?: string; genre?: string; addon?: string }
   | { name: "anime" }
   | { name: "library" }
   | { name: "calendar" }

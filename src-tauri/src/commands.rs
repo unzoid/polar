@@ -92,6 +92,31 @@ pub async fn catalog(
     Ok(state.indexer().catalog(&ty, &id, skip.unwrap_or(0), genre.as_deref()).await?)
 }
 
+/// One page of an installed addon's catalog (#206), its extra arguments
+/// (`genre`, `skip`, `search`) as the manifest declares them. A catalog the
+/// manifest doesn't list, or an argument it doesn't take, is refused.
+#[tauri::command]
+pub async fn addon_catalog(
+    state: State<'_, AppState>,
+    addon: String,
+    ty: String,
+    id: String,
+    extra: Vec<(String, String)>,
+) -> Result<Vec<MetaPreview>> {
+    let found = installed(&state).into_iter().find(|a| a.manifest.id == addon);
+    let addon = found.ok_or_else(|| CmdError::NotFound("that add-on isn't installed".into()))?;
+    let declared = addon.manifest.catalogs.iter().find(|c| c.ty == ty && c.id == id);
+    if !declared.is_some_and(|c| c.accepts(&extra)) || extra.iter().any(|(_, v)| v.len() > 200) {
+        return Err(CmdError::Unsupported("the add-on doesn't offer that list".into()));
+    }
+    let args: Vec<(&str, &str)> = extra.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    let fetch = state.addons.catalog(&addon.manifest_url, &ty, &id, &args);
+    match tokio::time::timeout(ADDON_TIMEOUT, fetch).await {
+        Ok(page) => Ok(page?),
+        Err(_) => Err(CmdError::Upstream(format!("{} took too long to answer", addon.manifest.name))),
+    }
+}
+
 /// Titles like `id` ("Because you watched …").
 #[tauri::command]
 pub async fn recommend(state: State<'_, AppState>, ty: String, id: String) -> Result<Vec<MetaPreview>> {

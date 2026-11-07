@@ -84,6 +84,7 @@ const commands: Record<string, (a: Args) => unknown> = {
   },
   // Open Stremio links in Polarity (#163): each change is kept for browser tests to read.
   stremio_links_set: (a) => void ((window as { __stremioLinks?: boolean[] }).__stremioLinks ??= []).push(!!a.on),
+  addon_catalog: (a) => fx.addonCatalog(String(a.addon), String(a.ty), String(a.id), a.extra as [string, string][]),
   addons_bundled: () => [],
   library_list: () => library,
   library_toggle: (a) => {

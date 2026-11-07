@@ -311,6 +311,10 @@ const W_ADDONS: InstalledAddon[] = [
       types: ["movie", "series", "anime", "channel", "tv", "other"],
       resources: ["catalog", "meta", "stream", "subtitles", "addon_catalog"],
       behaviorHints: { configurable: true, configurationRequired: true },
+      catalogs: [
+        { type: "movie", id: "everything", name: `${W_LONG} Collection`, extra: [{ name: "skip" }, { name: "search" }] },
+        { type: "series", id: "everything", name: "S", extra: [{ name: "genre", options: Array.from({ length: 60 }, (_, i) => `Genre ${i + 1}`) }] },
+      ],
     },
   },
   { manifestUrl: "https://q.example/manifest.json", manifest: { id: "q", version: "0", name: "Q", types: [], resources: [], behaviorHints: null } },
@@ -340,7 +344,43 @@ export const addons: InstalledAddon[] = WORST === "empty" ? [] : WORST ? W_ADDON
       behaviorHints: { configurable: true, configurationRequired: false },
     },
   },
+  // Lists of titles only (#206): two Home rows, a search, one that never answers, and lists Polarity can't show.
+  {
+    manifestUrl: "https://addons.example/lists/manifest.json",
+    manifest: {
+      id: "example.lists",
+      version: "0.2.0",
+      name: "Example Lists",
+      description: "Hand-picked lists of public-domain films and shows.",
+      types: ["movie", "series"],
+      resources: ["catalog"],
+      behaviorHints: { configurable: false, configurationRequired: false },
+      catalogs: [
+        { type: "movie", id: "picks", name: "Staff Picks", extra: [{ name: "genre", options: ["Drama", "Comedy"] }, { name: "skip" }] },
+        { type: "series", id: "weekend", name: "Weekend Series" },
+        { type: "movie", id: "late", name: "Late Night" },
+        { type: "movie", id: "find", name: "Search", extra: [{ name: "search", isRequired: true }] },
+        { type: "channel", id: "radio", name: "Radio" },
+        { type: "movie", id: "by-year", name: "By Year", extra: [{ name: "year", isRequired: true }] },
+      ],
+    },
+  },
 ];
+
+/**
+ * Example Lists' answers (`addon_catalog`): Staff Picks pages by 4 and filters by genre, Late Night fails
+ * the way a timed-out add-on does, Search matches names.
+ */
+export function addonCatalog(addon: string, type: string, id: string, extra: [string, string][]): MetaPreview[] | Promise<never> {
+  const arg = Object.fromEntries(extra);
+  const list = type === "series" ? series : movies;
+  if (addon !== "example.lists" || id === "late") return Promise.reject({ code: "upstream", message: "Example Lists took too long to answer" });
+  if (id === "find") return list.filter((m) => m.name.toLowerCase().includes(String(arg.search).toLowerCase())).slice(0, 6);
+  if (id === "weekend") return list.slice(2, 10);
+  const genre = arg.genre === "Comedy" ? list.slice(6) : list;
+  const skip = Number(arg.skip ?? 0);
+  return genre.slice(skip, skip + 4);
+}
 
 function worstStreams(): StreamsResult {
   const big = "Community Archive of Restored Public-Domain Cinema (Volunteer Edition, EU West)";

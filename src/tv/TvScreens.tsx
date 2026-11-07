@@ -4,15 +4,21 @@ import { addRecentSearch, clearRecentSearches, searchMinLength, useRecentSearche
 import { playSound } from "./sounds";
 import { useContinueWatching, useLibrary, useSearch, useWatchHistory } from "../lib/net";
 import {
+  catalogKey,
+  catalogTitle,
   GENRES,
   progressFraction,
   progressItem,
   shelfKey,
   todaysShelves,
   trendingPicks,
+  useAddonCatalogRow,
+  useAddonSearches,
+  useHomeCatalogs,
   useSeeds,
   useShownAbove,
   useTrending,
+  type AddonCatalog,
   type Shape,
   type Shelf,
 } from "../lib/catalog";
@@ -33,7 +39,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 
 const NO_TITLES: MetaPreview[] = [];
 
-/** Home: what you're watching, friends, what's trending, then the day's shelves. */
+/** Home: what you're watching, friends, what's trending, the add-on catalogs switched on (#206), then the day's shelves. */
 export function TvHome() {
   const seeds = useSeeds();
   const shelves = useMemo(() => todaysShelves(seeds), [seeds]);
@@ -45,12 +51,14 @@ export function TvHome() {
   const shownAbove = useShownAbove(shelves, picks ?? NO_TITLES);
   const { data: watching } = useContinueWatching();
   const watched = useMemo(() => new Set((watching ?? []).map((p) => p.metaId)), [watching]);
+  const addonRows = useHomeCatalogs();
 
   const rows: RailRow[] = [
     { key: "continue", render: () => <TvContinueRail /> },
     // Only while the profile has Friends on and someone to show (#135).
     { key: "friends", render: () => <TvFriendsRail /> },
     { key: "trending", render: () => <TvItemsRail title="Trending Now" items={picks} shape="poster" /> },
+    ...addonRows.map((c) => ({ key: `addon:${catalogKey(c)}`, render: (near: boolean) => <TvAddonRail catalog={c} enabled={near} /> })),
     ...shelves.map((shelf, i) => ({
       key: shelfKey(shelf).join("/"),
       render: (near: boolean) => (
@@ -66,6 +74,13 @@ export function TvHome() {
   return <TvBrowse rows={rows} />;
 }
 
+/** An add-on's catalog as a rail; a failing, slow or empty one leaves itself out. */
+function TvAddonRail({ catalog, enabled }: { catalog: AddonCatalog; enabled: boolean }) {
+  const { data, isError } = useAddonCatalogRow(catalog, enabled);
+  if (isError) return null;
+  return <TvItemsRail title={catalogTitle(catalog)} items={data} shape="poster" />;
+}
+
 const CATALOGS = [
   { id: "trending", title: "Trending" },
   { id: "popular", title: "Popular" },
@@ -75,7 +90,7 @@ const CATALOGS = [
   { id: "classics", title: "Classics" },
 ];
 
-/** Series or Movies: every catalog, then every genre, as rails. */
+/** Series or Movies: every catalog, then every genre, then the add-on catalogs that are on Home (#206), as rails. */
 export function TvDiscover({ type }: { type: ContentType }) {
   const shelves = useMemo<Shelf[]>(() => {
     const noun = type === "movie" ? "Movies" : "Series";
@@ -87,10 +102,14 @@ export function TvDiscover({ type }: { type: ContentType }) {
     return [...catalogs, ...genres];
   }, [type]);
   const shownAbove = useShownAbove(shelves, NO_TITLES);
-  const rows: RailRow[] = shelves.map((shelf, i) => ({
-    key: shelfKey(shelf).join("/"),
-    render: (near) => <TvShelfRail shelf={shelf} enabled={near} exclude={shownAbove[i]} />,
-  }));
+  const addonRows = useHomeCatalogs().filter((c) => c.type === type);
+  const rows: RailRow[] = [
+    ...shelves.map((shelf, i) => ({
+      key: shelfKey(shelf).join("/"),
+      render: (near: boolean) => <TvShelfRail shelf={shelf} enabled={near} exclude={shownAbove[i]} />,
+    })),
+    ...addonRows.map((c) => ({ key: `addon:${catalogKey(c)}`, render: (near: boolean) => <TvAddonRail catalog={c} enabled={near} /> })),
+  ];
   return <TvBrowse rows={rows} />;
 }
 
@@ -218,8 +237,10 @@ export function TvSearch() {
   const aliases = useAnimeAliases();
   const movies = withoutAnime(data?.movies, anime.items, aliases);
   const series = withoutAnime(data?.series, anime.items, aliases);
+  const fromAddons = useAddonSearches(searching ? query : "");
+  const addonsQuiet = fromAddons.every((r) => r.failed || (r.items && !r.items.length));
   const empty =
-    searching && data && !isPlaceholderData && !movies!.length && !series!.length && !anime.loading && !anime.items?.length;
+    searching && data && !isPlaceholderData && !movies!.length && !series!.length && !anime.loading && !anime.items?.length && addonsQuiet;
 
   // Enter (or a recent search): search now, and go to the first result once it's in.
   const pendingFocus = useRef<string | null>(null);
@@ -299,6 +320,7 @@ export function TvSearch() {
             {animeEnabled && (anime.loading || !!anime.items?.length) && (
               <TvAnimeRail title={anime.title} items={anime.items} shape="poster" />
             )}
+            {fromAddons.map((r) => !r.failed && <TvItemsRail key={catalogKey(r.catalog)} title={catalogTitle(r.catalog)} items={r.items} shape="poster" />)}
           </>
         )}
         {empty && <EmptyState variant="tv">Nothing found for “{query}”.</EmptyState>}

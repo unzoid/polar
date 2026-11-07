@@ -54,6 +54,19 @@ test("search on a phone", async ({ app }) => {
   expect(await fitsWidth(app)).toBe(true);
 });
 
+test("an add-on's catalogs switched on show as Home rows and fit a phone (#206)", async ({ app }) => {
+  await app.addInitScript(() =>
+    localStorage.setItem("polar.prefs", JSON.stringify({ ...JSON.parse(localStorage.getItem("polar.prefs") ?? "{}"), addonCatalogsHome: '{"on":["example.lists"],"order":[]}' })),
+  );
+  await app.reload();
+  const picks = app.locator('[data-addon-row="picks"]');
+  await expect(picks.getByRole("button", { name: "Staff Picks · Example Lists" })).toBeVisible();
+  await expect(picks.locator(".card")).toHaveCount(4);
+  await picks.locator(".card").first().tap();
+  await expect(app.getByRole("heading", { level: 1 })).toBeVisible();
+  expect(await fitsWidth(app)).toBe(true);
+});
+
 test("a sideways swipe on the featured card steps through the titles", async ({ app }) => {
   const dots = app.getByRole("tablist", { name: "Featured" }).getByRole("tab");
   await expect(dots.first()).toHaveAttribute("aria-selected", "true");

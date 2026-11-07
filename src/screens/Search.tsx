@@ -5,7 +5,7 @@ import { PosterCard } from "../components/PosterCard";
 import { Shelf } from "../components/title/Shelf";
 import { type AnimeCard as Card, retryTitle, useAnimeAliases, useAnimeResults, withoutAnime } from "../lib/anime";
 import { api } from "../lib/api";
-import { addRecentSearch, BROWSE_GENRES, genreOf, searchMinLength, useSearchText } from "../lib/catalog";
+import { addRecentSearch, BROWSE_GENRES, catalogKey, catalogTitle, genreOf, searchMinLength, useAddonSearches, useSearchText } from "../lib/catalog";
 import { usePrefs } from "../lib/settings";
 import { useRouter } from "../lib/router";
 import { keys, useSearch } from "../lib/net";
@@ -15,7 +15,8 @@ import { EmptyState } from "../components/ui/EmptyState";
 /**
  * Results for whatever is typed in the navbar's search field, one row per
  * kind so movies, series and anime all show without scrolling. A search that
- * names a genre ("horror") leads with that genre's titles. Nothing typed yet:
+ * names a genre ("horror") leads with that genre's titles. Add-ons whose
+ * catalogs take a search follow, a row each (#206). Nothing typed yet:
  * genres to start from.
  */
 export function Search() {
@@ -37,6 +38,7 @@ export function Search() {
   // What the catalogs found (they forgive typos): what AniList is asked for when the typed words find nothing.
   const anime = useAnimeResults(animeEnabled && hasQuery ? deferred : "", retryTitle(data?.series ?? [], data?.movies ?? []));
   const aliases = useAnimeAliases();
+  const fromAddons = useAddonSearches(hasQuery ? deferred : "");
 
   // Opened by iOS's search tab (the stack's root) with nothing typed yet: say what the field above is for.
   if (!text.trim())
@@ -55,7 +57,9 @@ export function Search() {
   const movies = withoutAnime(data?.movies.filter((m) => m.poster), anime.all, aliases);
   const series = withoutAnime(data?.series.filter((m) => m.poster), anime.all, aliases);
   const waiting = !hasQuery || !data;
-  const nothing = !waiting && !genre && !movies!.length && !series!.length && !anime.items?.length && !anime.loading;
+  const addonsBusy = fromAddons.some((r) => !r.items && !r.failed);
+  const addonsFound = fromAddons.some((r) => r.items?.length);
+  const nothing = !waiting && !genre && !movies!.length && !series!.length && !anime.items?.length && !anime.loading && !addonsBusy && !addonsFound;
 
   return (
     // Opening a result counts as running the search (Recent, in the search field).
@@ -66,6 +70,8 @@ export function Search() {
         <ResultRow title={genre ? "Movies Named Like It" : "Movies"} items={waiting ? undefined : movies} />
         <ResultRow title={genre ? "Series Named Like It" : "Series"} items={waiting ? undefined : series} />
         {animeEnabled && <AnimeRow title={anime.title} items={anime.items} loading={anime.loading} failed={anime.failed} retry={anime.retry} />}
+        {/* A failing add-on leaves its row out; Polarity's results above never wait for one. */}
+        {fromAddons.map((r) => !r.failed && <ResultRow key={catalogKey(r.catalog)} title={catalogTitle(r.catalog)} items={r.items} />)}
       </div>
       {nothing && <EmptyState>Nothing found for “{deferred}”.</EmptyState>}
     </div>

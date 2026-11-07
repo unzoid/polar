@@ -1073,6 +1073,7 @@ export const SETTINGS: SettingDef[] = [
   // Add-ons
   { id: "addonsInstalled", page: "addons", title: "Installed", keywords: "add-ons addons remove" },
   { id: "addonUrl", page: "addons", title: "Install from URL", keywords: "add-on addon manifest stremio" },
+  { id: "addonCatalogsHome", page: "addons", title: "Lists on Home", keywords: "add-on addons catalogs catalog rows shelves home order" },
   {
     id: "stremioLinks",
     page: "addons",
