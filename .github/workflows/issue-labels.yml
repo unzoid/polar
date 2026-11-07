@@ -22,6 +22,8 @@ jobs:
           sparse-checkout: scripts/issueOsLabels.ts
           sparse-checkout-cone-mode: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4 # the job holds issues: write; a new Bun release doesn't run with it unreviewed
       - name: Label the systems the issue is specific to
         env:
           GH_TOKEN: ${{ github.token }}

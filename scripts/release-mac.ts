@@ -23,7 +23,7 @@ import { spawnSync } from "node:child_process";
 import { requireAccountEnv } from "./accountEnv";
 import { packMacSources } from "./macSources";
 
-const REPO = "unzoid/polar";
+const REPO = "unzoid/polarity";
 const root = join(import.meta.dir, "..");
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith("--")));

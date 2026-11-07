@@ -23,7 +23,7 @@ export type UpdateState =
   | { phase: "installing"; version: string }
   | { phase: "error"; message: string };
 
-const RELEASES = "https://github.com/unzoid/polar/releases";
+const RELEASES = "https://github.com/unzoid/polarity/releases";
 export const releaseUrl = (version?: string) => (version ? `${RELEASES}/tag/v${version}` : RELEASES);
 
 let state: UpdateState = { phase: "idle" };
@@ -145,7 +145,7 @@ export async function takeWhatsNew(): Promise<WhatsNew | null> {
   // Installed by hand: ask GitHub for the release's notes.
   if (!notes) {
     try {
-      const res = await fetch(`https://api.github.com/repos/unzoid/polar/releases/tags/v${version}`);
+      const res = await fetch(`https://api.github.com/repos/unzoid/polarity/releases/tags/v${version}`);
       if (res.ok) {
         const release: unknown = await res.json();
         notes = releaseNotesSection((isRecord(release) && str(release.body)) || "");

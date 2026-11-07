@@ -1,6 +1,6 @@
 // Builds a signed Windows release and publishes it on GitHub, with the
 // `latest.json` feed the in-app updater reads
-// (https://github.com/unzoid/polar/releases/latest/download/latest.json).
+// (https://github.com/unzoid/polarity/releases/latest/download/latest.json).
 //
 //   bun scripts/release.ts 0.1.3 notes.md            build, then publish
 //   bun scripts/release.ts 0.1.3 notes.md --draft    build, upload as a draft (apps won't see it until published)
@@ -22,7 +22,7 @@ import { spawnSync } from "node:child_process";
 import { requireAccountEnv } from "./accountEnv";
 import { mpvVersion, vendoredMpvVersion } from "./windowsMpv";
 
-const REPO = "unzoid/polar";
+const REPO = "unzoid/polarity";
 const root = join(import.meta.dir, "..");
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith("--")));

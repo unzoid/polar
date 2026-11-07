@@ -1,0 +1,57 @@
+# Fuzz targets for the parsers that read what add-ons, files and links hand us (docs/testing.md).
+# Built by cargo-fuzz on a nightly toolchain in .github/workflows/security.yml; not part of the
+# workspace, so the app's builds never see libfuzzer.
+[package]
+name = "polar-fuzz"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+polar-addon = { path = "../crates/addon" }
+polar-library = { path = "../crates/library" }
+polar-player = { path = "../crates/player" }
+polar-torrent = { path = "../crates/torrent" }
+
+[workspace]
+
+[[bin]]
+name = "addon_response"
+path = "fuzz_targets/addon_response.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "subtitles"
+path = "fuzz_targets/subtitles.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "magnet"
+path = "fuzz_targets/magnet.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "player_input"
+path = "fuzz_targets/player_input.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "library_file"
+path = "fuzz_targets/library_file.rs"
+test = false
+doc = false
+bench = false

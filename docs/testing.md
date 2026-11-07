@@ -101,3 +101,23 @@ passes those arguments and the driver's profile folder through the WebView2 API
 
 Not covered by any layer yet: the player with mpv (needs a desktop, [desktop test](unverified.md)),
 sign-in and sync against a real Supabase project, and the real add-ons and metadata services.
+
+## Security checks
+
+`.github/workflows/security.yml`, apart from the test layers above:
+
+| Check | When | Fails on | Run it |
+|---|---|---|---|
+| Licences, crate sources, bans (cargo-deny, `deny.toml`) | every push and pull request | a crate under a licence `deny.toml` doesn't allow, or from anywhere but crates.io | `cargo install cargo-deny --locked`, then `cargo deny check licenses sources bans` |
+| Advisories (OSV-Scanner on `Cargo.lock`, `bun.lock`, `web/bun.lock`, `fuzz/Cargo.lock`) | every push and pull request | high or critical advisories only (CVSS 7.0 or more, or rated so by GitHub); others are listed in the job summary | `osv-scanner scan --format=json --output=osv.json --lockfile=Cargo.lock --lockfile=bun.lock`, then `bun scripts/advisoryGate.ts osv.json` |
+| Advisories (`bun audit`) | every push and pull request | high or critical | `bun audit --audit-level=high` |
+| CodeQL, TypeScript and Rust | pushes to `master`, Mondays, by hand | nothing: results go to the repository's Security tab | — |
+| Fuzzing (`fuzz/`, cargo-fuzz) | nightly, by hand (seconds per target as input) | a crash; the input that caused it is kept as the artifact `fuzz-crash-<target>` | `cargo install cargo-fuzz --locked`, then `cargo +nightly fuzz run <target> -- -max_total_time=60` |
+
+The fuzz targets feed random bytes to what reads outside data: an add-on's JSON answers
+(`addon_response`), subtitle files (`subtitles`), a torrent stream's hash and sources (`magnet`),
+the autocrop probe's screenshots and links passed to mpv (`player_input`), and the library file
+and file names from titles (`library_file`). They check that nothing panics, overflows or runs out
+of memory. To replay a crash: `cargo +nightly fuzz run <target> <artifact file>`; a fixed crash
+becomes a unit test in the crate. `fuzz/` is its own Cargo workspace with its own `Cargo.lock`, so
+the app's builds never compile libFuzzer.
