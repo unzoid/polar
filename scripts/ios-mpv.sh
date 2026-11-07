@@ -39,28 +39,32 @@ IOS_MIN=17.0
 # others.
 FRAMEWORKS="Libavcodec Libavfilter Libavformat Libavutil Libfribidi Libmpv Libplacebo Libswresample Libswscale"
 
-# Pinned versions: the same as the Android build's where both have the library.
-FFMPEG_TAG=n9.0.2
-MPV_TAG=v0.42.0
-DAV1D_TAG=1.5.4
-LIBASS_TAG=0.17.5
-LIBPLACEBO_TAG=v7.387.0
-FREETYPE_TAG=VER-2-15-0
-HARFBUZZ_TAG=15.0.0
-FRIBIDI_TAG=v1.0.17
+# Pinned versions: the same as the Android build's where both have the library. Each tag must be
+# the commit next to it; the build stops if a tag has moved.
+FFMPEG_TAG=n9.0.2 FFMPEG_COMMIT=946fcce07b6dcd0331c8cc609192aeff5e1924f8
+MPV_TAG=v0.42.0 MPV_COMMIT=b0841e8c4d156b8403dc1876c4cbd9011eb583f3
+DAV1D_TAG=1.5.4 DAV1D_COMMIT=54706fc6bc0cdecab7e9593974a4039cc038fca7
+LIBASS_TAG=0.17.5 LIBASS_COMMIT=4a05d8127f525943ebf45fdc6497c9e665947f0d
+LIBPLACEBO_TAG=v7.387.0 LIBPLACEBO_COMMIT=275f7dea27924cdd34ab2e6c20e448b6bc4fab65
+FREETYPE_TAG=VER-2-15-0 FREETYPE_COMMIT=37515cf56ba3349656049edbed89ffc6f6466f2d
+HARFBUZZ_TAG=15.0.0 HARFBUZZ_COMMIT=35f656a1a2bab548ea7f54a6dd3fba2b09680d14
+FRIBIDI_TAG=v1.0.17 FRIBIDI_COMMIT=b93119f5fdc7ea47672cc304c1455ffa6dfe7536
 
 mkdir -p "$src" "$out"
-clone() { # dir url tag [git options]
-	[ -d "$src/$1" ] || git clone -q --depth 1 -b "$3" "${@:4}" "$2" "$src/$1"
+clone() { # dir url tag commit [git options]
+	if [ ! -d "$src/$1" ]; then
+		git clone -q --depth 1 -b "$3" "${@:5}" "$2" "$src/$1"
+		[ "$(git -C "$src/$1" rev-parse HEAD)" = "$4" ] || { echo "$1's tag $3 isn't commit $4 any more" >&2; exit 1; }
+	fi
 }
-clone ffmpeg https://github.com/FFmpeg/FFmpeg "$FFMPEG_TAG"
-clone mpv https://github.com/mpv-player/mpv "$MPV_TAG"
-clone dav1d https://github.com/videolan/dav1d "$DAV1D_TAG"
-clone libass https://github.com/libass/libass "$LIBASS_TAG"
-clone libplacebo https://github.com/haasn/libplacebo "$LIBPLACEBO_TAG" --recurse-submodules --shallow-submodules
-clone freetype https://github.com/freetype/freetype "$FREETYPE_TAG"
-clone harfbuzz https://github.com/harfbuzz/harfbuzz "$HARFBUZZ_TAG"
-clone fribidi https://github.com/fribidi/fribidi "$FRIBIDI_TAG"
+clone ffmpeg https://github.com/FFmpeg/FFmpeg "$FFMPEG_TAG" "$FFMPEG_COMMIT"
+clone mpv https://github.com/mpv-player/mpv "$MPV_TAG" "$MPV_COMMIT"
+clone dav1d https://github.com/videolan/dav1d "$DAV1D_TAG" "$DAV1D_COMMIT"
+clone libass https://github.com/libass/libass "$LIBASS_TAG" "$LIBASS_COMMIT"
+clone libplacebo https://github.com/haasn/libplacebo "$LIBPLACEBO_TAG" "$LIBPLACEBO_COMMIT" --recurse-submodules --shallow-submodules
+clone freetype https://github.com/freetype/freetype "$FREETYPE_TAG" "$FREETYPE_COMMIT"
+clone harfbuzz https://github.com/harfbuzz/harfbuzz "$HARFBUZZ_TAG" "$HARFBUZZ_COMMIT"
+clone fribidi https://github.com/fribidi/fribidi "$FRIBIDI_TAG" "$FRIBIDI_COMMIT"
 
 # How each library is configured, the same for every platform (meson options, FFmpeg's flags).
 DAV1D_OPTS="-Denable_tools=false -Denable_tests=false"
