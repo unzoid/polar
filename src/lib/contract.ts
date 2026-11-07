@@ -8,12 +8,14 @@ import type { CommandError } from "./errors";
 import type { AnimeLink } from "./library/identity";
 import type {
   CacheInfo,
+  CatalogExtra,
   Imported,
   ExternalRatings,
   InstalledAddon,
   LibraryItem,
   LocalChanges,
   Manifest,
+  ManifestCatalog,
   Meta,
   MetaDetails,
   MetaPreview,
@@ -45,7 +47,19 @@ type Keys<T> = { readonly [K in keyof T]-?: true };
 export const contract = {
   // contract/addon.json (crates/addon)
   BehaviorHints: { configurable: true, configurationRequired: true } satisfies Keys<NonNullable<Manifest["behaviorHints"]>>,
-  Manifest: { behaviorHints: true, description: true, id: true, logo: true, name: true, resources: true, types: true, version: true } satisfies Keys<Manifest>,
+  Manifest: {
+    behaviorHints: true,
+    catalogs: true,
+    description: true,
+    id: true,
+    logo: true,
+    name: true,
+    resources: true,
+    types: true,
+    version: true,
+  } satisfies Keys<Manifest>,
+  ManifestCatalog: { extra: true, id: true, name: true, type: true } satisfies Keys<ManifestCatalog>,
+  CatalogExtra: { isRequired: true, name: true, options: true } satisfies Keys<CatalogExtra>,
   Meta: {
     background: true,
     cast: true,
@@ -280,8 +294,8 @@ export const contract = {
 
 /** Fields Rust sends that the TS types leave out on purpose, by Rust type. */
 export const unread: Partial<Record<keyof typeof contract, string[]>> = {
-  // The addon's catalogs and id prefixes: only the backend routes requests by them.
-  Manifest: ["catalogs", "idPrefixes"],
+  // The addon's id prefixes: only the backend routes requests by them.
+  Manifest: ["idPrefixes"],
   // Where the bytes come from and the headers the addon asked for: only the backend fetches.
   Download: ["headers", "url"],
 };

@@ -7,15 +7,17 @@
  * - `panel`: the player's Watch Party panel
  * - `link`: a link someone put on, shown before it plays here (PartyHost)
  * - `over`: "Watch party over" (removed, or the host ended it)
+ * - `discord`: joining from Discord (#154): someone asking to join, or this app joining from a link
+ * - `friends`: the Friends panel (#135; the profile menu's), where a friend's party is joined
  *
- * The player drawn over the app closes `join` and `menu` (PartyHost): a dialog that leads into the
+ * The player drawn over the app closes `join`, `menu` and `friends` (PartyHost): a dialog that leads into the
  * player is gone before the player's panel can open. One-time notices that aren't the party's wait
  * while any of these is up (`usePartySurface`). Where each sits on screen is styles/tokens.css's
  * stacking order.
  */
 import { useSyncExternalStore } from "react";
 
-export type PartySurface = "join" | "menu" | "panel" | "link" | "over";
+export type PartySurface = "join" | "menu" | "panel" | "link" | "over" | "discord" | "friends";
 
 let current: PartySurface | null = null;
 const listeners = new Set<() => void>();

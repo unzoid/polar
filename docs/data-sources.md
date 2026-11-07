@@ -26,7 +26,7 @@ first (see `AGENTS.md`).
 | AniSkip | Opening, ending and recap times for anime | `src/lib/anime/aniskip.ts` | None | None published |
 | IntroDB | Intro, recap and credits times by IMDb id | `src-tauri/src/introdb.rs` | None for reads | Rate limited, numbers not published |
 | Seekr | Seek-bar thumbnails | `src-tauri/src/seekr.rs` | The user's own | Per key |
-| YouTube (nocookie embed) | Trailers in the trailer player when there is no video file | `src/components/Trailer.tsx` | None | — |
+| YouTube (nocookie embed) | Trailers in the trailer player when there is no video file; a YouTube link put on in a watch party (Watch a Link), driven through the embed's IFrame Player API messages | `src/components/Trailer.tsx`, `src/components/player/youtubeMedia.ts` | None | — |
 | OpenSubtitles v3 add-on | Subtitles, installed by default | `src-tauri/src/lib.rs` | None | — |
 | Add-ons the user installs | Streams, subtitles, catalogs | `crates/addon/src/client.rs`, `src-tauri/src/commands.rs` | Per add-on | Each add-on's own |
 | Add-on list | The curated list in Settings → Add-ons | `src/lib/catalog/marketplace.ts` | None | — |

@@ -45,6 +45,15 @@ fn preview() -> MetaPreview {
     }
 }
 
+fn catalog() -> ManifestCatalog {
+    ManifestCatalog {
+        ty: "movie".into(),
+        id: "top".into(),
+        name: s("Top"),
+        extra: vec![CatalogExtra { name: "genre".into(), options: Some(vec!["Drama".into()]), is_required: true }],
+    }
+}
+
 fn stream() -> Stream {
     Stream {
         url: s("https://a.io/v.mkv"),
@@ -74,12 +83,14 @@ fn field_names_match_contract() {
             logo: s("l"),
             resources: vec![ManifestResource::Name("stream".into())],
             types: vec!["movie".into()],
-            catalogs: vec![],
+            catalogs: vec![catalog()],
             id_prefixes: Some(vec!["tt".into()]),
             behavior_hints: Some(BehaviorHints::default()),
         }),
     );
     add("BehaviorHints", keys(&BehaviorHints::default()));
+    add("ManifestCatalog", keys(&catalog()));
+    add("CatalogExtra", keys(&catalog().extra[0]));
     add("MetaPreview", keys(&preview()));
     let details = MetaDetails {
         tagline: s("t"),

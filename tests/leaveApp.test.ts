@@ -27,3 +27,21 @@ test("the player asks Android for immersive mode and gives the bars back (#178)"
   expect(() => setImmersive(true, {})).not.toThrow();
   expect(() => setImmersive(true, { polarDevice: {} })).not.toThrow();
 });
+
+describe("window changes go to the app's own message channel when the shell has one", () => {
+  test("leave and immersive are posted as messages, not called on the interface every frame can see", async () => {
+    const posted: string[] = [];
+    const interfaceCalls: string[] = [];
+    const scope = {
+      polarActions: { postMessage: (m: string) => void posted.push(m) },
+      polarDevice: { leave: () => void interfaceCalls.push("leave"), immersive: () => void interfaceCalls.push("immersive") },
+    };
+    let quit = 0;
+    await leaveApp(scope, async () => void quit++);
+    setImmersive(true, scope);
+    setImmersive(false, scope);
+    expect(posted).toEqual(["leave", "immersive:on", "immersive:off"]);
+    expect(interfaceCalls).toEqual([]);
+    expect(quit).toBe(0);
+  });
+});

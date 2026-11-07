@@ -1,8 +1,14 @@
 /**
  * What Discord shows while something plays (#31), as Settings → Playback → Show on Discord has it:
- * nothing ("off", the default), only that Polarity is in use ("app"), or the title with the season
+ * nothing ("off"), only that Polarity is in use ("app", the default since #150), or the title with the season
  * and episode, the poster and the time left ("title"). The shell sends it to the Discord app on
  * this machine (src-tauri/src/discord.rs); without Discord, nothing happens.
+ *
+ * Others see up to two buttons on it (#153): "Watch in Polarity" (the same title, in their own
+ * Polarity; "title" only, since "app" doesn't say what plays) and "Join watch party" (in a party
+ * that can be joined from Discord, #154). Both link to the website's hand-over pages. Discord
+ * builds the heading itself from the activity type and the application's name ("Watching
+ * Polarity"); the closest an activity gets to "Watching on Polarity" is its first line.
  */
 
 export type DiscordPresence = "off" | "app" | "title";
@@ -16,6 +22,13 @@ export interface DiscordActivity {
   end?: number;
   image?: string;
   imageText?: string;
+  buttons?: { label: string; url: string }[];
+}
+
+/** The website pages behind the buttons; see lib/deepLink. */
+export interface PresenceLinks {
+  watch?: string;
+  party?: string;
 }
 
 export interface Playing {
@@ -38,7 +51,7 @@ const episodeLine = (e: NonNullable<Playing["episode"]>) => {
   return title && !/^episode \d+$/i.test(title) ? `${code} · ${title}` : code;
 };
 
-export function discordActivity(mode: DiscordPresence, p: Playing | null, now = Date.now()): DiscordActivity | null {
+export function discordActivity(mode: DiscordPresence, p: Playing | null, now = Date.now(), links: PresenceLinks = {}): DiscordActivity | null {
   if (mode === "off" || !p || p.ended) return null;
   // While it plays: when it began (at this speed) and when it ends, so Discord counts down the time left.
   const rate = p.rate > 0 ? p.rate : 1;
@@ -46,7 +59,9 @@ export function discordActivity(mode: DiscordPresence, p: Playing | null, now = 
     !p.paused && p.duration > 0 && Number.isFinite(p.duration)
       ? { start: Math.round(now - (p.current * 1000) / rate), end: Math.round(now + ((p.duration - p.current) * 1000) / rate) }
       : {};
-  if (mode === "app") return { details: "Watching", state: p.paused ? "Paused" : undefined, ...times };
+  const party = links.party ? [{ label: "Join watch party", url: links.party }] : [];
+  if (mode === "app") return { details: "Watching on Polarity", state: p.paused ? "Paused" : undefined, ...times, ...withButtons(party) };
+  const watch = links.watch ? [{ label: "Watch in Polarity", url: links.watch }] : [];
   const lines = [p.episode && episodeLine(p.episode), p.paused && "Paused"].filter(Boolean);
   return {
     details: p.name,
@@ -54,8 +69,11 @@ export function discordActivity(mode: DiscordPresence, p: Playing | null, now = 
     ...times,
     image: p.poster?.startsWith("https://") ? p.poster : undefined,
     imageText: p.poster ? p.name : undefined,
+    ...withButtons([...watch, ...party]),
   };
 }
+
+const withButtons = (buttons: NonNullable<DiscordActivity["buttons"]>) => (buttons.length ? { buttons } : {});
 
 /** How far the end time may drift (buffering, a speed mpv changed itself) before Discord is told again. */
 const DRIFT_MS = 3000;
@@ -64,5 +82,6 @@ const DRIFT_MS = 3000;
 export function sameActivity(a: DiscordActivity | null, b: DiscordActivity | null) {
   if (!a || !b) return a === b;
   const near = (x?: number, y?: number) => (x === undefined || y === undefined ? x === y : Math.abs(x - y) < DRIFT_MS);
-  return a.details === b.details && a.state === b.state && a.image === b.image && near(a.start, b.start) && near(a.end, b.end);
+  const urls = (x: DiscordActivity) => (x.buttons ?? []).map((b) => b.url).join(" ");
+  return a.details === b.details && a.state === b.state && a.image === b.image && urls(a) === urls(b) && near(a.start, b.start) && near(a.end, b.end);
 }
