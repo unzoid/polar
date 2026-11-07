@@ -44,7 +44,8 @@ export interface Prefs {
   uiScale: number;
   /** Pause when the window is minimized. */
   pauseOnMinimize: boolean;
-  /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title. */
+  /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title.
+   * Starts at "app" (#150); a value already stored, Off included, stays as it was. */
   discordPresence: "off" | "app" | "title";
   /**
    * A profile new to this device starts with the add-ons and API keys already here (#80). Off: it starts
@@ -67,8 +68,6 @@ export interface Prefs {
   autocropEveryFrame: boolean;
   /** Phones and tablets: the picture fills the screen, its edges cropped, instead of fitting inside it (#149). */
   videoFill: boolean;
-  /** TV mode, paused: Left and Right step one frame instead of skipping (the player's Speed options, #243). */
-  tvFrameStep: boolean;
   /** mpv read-ahead. */
   buffer: "small" | "normal" | "large";
   /** Torrent sources: most GB their cache on this device may hold; 0 = no limit. */
@@ -151,7 +150,7 @@ const DEFAULTS: Prefs = {
   autoSkipDelay: 5,
   uiScale: 1,
   pauseOnMinimize: false,
-  discordPresence: "off",
+  discordPresence: "app",
   shareAddonsAndKeys: false,
   dialogueBoost: false,
   volumeLeveling: false,
@@ -161,7 +160,6 @@ const DEFAULTS: Prefs = {
   autocropLookahead: true,
   autocropEveryFrame: false,
   videoFill: false,
-  tvFrameStep: false,
   buffer: "normal",
   torrentCacheGb: 20,
   torrentSpeedMbps: 0,

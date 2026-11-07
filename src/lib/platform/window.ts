@@ -23,6 +23,11 @@ export interface AppWindow {
   onResized(handler: () => void): Promise<Unlisten>;
   /** Scales the whole interface (Settings → Interface size); 1 = as designed. */
   setZoom(scale: number): Promise<void>;
+  /** Desktop, where the system lets an app keep itself on top (not Wayland): the player can pin the window (#266). */
+  canPin(): Promise<boolean>;
+  setAlwaysOnTop(on: boolean): Promise<void>;
+  /** Locked: no resizing at the edges, minimise and maximise turned off (close still works). */
+  setLocked(locked: boolean): Promise<void>;
 }
 
 // Looked up on each use: the Tauri handle can't be made outside the shell, and importing this file must not fail there.
@@ -42,6 +47,12 @@ export const appWindow: AppWindow = {
   onFocusChanged: (handler) => win().onFocusChanged(({ payload }) => handler(payload)),
   onResized: (handler) => win().onResized(() => handler()),
   setZoom: (scale) => getCurrentWebview().setZoom(scale),
+  canPin: () => (isDesktop ? call<boolean>("window_can_pin").catch(() => false) : Promise.resolve(false)),
+  setAlwaysOnTop: (on) => win().setAlwaysOnTop(on),
+  setLocked: async (locked) => {
+    const w = win();
+    await Promise.all([w.setResizable(!locked), w.setMinimizable(!locked), w.setMaximizable(!locked)]);
+  },
 };
 
 export type FileDrag = { type: "enter"; paths: string[] } | { type: "leave" } | { type: "drop" };

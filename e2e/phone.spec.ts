@@ -40,6 +40,9 @@ test("tabs, a title page and the player by touch", async ({ app }) => {
   await player.tap({ position: { x: 200, y: 300 } });
   await expect(player).toHaveAttribute("data-chrome", "false");
   await player.tap({ position: { x: 200, y: 300 } });
+  // An Android phone's volume buttons set the volume: no slider, Mute still there (#179).
+  await expect(player.getByRole("slider", { name: "Volume" })).toHaveCount(0);
+  await expect(player.getByRole("button", { name: "Mute" })).toBeVisible();
   await player.getByRole("button", { name: "Back", exact: true }).tap();
   await expect(player).toHaveCount(0);
 });
@@ -240,6 +243,8 @@ test("on a phone, a long press on a source opens its info; no i button shows (#2
   const panel = app.getByRole("dialog", { name: "Source Info" });
   await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
   expect(await panel.textContent()).not.toContain("TOKEN0000");
+  // Best Match's table scrolls sideways inside the card, never the page (#274).
+  await expect(panel.getByRole("table").getByRole("rowheader", { name: "Total" })).toBeAttached();
   expect(await fitsWidth(app)).toBe(true);
   await panel.getByRole("button", { name: "Done" }).tap();
   await expect(panel).toHaveCount(0);

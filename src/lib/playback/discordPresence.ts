@@ -1,6 +1,6 @@
 /**
  * What Discord shows while something plays (#31), as Settings → Playback → Show on Discord has it:
- * nothing ("off", the default), only that Polarity is in use ("app"), or the title with the season
+ * nothing ("off"), only that Polarity is in use ("app", the default since #150), or the title with the season
  * and episode, the poster and the time left ("title"). The shell sends it to the Discord app on
  * this machine (src-tauri/src/discord.rs); without Discord, nothing happens.
  */

@@ -16,19 +16,24 @@ import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
  */
 
 const library: LibraryItem[] = [...fx.library];
+const seeded = fx.DOWNLOADS ? fx.seededDownloads() : undefined;
 const progress: Progress[] = [...fx.progress];
+// Episodes watched through (the seeded downloads' marks): read per title only, history keeps one entry each.
+const watchedEpisodes: Progress[] = seeded?.watched ?? [];
 const animeLinks = new Map<number, AnimeLink>();
 // A download finishes the moment it starts; the file is only a name.
-let downloads: Download[] = [];
+let downloads: Download[] = seeded?.downloads ?? [];
 // `fake.html?theme=black` and the like start with that setting changed.
 const params = new URLSearchParams(location.search);
 params.delete("worst"); // fixtures.ts's worst-case switch, not a setting
 params.delete("films"); // and its README-screenshot switch
+params.delete("downloads"); // and #15's many-downloads switch
 const secretsPlace = params.get("secretsPlace") ?? "keychain"; // Settings → Account's "On this device"
 params.delete("secretsPlace");
 // `fake.html?account=1`: signed in, with watch parties in this page (account.ts); read by lib/account in dev builds only.
 if (params.get("account")) (globalThis as { __polarFakeAccount?: unknown }).__polarFakeAccount = fakeAccount;
 params.delete("account");
+params.delete("friends"); // `&friends=1`: the profile starts with Friends on (account.ts)
 let settings: Settings = { ...fx.settings, ...Object.fromEntries(params) };
 
 type Args = Record<string, unknown>;
@@ -66,7 +71,7 @@ const commands: Record<string, (a: Args) => unknown> = {
     else library.unshift({ id: item.id, type: item.type, name: item.name, poster: item.poster, addedAt: Date.now() });
     return at < 0;
   },
-  progress_for: (a) => progress.filter((p) => p.metaId === a.metaId),
+  progress_for: (a) => [...progress, ...watchedEpisodes].filter((p) => p.metaId === a.metaId),
   progress_save: (a) => void progress.unshift(a.progress as Progress),
   progress_save_many: () => undefined,
   library_import: (a) => {
@@ -99,6 +104,9 @@ const commands: Record<string, (a: Args) => unknown> = {
   },
   download_remove: (a) => void (downloads = downloads.filter((d) => d.id !== a.id)),
   download_reveal: () => undefined,
+  download_pause: (a) => void (downloads = downloads.map((d) => (d.id === a.id ? { ...d, state: "paused" } : d))),
+  download_resume: (a) => void (downloads = downloads.map((d) => (d.id === a.id ? { ...d, state: "downloading" } : d))),
+  downloads_storage: () => ({ dir: "~/Videos/Polarity", free: null }),
   controllers_list: () => [],
   mpv_available: () => false,
   // Discord: what the player sends is kept for browser tests to read.
@@ -130,6 +138,14 @@ const commands: Record<string, (a: Args) => unknown> = {
   "plugin:window|is_fullscreen": () => false,
   "plugin:window|is_maximized": () => false,
   "plugin:window|is_minimized": () => false,
+  // Pin window (#266): what the window was told is kept for browser tests to read.
+  window_can_pin: () => true,
+  ...Object.fromEntries(
+    ["set_always_on_top", "set_resizable", "set_minimizable", "set_maximizable"].map((name) => [
+      `plugin:window|${name}`,
+      (a: Args) => void (((window as { __window?: Record<string, unknown> }).__window ??= {})[name] = a.value),
+    ]),
+  ),
 };
 
 mockWindows("main");

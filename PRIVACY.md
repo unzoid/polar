@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: 06/11/2026
+Last updated: 07/11/2026
 
 Polarity is a media player. This page says what it stores about you, where, and who else your device talks to while
 you use it. It's written from what the app does today; where something isn't settled yet, it says so.
@@ -60,10 +60,10 @@ These never go to the account server:
   **Stremio export file** if you import one: it's read on your device and only the library and add-ons you choose are
   kept.
 - **API keys and add-on links** on your device are kept in the system's keychain where there is one.
-- **Discord Rich Presence**, if you turn it on in Settings → Playback (it's off by default), talks only to the
-  Discord app on the same computer. What it shows (Polarity, or the title you're watching, as you choose) then
-  appears on your Discord profile, so Discord and the people who can see your profile see it, under
-  [Discord's privacy policy](https://discord.com/privacy).
+- **Discord Rich Presence** talks only to the Discord app on the same computer, while something plays. By default it
+  shows only that you're watching something in Polarity, no title; in Settings → Playback → Show on Discord you can
+  turn it off, or choose to show the title you're watching. What it shows appears on your Discord profile, so Discord
+  and the people who can see your profile see it, under [Discord's privacy policy](https://discord.com/privacy).
 
 ## Services your device talks to
 
