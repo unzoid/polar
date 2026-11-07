@@ -25,15 +25,28 @@ export interface PlannedNote extends NativeNote {
   at: number;
 }
 
+/**
+ * Android's `polarNotes` interface: every frame sees it, a trailer's too, so it only answers `permission`.
+ * What shows, plans or takes notes goes as a `notes:…` message on `polarActions`, which only the app's own
+ * pages get; the interface carries those calls only where the web view is too old for messages.
+ */
 interface AndroidNotes {
   permission(): string;
-  request(): void;
-  show(json: string): void;
-  plan(json: string): void;
-  takeLaunch(): string | null;
+  request?(): void;
+  show?(json: string): void;
+  plan?(json: string): void;
+  ready?(): void;
 }
+type AndroidBridge = { polarNotes?: AndroidNotes; polarActions?: { postMessage?: (message: string) => void } };
 
-const android = os === "android" && typeof window !== "undefined" ? (window as { polarNotes?: AndroidNotes }).polarNotes : undefined;
+const android = os === "android" && typeof window !== "undefined" ? (window as AndroidBridge).polarNotes : undefined;
+
+function androidAsk(ask: "request" | "show" | "plan" | "ready", json?: string): void {
+  const actions = (window as AndroidBridge).polarActions;
+  if (typeof actions?.postMessage === "function") actions.postMessage(json === undefined ? `notes:${ask}` : `notes:${ask}:${json}`);
+  else if (json === undefined) android?.[ask as "request" | "ready"]?.();
+  else android?.[ask as "show" | "plan"]?.(json);
+}
 
 /** Phones show planned notes themselves (Android's WorkManager, iOS's notification triggers); desktops only while running. */
 export const systemPlansNotes = os === "android" || os === "ios";
@@ -48,7 +61,7 @@ export async function notePermission(): Promise<NotePermission> {
 /** Asks only where the system asks (phones, macOS); resolves with the answer. */
 export async function askNotePermission(): Promise<NotePermission> {
   if (android) {
-    android.request();
+    androidAsk("request");
     // The system's dialog answers to the activity; the web side looks again once it's gone.
     return new Promise((done) => {
       const look = () => {
@@ -69,14 +82,14 @@ export async function askNotePermission(): Promise<NotePermission> {
 }
 
 export async function showNote(note: NativeNote): Promise<void> {
-  if (android) return android.show(JSON.stringify(note));
+  if (android) return androidAsk("show", JSON.stringify(note));
   await call("notifications_show", { note });
 }
 
 /** Replaces every note planned before (an empty list cancels them all). Does nothing where `systemPlansNotes` is false. */
 export async function planNotes(notes: PlannedNote[]): Promise<void> {
   if (!systemPlansNotes) return;
-  if (android) return android.plan(JSON.stringify(notes));
+  if (android) return androidAsk("plan", JSON.stringify(notes));
   await call("notifications_plan", { notes });
 }
 
@@ -94,9 +107,9 @@ export function onNoteClick(handler: (payload: string) => void): Unlisten {
     if (typeof payload === "string") handler(payload);
   };
   if (android) {
+    // The page listens: the note that started the app, and each clicked after, come as `polar-note` events.
     window.addEventListener("polar-note", dom);
-    const first = android.takeLaunch();
-    if (first) handler(first);
+    androidAsk("ready");
   } else {
     on<string>(CLICK, (p) => typeof p === "string" && handler(p)).then((u) => (stopped ? u() : (unlisten = u)));
     call<string | null>("notifications_take_launch")

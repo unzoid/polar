@@ -11,7 +11,7 @@ const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-d
 /**
  * The timeline clock (Settings → Playback; clicking it cycles). Its own
  * component: it is the one part of the controls that changes every second.
- * After a frame step (`fps` set, until playback resumes) it shows the time and the frame number instead.
+ * For a few seconds after a frame step (`fps` set) it shows the time and the frame number instead.
  */
 export function PlayerClock({
   media,

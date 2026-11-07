@@ -127,24 +127,44 @@ class NotesWorker(context: Context, params: WorkerParameters) : Worker(context, 
   }
 }
 
-/** What the page may ask of notifications (window.polarNotes); nothing else is exposed. */
-class PolarNotes(private val activity: MainActivity) {
+/**
+ * What every frame of the web view may read (window.polarNotes): whether notes may be shown. A JavaScript
+ * interface reaches a trailer's YouTube frame too, so what shows, plans or hands over notes comes as a message
+ * from the app's own pages instead (MainActivity's DeviceActions, `notes:…`).
+ */
+open class PolarNotes(protected val activity: MainActivity) {
   @JavascriptInterface
   fun permission(): String = Notes.permission(activity)
+}
+
+/** A web view without message listeners: the rest stays on the interface too. */
+class PolarNotesWithActions(activity: MainActivity) : PolarNotes(activity) {
+  @JavascriptInterface
+  fun request() = noteAction(activity, "request")
 
   @JavascriptInterface
-  fun request() = Notes.request(activity)
+  fun show(json: String) = noteAction(activity, "show:$json")
 
   @JavascriptInterface
-  fun show(json: String) {
-    val n = try { JSONObject(json) } catch (e: Exception) { return }
-    Notes.show(activity, n.optString("id"), n.optString("title"), n.optString("body"), n.optString("payload"))
+  fun plan(json: String) = noteAction(activity, "plan:$json")
+
+  @JavascriptInterface
+  fun ready() = noteAction(activity, "ready")
+}
+
+/**
+ * The page's asks, after `notes:` (src/lib/platform/notifications.ts): `request`, `show:<json>`, `plan:<json>`, and
+ * `ready` (the page listens: the note that started the app, and each one clicked later, come as `polar-note` events).
+ */
+fun noteAction(activity: MainActivity, action: String) {
+  val arg = action.substringAfter(':', "")
+  when (action.substringBefore(':')) {
+    "request" -> Notes.request(activity)
+    "show" -> {
+      val n = try { JSONObject(arg) } catch (e: Exception) { return }
+      Notes.show(activity, n.optString("id"), n.optString("title"), n.optString("body"), n.optString("payload"))
+    }
+    "plan" -> Notes.plan(activity, arg)
+    "ready" -> activity.runOnUiThread { activity.deliverNote(fromPage = true) }
   }
-
-  @JavascriptInterface
-  fun plan(json: String) = Notes.plan(activity, json)
-
-  /** The payload of the note that started the app, once. */
-  @JavascriptInterface
-  fun takeLaunch(): String? = activity.takeLaunchNote()
 }

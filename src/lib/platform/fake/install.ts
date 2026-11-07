@@ -17,22 +17,34 @@ import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
  */
 
 const library: LibraryItem[] = [...fx.library];
+let addons = [...fx.addons];
+const seeded = fx.DOWNLOADS ? fx.seededDownloads() : undefined;
 const progress: Progress[] = [...fx.progress];
+// Episodes watched through (the seeded downloads' marks): read per title only, history keeps one entry each.
+const watchedEpisodes: Progress[] = seeded?.watched ?? [];
 const animeLinks = new Map<number, AnimeLink>();
 // A download finishes the moment it starts; the file is only a name.
-let downloads: Download[] = [];
+let downloads: Download[] = seeded?.downloads ?? [];
 // `fake.html?theme=black` and the like start with that setting changed.
 const params = new URLSearchParams(location.search);
 params.delete("worst"); // fixtures.ts's worst-case switch, not a setting
 params.delete("films"); // and its README-screenshot switch
+params.delete("downloads"); // and #15's many-downloads switch
 const secretsPlace = params.get("secretsPlace") ?? "keychain"; // Settings → Account's "On this device"
 params.delete("secretsPlace");
 // `fake.html?account=1`: signed in, with watch parties in this page (account.ts); read by lib/account in dev builds only.
 if (params.get("account")) (globalThis as { __polarFakeAccount?: unknown }).__polarFakeAccount = fakeAccount;
 params.delete("account");
+params.delete("friends"); // `&friends=1`: the profile starts with Friends on (account.ts)
 let settings: Settings = { ...fx.settings, ...Object.fromEntries(params) };
 
 type Args = Record<string, unknown>;
+
+const deepLinks: string[] = [];
+(globalThis as { __polarFakeDeepLink?: (url: string) => void }).__polarFakeDeepLink = (url) => {
+  deepLinks.push(url);
+  void emit("deep-link");
+};
 
 const commands: Record<string, (a: Args) => unknown> = {
   store_problem: () => null,
@@ -57,7 +69,22 @@ const commands: Record<string, (a: Args) => unknown> = {
   ratings: () =>
     fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
   trailer: () => null,
-  addons_list: () => fx.addons,
+  addons_list: () => addons,
+  // Install links (#163): any example.com add-on answers; an address with "broken" in it doesn't. Installs are counted.
+  addon_preview: (a) =>
+    String(a.url).includes("broken")
+      ? Promise.reject({ code: "network", message: "network: error sending request" })
+      : { id: "example.linked", version: "1.0.0", name: "Linked Add-on", description: "An add-on from an install link.", types: ["movie"], resources: ["stream"] },
+  addon_install: (a) => {
+    const w = window as { __addonInstalls?: string[] };
+    (w.__addonInstalls ??= []).push(String(a.url));
+    const addon = { manifestUrl: String(a.url), manifest: { id: "example.linked", version: "1.0.0", name: "Linked Add-on", types: ["movie"], resources: ["stream"] } };
+    addons = [...addons.filter((x) => x.manifest.id !== addon.manifest.id), addon as (typeof addons)[number]];
+    return addon;
+  },
+  // Open Stremio links in Polarity (#163): each change is kept for browser tests to read.
+  stremio_links_set: (a) => void ((window as { __stremioLinks?: boolean[] }).__stremioLinks ??= []).push(!!a.on),
+  addon_catalog: (a) => fx.addonCatalog(String(a.addon), String(a.ty), String(a.id), a.extra as [string, string][]),
   addons_bundled: () => [],
   library_list: () => library,
   library_toggle: (a) => {
@@ -67,7 +94,7 @@ const commands: Record<string, (a: Args) => unknown> = {
     else library.unshift({ id: item.id, type: item.type, name: item.name, poster: item.poster, addedAt: Date.now() });
     return at < 0;
   },
-  progress_for: (a) => progress.filter((p) => p.metaId === a.metaId),
+  progress_for: (a) => [...progress, ...watchedEpisodes].filter((p) => p.metaId === a.metaId),
   progress_save: (a) => void progress.unshift(a.progress as Progress),
   progress_save_many: () => undefined,
   library_import: (a) => {
@@ -106,11 +133,16 @@ const commands: Record<string, (a: Args) => unknown> = {
   notifications_show: (a) => void ((window as { __notes?: unknown[] }).__notes ??= []).push(a.note),
   notifications_plan: (a) => void ((window as { __plannedNotes?: unknown }).__plannedNotes = a.notes),
   notifications_take_launch: () => null,
+  download_pause: (a) => void (downloads = downloads.map((d) => (d.id === a.id ? { ...d, state: "paused" } : d))),
+  download_resume: (a) => void (downloads = downloads.map((d) => (d.id === a.id ? { ...d, state: "downloading" } : d))),
+  downloads_storage: () => ({ dir: "~/Videos/Polarity", free: null }),
   controllers_list: () => [],
   mpv_available: () => false,
   // Discord: what the player sends is kept for browser tests to read.
   discord_available: () => true,
   discord_presence: (a) => void ((window as { __discord?: unknown[] }).__discord ??= []).push(a.activity),
+  // polarity:// links, and stremio:// ones (#163), as `__polarFakeDeepLink(url)` opens them (#153).
+  deep_links_take: () => deepLinks.splice(0),
   resolve_stream: (a) => {
     const stream = a.stream as { url?: string; infoHash?: string };
     return stream.infoHash ? { kind: "torrent" } : { kind: "url", url: stream.url };
@@ -137,6 +169,14 @@ const commands: Record<string, (a: Args) => unknown> = {
   "plugin:window|is_fullscreen": () => false,
   "plugin:window|is_maximized": () => false,
   "plugin:window|is_minimized": () => false,
+  // Pin window (#266): what the window was told is kept for browser tests to read.
+  window_can_pin: () => true,
+  ...Object.fromEntries(
+    ["set_always_on_top", "set_resizable", "set_minimizable", "set_maximizable"].map((name) => [
+      `plugin:window|${name}`,
+      (a: Args) => void (((window as { __window?: Record<string, unknown> }).__window ??= {})[name] = a.value),
+    ]),
+  ),
 };
 
 mockWindows("main");

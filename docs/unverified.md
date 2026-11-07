@@ -765,8 +765,67 @@ on two devices, check:
 - An HLS (`.m3u8`) and a DASH (`.mpd`) link both play; a link to a web page says it's a page, not a
   video; a link that answers 403 or 404 says so.
 - The profile menu's Join Watch Party dialog: "or watch a link together" starts a party on a link.
+- A YouTube link (#201): paste a `youtube.com/watch?v=`, a `youtu.be/`, a Shorts and an embed link of the same
+  video on one device each time. YouTube's own player opens in the player, without its controls; the title shows
+  once it loads; Play/Pause, the scrubber, ±10 s and volume drive it; the other device follows pause and seeks. A
+  video whose owner doesn't allow embedding says so. Checked here only against a stand-in for YouTube's embed
+  (e2e), not YouTube itself, and not on macOS (`tauri://` origin), Windows, Linux, Android or iOS web views.
 - TV mode: the question shows and works with a remote (Play focused, Back is Not Now). There's no
   link field in TV mode.
+
+## Discord buttons and joining from Discord (#153, #154)
+
+Checked here: the activity's buttons and their limits (`src-tauri/src/discord.rs` tests, type-checked
+only: src-tauri doesn't link here), polarity:// link parsing (`tests/deepLink.test.ts`), the join desk
+and the sealed code on a simulated channel (`tests/discordJoin.test.ts`: Anyone, Ask me, decline,
+timeout, lock, busy, token rotation, a forged answer), the website's /watch and /party pages at a
+desktop and a phone width, and end to end in the browser shell with two pages as two members (e2e:
+the host allows a request from a party link and the joiner lands in the party; a polarity://title
+link opens the title). Not run: a real Discord client, a real Realtime project, an installed build's
+link registration. Discord shows buttons only to others, never on your own profile, so this needs two
+Discord accounts (A with Polarity, B to look at A's profile), and for joining a second computer with
+Polarity signed in. Check:
+1. A: Settings → Playback → Show on Discord → That you're watching. Play something: B sees "Watching
+   Polarity", first line "Watching on Polarity", no buttons.
+2. A: What you're watching: B sees "Watch in Polarity". B clicks it: the browser opens
+   getpolar.app/watch/…; with Polarity installed it opens on that title's page (a running Polarity comes
+   to the front instead of starting again); without it, after a moment the page offers the download.
+3. A starts a watch party: B sees "Join watch party" next to it (also in "That you're watching"). A
+   locks the party: the button goes within a few seconds; unlocking brings it back.
+4. "Who can join from Discord" = Ask me: B (signed in to Polarity on the second computer) clicks Join:
+   Polarity asks "Join a watch party?" with B's profile name; Ask to Join: "Waiting for the host to let
+   you in…", A sees "<B's profile name> wants to join". Allow:
+   B's Polarity joins and plays in step. Again with Decline: B is told the host declined. No answer
+   for two minutes: declined by itself.
+5. Anyone who sees it: B is let in without A being asked. Nobody: no button.
+6. Linux: the .deb/.rpm register polarity:// on install; an AppImage registers it when it first runs.
+   Windows: the installer registers it. macOS: the app bundle does.
+
+## Opening Stremio links in Polarity (#163)
+
+Checked here: link parsing and where each kind goes, the setting's off state, and that an install link
+never installs without Install (`tests/stremioLinks.test.ts`); the shell keeping stremio:// links
+(`deep_link.rs` test); end to end in the browser shell (e2e: off by default, turning it on, Cancel and
+Install, an add-on that can't be read, an episode link, an unknown link). src-tauri is type-checked for
+Windows, macOS, Linux, Android and iOS but doesn't link here; the Android Kotlin compiles in CI only.
+Not run: a real handler registration on any system. With an add-on configuration page that has an
+"Install" button for Stremio (or a test page with a `stremio://addon.example.com/manifest.json` link
+pointing at a real add-on you trust), check on each system, with and without Stremio installed:
+1. Settings → Add-ons → Open Stremio links in Polarity is off on a fresh install. With Stremio installed,
+   its links still open Stremio; without it, Windows and Linux say no app opens them; macOS may open
+   Polarity, which only says the setting is off.
+2. Turn it on. Windows: the link opens Polarity (a running Polarity comes to the front). Turn it off:
+   with a per-user Stremio, its links open Stremio again; with no Stremio, nothing opens them.
+   Linux: `xdg-mime query default x-scheme-handler/stremio` names Polarity's handler while on, and no
+   longer once off. macOS: on, links open Polarity; off, they go back to Stremio when it's installed.
+   Android: on, a link offers Polarity (with Stremio installed too, Android asks which app); off, it
+   doesn't.
+3. An install link shows the add-on's name, description and address with Install and Cancel. Cancel:
+   not in Settings → Add-ons. Install: listed there.
+4. A title link (`stremio:///detail/movie/tt…`) opens its page; an episode link
+   (`stremio:///detail/series/tt…/tt…:1:2`) opens the show on that season with that episode's sources
+   listed, nothing playing. A show Polarity opens on its anime page opens there, without picking the episode.
+5. Any other stremio:// link opens Home with a note that Polarity can't open it.
 
 ## Watch party reliability (#203)
 
@@ -803,6 +862,26 @@ whether the window resets on a channel rejoin over the same socket (assumed not)
 3. With A paused, B presses play while A can't see B's entry (hard to force by hand: the logs show it as
    "refused vN by …"): B goes back to paused within a second or two.
 
+## Friends (#135)
+
+Checked here: the migration in PGlite (`tests/sql/friends.test.ts`: codes, requests, accepting, blocking,
+the caps, invites, and who may listen to or show presence on `friends:<profile>` and `invites:<profile>`
+as `friend_topic_allowed` decides), the store against a fake server (`tests/friendsStore.test.ts`), the
+parsing (`tests/friends.test.ts`), and the panel, invite toast, settings and TV row in the browser with the
+fake account (`fake.html?account=1`, e2e). Not checked against Supabase: Realtime itself. To check, apply
+`supabase/migrations/20261108000000_friends.sql`, then with two accounts A and B on two devices:
+1. A: profile menu → Friends → Turn On Friends; a code shows. B does the same, types A's code, Add: A's
+   list shows B under Requests within a second or two (the server's "changed" broadcast), without reopening.
+2. A accepts: B's list shows A as a friend, Online, with a green dot.
+3. A starts a watch party on a title: within 15 s B sees "In a watch party · <title>"; B presses Join and
+   ends up in A's party (or waits for A to let them in, if A asks first).
+4. A, in the party, presses Invite on another online friend C: C gets the toast and joins from it.
+5. A sets "Who sees what you watch" to Nobody: B sees "In a watch party" without the title. A sets "Who sees
+   you're online" to Nobody: A shows Offline on B within 15 s; after B restarts, Realtime refuses B's join
+   of `friends:<A>` (Dashboard → Logs → Realtime).
+6. Throughout a party with Friends on, Realtime's logs show no ClientPresenceRateLimitReached (friends'
+   presence shares the connection with the party's; it updates at most once per 15 s).
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,
@@ -819,6 +898,20 @@ same network:
 - Without mpv (built-in player) the same, with the element on screen sent as it is.
 - Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
   untested. Subtitles inside the file aren't sent.
+
+## Downloads page (#15)
+
+Checked here: grouping, seasons, sorting, filters, search, totals and the saved view (`tests/downloadsView.test.ts`);
+the page with 75 made-up downloads in the browser shell (`fake.html?downloads=many`) on desktop, phone and TV
+(e2e: collapsed titles, a title kept open after a reload, search, In Progress, Delete All Watched, Delete Selected,
+D-pad through titles and seasons); `disk.rs` type-checked for Linux, Windows, Android, macOS and iOS. Needs the app:
+- The summary's "N GB free" matches the free space of the disk holding the downloads folder (Windows: the drive's
+  free space in Explorer; macOS/Linux: `df -h` on the folder). It's left out, not wrong, when the system won't say.
+- "Saved in" names the real folder (Videos/Polarity, or the app's folder on iOS and Android).
+- Deleting many at once (Delete All Watched with a few dozen episodes) removes the files from that folder, and the
+  rows fold away together without a jump.
+- TV with a remote or controller: up and down pass over the downloads still coming down without opening their menu;
+  A opens it.
 
 ## Scrolling long pages (#134)
 

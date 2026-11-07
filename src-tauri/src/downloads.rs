@@ -540,6 +540,18 @@ pub fn download_reveal(downloads: Shared<'_>, id: String) -> Result<()> {
     tauri_plugin_opener::reveal_item_in_dir(&shown).map_err(|e| CmdError::Other(e.to_string()))
 }
 
+/// Where new downloads go, and how much room is left there (`None` when the OS won't say).
+#[derive(Debug, Serialize)]
+pub struct Storage {
+    dir: String,
+    free: Option<u64>,
+}
+
+#[tauri::command]
+pub fn downloads_storage(downloads: Shared<'_>) -> Storage {
+    Storage { dir: downloads.dir.display().to_string(), free: crate::disk::free_bytes(&downloads.dir) }
+}
+
 /// Cancel and delete: the record and the file.
 #[tauri::command]
 pub fn download_remove(downloads: Shared<'_>, id: String) {

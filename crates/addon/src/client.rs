@@ -136,12 +136,17 @@ pub async fn read_capped(mut res: reqwest::Response, max: usize) -> Result<Vec<u
 pub fn resource_url(base: &str, resource: &str, ty: &str, id: &str, extra: &[(&str, &str)]) -> String {
     let base = AddonClient::base_url(base);
     // Both come from add-ons and the UI: encoded, so neither can add path segments or a query (L13).
+    // So are extras' names, which a manifest declares (#206).
     let ty = urlencoding::encode(ty);
     let id = urlencoding::encode(id);
     if extra.is_empty() {
         format!("{base}/{resource}/{ty}/{id}.json")
     } else {
-        let extra = extra.iter().map(|(k, v)| format!("{k}={}", urlencoding::encode(v))).collect::<Vec<_>>().join("&");
+        let extra = extra
+            .iter()
+            .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
+            .collect::<Vec<_>>()
+            .join("&");
         format!("{base}/{resource}/{ty}/{id}/{extra}.json")
     }
 }
@@ -392,6 +397,11 @@ mod tests {
         assert_eq!(
             resource_url("https://a.io", "catalog", "movie", "top", &[("search", "sandglass 2")]),
             "https://a.io/catalog/movie/top/search=sandglass%202.json"
+        );
+        // Nor can an extra's name a manifest declares.
+        assert_eq!(
+            resource_url("https://a.io", "catalog", "movie", "top", &[("a/b&c", "1")]),
+            "https://a.io/catalog/movie/top/a%2Fb%26c=1.json"
         );
         // A type can't add path segments or a query either.
         assert_eq!(resource_url("https://a.io", "meta", "../x?y", "tt1", &[]), "https://a.io/meta/..%2Fx%3Fy/tt1.json");
