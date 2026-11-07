@@ -1,6 +1,7 @@
-import { Calendar, Edit, OpenFile, Profile, Settings, SignOut, WatchParty } from "./icons";
+import { Calendar, Edit, OpenFile, Profile, Settings, SignOut, Users, WatchParty } from "./icons";
 import { canOpenFiles, setOpenFilesOpen } from "../lib/localFiles";
 import { partyAvailable, setJoinPartyOpen } from "../lib/party";
+import { friendsAvailable, setFriendsOpen, useFriends } from "../lib/friends";
 import { useRouter } from "../lib/router";
 import { useAccount } from "../lib/account";
 import { openSettings } from "../lib/settings";
@@ -30,6 +31,10 @@ export function ProfileMenu() {
   const { tab } = useRouter();
   // While Settings → Browsing → Show the Calendar makes it a navbar tab, it isn't listed here too (#92).
   const { data: settings } = useSettings();
+  // Requests waiting for an answer show on the Friends item (#135).
+  const { entries } = useFriends();
+  const requests = entries.filter((e) => e.state === "pending" && e.incoming).length;
+  const friendsLabel = requests ? `Friends (${requests})` : "Friends";
 
   if (nativeDialogsAvailable) {
     // The web menu below, as groups of choices (a separator between groups).
@@ -40,6 +45,7 @@ export function ProfileMenu() {
       ],
       [
         ...(me && partyAvailable() ? [{ id: "party", label: "Join Watch Party", run: () => setJoinPartyOpen(true) }] : []),
+        ...(me && friendsAvailable() ? [{ id: "friends", label: friendsLabel, run: () => setFriendsOpen(true) }] : []),
         ...(!settings?.showCalendar ? [{ id: "calendar", label: "Calendar", run: () => tab({ name: "calendar" }) }] : []),
         { id: "settings", label: "Settings", run: () => openSettings() },
         ...(me ? [{ id: "account", label: "Account", run: () => openSettings("account") }] : []),
@@ -91,6 +97,11 @@ export function ProfileMenu() {
         {me && partyAvailable() && (
           <MenuItem icon={<WatchParty />} onClick={() => setJoinPartyOpen(true)}>
             Join Watch Party
+          </MenuItem>
+        )}
+        {me && friendsAvailable() && (
+          <MenuItem icon={<Users />} onClick={() => setFriendsOpen(true)}>
+            {friendsLabel}
           </MenuItem>
         )}
         {canOpenFiles && (

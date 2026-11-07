@@ -325,6 +325,8 @@ the project's 500 MB. The caps leave room for a real household: the heavy test p
 | `anime_links` | ids and the canonical id's format | 5,000 a profile | 25,000 × 146 B = 3.5 MiB |
 | `playlists` | name 1-60 characters, items 8 KB; a removed one keeps no items | 100 live, 1,000 with removed ones, a profile | 5 × 1.2 MiB = 5.9 MiB |
 | `profile_settings` | 16 KB, a JSON object | 1 a profile | 5 × 16 KiB = 0.1 MiB |
+| `friend_settings` (#135) | a code and three switches | 1 a profile with Friends on | 5 × ~0.2 KiB |
+| `friendships` (#135) | two profile ids and a state | 100 a profile (50 friends, 20 requests waiting) | 500 × ~0.2 KiB = 0.1 MiB |
 | **Total** | | | **about 29 MiB** |
 
 Sizes are `pg_total_relation_size` (rows, TOAST and indexes) measured in PGlite with every row at
@@ -345,6 +347,9 @@ How the caps work:
   `not valid`, so the migration never fails on rows already stored: run
   `supabase/checks/account_limits.sql` once afterwards to list rows that don't pass and validate
   the checks.
+- Friends (`supabase/migrations/20261108000000_friends.sql`): rows change only through the
+  `friend_*` functions, which refuse a request or an answer past the caps with `friend_limit` or
+  `friend_requests_limit`; the Friends panel says which.
 - In the app (`sync.ts`, `AccountFullToast`): a kind that's full stays on the device and is tried
   again each round, everything else goes on syncing, and a toast says which part is full, once a
   session per kind. Before a push the app leaves out what the server would refuse anyway (an id

@@ -4,7 +4,7 @@
  * server, PocketBase, etc. means writing one new file like `./supabase.ts`.
  */
 import type { AnimeLink } from "../library/identity";
-import type { Progress, SyncLibraryItem } from "../types";
+import type { ContentType, Progress, SyncLibraryItem } from "../types";
 import { count, isRecord, str } from "../parse";
 import { normalizeAvatar, type AvatarId } from "./avatars";
 import type { TvClaim, TvSignInRequest } from "./tvSignIn";
@@ -41,6 +41,11 @@ export type AccountErrorCode =
   | "progress_limit"
   | "anime_links_limit"
   | "settings_too_large"
+  | "friends_off"
+  | "friend_code_unknown"
+  | "friend_self"
+  | "friend_limit"
+  | "friend_requests_limit"
   | "not_set_up"
   | "network"
   | "unknown";
@@ -138,12 +143,89 @@ export interface PartyHandlers {
   onStatus(status: "joined" | "error" | "closed", detail?: { setup: boolean; message: string }): void;
 }
 
+/** A friend, a request either way or a block of this profile's (#135), as the server lists them. */
+export interface FriendEntry {
+  id: string;
+  name: string;
+  avatar: AvatarId;
+  state: "pending" | "accepted" | "blocked";
+  /** The other profile asked (for a block: the one blocked had asked). */
+  incoming: boolean;
+}
+
+/** What a profile's friends see (Settings → Account → Friends), kept on the server per profile. */
+export interface FriendPrivacy {
+  /** Off: nothing at all, as if offline (and so not joinable from the list either). */
+  online: boolean;
+  watching: boolean;
+  /** Friends may join its watch party from their list, even when they can't see what's on. */
+  join: boolean;
+}
+
+export interface FriendSettings extends FriendPrivacy {
+  code: string;
+}
+
+/** How `friends.request` went: asked, friends at once (they had asked first), nothing new, or blocked by this profile. */
+export type FriendRequestResult = "sent" | "accepted" | "already" | "blocked";
+
+/** What a profile shows its friends while online: only what its privacy settings allow (lib/friends/messages.ts). */
+export interface FriendPresence {
+  id: string;
+  /** Counts up with each update, so the newest entry wins when presence holds more than one. */
+  seq: number;
+  /** The watch party it is in, when friends may join it. */
+  party?: string;
+  /** What is on, when friends may see it. */
+  watching?: { type: ContentType; metaId: string; title: string; label?: string };
+}
+
+export interface FriendsHandlers {
+  /** A friend's presence: `null` when they are offline (or show nobody that they're online). */
+  onPresence(friendId: string, presence: FriendPresence | null): void;
+  /** A friend invites this profile into their watch party; `from` is filled in by the server. */
+  onInvite(invite: { from: string; party: string }): void;
+  /** The list changed on the server (a request, an answer, a removal): read it again. */
+  onChanged(): void;
+}
+
+export interface FriendsLink {
+  /** Show this profile as online, with what it allows; `null`: not shown at all. */
+  track(presence: FriendPresence | null): void;
+  /** Listen to these friends (and stop listening to anyone else). */
+  follow(friendIds: string[]): void;
+  close(): void;
+}
+
 export interface AccountBackend {
   readonly name: string;
 
   /** Realtime rooms for watching together. Signed-in users only. */
   party: {
     connect(code: string, me: PartyPresence, handlers: PartyHandlers): PartyLink;
+  };
+
+  /** Friends of a profile (#135): codes, requests, blocks, invites and presence. Signed-in users only. */
+  friends: {
+    /** The profile's code and what its friends see; `null` while Friends is off (as it starts). */
+    settings(profileId: string): Promise<FriendSettings | null>;
+    /** Friends on: a code, made the first time, and everything shown until changed. */
+    on(profileId: string): Promise<FriendSettings>;
+    /** Friends off: the code stops working and the settings go. Friends stay. */
+    off(profileId: string): Promise<void>;
+    /** A new code; the old one stops working. */
+    resetCode(profileId: string): Promise<string>;
+    setPrivacy(profileId: string, privacy: FriendPrivacy): Promise<void>;
+    list(profileId: string): Promise<FriendEntry[]>;
+    request(profileId: string, code: string): Promise<FriendRequestResult>;
+    respond(profileId: string, otherId: string, accept: boolean): Promise<void>;
+    /** No longer friends, or a request withdrawn. */
+    remove(profileId: string, otherId: string): Promise<void>;
+    block(profileId: string, otherId: string): Promise<void>;
+    unblock(profileId: string, otherId: string): Promise<void>;
+    /** Into this profile's watch party: the code only, never what plays or from where. */
+    invite(profileId: string, otherId: string, party: string): Promise<void>;
+    connect(profileId: string, handlers: FriendsHandlers): FriendsLink;
   };
 
   auth: {

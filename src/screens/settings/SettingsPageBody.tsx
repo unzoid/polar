@@ -7,6 +7,7 @@ import { AdvancedPage } from "./AdvancedPage";
 import { AnimePage } from "./AnimePage";
 import { AppearancePage } from "./AppearancePage";
 import { BrowsingPage } from "./BrowsingPage";
+import { NotificationsPage } from "./NotificationsPage";
 import { ControllerPage } from "./ControllerPage";
 import { ControlsPage } from "./ControlsPage";
 import { PlaybackPage } from "./PlaybackPage";
@@ -34,6 +35,8 @@ export function SettingsPageBody({ page }: { page: PageId }) {
       return <BrowsingPage />;
     case "anime":
       return <AnimePage />;
+    case "notifications":
+      return <NotificationsPage />;
     case "advanced":
       return <AdvancedPage />;
     case "controls":
