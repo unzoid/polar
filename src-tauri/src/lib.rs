@@ -3,6 +3,7 @@ mod automation;
 mod commands;
 mod controllers;
 mod discord;
+mod disk;
 mod downloads;
 mod imdb;
 mod introdb;
@@ -290,6 +291,7 @@ pub fn run() {
             downloads::download_resume,
             downloads::download_remove,
             downloads::download_reveal,
+            downloads::downloads_storage,
             controllers::controllers_list,
             sync::space_activate,
             sync::space_import_local,
