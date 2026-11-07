@@ -12,6 +12,10 @@
 </p>
 
 <p align="center">
+  <a href="https://ko-fi.com/polarityapp"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support Polarity on Ko-fi"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/unzoid/polarity/actions/workflows/ci.yml"><img src="https://github.com/unzoid/polarity/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI status"></a>
   <a href="https://github.com/unzoid/polarity/releases/latest"><img src="https://img.shields.io/github/v/release/unzoid/polarity?label=release" alt="Latest release"></a>
   <a href="https://github.com/unzoid/polarity/releases"><img src="https://img.shields.io/github/downloads/unzoid/polarity/total?label=downloads" alt="Total downloads"></a>
@@ -307,9 +311,7 @@ MIT, see [LICENSE](LICENSE). Bundled fonts, avatars and mpv keep their own licen
 
 ## Donate
 
-<a href="https://ko-fi.com/polarityapp"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support Polarity on Ko-fi"></a>
-
-One-off donations only, to the project's owner: no tiers, no perks, and nothing in the app depends on
+[Donate on Ko-fi](https://ko-fi.com/polarityapp). One-off donations only, to the project's owner: no tiers, no perks, and nothing in the app depends on
 them. They pay for running costs: the Supabase plan behind accounts and sync, Apple's developer
 programme for an iOS release, and a Windows code-signing certificate.
 
