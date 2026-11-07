@@ -261,7 +261,7 @@ test("the player steps one frame at a time with , and . and the buttons by the c
   await app.keyboard.press(".");
   await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   await expect(forward).toBeVisible();
-  const frame = async () => Number((await clock(app)).match(/Frame (\d+)/)?.[1] ?? NaN);
+  const frame = async () => Number((await clock(app))?.match(/Frame (\d+)/)?.[1] ?? NaN);
   await expect.poll(frame).toBeGreaterThan(0);
   const start = await frame();
   await forward.click();
