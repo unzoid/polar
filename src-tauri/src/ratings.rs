@@ -163,7 +163,10 @@ impl RatingsClient {
                     r.audience = pct();
                 }
                 "metacritic" => {
-                    link("metacritic", if series { "https://www.metacritic.com/tv" } else { "https://www.metacritic.com/movie" });
+                    link(
+                        "metacritic",
+                        if series { "https://www.metacritic.com/tv" } else { "https://www.metacritic.com/movie" },
+                    );
                     r.metacritic = pct();
                 }
                 "letterboxd" => {
@@ -180,7 +183,8 @@ impl RatingsClient {
             }
         }
         if r.trakt.is_some() {
-            r.links.insert("trakt", format!("https://app.trakt.tv/{}/{imdb_id}", if series { "shows" } else { "movies" }));
+            r.links
+                .insert("trakt", format!("https://app.trakt.tv/{}/{imdb_id}", if series { "shows" } else { "movies" }));
         }
         if let Some(id) = v["ids"]["tmdb"].as_u64().filter(|_| r.tmdb.is_some()) {
             r.links.insert("tmdb", format!("https://www.themoviedb.org/{}/{id}", if series { "tv" } else { "movie" }));
