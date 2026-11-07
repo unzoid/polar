@@ -1045,6 +1045,30 @@ test.describe("signed in, on a fresh profile", () => {
     await app.evaluate(() => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink("polarity://play/movie/tt0000000"));
   });
 
+  test("the browser extension's links: a TMDB title opens its page, a video asks before a party starts on it (#208)", async ({ app }) => {
+    await serveMedia(app);
+    const open = (link: string) => app.evaluate((u) => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink(u), link);
+    // The fake TMDB gives its title 1 the fixtures' second movie.
+    await open("polarity://title/movie/tmdb:1");
+    await expect(app.getByRole("heading", { level: 1, name: "Northbound" }).or(app.getByRole("img", { name: "Northbound" })).first()).toBeVisible();
+    // One TMDB lists no IMDb page for: said in words.
+    await open("polarity://title/movie/tmdb:999999");
+    const problem = app.getByRole("alertdialog", { name: "Couldn't open that title" });
+    await expect(problem).toContainText("TMDB key");
+    await problem.getByRole("button", { name: "OK" }).click();
+    await expect(problem).toHaveCount(0);
+    await open("polarity://together?u=https%3A%2F%2Fmedia.example%2Ffilm.mp4&t=12&n=An%20open%20film");
+    const question = app.getByRole("dialog", { name: "Watch together?" });
+    await expect(question.getByTestId("party-link-url")).toHaveText("https://media.example/film.mp4");
+    await expect(question).toContainText("An open film");
+    await expect(question).toContainText("It starts at 0:12");
+    await expect(app.locator(".player")).toHaveCount(0);
+    await question.getByRole("button", { name: "Watch Together" }).click();
+    await expect(question).toHaveCount(0);
+    await expect(app.locator(".player")).toBeVisible();
+    await expect(partySurfaces(app)).toHaveCount(0);
+  });
+
   test("starting a watch party in the player leaves one party panel up, with the focus in it (#247)", async ({ app }) => {
     await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
     await card(app, "The Glass Orchard").click();

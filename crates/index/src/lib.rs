@@ -245,6 +245,19 @@ impl Indexer {
         Ok(meta)
     }
 
+    /// The IMDb id of a TMDB title, for links that carry TMDB's id (#208). Only TMDB knows its own
+    /// ids: without a TMDB key this is `None`, and so is a title TMDB lists no IMDb id for.
+    pub async fn imdb_for_tmdb(&self, ty: &str, tmdb_id: u64) -> Result<Option<String>> {
+        check_type(ty)?;
+        match &self.backend {
+            Backend::Tmdb(t) => match t.imdb_of(ty, tmdb_id).await {
+                Err(IndexError::NotFound) => Ok(None),
+                found => found,
+            },
+            Backend::Cinemeta(_) => Ok(None),
+        }
+    }
+
     /// The addon manifest, so the index can also be mounted as a Stremio addon.
     pub fn manifest() -> Manifest {
         let catalogs = ["movie", "series"]
@@ -286,5 +299,17 @@ fn check_type(ty: &str) -> Result<()> {
     match ty {
         "movie" | "series" => Ok(()),
         _ => Err(IndexError::NotFound),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn tmdb_ids_need_a_tmdb_key() {
+        let ix = Indexer::new(IndexConfig::default());
+        assert_eq!(ix.imdb_for_tmdb("movie", 603).await.unwrap(), None);
+        assert!(ix.imdb_for_tmdb("anime", 603).await.is_err());
     }
 }

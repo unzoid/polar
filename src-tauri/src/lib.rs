@@ -270,6 +270,7 @@ pub fn run() {
             commands::search,
             commands::search_movies,
             commands::meta,
+            commands::imdb_for_tmdb,
             commands::streams,
             commands::resolve_stream,
             torrent::torrent_open,

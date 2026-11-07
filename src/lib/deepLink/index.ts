@@ -4,4 +4,5 @@
 
 export * from "./addonOffer";
 export * from "./deepLink";
+export * from "./open";
 export * from "./stremio";

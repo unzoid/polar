@@ -5,7 +5,7 @@ import { keys } from "../net/queryKeys";
 import { anilistLimiter, limitedFetch, PRIORITY, type Priority } from "../net/limiter";
 import { readCached, writeCached } from "../net/deviceCache";
 import { isRecord, listOf, str } from "../parse";
-import { readAnime, readChained, readLinked, readPage, readRecommendations, readSlot } from "./responses";
+import { id as idOf, readAnime, readChained, readLinked, readPage, readRecommendations, readSlot } from "./responses";
 import { walkSeasons } from "./seasons";
 import { cardsShown } from "./franchise";
 
@@ -452,6 +452,19 @@ export function animeQuery(id: number, priority: Priority = PRIORITY.page) {
  */
 export function prefetchAnime(qc: QueryClient, id: number) {
   return qc.prefetchQuery(animeQuery(id, () => (opened.has(id) ? PRIORITY.page : PRIORITY.background)));
+}
+
+/** The AniList id of MyAnimeList's anime `mal` (a MyAnimeList page opened in Polarity, #208); null when AniList has none. */
+export async function anilistForMal(mal: number, signal?: AbortSignal): Promise<number | null> {
+  let data: Record<string, unknown>;
+  try {
+    data = await gql("query ($mal: Int) { Media(idMal: $mal, type: ANIME) { id } }", { mal }, signal, { priority: PRIORITY.page });
+  } catch (e) {
+    // AniList answers 404 for an id it doesn't know.
+    if ((e as Error).message === "Not Found.") return null;
+    throw e;
+  }
+  return idOf(isRecord(data.Media) ? data.Media.id : undefined) ?? null;
 }
 
 export async function fetchAnime(id: number, signal?: AbortSignal, priority: Priority = PRIORITY.page): Promise<Anime> {

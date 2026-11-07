@@ -88,6 +88,15 @@ These never go to the account server:
   Those pages only open Polarity on the visitor's computer (or offer the download): they look nothing up about
   you or the title. Neither button carries stream links, add-on links or anything about you.
 
+- **The browser extension "Open in Polarity"**, if you install it, runs only on the film, TV, anime and YouTube
+  sites it lists. There it reads the page's address and, where that alone doesn't say which title it is, the
+  page's links to the title's IMDb and TMDB pages; on a YouTube video, also the video's title and where it's
+  playing. It sends nothing anywhere itself and stores nothing. Its buttons open a page on getpolar.app that
+  hands the title or video to Polarity on your computer: for a title, the page's address carries the title's
+  public id (as Watch in Polarity above); for a video to watch together, the video's link is in the part of the
+  address after `#`, which browsers don't send to the website. Polarity shows the link and asks before a watch
+  party starts with it.
+
 ## Services your device talks to
 
 Polarity looks titles up by contacting these services **directly from your device**. Each sees your IP address and

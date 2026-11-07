@@ -801,6 +801,36 @@ Polarity signed in. Check:
 6. Linux: the .deb/.rpm register polarity:// on install; an AppImage registers it when it first runs.
    Windows: the installer registers it. macOS: the app bundle does.
 
+## Browser extension: Open in Polarity, Watch together (#208)
+
+Checked here: the id parsing for every site (`extension/tests/ids.test.ts`), the button in stand-in
+pages run with happy-dom (`extension/tests/content.test.ts`: title pages, an episode and list pages
+showing nothing, Letterboxd's links arriving late, YouTube's start time and page changes without a
+reload, Hide), the context menu with a stand-in browser API (`extension/tests/background.test.ts`),
+the chain extension → website page → app link (`tests/extensionLinks.test.ts`), TMDB → IMDb on a
+stand-in TMDB (`cargo test -p polar-index`), and end to end in the browser shell (a TMDB link opens the
+title, one without an IMDb id says so, a video link asks and then starts the party). Not run: the
+extension in a real browser (this machine's Chromium is a headless shell that can't load extensions,
+and downloading another browser isn't allowed), the real sites, and the website pages deployed. Check,
+with `cd extension && bun run build`, Polarity installed and signed in, and the website's /watch and
+/party pages from this branch deployed (until then the buttons land on the old pages):
+1. Chrome: Load unpacked `extension/dist/chrome`; Firefox: Load Temporary Add-on
+   `extension/dist/firefox/manifest.json`. The permissions asked are the listed sites only, and the
+   context menu.
+2. Open in Polarity: a film and a show on IMDb (also IMDb in another language, `/fr/title/…`), on TMDB
+   (needs a TMDB key in Polarity), on Trakt and on Letterboxd; an anime on AniList and on MyAnimeList,
+   one with no IMDb id. Each opens the right title in Polarity. An IMDb episode, a list, a search, a
+   person page and a title's cast page show no button.
+3. If a site has changed how its title pages look (IMDb's `og:type`, Trakt's or Letterboxd's links to
+   IMDb/TMDB), the button won't show there: that's what to report.
+4. YouTube: play a video to a minute in, press Watch together in Polarity: Polarity shows "Watch
+   together?", the video's title and link, "It starts at 1:00…"; Watch Together starts the party there.
+   Move to another video without a reload: the button follows. A channel or the home page: no button.
+5. Right-click a link to an `.mp4` (and open an `.mp4` in a tab and right-click the page): "Watch
+   together in Polarity" is offered and starts a party after Polarity asks. On an ordinary link or page
+   the item isn't there.
+6. Polarity not installed: the page offers the download after a moment.
+
 ## Opening Stremio links in Polarity (#163)
 
 Checked here: link parsing and where each kind goes, the setting's off state, and that an install link
