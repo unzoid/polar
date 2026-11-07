@@ -799,7 +799,10 @@ mod tests {
     #[test]
     fn details_say_the_language_it_was_made_in() {
         let d = json!({"id": 1, "name": "Made Up Toon", "original_language": "ja"});
-        assert_eq!(detail_to_meta("series", "tt0000001", &d, Vec::new()).details.original_language.as_deref(), Some("ja"));
+        assert_eq!(
+            detail_to_meta("series", "tt0000001", &d, Vec::new()).details.original_language.as_deref(),
+            Some("ja")
+        );
         let d = json!({"id": 1, "name": "Made Up Toon", "original_language": ""});
         assert_eq!(detail_to_meta("series", "tt0000001", &d, Vec::new()).details.original_language, None);
     }
