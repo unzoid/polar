@@ -4,6 +4,7 @@
 
 export * from "./anilistList";
 export * from "./linkStore";
+export * from "./listSync";
 export * from "./progressRule";
 export * from "./queue";
 export * from "./signIn";

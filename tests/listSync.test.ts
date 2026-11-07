@@ -1,10 +1,12 @@
 import "./storageStub";
-import { expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { anilistAuthorizeUrl, readSignIn, ANILIST_TOKEN_LIFE } from "../src/lib/lists/signIn";
 import { afterWatching } from "../src/lib/lists/progressRule";
 import { enqueue, flush, pendingOps, type QueueDeps } from "../src/lib/lists/queue";
 import { linkName, readLink, type Link } from "../src/lib/lists/linkStore";
 import { ListError, SignedOut, type EntryChange, type ListEntry } from "../src/lib/lists/anilistList";
+import { entriesKey, forgetListEntries, noteWatched, seenEntry, setListSpace, setListSyncDeps, syncList, type ListSyncDeps } from "../src/lib/lists/listSync";
+import type { ListEpisode } from "../src/lib/anime/playContext";
 
 const b64 = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
 const jwt = (claims: object) => `${b64({ alg: "RS256", typ: "JWT" })}.${b64(claims)}.c2lnbmF0dXJlc2lnbmF0dXJl`;
@@ -177,4 +179,96 @@ test("the queue never holds the token", () => {
   const s = memory();
   enqueue("p", { kind: "watched", mediaId: 5, episode: 1, total: 12 }, s);
   expect(s.getItem("polar.lists.queue.anilist.p")).not.toContain("TOKEN");
+});
+
+describe("list sync (#83)", () => {
+  const link: Link = { token: "TOKEN", expiresAt: NOW + 1000, userId: 7, userName: "x", scoreFormat: "POINT_10", adult: false };
+  const episodes: Record<string, ListEpisode> = {
+    "tt0000106:1:1": { anilist: 5, episode: 1, total: 2 },
+    "tt0000106:1:2": { anilist: 5, episode: 2, total: 2 },
+  };
+  function setup(over: Partial<ListSyncDeps> = {}) {
+    const storage = memory();
+    const flushed: (string | null)[] = [];
+    const looked: number[] = [];
+    let changes: ListEntry[] = [];
+    const d: ListSyncDeps = {
+      storage,
+      now: () => NOW,
+      getLink: async (space) => (space === "linked" ? link : undefined),
+      listEpisode: (v) => episodes[v],
+      flush: async (space) => {
+        flushed.push(space);
+        return "done";
+      },
+      changedSince: async (_u, since) => {
+        looked.push(since);
+        return changes.filter((e) => e.updatedAt > since);
+      },
+      ...over,
+    };
+    setListSyncDeps(d);
+    return { d, storage, flushed, looked, setChanges: (c: ListEntry[]) => void (changes = c) };
+  }
+  afterEach(() => setListSyncDeps(undefined));
+
+  test("episodes watched in a linked profile are queued with their entry number and sent", async () => {
+    const t = setup();
+    setListSpace("linked");
+    await syncList();
+    await noteWatched(["tt0000106:1:1", "tt0000999:1:1", "tt0000106:1:2"]);
+    expect(pendingOps("linked", t.storage)).toEqual([{ kind: "watched", mediaId: 5, episode: 2, total: 2 }]);
+    expect(t.flushed).toContain("linked");
+  });
+
+  test("nothing is queued without a link, or for videos no anime page lined up", async () => {
+    const t = setup();
+    setListSpace("unlinked");
+    await syncList();
+    await noteWatched(["tt0000106:1:1"]);
+    expect(pendingOps("unlinked", t.storage)).toEqual([]);
+    setListSpace("linked");
+    await syncList();
+    await noteWatched(["tt0000999:1:1"]);
+    expect(pendingOps("linked", t.storage)).toEqual([]);
+    expect(t.flushed).toEqual([]);
+  });
+
+  test("starting a profile looks at what changed on AniList since last time and keeps it on the device", async () => {
+    const t = setup();
+    const at = (mediaId: number, updatedAt: number): ListEntry => ({ id: mediaId * 10, mediaId, status: "CURRENT", progress: 1, score: 0, repeat: 0, updatedAt });
+    t.setChanges([at(5, 100), at(6, 90)]);
+    setListSpace("linked");
+    await syncList();
+    expect(t.looked).toEqual([0]);
+    expect(seenEntry(6, "linked")?.updatedAt).toBe(90);
+    t.setChanges([at(6, 120), at(5, 100)]);
+    setListSpace("linked");
+    await syncList();
+    expect(t.looked).toEqual([0, 100]);
+    expect(seenEntry(6, "linked")?.updatedAt).toBe(120);
+    expect(seenEntry(5, "linked")?.updatedAt).toBe(100);
+    expect(t.storage.getItem(entriesKey("linked"))).not.toContain("TOKEN");
+    forgetListEntries("linked");
+    expect(seenEntry(5, "linked")).toBeUndefined();
+  });
+
+  test("a switch to another profile mid-send still looks at the new one's list", async () => {
+    let release = () => {};
+    const t = setup({
+      changedSince: async (_u, since) => {
+        t.looked.push(since);
+        await new Promise<void>((r) => (release = r));
+        return [];
+      },
+    });
+    setListSpace("unlinked");
+    setListSpace("linked");
+    const done = syncList();
+    for (let i = 0; i < 20 && !t.looked.length; i++) await Promise.resolve();
+    expect(t.looked).toEqual([0]);
+    release();
+    await done;
+    expect(t.looked).toEqual([0]);
+  });
 });
