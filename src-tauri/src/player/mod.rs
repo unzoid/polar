@@ -362,6 +362,8 @@ impl Mpv {
             // waking up for every packet.
             "--demuxer-hysteresis-secs=60".into(),
             "--network-timeout=30".into(),
+            // Check https certificates: older mpv builds (one found on PATH, say) don't by default.
+            "--tls-verify=yes".into(),
             "--ytdl=no".into(),
             "--sub-auto=no".into(),
             "--audio-file-auto=no".into(),

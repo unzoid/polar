@@ -68,7 +68,11 @@ function addonLink(rest: string): StremioLink | null {
 
 /** This device, the local network, or an address that isn't a public name. */
 export function isLocalHost(host: string) {
-  const h = host.toLowerCase().replace(/^\[|\]$/g, "");
+  // `localhost.` and `nas.local.` are the same names, written as fully qualified.
+  const h = host
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.+$/, "");
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".lan") || h.endsWith(".internal") || h.endsWith(".home.arpa")) return true;
   if (!h.includes(".") && !h.includes(":")) return true;
   const v4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(h);
@@ -76,8 +80,8 @@ export function isLocalHost(host: string) {
     const [a, b] = [Number(v4[1]), Number(v4[2])];
     return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
   }
-  // IPv6: loopback, unique local, link-local, and IPv4 mapped.
-  return h.includes(":") && (h === "::1" || h === "::" || /^f[cd]/.test(h) || /^fe[89ab]/.test(h) || h.startsWith("::ffff:"));
+  // IPv6: loopback, unique local, link-local, an IPv4 address inside one (mapped, compatible, NAT64).
+  return h.includes(":") && (h.startsWith("::") || /^f[cd]/.test(h) || /^fe[89ab]/.test(h) || h.startsWith("64:ff9b:"));
 }
 
 export const STREMIO_NOTES = {

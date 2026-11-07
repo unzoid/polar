@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "../../components/ui/Switch";
 import { TextField } from "../../components/ui/TextField";
-import { Bookmark, Grid, LayoutList, Picture, Star, Tv } from "../../components/icons";
+import { Grid, Picture, Star } from "../../components/icons";
+import { brandIcon } from "../../components/BrandIcon";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { keys, useSettings } from "../../lib/net";
@@ -30,6 +31,11 @@ import {
 import { onTraktFull, setTraktWatchlist, traktReady, unlinkTrakt, useTraktLink } from "../../lib/trakt";
 import { setSimklWatchlist, simklReady, unlinkSimkl, useSimklLink } from "../../lib/simkl";
 import { TRAKT_NOTICE } from "../../lib/settings";
+
+const AniListIcon = brandIcon("anilist");
+const MalIcon = brandIcon("myanimelist");
+const TraktIcon = brandIcon("trakt");
+const SimklIcon = brandIcon("simkl");
 
 /** Which warning a save needs: one for each key it sets that wasn't set to that before. */
 function added(pairs: [next: string, before: string | null | undefined][]): KeyKind | null {
@@ -76,8 +82,8 @@ function RatingsRow(props: Expandable) {
       {...props}
     >
       <p className="settings-expand-text">
-        A free key from <strong>mdblist.com</strong> (Preferences → API) adds Rotten Tomatoes, its audience score,
-        Metacritic, Letterboxd and Trakt. A free key from <strong>omdbapi.com</strong> adds Rotten Tomatoes and
+        A free key from <strong>mdblist.com</strong> (Preferences → API) adds IMDb, TMDB, Trakt, Letterboxd, Rotten
+        Tomatoes, its audience score and Metacritic, in a row under each title. A free key from <strong>omdbapi.com</strong> adds Rotten Tomatoes and
         Metacritic. Either works; with both, OMDb fills any gaps.
       </p>
       <form
@@ -145,7 +151,7 @@ function AniListRow(props: Expandable) {
 
   return (
     <ExpandRow
-      icon={LayoutList}
+      icon={AniListIcon}
       title="AniList"
       setting="anilist"
       caption="Episodes you watch update this profile's AniList list, and you can change it from an anime's page"
@@ -235,7 +241,7 @@ function MalRow(props: Expandable) {
 
   return (
     <ExpandRow
-      icon={LayoutList}
+      icon={MalIcon}
       title="MyAnimeList"
       setting="mal"
       caption="Episodes you watch update this profile's MyAnimeList list, and you can change it from an anime's page"
@@ -312,7 +318,7 @@ function TraktRow(props: Expandable) {
 
   return (
     <ExpandRow
-      icon={Tv}
+      icon={TraktIcon}
       title="Trakt"
       setting="trakt"
       caption="What you watch goes to this profile's Trakt history, with its watchlist and ratings kept in step"
@@ -367,7 +373,7 @@ function SimklRow(props: Expandable) {
 
   return (
     <ExpandRow
-      icon={Bookmark}
+      icon={SimklIcon}
       title="Simkl"
       setting="simkl"
       caption="What you watch goes to this profile's Simkl lists, films, shows and anime alike"

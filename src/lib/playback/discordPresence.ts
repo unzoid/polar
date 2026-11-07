@@ -67,10 +67,26 @@ export function discordActivity(mode: DiscordPresence, p: Playing | null, now = 
     details: p.name,
     state: lines.length ? lines.join(" · ") : undefined,
     ...times,
-    image: p.poster?.startsWith("https://") ? p.poster : undefined,
-    imageText: p.poster ? p.name : undefined,
+    ...(sharedPoster(p.poster) ? { image: p.poster, imageText: p.name } : {}),
     ...withButtons([...watch, ...party]),
   };
+}
+
+/**
+ * Where a poster may come from to be shown on Discord: the art services Polarity itself reads.
+ * Anyone viewing the profile can open the picture's link, and an add-on's own picture links may
+ * carry its configuration (keys included) in the path, so those stay on this device.
+ */
+const POSTER_HOSTS = new Set(["image.tmdb.org", "images.metahub.space", "media.kitsu.app", "s4.anilist.co", "cdn.myanimelist.net", "artworks.thetvdb.com"]);
+
+function sharedPoster(poster: string | undefined): poster is string {
+  if (!poster) return false;
+  try {
+    const u = new URL(poster);
+    return u.protocol === "https:" && POSTER_HOSTS.has(u.hostname) && !u.port && !u.username && !u.password && !u.search && !u.hash;
+  } catch {
+    return false;
+  }
 }
 
 const withButtons = (buttons: NonNullable<DiscordActivity["buttons"]>) => (buttons.length ? { buttons } : {});

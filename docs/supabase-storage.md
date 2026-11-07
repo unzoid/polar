@@ -350,6 +350,12 @@ How the caps work:
 - Friends (`supabase/migrations/20261108000000_friends.sql`): rows change only through the
   `friend_*` functions, which refuse a request or an answer past the caps with `friend_limit` or
   `friend_requests_limit`; the Friends panel says which.
+  `supabase/migrations/20261109120000_friend_tries_and_cap_locks.sql` adds: an account tries up
+  to 20 friend codes nobody has in an hour (`friend_request` answers `unknown` for one, then
+  refuses with `friend_tries_limit`) and sends up to 30 invites in 10 minutes
+  (`friend_invite_limit`); the tries are kept in `friend_tries` for an hour.
+- Inserts arriving at the same moment are counted one after the other: the profile limit and the
+  row caps take a lock per account first, and friend requests and answers one per pair of profiles.
 - In the app (`sync.ts`, `AccountFullToast`): a kind that's full stays on the device and is tried
   again each round, everything else goes on syncing, and a toast says which part is full, once a
   session per kind. Before a push the app leaves out what the server would refuse anyway (an id
@@ -407,7 +413,9 @@ travels.
   `service_role` alone. Codes and secrets are stored as SHA-256, the caller's address as an HMAC keyed with the
   service key.
 - A request lives 5 minutes and is handed out once: deleted when the TV collects the answer; expired rows go with
-  the next request. Limits: 5 live requests per address, 10,000 in all, 10 code lookups per user per 10 minutes.
+  the next request. Limits: 5 live requests per address; 10,000 live in all, past which the oldest unanswered ones
+  make way for new ones; 10 tries per user per 10 minutes (every lookup, and every answer to a code that isn't
+  there). Requests start one at a time (an advisory lock), so parallel ones can't get past the counts.
 - Deploy: apply the migration, then `supabase functions deploy tv-sign-in --no-verify-jwt` (the TV has no session
   yet; the function checks the user's token itself for look and answer). It reads `SUPABASE_URL` and
   `SUPABASE_SERVICE_ROLE_KEY`, which Supabase provides to functions.

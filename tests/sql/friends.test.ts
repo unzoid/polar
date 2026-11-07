@@ -82,12 +82,12 @@ describe("turning Friends on and off", () => {
     const fresh = await one<string>(`friend_code_reset('${PA}')`);
     expect(fresh).not.toBe(old);
     await as(db, B);
-    expect(await refusal(`select friend_request('${PB}', '${old}')`)).toBe("friend_code_unknown");
+    expect(await request(PB, old)).toBe("unknown");
     await as(db, A);
     await db.exec(`select friend_off('${PA}')`);
     expect((await db.query(`select * from friend_settings('${PA}')`)).rows).toEqual([]);
     await as(db, B);
-    expect(await refusal(`select friend_request('${PB}', '${fresh}')`)).toBe("friend_code_unknown");
+    expect(await request(PB, fresh)).toBe("unknown");
   });
 });
 

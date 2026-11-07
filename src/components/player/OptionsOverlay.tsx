@@ -3,6 +3,7 @@ import { useSourceRowPress } from "../SourceInfo";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Still } from "../StillPlaceholder";
 import { VideoBackdrop } from "./VideoBackdrop";
+import { railInset } from "./EpisodeRail";
 import { IconButton } from "../ui/Button";
 import { isMpv, type MediaLike } from "./mpvMedia";
 import { os } from "../../lib/platform";
@@ -311,7 +312,8 @@ function moveFocus(root: HTMLElement | null, key: string) {
       return head[0]?.focus();
     }
     if (key === "ArrowDown" || (horizontal && hi < 0)) {
-      const inView = mains.find((m) => m.closest<HTMLElement>(".episode-rail-card")!.offsetLeft >= rail.scrollLeft - 1) ?? mains[0];
+      const inset = railInset(rail);
+      const inView = mains.find((m) => m.closest<HTMLElement>(".episode-rail-card")!.offsetLeft - inset >= rail.scrollLeft - 1) ?? mains[0];
       return inView?.focus({ preventScroll: true });
     }
   }

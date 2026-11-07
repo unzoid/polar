@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { linkHasKey } from "../lib/account";
@@ -10,6 +10,8 @@ import { Button } from "./ui/Button";
 import { TOAST_OUT_MS, Toast } from "./ui/Toast";
 
 const NOTE_MS = 8000;
+/** Install waits this long once the add-on shows: a link that replaces the card just as the user clicks can't take the click. */
+const INSTALL_ARM_MS = 1000;
 
 /**
  * What a stremio:// link leaves on screen (#163): the add-on an install link points at, with Install
@@ -31,8 +33,15 @@ function OfferCard({ offer }: { offer: AddonOffer }) {
   const gate = useKeyGate();
   const root = useRef<HTMLDivElement>(null);
   useLayer(root, true, dismissAddonOffer);
+  const [armed, setArmed] = useState(false);
+  const asking = offer.step === "confirm";
+  useEffect(() => {
+    if (!asking) return;
+    const t = setTimeout(() => setArmed(true), INSTALL_ARM_MS);
+    return () => clearTimeout(t);
+  }, [asking]);
   const install = () =>
-    void confirmAddon({ preview: api.previewAddon, install: api.installAddon }).then((name) => {
+    void confirmAddon(offer.id, { preview: api.previewAddon, install: api.installAddon }).then((name) => {
       if (!name) return;
       void qc.invalidateQueries({ queryKey: keys.addons });
       void qc.invalidateQueries({ queryKey: keys.streamsAll });
@@ -65,7 +74,7 @@ function OfferCard({ offer }: { offer: AddonOffer }) {
             <Button
               variant="primary"
               onClick={() => gate.guard(linkHasKey(offer.manifestUrl) ? "link" : null, install)}
-              disabled={offer.step !== "confirm"}
+              disabled={!asking || !armed}
             >
               {offer.step === "installing" ? "Installing…" : "Install"}
             </Button>

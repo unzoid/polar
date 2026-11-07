@@ -5,7 +5,7 @@ import { useEpisodeLayout } from "../lib/settings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackdropTrailer, usePageOnTop } from "../components/BackdropTrailer";
 import { cardMenu } from "../components/CardMenu";
-import { FormatBadges, ScoreChips, TitleDetails } from "../components/title/TitleDetails";
+import { FormatBadges, ScoreRow, TitleDetails } from "../components/title/TitleDetails";
 import { openTrailer, useTrailerOpen } from "../components/Trailer";
 import { episodeEntry, progressMap, seasonsOf, upNext } from "../lib/library";
 import { EpisodeShelf } from "../components/title/EpisodeShelf";
@@ -18,7 +18,7 @@ import { Segmented } from "../components/Segmented";
 import { SourcePicker, useSourcePicker } from "../components/title/SourcePicker";
 import { episodeCode, formatRuntime, isReleased, joinFacts, seasonLabel } from "../lib/format";
 import { type PlayRequest, trailerFor, useFileTrailer, usePlayTarget } from "../lib/playback";
-import { prefetchStreams, useMeta, useProgress, useStreams } from "../lib/net";
+import { prefetchStreams, useMeta, useProgress, useRatings, useStreams } from "../lib/net";
 import type { ContentType, Meta, MetaPreview, Video } from "../lib/types";
 import { IconButton } from "../components/ui/Button";
 import { SimklPanel } from "../components/title/SimklPanel";
@@ -111,6 +111,7 @@ function DetailHero({
   const isSeries = item.type === "series";
   const { next, videoId, resumeAt, label: primaryLabel } = usePlayTarget(item, meta);
   const { data: fileTrailer } = useFileTrailer(item.id);
+  const { data: ratings } = useRatings(item.type, item.id);
 
   // Sources for the primary action load as soon as the page opens, so Play
   // (or the source list) is ready by the time the user reaches for it.
@@ -133,11 +134,12 @@ function DetailHero({
         <TitleHeading name={item.name} logo={item.logo} logos={item.logos} backdrop={item.background} look="detail" />
         {item.description && <p className="detail-description t-callout">{item.description}</p>}
         <p className="detail-facts t-callout tabular">
-          {item.imdbRating && <RatingRing value={item.imdbRating} imdbId={item.id} />}
+          {/* The score row carries IMDb's when a ratings key found it. */}
+          {item.imdbRating && ratings?.imdb == null && <RatingRing value={item.imdbRating} imdbId={item.id} />}
           {facts && <span>{facts}</span>}
-          <ScoreChips type={item.type} id={item.id} />
           <FormatBadges type={item.type} videoId={videoId} />
         </p>
+        <ScoreRow ratings={ratings} />
 
         <TitleActions
           request={request}

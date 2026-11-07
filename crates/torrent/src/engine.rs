@@ -31,6 +31,8 @@ use crate::serve::{Files, OpenFuture, Opened as Served, Server};
 const METADATA_TIMEOUT: Duration = Duration::from_secs(60);
 /// An open overtaken by a close or another open.
 const CLOSED: &str = "Playback closed before the torrent was ready.";
+/// A torrent whose file names would leave the cache folder.
+const UNSAFE_NAMES: &str = "This torrent's file names can't be saved safely. Choose another source.";
 /// File types a player can open, for picking a file when the add-on names none.
 const VIDEO_EXTS: &[&str] = &["mkv", "mp4", "m4v", "webm", "avi", "mov", "ts", "m2ts", "wmv", "mpg", "mpeg"];
 
@@ -210,6 +212,10 @@ impl Engine {
                 }
                 let files: Vec<(PathBuf, u64)> =
                     listed.info.iter_file_details().map(|f| (f.filename.to_pathbuf(), f.len)).collect();
+                // Every file of the torrent is created in the cache folder, not only the one played.
+                if !files.iter().all(|(p, _)| stays_inside(p)) {
+                    return Err(UNSAFE_NAMES.into());
+                }
                 let file = match request.file_idx {
                     Some(i) if i < files.len() => i,
                     Some(i) => {
@@ -408,6 +414,26 @@ fn pick_file<'a>(files: impl Iterator<Item = (&'a Path, u64)>) -> usize {
     largest(true).or_else(|| largest(false)).unwrap_or(0)
 }
 
+/// Whether a file of the torrent, at `path` under its folder, is written inside that folder: plain names only
+/// (no drive such as `C:name` on Windows, no root, no `..`), and on Windows none it reads as a device.
+fn stays_inside(path: &Path) -> bool {
+    use std::path::Component;
+    path.components().count() > 0
+        && path.components().all(|c| match c {
+            Component::Normal(name) => !(cfg!(windows) && windows_device(&name.to_string_lossy())),
+            _ => false,
+        })
+}
+
+/// Names Windows opens as a device whatever follows the first dot ("nul.mkv", "COM1 .txt").
+fn windows_device(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or_default().trim_end().to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.as_bytes()[3].is_ascii_digit())
+}
+
 fn extension(path: &Path) -> Option<String> {
     path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase)
 }
@@ -438,5 +464,23 @@ mod tests {
         assert_eq!(pick_file(files.iter().map(|(p, l)| (Path::new(*p), *l))), 2);
         let none = [("notes.txt", 5), ("big.bin", 50)];
         assert_eq!(pick_file(none.iter().map(|(p, l)| (Path::new(*p), *l))), 1);
+    }
+
+    #[test]
+    fn file_names_stay_in_the_cache_folder() {
+        assert!(stays_inside(Path::new("Show/Season 1/episode.mkv")));
+        assert!(stays_inside(Path::new("film.mkv")));
+        assert!(!stays_inside(Path::new("")));
+        assert!(!stays_inside(Path::new("a/../../b.mkv")));
+        assert!(!stays_inside(Path::new("/etc/x")));
+        #[cfg(windows)]
+        {
+            assert!(!stays_inside(Path::new("C:evil.exe")));
+            assert!(!stays_inside(Path::new("D:")));
+            assert!(!stays_inside(Path::new("Show/nul.mkv")));
+            assert!(!stays_inside(Path::new("COM1 .txt")));
+        }
+        assert!(windows_device("nul.mkv") && windows_device("COM1 .txt") && windows_device("conout$"));
+        assert!(!windows_device("console.mkv") && !windows_device("COM.mkv") && !windows_device("film.mkv"));
     }
 }

@@ -92,6 +92,10 @@ export interface ExternalRatings {
   trakt?: number | null;
   imdb?: number | null;
   imdbVotes?: number | null;
+  /** TMDB user score, percent. */
+  tmdb?: number | null;
+  /** The title's page on each site that has a score, keyed like the scores above. */
+  links?: Partial<Record<"rottenTomatoes" | "audience" | "metacritic" | "letterboxd" | "trakt" | "tmdb" | "imdb", string>>;
   awards?: string | null;
   rated?: string | null;
 }
