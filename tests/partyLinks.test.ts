@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test";
-import { checkLink, isLinkId, isStreamLink, LINK_MAX, linkId, linkLabel, linkMedia, youtubeId, youtubeLink } from "../src/lib/party/links";
+import { describe, expect, test } from "bun:test";
+import { checkLink, isLinkId, isStreamLink, LINK_MAX, linkId, linkLabel, linkMedia, youtubeId, youtubeLink, youtubeLinkProblem } from "../src/lib/party/links";
 import { parseMessage, parseMedia } from "../src/lib/party/messages";
 import { pushed, type Entry, type Route } from "../src/lib/router";
 
@@ -120,4 +120,14 @@ test("a YouTube video goes through the room as its one address", () => {
   // Another way of writing it isn't the address the app shares.
   const other = `https://youtu.be/${YT}`;
   expect(parseMedia({ type: "movie", metaId: linkId(other), videoId: linkId(other), url: other })).toBeUndefined();
+});
+
+describe("YouTube links on Android (#201)", () => {
+  test("Watch a Link turns a YouTube video away on Android, where YouTube opens outside the app", () => {
+    const yt = "https://www.youtube.com/watch?v=aaaaaaaaaaa";
+    expect(youtubeLinkProblem(yt, "android")).toContain("Android");
+    for (const o of ["windows", "macos", "linux", "ios"] as const) expect(youtubeLinkProblem(yt, o)).toBeUndefined();
+    // Anything that isn't a YouTube video is checked as before.
+    expect(youtubeLinkProblem("https://media.example.com/film.mkv", "android")).toBeUndefined();
+  });
 });

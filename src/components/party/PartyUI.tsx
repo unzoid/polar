@@ -22,6 +22,7 @@ import {
   startParty,
   useParty,
   youtubeId,
+  youtubeLinkProblem,
   type Member,
   type PartyState,
 } from "../../lib/party";
@@ -101,7 +102,8 @@ export function useWatchLink(me: Me, onDone?: () => void) {
     // YouTube's player opens it: there's no file to check.
     if (youtubeId(link.url)) {
       setBusy(false);
-      return play();
+      const problem = youtubeLinkProblem(link.url);
+      return problem ? setError(problem) : play();
     }
     api.streamReady(link.url).then(
       (r) => {

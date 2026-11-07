@@ -4,6 +4,7 @@
  * member's player opens it itself; nothing goes through the host. Pure, so it's tested without a room
  * (tests/partyLinks.test.ts).
  */
+import { canEmbedOtherSites, os, type Os } from "../platform/device";
 import type { PartyMedia } from "./messages";
 
 /** Ids of a pasted link: `link:` and a hash of the URL, so the room can tell links apart without the URL in ids. */
@@ -103,3 +104,9 @@ export function youtubeId(url: string): string | undefined {
 
 /** The one address a YouTube video goes by in the room, however it was pasted: the same video is the same link. */
 export const youtubeLink = (id: string) => `https://www.youtube.com/watch?v=${id}`;
+
+/** Why a YouTube video's link can't be watched here, if it can't: on Android YouTube's player opens outside the app. */
+export function youtubeLinkProblem(url: string, o: Os = os): string | undefined {
+  if (!youtubeId(url) || canEmbedOtherSites(o)) return undefined;
+  return "On Android, YouTube videos open in YouTube, so they can't be watched together here.";
+}

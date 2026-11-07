@@ -20,7 +20,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { anchorOf, appWindow, isDesktop, isMac, nativeDialogsAvailable, setImmersive, showNativeDialog } from "../lib/platform";
+import { anchorOf, appWindow, canEmbedOtherSites, isDesktop, isMac, nativeDialogsAvailable, setImmersive, showNativeDialog } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -69,7 +69,7 @@ import {
 } from "../components/player/SubtitleSettings";
 import { isMpv, MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
 import { YouTubeMedia } from "../components/player/youtubeMedia";
-import { youtubeEmbed } from "../components/Trailer";
+import { youtubeEmbed, youtubeUrl } from "../components/Trailer";
 import { createFrameStepper, DEFAULT_FPS, measureFps, stepFrame } from "../components/player/frameStep";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
 import { getPrefs, openSettings, setPrefs, useEpisodeLayout, usePrefs, withShortcut } from "../lib/settings";
@@ -154,6 +154,8 @@ export function Player({
   const link = isLinkId(metaId) ? stream?.url : undefined;
   // A YouTube video's link plays in YouTube's own embedded player (#201), never in mpv.
   const ytId = link ? youtubeId(link) : undefined;
+  // On Android YouTube's player can't go in a frame (lib/platform canEmbedOtherSites): the video opens in YouTube.
+  const ytOutside = ytId && !canEmbedOtherSites() ? ytId : undefined;
   // A video file on this device (#204): its title is the file or its folder (lib/localFiles), its
   // source the file itself, and where it stopped is kept on this device; nothing is looked up online.
   const local = isFileId(metaId);
@@ -1006,7 +1008,7 @@ export function Player({
       {engine === "html" && (
         <video ref={setVideoEl} className="player-video" playsInline style={subtitleCueVars(subStyle)} />
       )}
-      {ytId && (
+      {ytId && !ytOutside && (
         // YouTube's own player, its controls off: the player's controls (and the party) drive it through its API.
         <iframe
           ref={setYtFrame}
@@ -1069,13 +1071,14 @@ export function Player({
           <PlayerStatus
             key="status"
             state={source.state}
-            error={error}
+            error={ytOutside ? "On Android, YouTube videos play in YouTube." : error}
             logo={meta?.logo}
             name={link ? title : meta?.name}
             background={meta?.background}
             steps={steps}
             backend={engine === "html" ? "built-in" : engine === "youtube" ? "YouTube's embedded player" : (engine ?? "not chosen yet")}
             onSources={link || local ? undefined : () => setOptions("sources")}
+            onYouTube={ytOutside ? () => void api.openExternal(youtubeUrl(ytOutside)) : undefined}
           />
         )}
       </AnimatePresence>
