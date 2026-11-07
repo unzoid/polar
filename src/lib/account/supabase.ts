@@ -161,6 +161,8 @@ export function createSupabaseBackend(url: string, key: string): AccountBackend 
       },
       async request(p, code) {
         const out = await call<string>("friend_request", { p, friend_code: code });
+        // Answered, not raised, so the server keeps the try (20 codes nobody has an hour).
+        if (out === "unknown") throw new AccountError("friend_code_unknown", UNKNOWN_CODE);
         return (["sent", "accepted", "already", "blocked"].includes(out) ? out : "sent") as FriendRequestResult;
       },
       respond: (p, other, accept) => call<void>("friend_respond", { p, other, accept }),
@@ -636,6 +638,8 @@ function authError(e: AuthError): AccountError {
 }
 
 /** The limit triggers `raise exception 'profile_limit'`, `'library_limit'`… (SQLSTATE P0001, the name as the message). */
+const UNKNOWN_CODE = "No one has that friend code. Check it with your friend.";
+
 const raised = (e: PostgrestError, name: string) => e.code === "P0001" && e.message === name;
 
 export function dbError(e: PostgrestError): AccountError {
@@ -657,7 +661,14 @@ export function dbError(e: PostgrestError): AccountError {
   }
   // Friends (#135, supabase/migrations/20261108000000_friends.sql).
   if (raised(e, "friend_code_unknown")) {
-    return new AccountError("friend_code_unknown", "No one has that friend code. Check it with your friend.");
+    return new AccountError("friend_code_unknown", UNKNOWN_CODE);
+  }
+  // supabase/migrations/20261109000000_friend_tries_and_cap_locks.sql.
+  if (raised(e, "friend_tries_limit")) {
+    return new AccountError("friend_tries_limit", "Too many friend codes nobody has were tried. Try again in an hour.");
+  }
+  if (raised(e, "friend_invite_limit")) {
+    return new AccountError("friend_invite_limit", "That's a lot of invites at once. Try again in a few minutes.");
   }
   if (raised(e, "friends_off")) {
     return new AccountError("friends_off", "Friends is off for this profile.");

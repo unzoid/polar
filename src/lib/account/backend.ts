@@ -45,6 +45,8 @@ export type AccountErrorCode =
   | "friend_self"
   | "friend_limit"
   | "friend_requests_limit"
+  | "friend_tries_limit"
+  | "friend_invite_limit"
   | "not_set_up"
   | "network"
   | "unknown";
