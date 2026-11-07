@@ -252,6 +252,8 @@ function baseMeta(id: string): Meta | null {
       ),
     })),
     videos: p.type === "series" ? episodes(p, i) : [],
+    // One title with a TMDB trailer, for the trailer player's tests (the id is a placeholder; tests refuse YouTube).
+    ...(p.name === "Paper Lanterns" ? { trailerYtId: "xxxxxxxxxxx", trailerSource: "tmdb" as const } : {}),
     details: {
       tagline: "Every road ends somewhere.",
       status: p.type === "series" ? "Returning Series" : "Released",

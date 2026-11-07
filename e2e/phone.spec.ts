@@ -176,6 +176,46 @@ test("the player's controls keep clear of the notch and the home indicator, upri
   await controlsClearOf(app, sideways);
 });
 
+test("the trailer fits the screen at every phone width, upright and sideways, its controls inside the insets (#289)", async ({ app }) => {
+  await app.getByRole("button", { name: "Search", exact: true }).tap();
+  await app.getByRole("textbox", { name: "Search" }).fill("lanterns");
+  await card(app, "Paper Lanterns").tap();
+  await app.getByRole("button", { name: "Trailer", exact: true }).tap();
+  const layer = app.getByRole("dialog", { name: "Paper Lanterns trailer" });
+  await expect(layer).toBeVisible();
+  for (const width of [360, 390, 430]) {
+    for (const [w, h, i] of [
+      [width, 800, { top: 59, right: 0, bottom: 34, left: 0 }],
+      [800, width, { top: 0, right: 59, bottom: 21, left: 59 }],
+    ] as const) {
+      await app.setViewportSize({ width: w, height: h });
+      await insets(app, i);
+      const at = `${w}×${h}`;
+      const video = await layer.locator(".trailer-video").boundingBox();
+      expect.soft(video!.x, `${at}: the video right of the left inset`).toBeGreaterThanOrEqual(i.left);
+      expect.soft(video!.x + video!.width, `${at}: the video left of the right inset`).toBeLessThanOrEqual(w - i.right + 0.5);
+      expect.soft(video!.y, `${at}: the video below the top inset`).toBeGreaterThanOrEqual(i.top);
+      // Sideways the picture takes the whole height between the insets, or the whole width but a column for the buttons.
+      if (w > h) {
+        const tall = video!.height >= h - i.top - i.bottom - 32;
+        const wide = video!.width >= w - i.left - i.right - 96;
+        expect.soft(tall || wide, `${at}: the video fills the height or the width (${video!.width}×${video!.height})`).toBe(true);
+      }
+      for (const control of await layer.getByRole("button").all()) {
+        const b = (await control.boundingBox())!;
+        const name = (await control.getAttribute("aria-label")) ?? (await control.textContent());
+        expect.soft(b.x, `${at}: ${name} right of the left inset`).toBeGreaterThanOrEqual(i.left);
+        expect.soft(b.x + b.width, `${at}: ${name} left of the right inset`).toBeLessThanOrEqual(w - i.right + 0.5);
+        expect.soft(b.y, `${at}: ${name} below the top inset`).toBeGreaterThanOrEqual(i.top);
+        expect.soft(b.y + b.height, `${at}: ${name} above the bottom inset`).toBeLessThanOrEqual(h - i.bottom + 0.5);
+      }
+      expect.soft(await fitsWidth(app), `${at}: nothing sticks out sideways`).toBe(true);
+    }
+  }
+  await layer.getByRole("button", { name: "Close trailer" }).tap();
+  await expect(layer).toHaveCount(0);
+});
+
 test.describe("on a tablet", () => {
   test.use({ viewport: { width: 1180, height: 820 } });
 
