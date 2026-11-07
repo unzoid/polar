@@ -629,7 +629,7 @@ test("on a new install Discord shows only that something plays, never the title 
   await card(app, "The Glass Orchard").click();
   await app.getByRole("button", { name: "Play", exact: true }).click();
   await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
-  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "Watching" });
+  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "Watching on Polarity" });
   expect(JSON.stringify(await sent())).not.toContain("Glass Orchard");
   expect((await sent()).at(-1)?.image).toBeUndefined();
   await app.keyboard.press("Escape");
