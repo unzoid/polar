@@ -40,6 +40,9 @@ test("tabs, a title page and the player by touch", async ({ app }) => {
   await player.tap({ position: { x: 200, y: 300 } });
   await expect(player).toHaveAttribute("data-chrome", "false");
   await player.tap({ position: { x: 200, y: 300 } });
+  // An Android phone's volume buttons set the volume: no slider, Mute still there (#179).
+  await expect(player.getByRole("slider", { name: "Volume" })).toHaveCount(0);
+  await expect(player.getByRole("button", { name: "Mute" })).toBeVisible();
   await player.getByRole("button", { name: "Back", exact: true }).tap();
   await expect(player).toHaveCount(0);
 });
