@@ -38,6 +38,15 @@ beforeEach(() => {
       const saved = { id: 9, mediaId: 5, status: "CURRENT", progress: body.variables.p, score: 7, repeat: 0, updatedAt: 2 };
       return new Response(JSON.stringify({ data: { SaveMediaListEntry: saved } }), { status: 200 });
     }
+    if (body.query.includes("MediaListCollection")) {
+      const media = (format: string, isAdult = false) => ({ episodes: 12, isAdult, format, title: { romaji: "Asagiri" }, coverImage: {} });
+      const entries = [
+        { id: 1, mediaId: 5, status: "CURRENT", progress: 3, score: 0, repeat: 0, updatedAt: 1, media: media("TV") },
+        { id: 2, mediaId: 6, status: "COMPLETED", progress: 1, score: 0, repeat: 0, updatedAt: 1, media: media("MOVIE") },
+        { id: 3, mediaId: 7, status: "PLANNING", progress: 0, score: 0, repeat: 0, updatedAt: 1, media: media("TV", true) },
+      ];
+      return new Response(JSON.stringify({ data: { MediaListCollection: { hasNextChunk: false, lists: [{ entries }] } } }), { status: 200 });
+    }
     const mediaList = body.query.includes("mediaList(userId: $u, mediaId: $m)")
       ? [{ id: 9, mediaId: 5, status: "CURRENT", progress: 3, score: 7, repeat: 0, updatedAt: 1 }]
       : [];
@@ -101,6 +110,12 @@ test("Settings: without a registered client the row says so; a linked profile ca
   await settle();
   await click(byText(on.container, ".settings-row-title, .settings-row-button *", "AniList").closest("button"));
   expect(on.container.textContent).toContain("Linked as Someone");
+  // The import reads the whole list first and says what it holds, adult entries left out.
+  await click(byText(on.container, "button", "Import List…"));
+  await settle();
+  expect(asked.at(-1)?.variables).toMatchObject({ u: 7, c: 1 });
+  expect(on.container.textContent).toContain("1 show and 1 film on your list, 4 episodes and films watched. 1 adult entry left out");
+  expect(byText(on.container, "button", "Import")).toBeTruthy();
   await click(byText(on.container, "button", "Unlink"));
   await settle();
   expect(keychain.has(linkName("anilist", null))).toBe(false);

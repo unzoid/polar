@@ -31,6 +31,11 @@ export interface ListEntry {
   /** What the import needs of the entry, when the read asked for it. */
   episodes?: number | null;
   isAdult?: boolean;
+  /** AniList's format (`TV`, `MOVIE`, `OVA`…), title and cover; when it was added, in seconds. */
+  format?: string;
+  title?: string;
+  poster?: string;
+  createdAt?: number;
 }
 
 export interface Viewer {
@@ -110,9 +115,17 @@ export function readEntry(v: unknown): ListEntry | undefined {
     updatedAt: num(v.updatedAt) ?? 0,
   };
   if (isRecord(v.media)) {
-    entry.episodes = num(v.media.episodes) ?? null;
-    entry.isAdult = v.media.isAdult === true;
+    const { media } = v;
+    const title = isRecord(media.title) ? media.title : {};
+    const cover = isRecord(media.coverImage) ? media.coverImage : {};
+    entry.episodes = num(media.episodes) ?? null;
+    entry.isAdult = media.isAdult === true;
+    entry.format = str(media.format);
+    entry.title = str(title.english) || str(title.romaji) || str(title.native) || undefined;
+    entry.poster = str(cover.extraLarge) || str(cover.large) || undefined;
   }
+  const created = num(v.createdAt);
+  if (created) entry.createdAt = created;
   return entry;
 }
 
@@ -167,7 +180,8 @@ export async function wholeList(userId: number, caller: Caller): Promise<ListEnt
   for (let chunk = 1; chunk <= 40; chunk++) {
     const data = await ask(
       `query ($u: Int, $c: Int) { MediaListCollection(userId: $u, type: ANIME, chunk: $c, perChunk: 500) {
-        hasNextChunk lists { entries { ${ENTRY_FIELDS} media { episodes isAdult } } } } }`,
+        hasNextChunk lists { entries { ${ENTRY_FIELDS} createdAt
+          media { episodes isAdult format title { english romaji native } coverImage { extraLarge large } } } } } }`,
       { u: userId, c: chunk },
       { ...caller, priority: caller.priority ?? PRIORITY.near },
     );

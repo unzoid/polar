@@ -10,6 +10,7 @@ import { Button } from "../../components/ui/Button";
 import { Card, ExpandRow, FormRow, useExpanded, type Expandable } from "../../components/settings/rows";
 import { useSecretsNote } from "../../components/settings/secretsNote";
 import { useKeyGate, type KeyKind } from "../../components/settings/KeyWarning";
+import { AniListImport } from "../../components/settings/AniListImport";
 import { anilistAuthorizeUrl, linkAniList, NotASignIn, SignedOut, unlinkAniList, useAniListLink } from "../../lib/lists";
 
 /** Which warning a save needs: one for each key it sets that wasn't set to that before. */
@@ -139,6 +140,7 @@ function AniListRow(props: Expandable) {
               {unlink.isPending ? "Unlinking…" : "Unlink"}
             </Button>
           </div>
+          <AniListImport link={link} />
         </>
       ) : !url ? (
         <p className="settings-expand-text">Not set up in this build: signing in to AniList needs Polarity registered with AniList first.</p>
