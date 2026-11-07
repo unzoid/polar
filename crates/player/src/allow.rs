@@ -47,6 +47,12 @@ pub const READ_ONLY_PROPERTIES: &[&str] = &[
     "time-pos",
     "container-fps",
     "estimated-vf-fps",
+    // The source info panel: what the playing file is (container-fps above is read too).
+    "file-format",
+    "video-codec",
+    "video-params",
+    "video-bitrate",
+    "audio-bitrate",
 ];
 
 /// Media and subtitles only ever come from the network (addons, or a server
@@ -125,6 +131,11 @@ mod tests {
         assert!(check_command(&[json!("frame-back-step"), json!(5)]).is_err());
         assert!(check_command(&[json!("get_property"), json!("container-fps")]).is_ok());
         assert!(check_command(&[json!("set"), json!("time-pos"), json!(0)]).is_err());
+        for prop in ["file-format", "video-codec", "video-params", "video-bitrate", "audio-bitrate"] {
+            assert!(check_command(&[json!("get_property"), json!(prop)]).is_ok(), "{prop} is readable");
+            assert!(check_command(&[json!("set"), json!(prop), json!("x")]).is_err(), "{prop} isn't settable");
+            assert!(check_property(prop).is_err(), "{prop} isn't settable through mpv_set");
+        }
         assert!(!is_web_url("file:///C:/x.mkv") && is_web_url("HTTP://127.0.0.1:8080/a.mkv"));
     }
 }
