@@ -34,3 +34,9 @@
 -keepclassmembers class app.getpolar.desktop.PolarNotesWithActions {
     @android.webkit.JavascriptInterface <methods>;
 }
+# The phone's keychain, looked up and called by name from src-tauri/src/keychain.rs.
+-keep class app.getpolar.desktop.PolarKeys {
+    public static *** get(android.content.Context, java.lang.String);
+    public static *** set(android.content.Context, java.lang.String, byte[]);
+    public static *** delete(android.content.Context, java.lang.String);
+}
