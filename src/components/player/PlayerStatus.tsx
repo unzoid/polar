@@ -34,6 +34,7 @@ export function PlayerStatus({
   steps,
   backend,
   onSources,
+  onSettings,
   onYouTube,
 }: {
   state: ReturnType<typeof useSource>["state"];
@@ -45,6 +46,8 @@ export function PlayerStatus({
   backend: string;
   /** Left out where there's nothing else to choose (a pasted link). */
   onSources?: () => void;
+  /** Opens Settings → Sources, offered when the reason names a setting there. Left out in TV mode. */
+  onSettings?: () => void;
   /** A YouTube video that can't play here (Android): open it in YouTube. */
   onYouTube?: () => void;
 }) {
@@ -98,6 +101,11 @@ export function PlayerStatus({
             {onSources && (
               <Button variant="primary" onClick={onSources} autoFocus>
                 <Sources size={17} /> Choose Another Source
+              </Button>
+            )}
+            {onSettings && state.status === "failed" && state.settings && (
+              <Button variant="glass" onClick={onSettings}>
+                Open Settings
               </Button>
             )}
             {onYouTube && (

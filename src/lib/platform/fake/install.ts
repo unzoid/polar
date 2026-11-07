@@ -162,7 +162,7 @@ const commands: Record<string, (a: Args) => unknown> = {
   torrent_open: () => {
     const w = window as { __torrentOpens?: number };
     w.__torrentOpens = (w.__torrentOpens ?? 0) + 1;
-    return Promise.reject({ code: "unsupported", message: "Torrent sources play in the desktop app." });
+    return Promise.reject({ code: "unsupported", message: "Torrent sources play in the app, not in the browser." });
   },
   torrent_close: () => undefined,
   stream_probe: (a) => a.url,

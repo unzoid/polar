@@ -15,8 +15,12 @@ use polar_torrent::{Engine, Limits, Options, Request, Step};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
+/// A fresh folder under `POLAR_TORRENT_SCRATCH` when set (on an Android emulator, where the build's own
+/// folder doesn't exist: e2e/android/torrent-tests.sh), else under Cargo's.
 fn scratch(name: &str) -> std::path::PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("polar-torrent-{name}-{}", std::process::id()));
+    let root = std::env::var_os("POLAR_TORRENT_SCRATCH")
+        .map_or_else(|| Path::new(env!("CARGO_TARGET_TMPDIR")).to_path_buf(), Into::into);
+    let dir = root.join(format!("polar-torrent-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir

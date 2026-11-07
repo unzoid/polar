@@ -7,6 +7,7 @@ import {
   describeTorrent,
   recordFail,
   recordTry,
+  torrentBlocked,
   torrentLimits,
   useMatchContext,
   useTitleSettings,
@@ -14,7 +15,7 @@ import {
   type TorrentStep,
 } from "../../lib/playback";
 import { runtimeSeconds } from "../../lib/format";
-import { on } from "../../lib/platform";
+import { batterySaver, on, onMobileData } from "../../lib/platform";
 import { getPrefs, setPrefs } from "../../lib/settings";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
 import { sameFile, type StreamHint } from "../../lib/party";
@@ -27,7 +28,8 @@ export type SourceState =
   /** A torrent source waits for the user to read the one-time notice (`answerNotice`). */
   | { status: "notice"; stream: Stream; label?: string }
   | { status: "ready"; stream: Stream; url: string; label?: string }
-  | { status: "failed"; reason: string };
+  /** `settings`: the reason names a setting there (Settings → Sources), so the screen links to it. */
+  | { status: "failed"; reason: string; settings?: "sources" };
 
 interface Candidate {
   stream: Stream;
@@ -52,6 +54,8 @@ let torrentSteps = 0;
  * too (peer counts until `started()` says the picture is up), and closed when
  * the player goes or falls through to the next source. The first torrent on a
  * device waits for the user's Play or Cancel in a notice first (Prefs.torrentNotice).
+ * On mobile data with Prefs.torrentMobileData off, torrents are passed over without
+ * being opened (#207); the engine stopping while the app was away fails the source for good.
  * Each try of a ranked source, and each that fails to open, is kept for Best Match
  * (sourceHistory.ts); the player records whether it started and played through.
  */
@@ -133,6 +137,8 @@ export function useSource(
   startedNow.current = started;
   /** Settles the notice's wait: true = play, false = play nothing. */
   const noticeAnswer = useRef<((play: boolean) => void) | undefined>(undefined);
+  /** Android stopped the engine while the app was in the background: nothing more is tried until the player opens again. */
+  const halted = useRef(false);
 
   useEffect(() => {
     if (!candidates) return;
@@ -147,6 +153,17 @@ export function useSource(
     let cancelled = false;
     const name = [candidate.label, candidate.addon].filter(Boolean).join(" · ");
     log(`Source ${attempt + 1} of ${candidates.length}${name ? `: ${name}` : ""}`, "info", "link");
+    const blocked = candidate.stream.infoHash ? torrentBlocked(getPrefs(), onMobileData()) : null;
+    if (blocked) {
+      if (attempt + 1 < candidates.length) {
+        log("A torrent on mobile data: passed over (Settings → Sources)", "warn", "link");
+        setAttempt(attempt + 1);
+      } else {
+        log(blocked, "fail", "link");
+        setState({ status: "failed", reason: blocked, settings: "sources" });
+      }
+      return;
+    }
     setState({ status: "resolving", ...candidate });
     recordTry(candidate);
     const fail = (reason: string) => {
@@ -155,6 +172,7 @@ export function useSource(
       setState({ status: "failed", reason });
     };
     let unlisten: Promise<() => void> | undefined;
+    let unlistenStop: Promise<() => void> | undefined;
     let torrent = false;
     const openTorrent = () => {
       const stepId = ++torrentSteps;
@@ -163,8 +181,15 @@ export function useSource(
         const { text, tone, stage, key } = describeTorrent(e.step);
         log(text, tone, stage, key);
       });
+      unlistenStop = on("player://torrent-stopped", () => {
+        if (cancelled) return;
+        halted.current = true;
+        const reason = "Torrent playback stopped while Polarity was in the background. Play it again to go on from where you were.";
+        log(reason, "fail", "player");
+        setState({ status: "failed", reason });
+      });
       torrent = true;
-      return api.torrentOpen(candidate.stream, torrentLimits(getPrefs()), stepId).then((t) => t.url);
+      return api.torrentOpen(candidate.stream, torrentLimits(getPrefs(), batterySaver()), stepId).then((t) => t.url);
     };
     api
       .resolveStream(candidate.stream)
@@ -192,9 +217,10 @@ export function useSource(
       cancelled = true;
       noticeAnswer.current?.(false);
       void unlisten?.then((f) => f());
+      void unlistenStop?.then((f) => f());
       // The player closed or moved on to another source: this torrent stops (and its files go) unless the
       // user keeps sharing. One still opening gives up when it sees the close.
-      if (torrent) void api.torrentClose(torrentLimits(getPrefs())).catch(() => {});
+      if (torrent) void api.torrentClose(torrentLimits(getPrefs(), batterySaver())).catch(() => {});
     };
   }, [candidates, attempt, log]);
 
@@ -212,9 +238,11 @@ export function useSource(
     resume: saved ?? undefined,
     /** The add-on and release group of the source being tried, when it came from the ranked list. */
     kind: (candidates?.[attempt] ?? {}) as SourceKind,
-    /** Try the next candidate after a playback error. False if none left. */
+    /** The engine was stopped while the app was in the background (#207): the player's own error waits behind the reason. */
+    halted: () => halted.current,
+    /** Try the next candidate after a playback error. False if none left (or `halted`). */
     next: () => {
-      if (!candidates || attempt + 1 >= candidates.length) return false;
+      if (halted.current || !candidates || attempt + 1 >= candidates.length) return false;
       setAttempt((a) => a + 1);
       return true;
     },

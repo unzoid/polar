@@ -84,6 +84,8 @@ export interface Prefs {
   torrentNotice: boolean;
   /** Torrent sources: keep sharing what was played until the app quits. Off: stop and delete it when playback ends. */
   torrentKeepSharing: boolean;
+  /** Android: torrent sources may play on mobile data (#207). Off: they don't start there and say why. */
+  torrentMobileData: boolean;
   /** Keep the last few searches. */
   saveRecentSearches: boolean;
   /** Genres under the empty search field. */
@@ -185,6 +187,7 @@ const DEFAULTS: Prefs = {
   torrentUploadMbps: TORRENT_UPLOAD_MBPS,
   torrentNotice: true,
   torrentKeepSharing: false,
+  torrentMobileData: false,
   saveRecentSearches: true,
   searchSuggestions: true,
   autoDownloadUpdates: true,
