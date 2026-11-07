@@ -22,8 +22,10 @@ export const useCatalog = (type: ContentType, id: string, genre?: string, enable
 export const useRecommend = (type: ContentType, id: string, enabled = true) =>
   useQuery({ queryKey: keys.recommend(type, id), queryFn: () => api.recommend(type, id), enabled, staleTime: 60 * 60_000 });
 
-export const useMeta = (type: ContentType, id: string, enabled = true) =>
-  useQuery({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000, enabled });
+export const useMeta = (type: ContentType, id: string, enabled = true) => useQuery({ ...metaQuery(type, id), enabled });
+
+/** The query behind {@link useMeta}, for asking several titles at once. */
+export const metaQuery = (type: ContentType, id: string) => ({ queryKey: keys.meta(type, id), queryFn: () => api.meta(type, id), staleTime: 60 * 60_000 });
 
 /** api's search and meta through the query cache: what a lookup fetched, useSearch and useMeta then reuse. */
 export const cachedLookup = (qc: QueryClient) => ({

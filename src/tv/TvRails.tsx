@@ -33,6 +33,7 @@ export function TvCard({
   onOpen,
   localOnly,
   onFocusChange,
+  staged,
 }: {
   item: MetaPreview;
   shape: Shape;
@@ -50,9 +51,12 @@ export function TvCard({
   /** Not (yet) one of the app's titles, as with anime from AniList: no page to fetch ahead, no options menu. */
   localOnly?: boolean;
   onFocusChange?: (focused: boolean) => void;
+  /** What the stage shows for this card where it isn't the card's own art (the Anime tab's featured row, #325). */
+  staged?: MetaPreview;
 }) {
   const { navigate } = useRouter();
   const { item, entry: shownEntry } = useEntryShown(stored, watching ?? entry?.videoId);
+  const onStage = staged ?? item;
   const stage = useStage();
   const seedStage = useStageSeed();
   const el = useRef<HTMLButtonElement>(null);
@@ -62,9 +66,9 @@ export function TvCard({
   }, INTENT_MS);
   // Show on the stage until something is focused, if this is the page's first title.
   useEffect(() => {
-    if (el.current) seedStage({ item, kicker }, el.current);
+    if (el.current) seedStage({ item: onStage, kicker }, el.current);
     // Again once a placeholder title (a playlist entry still loading) fills in, or better art arrives.
-  }, [item.id, item.name, item.background]);
+  }, [item.id, onStage.name, onStage.background, onStage.logo]);
   // Art that won't load falls back to the title, not an empty frame; better art arriving gets a fresh try.
   const preferred = shape === "poster" ? (item.poster ?? item.background) : (item.background ?? item.poster);
   const { shown: art, onError: onArtError } = useCardArt(preferred);
@@ -81,7 +85,7 @@ export function TvCard({
       aria-label={item.name}
       onClick={open}
       onFocus={() => {
-        stage({ item, kicker });
+        stage({ item: onStage, kicker });
         onFocusChange?.(true);
         intent.onFocus();
       }}

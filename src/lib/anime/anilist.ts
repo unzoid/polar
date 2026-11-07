@@ -6,7 +6,7 @@ import { anilistLimiter, limitedFetch, PRIORITY, type Priority } from "../net/li
 import { readCached, writeCached } from "../net/deviceCache";
 import { isRecord, listOf, str } from "../parse";
 import { id as idOf, readAnime, readChained, readLinked, readPage, readRecommendations, readSlot } from "./responses";
-import { walkSeasons } from "./seasons";
+import { walkSeasons, type SeasonWalk } from "./seasons";
 import { cardsShown } from "./franchise";
 
 /**
@@ -414,12 +414,16 @@ export interface ChainLink extends AnimeCard {
  * found shows and the walk is tried again in a minute.
  */
 export function useAnimeSeasons(anime: Anime | undefined) {
-  const client = useQueryClient();
-  return useQuery({
+  return useQuery(seasonsQuery(useQueryClient(), anime));
+}
+
+/** The query behind {@link useAnimeSeasons}, for walking several franchises at once (the Anime tab's banner, #325). */
+export function seasonsQuery(client: QueryClient, anime: Anime | undefined) {
+  return {
     queryKey: keys.anime.seasons(anime?.id),
     enabled: !!anime,
     staleTime: 6 * 60 * 60_000,
-    refetchInterval: (q) => (q.state.data && !q.state.data.complete ? 60_000 : false),
+    refetchInterval: (q: { state: { data?: SeasonWalk } }) => (q.state.data && !q.state.data.complete ? 60_000 : false),
     queryFn: () => {
       const link = (id: number) =>
         client.fetchQuery({
@@ -441,7 +445,7 @@ export function useAnimeSeasons(anime: Anime | undefined) {
         });
       return walkSeasons(anime!, link);
     },
-  });
+  };
 }
 
 /**
