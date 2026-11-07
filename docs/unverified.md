@@ -727,8 +727,8 @@ against a real project.
 
 ## Torrent sources on Android (#207)
 
-- Checked here: the Android build type-checks with the engine (clippy for `aarch64-linux-android`), the Kotlin
-  compiles, and in the browser (fake backend) a torrent on mobile data is passed over for the next source, or with
+- Checked here: the Android build type-checks with the engine (clippy for `aarch64-linux-android`), the
+  `polar-torrent` test binaries build for `x86_64-linux-android`, and in the browser (fake backend) a torrent on mobile data is passed over for the next source, or with
   none left fails with the reason and Open Settings; the setting is on Settings → Sources (phone) and TV Settings
   → Sources. Not run here: an Android device or emulator playing a torrent, real networks, battery saver.
 - To check on an Android phone and an Android TV, with your own add-on returning torrent streams of a file you're
