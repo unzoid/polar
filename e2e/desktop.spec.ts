@@ -827,3 +827,54 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(partySurfaces(app)).toHaveCount(1);
   });
 });
+
+test("Settings → Services: a linked AniList profile reads its list for the import, and unlinks (#83)", async ({ app }) => {
+  // A link made earlier on this device (the fake shell has no keychain, so it is in the web view's storage).
+  const link = { token: "TOKEN.TOKENTOKEN.TOKENTOKEN", expiresAt: Date.now() + 86_400_000, userId: 7, userName: "Lanternfield Fan", scoreFormat: "POINT_10", adult: false };
+  await app.evaluate((v) => localStorage.setItem("polar.link.anilist.local", v), JSON.stringify(link));
+  const entry = (id: number, status: string, progress: number, episodes: number | null, format: string, isAdult = false) => ({
+    id,
+    mediaId: 100 + id,
+    status,
+    progress,
+    score: 0,
+    repeat: 0,
+    updatedAt: 1_700_000_000,
+    createdAt: 1_690_000_000,
+    media: { episodes, isAdult, format, title: { english: `Show ${id}` }, coverImage: {} },
+  });
+  const sent: string[] = [];
+  await app.route("https://graphql.anilist.co/**", async (route) => {
+    const body = route.request().postData() ?? "";
+    sent.push(route.request().headers()["authorization"] ?? "");
+    const data = body.includes("MediaListCollection")
+      ? {
+          MediaListCollection: {
+            hasNextChunk: false,
+            lists: [{ entries: [entry(1, "CURRENT", 3, 12, "TV"), entry(2, "COMPLETED", 1, 1, "MOVIE"), entry(3, "PLANNING", 0, 24, "TV", true)] }],
+          },
+        }
+      : { Page: { mediaList: [] } };
+    await route.fulfill({ json: { data } });
+  });
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^AniList/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await settings.getByRole("button", { name: "Import List…" }).click();
+  // The adult entry stays out: this account hides them.
+  await expect(settings.getByText(/^1 show and 1 film on your list, 4 episodes and films watched\. 1 adult entry left out/)).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Import", exact: true })).toBeEnabled();
+  expect(sent.length).toBeGreaterThan(0);
+  expect(sent.every((h) => h === `Bearer ${link.token}`)).toBe(true);
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no AniList client, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/^Not set up in this build/)).toBeVisible();
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.anilist.local"))).toBeNull();
+});

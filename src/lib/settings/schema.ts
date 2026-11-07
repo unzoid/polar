@@ -1069,6 +1069,7 @@ export const SETTINGS: SettingDef[] = [
     keywords: "rotten tomatoes metacritic letterboxd trakt mdblist omdb ratings reviews",
   },
   { id: "seekrKey", page: "services", title: "Timeline previews", keywords: "seekr thumbnails scrubbing" },
+  { id: "anilist", page: "services", title: "AniList", keywords: "anime list account link sign in import tracking" },
 
   // Advanced
   {

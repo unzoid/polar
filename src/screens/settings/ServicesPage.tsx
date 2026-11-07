@@ -126,6 +126,7 @@ function AniListRow(props: Expandable) {
     <ExpandRow
       icon={LayoutList}
       title="AniList"
+      setting="anilist"
       caption="Episodes you watch update this profile's AniList list, and you can change it from an anime's page"
       value={state === "linked" ? "Linked" : state === "none" ? "Off" : "Sign in again"}
       {...props}

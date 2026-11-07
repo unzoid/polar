@@ -803,6 +803,31 @@ whether the window resets on a channel rejoin over the same socket (assumed not)
 3. With A paused, B presses play while A can't see B's entry (hard to force by hand: the logs show it as
    "refused vN by …"): B goes back to paused within a second or two.
 
+## AniList account link (#83)
+
+Checked here: unit tests (`tests/listSync.test.ts`: the sign-in code, the queue, the watched rule, sending and
+reading back; `tests/listLinking.test.ts`; `tests/listImport.test.ts`), component tests
+(`tests/dom/anilistLink.test.tsx`) and a desktop e2e test on the fake shell with a made-up AniList answer (a linked
+profile reads its list for the import, then unlinks). Not run against AniList (not reachable here), and this build
+has no AniList API client yet (`ANILIST_CLIENT_ID` in `src/lib/lists/signIn.ts` is empty, so Settings → Services →
+AniList says it isn't set up). To check, after registering a client in AniList's developer settings with
+`https://anilist.co/api/v2/oauth/pin` as its redirect and putting its id there:
+1. Settings → Services → AniList → Open AniList: AniList's page asks to allow the client; copy the code it shows,
+   paste it, Link. The row shows "Linked as <your AniList name>".
+2. Play an episode of an anime on your list past the watched point (or mark it watched): within a few seconds
+   AniList shows that episode count; the last episode of a show sets it to Completed.
+3. An anime's page shows its AniList entry above the cast: change the status, the episode count and the score
+   (in the account's score format); AniList shows each change. Several quick changes arrive as one.
+4. Offline: mark an episode watched, then reconnect: the change reaches AniList after reconnecting or the next start.
+5. Change an entry on AniList's site, restart Polarity: the anime page shows the new entry.
+6. Import List…: the counts match the list (adult entries left out unless the account shows them); Import adds the
+   shows and films to the library with their watched episodes; running it again adds nothing new.
+7. Revoke Polarity in AniList's settings (Apps): the next change makes the row say "Sign in again".
+8. A second profile, and a second device: each shows Off until it signs in itself; nothing about the AniList
+   account appears in the Supabase tables.
+9. On each desktop system, the sign-in is in the system's keychain (`polar.link.anilist.…`), not the web view's
+   storage; on phones (no keychain yet) it is in the web view's storage.
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,

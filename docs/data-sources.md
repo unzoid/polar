@@ -16,6 +16,7 @@ first (see `AGENTS.md`).
 | MDBList | Scores from several sites, certification | `src-tauri/src/ratings.rs` | The user's own | 1,000 a day on the free tier, cached 6 h |
 | OMDb | Scores, awards, rating | `ratings.rs` | The user's own | 1,000 a day on the free tier |
 | AniList GraphQL | Anime catalog, seasons, schedule, relations, characters, search | `src/lib/anime/anilist.ts`, `src/lib/net/limiter.ts` | None | 90 a minute (30 while degraded); a 429 means a minute's wait. Requests wait in one queue, most urgent first (an opened page, then rows on screen); rows and pages are kept on the device up to a day |
+| AniList account | The profile's AniList list: watched episodes, status and score from an anime's page, and the list import in Settings → Services | `src/lib/lists/`, `src/screens/settings/ServicesPage.tsx`, `src/components/anime/AnimeListPanel.tsx` | The user's own sign-in, made on AniList's page for Polarity's API client (not registered yet: the sign-in says it isn't set up) | The catalog's budget. Changes wait in a queue per profile and go out together; entries changed on AniList are read on start, 50 at most |
 | Jikan | Filler and recap episodes | `crates/anime/src/fillers.rs` | None | 60 a minute, 3 a second; 400 ms between pages |
 | animefillerlist.com | Filler episodes when Jikan knows none | `crates/anime/src/fillers.rs` | None | One page per show, cached 24 h |
 | ani.zip | Ids across anime and general sources, per-episode data, art | `src/lib/anime/anizip.ts` | None | None published |
@@ -41,6 +42,9 @@ Every host the web view fetches from is listed in its `connect-src` policy
 - **Fillers:** Jikan first, animefillerlist.com when Jikan knows none, answers cached 24 h on disk.
 - **Anime ids:** ani.zip first; Fribb/anime-lists, downloaded when first needed and refreshed weekly, when it can't be
   reached. The list is fetched at runtime, not shipped with the app.
+- **AniList account:** the sign-in and the entries read from the list stay on the device (the system's keychain, else the
+  web view's storage) and are never sent to Polarity's database; each device and profile signs in itself. Unlinking
+  removes the sign-in, the queued changes and the entries kept from the list.
 - **Credits:** Settings → About → Credits names every source and shows TMDB's notice and logo (`src/lib/settings/credits.ts`).
 
 ## 3. What the app keeps on disk
