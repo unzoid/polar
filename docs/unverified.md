@@ -828,6 +828,32 @@ AniList says it isn't set up). To check, after registering a client in AniList's
 9. On each desktop system, the sign-in is in the system's keychain (`polar.link.anilist.…`), not the web view's
    storage; on phones (no keychain yet) it is in the web view's storage.
 
+## MyAnimeList account link (#84)
+
+Checked here: unit tests (`tests/malList.test.ts`: reading and writing MAL's list format, the sign-in with PKCE,
+refreshing the tokens, the queue renewing a refused token, episodes going to each linked service), the relay's path
+checks (`src-tauri/src/mal.rs` tests, type-checked here, run in CI), component tests (`tests/dom/malLink.test.tsx`)
+and a desktop e2e test on the fake shell with a made-up list (a linked profile reads its list for the import, then
+unlinks). Not run against MyAnimeList (no client id, and the relay only runs in the app). To check, after registering
+a client at https://myanimelist.net/apiconfig (App Type "other", redirect `http://localhost/polarity-mal-sign-in`)
+and building with its id in `VITE_MAL_CLIENT_ID`:
+1. Settings → Services → MyAnimeList → Open MyAnimeList: allow Polarity; the browser goes to a page that doesn't load.
+   Copy its address, paste it, Link. The row shows "Linked as <your MAL name>".
+2. Play an episode of an anime on your list past the watched point (or mark it watched): MAL shows that episode count;
+   the last episode sets it to Completed.
+3. An anime's page shows "Your MyAnimeList" above the cast: change the status, episodes and score (0–10); MAL shows
+   each change. Watching a completed show again: MAL shows it as re-watching (check that MAL's site shows
+   `is_rewatching` the way Polarity sends it: status Completed with Re-watching ticked).
+4. Offline: mark an episode watched, reconnect: the change arrives.
+5. Change an entry on MAL's site, restart Polarity: the anime page shows the new entry.
+6. Import List…: the counts match the list (adult entries are always left out: MAL's API doesn't say whether the
+   account shows them); Import adds the titles with their watched episodes.
+7. Tokens: the access token's real lifetime (MAL's page says both an hour and about a month). After it, a change still
+   goes out (the link renews itself) and the row stays "Linked".
+8. Revoke Polarity in MAL's settings: the next change makes the row say "Sign in again".
+9. A second profile and a second device each show Off until they sign in; nothing about the MAL account appears in the
+   Supabase tables.
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,
