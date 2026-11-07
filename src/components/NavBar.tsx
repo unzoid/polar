@@ -56,7 +56,8 @@ export function NavBar() {
   const settingsOpen = useSettingsOverlay().open;
   const covered = layers > 0 || settingsOpen || current.name === "player";
   const nativeBack = useNativeBack(backButton, canGoBack && !covered, backHistory(stack), (steps) => {
-    for (let i = 0; i < steps; i++) back();
+    // Never further than the stack goes, whatever number comes over the bridge.
+    for (let i = 0; i < Math.min(steps, stack.length - 1); i++) back();
   });
   const scrolled = useActivePageScrolled(stack.length);
   const { data: settings } = useSettings();
