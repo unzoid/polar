@@ -36,7 +36,8 @@ export function readDeviceCode(v: unknown, now: number): DeviceCode | undefined 
   const [deviceCode, userCode] = [str(v.device_code), str(v.user_code)];
   if (!deviceCode || !userCode || !/^[A-Za-z0-9-]{4,16}$/.test(userCode)) return undefined;
   const url = str(v.verification_url) ?? "";
-  const expiresIn = num(v.expires_in) ?? 600;
+  // Trakt's codes last 10 minutes; whatever the answer says, the wait stops within half an hour.
+  const expiresIn = Math.min(Math.max(num(v.expires_in) ?? 600, 1), 1800);
   // At least 1 s apart and no slower than every 30 s, whatever the answer said.
   const interval = Math.min(Math.max(num(v.interval) ?? 5, 1), 30) * 1000;
   return { deviceCode, userCode, verificationUrl: TRAKT_PAGE.test(url) ? url : DEFAULT_PAGE, expiresAt: now + expiresIn * 1000, interval };
@@ -56,12 +57,15 @@ export interface TraktTokens {
   expiresAt: number;
 }
 
+/** A token as it goes into a header: printable, no spaces, at most 4096 characters. */
+const TOKEN = /^[\x21-\x7e]{1,4096}$/;
+
 export function readTokens(v: unknown, now: number): TraktTokens | undefined {
   if (!isRecord(v)) return undefined;
   const [token, refreshToken] = [str(v.access_token), str(v.refresh_token)];
-  if (!token || !refreshToken) return undefined;
-  // `created_at` is Trakt's clock; ours decides when to refresh, so the life counts from now.
-  const life = num(v.expires_in) ?? 7 * 24 * 60 * 60;
+  if (!token || !refreshToken || !TOKEN.test(token) || !TOKEN.test(refreshToken)) return undefined;
+  // `created_at` is Trakt's clock; ours decides when to refresh, so the life counts from now (a minute to a year).
+  const life = Math.min(Math.max(num(v.expires_in) ?? 7 * 24 * 60 * 60, 60), 365 * 24 * 60 * 60);
   return { token, refreshToken, expiresAt: now + life * 1000 };
 }
 

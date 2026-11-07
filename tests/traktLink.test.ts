@@ -99,6 +99,8 @@ describe("the device code", () => {
     expect(readDeviceCode({ ...answer, interval: 999 }, NOW)?.interval).toBe(30_000);
     expect(readDeviceCode({ ...answer, user_code: "<b>x</b>" }, NOW)).toBeUndefined();
     expect(readDeviceCode({ user_code: "ABCD1234" }, NOW)).toBeUndefined();
+    // However long the answer says the code lasts, the wait stops within half an hour.
+    expect(readDeviceCode({ ...answer, expires_in: 1e12 }, NOW)?.expiresAt).toBe(NOW + 1_800_000);
   });
 
   test("is asked for with the client id only, no secret", async () => {
@@ -164,6 +166,14 @@ describe("tokens and the link", () => {
   test("tokens without both halves aren't a sign-in; the life counts from our clock", () => {
     expect(readTokens({ access_token: "T" }, NOW)).toBeUndefined();
     expect(readTokens({ access_token: "T", refresh_token: "R" }, NOW)?.expiresAt).toBe(NOW + 7 * 86_400_000);
+  });
+
+  test("tokens that couldn't go into a header aren't a sign-in; the life stays between a minute and a year", () => {
+    expect(readTokens({ access_token: "T\r\nX: y", refresh_token: "R" }, NOW)).toBeUndefined();
+    expect(readTokens({ access_token: "T", refresh_token: "R R" }, NOW)).toBeUndefined();
+    expect(readTokens({ access_token: "T".repeat(4097), refresh_token: "R" }, NOW)).toBeUndefined();
+    expect(readTokens({ access_token: "T", refresh_token: "R", expires_in: -5 }, NOW)?.expiresAt).toBe(NOW + 60_000);
+    expect(readTokens({ access_token: "T", refresh_token: "R", expires_in: 1e12 }, NOW)?.expiresAt).toBe(NOW + 365 * 86_400_000);
   });
 
   test("a stored link is read back only when whole", () => {

@@ -84,6 +84,14 @@ terms apply:
   The anime episodes and films it watches, and the changes you make on an anime's page, go to that service under
   your account, and its list is read to show and import it. The sign-in and what is read from the list stay on your
   device (the system's keychain where there is one) and never go to Polarity's account server. Unlinking removes them.
+- **Trakt:** only for a profile that links a Trakt account in Settings → Services. While it plays a film or an
+  episode that has an IMDb id, Trakt is told what is playing and how far along it is (Trakt shows this as "watching
+  now" on your profile, as public as your Trakt profile is); what you finish or mark watched goes to your Trakt
+  history, and ratings you give on a title page go to Trakt. With the watchlist switch on, titles you add to or remove
+  from your library are added to or removed from your Trakt watchlist. Your Trakt history, watchlist and ratings are
+  read to import them and to bring in what you watch elsewhere. Anime played from Kitsu ids aren't sent. The sign-in
+  stays on your device (the system's keychain where there is one) and never goes to Polarity's account server;
+  unlinking revokes it and removes it.
 - **Updates and the add-on list:** GitHub, to check for and download updates and to load the list of add-ons in
   Settings.
 - **Sign-in check:** Cloudflare Turnstile, only if the account server asks for one before sending a login code.
