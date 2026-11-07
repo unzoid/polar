@@ -1,4 +1,4 @@
-// supabase/migrations/20261109000000_friend_tries_and_cap_locks.sql in PGlite: how many friend codes
+// supabase/migrations/20261109120000_friend_tries_and_cap_locks.sql in PGlite: how many friend codes
 // nobody has an account may try, how many invites it may send, answers that tell the other side only
 // when there was something to answer, friend codes from random bytes only, the locks the caps take
 // and the codec functions closed to callers who aren't signed in. The tests share one database.

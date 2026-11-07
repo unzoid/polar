@@ -350,7 +350,7 @@ How the caps work:
 - Friends (`supabase/migrations/20261108000000_friends.sql`): rows change only through the
   `friend_*` functions, which refuse a request or an answer past the caps with `friend_limit` or
   `friend_requests_limit`; the Friends panel says which.
-  `supabase/migrations/20261109000000_friend_tries_and_cap_locks.sql` adds: an account tries up
+  `supabase/migrations/20261109120000_friend_tries_and_cap_locks.sql` adds: an account tries up
   to 20 friend codes nobody has in an hour (`friend_request` answers `unknown` for one, then
   refuses with `friend_tries_limit`) and sends up to 30 invites in 10 minutes
   (`friend_invite_limit`); the tries are kept in `friend_tries` for an hour.

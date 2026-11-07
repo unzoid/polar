@@ -663,7 +663,7 @@ export function dbError(e: PostgrestError): AccountError {
   if (raised(e, "friend_code_unknown")) {
     return new AccountError("friend_code_unknown", UNKNOWN_CODE);
   }
-  // supabase/migrations/20261109000000_friend_tries_and_cap_locks.sql.
+  // supabase/migrations/20261109120000_friend_tries_and_cap_locks.sql.
   if (raised(e, "friend_tries_limit")) {
     return new AccountError("friend_tries_limit", "Too many friend codes nobody has were tried. Try again in an hour.");
   }
