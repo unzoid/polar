@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { PartyMenu } from "../../src/components/party/PartyMenu";
+import { PartyHold } from "../../src/components/party/PartyUI";
 import { getParty, leaveParty, startParty, useParty, type PartyState } from "../../src/lib/party";
 import { DEFAULT_RULES } from "../../src/lib/party/messages";
 import { queryClient } from "../../src/lib/net";
@@ -57,8 +58,10 @@ test("the host's switches change the room's rules, and mute is the viewer's own"
   await click(switchFor(container, "Only I control playback"));
   await click(switchFor(container, "Wait for everyone"));
   await click(switchFor(container, "Approve joins"));
-  expect(getParty()!.rules).toMatchObject({ locked: true, control: "host", wait: false, approve: true });
-  expect(getParty()!.rules.v).toBe(5);
+  expect(getParty()!.rules.stall).toBe(false);
+  await click(switchFor(container, "Pause when someone is buffering"));
+  expect(getParty()!.rules).toMatchObject({ locked: true, control: "host", wait: false, stall: true, approve: true });
+  expect(getParty()!.rules.v).toBe(6);
   await click(switchFor(container, "Mute party sounds"));
   expect(getParty()!.quiet).toBe(true);
 });
@@ -115,4 +118,22 @@ test("Copy Party Log copies this device's log, with nothing personal in it (#203
   // No name, no party code, no title or episode.
   for (const secret of ["Ash", code, MEDIA.metaId, MEDIA.videoId, "Harbour"]) expect(copied).not.toContain(secret);
   expect(byText(container, "button", "Copied")).toBeTruthy();
+});
+
+test("held for someone buffering, if the room pauses for that: the picture says who it's waiting for", async () => {
+  startParty(MEDIA, 0, false, { name: "Ash", avatar: "" });
+  const me = getParty()!;
+  const sam = { ...me.members[0], id: "member-2", name: "Sam", buffering: true };
+  const held = { ...me, members: [...me.members, sam], playback: { ...me.playback!, held: true } };
+  const hold = async (party: PartyState) => (await render(at({ name: "home" }, <PartyHold party={party} videoId={MEDIA.videoId} />))).container;
+  expect((await hold({ ...held, rules: { ...DEFAULT_RULES, stall: true } })).textContent).toContain("Waiting for Sam");
+  document.body.innerHTML = "";
+  document.body.innerHTML = "";
+  // Sam's report of the stall comes before presence's Buffering.
+  const reported = { videoId: MEDIA.videoId, position: 60, paused: true, stalled: true, at: 0 };
+  const early = { ...held, members: [...me.members, { ...sam, buffering: false }], positions: { "member-2": reported } };
+  expect((await hold({ ...early, rules: { ...DEFAULT_RULES, stall: true } })).textContent).toContain("Waiting for Sam");
+  document.body.innerHTML = "";
+  // Not pausing for stalls: a hold is someone loading, never Sam's buffering.
+  expect((await hold({ ...held, rules: { ...DEFAULT_RULES, stall: false } })).textContent).not.toContain("Sam");
 });

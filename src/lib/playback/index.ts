@@ -2,12 +2,15 @@
 // Its public surface: code outside src/lib imports this folder, code inside src/lib imports the file.
 
 export * from "./autoplay";
+export * from "./bestMatch";
+export * from "./device";
 export * from "./discordPresence";
 export * from "./headers";
 export * from "./languages";
 export * from "./lookahead";
 export * from "./playTarget";
 export * from "./readiness";
+export * from "./sourceHistory";
 export * from "./sources";
 export * from "./sourceInfo";
 export * from "./startLog";

@@ -6,6 +6,7 @@ import "./storageStub";
 import { getPrefs } from "../src/lib/settings/prefs";
 import { choicesOf, readSetting, settingDef } from "../src/lib/settings/schema";
 import { autoPickOrder, defaultFilter } from "../src/lib/playback/sources";
+import { NEUTRAL, scoreSources } from "../src/lib/playback/bestMatch";
 import { rememberLanguage, settingsForTitle, titleIdOf, titleLanguages } from "../src/lib/playback/titleLanguages";
 import type { RankedStream, Settings } from "../src/lib/types";
 
@@ -74,6 +75,23 @@ describe("the source list and auto-pick", () => {
   test("Same as other titles: an anime's list opens as any other's", () => {
     const it = { ...same, audioLanguage: "it" };
     expect(defaultFilter([original, italian], settingsForTitle(it, true)).lang).toBe("it");
+  });
+});
+
+describe("Best Match", () => {
+  // useMatchContext takes audioLanguage from the settings it's given: useTitleSettings' for the title.
+  const best = (settings: Settings, anime: boolean, list: RankedStream[]) => {
+    const scores = scoreSources(list, { ...NEUTRAL, audioLanguage: settingsForTitle(settings, anime)!.audioLanguage });
+    return [...list].sort((a, b) => scores.get(b)!.score - scores.get(a)!.score)[0];
+  };
+  test("an anime's own audio language counts for an anime", () => {
+    expect(best(split, true, [dubbed, original])).toBe(original);
+  });
+  test("a series or film goes by Subtitles & Audio's", () => {
+    expect(best(split, false, [original, dubbed])).toBe(dubbed);
+  });
+  test("Same as other titles: an anime goes by Subtitles & Audio's too", () => {
+    expect(best(same, true, [original, dubbed])).toBe(dubbed);
   });
 });
 

@@ -437,7 +437,9 @@ export function PartyBadge({ party, onOpen }: { party: PartyState; onOpen: () =>
  */
 export function PartyHold({ party, videoId }: { party: PartyState; videoId: string }) {
   const pb = party.playback;
-  const waiters = party.members.filter((m) => m.waiting && !m.away && m.id !== party.me);
+  // Stalled, if the room pauses for that (#238): as presence says, or sooner as its position report says.
+  const stalled = (m: Member) => party.rules.stall && (m.buffering || party.positions[m.id]?.stalled);
+  const waiters = party.members.filter((m) => (m.waiting || stalled(m)) && !m.away && m.id !== party.me);
   const text =
     party.error
       ? "Watch party unavailable"

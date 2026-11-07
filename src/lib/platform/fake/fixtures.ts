@@ -360,7 +360,6 @@ function worstStreams(): StreamsResult {
         tags: k === 0 ? ["Remux", "Atmos", "TrueHD 7.1", "HDR10+", "Dolby Vision Profile 8.1", "10-bit", "HEVC", "IMAX Enhanced"] : [],
         source: k === 0 ? "ARCHIVEGROUP-RESTORATION-TEAM-INTERNATIONAL" : null,
       },
-      score: 100 - k,
       label: resolution ? `${resolution}p` : "",
     })),
     failed: [big, "Q", "حكايات"],
@@ -383,7 +382,6 @@ export function streams(): StreamsResult {
         addon: "Open Films",
         stream: { infoHash: String(k).repeat(40), fileIdx: 0, name: `Open Films\n${resolution}p`, title: "WEB-DL" },
         quality: { resolution, hdr: false, dolbyVision: false, sizeBytes: 2e9, lowQualitySource: false, direct: false, languages: ["en"], tags: [] },
-        score: 100 - k * 10,
         label: `${resolution}p`,
       })),
       failed: [],
@@ -411,11 +409,6 @@ export function streams(): StreamsResult {
             }
           : { url: `https://media.example/${k}.mp4`, name: `${addon}\n${resolution}p`, title },
       quality: { resolution, hdr, dolbyVision: false, sizeBytes, lowQualitySource: false, direct: true, languages: ["en"], tags: hdr ? ["HDR10"] : [] },
-      score: 100 - k * 10,
-      scoreReasons: [
-        { reason: `${resolution}p`, points: 90 - k * 10 },
-        { reason: "Direct link", points: 10 },
-      ],
       label: `${resolution}p`,
       requestId: "tt0000001",
     })),

@@ -57,7 +57,7 @@ export function AnimePage() {
       </Card>
       <Card
         title="Preferred Release Groups"
-        footer="Their sources go to the top of an anime's source list and are what autoplay picks first, in the order you list them. Separate with commas. Filters and other sorts still apply."
+        footer="Their sources score higher in Best Match, the first group you list most, so autoplay usually picks them first. A much better file from another group can still come first. Separate with commas. Filters and other sorts still apply."
       >
         <FormRow
           placeholder="Group A, Group B"

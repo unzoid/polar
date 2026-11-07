@@ -1,10 +1,9 @@
 import { type QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { api } from "../api";
 import { errorCode } from "../errors";
 import { sync } from "../account/sync";
 import { aniZipLookup } from "../anime/anizip";
-import { groupBoost, preferredGroups } from "../anime/groups";
 import { isKitsuId } from "../anime/kitsu";
 import { usePrefs } from "../settings/prefs";
 import { keys } from "./queryKeys";
@@ -34,9 +33,8 @@ export const cachedLookup = (qc: QueryClient) => ({
 
 export function useStreams(type: ContentType, videoId: string | undefined) {
   const anime = useIsAnime(videoId);
-  const { animeNo4k, animePreferredGroups } = usePrefs();
+  const { animeNo4k } = usePrefs();
   const no4k = anime && animeNo4k;
-  const groups = useMemo(() => preferredGroups(animePreferredGroups), [animePreferredGroups]);
   const select = useCallback(
     (d: StreamsResult): StreamsResult => {
       // Settings → Anime: 4K anime is nearly always an AI upscale. Counted as hidden, like Settings' other source filters.
@@ -45,17 +43,12 @@ export function useStreams(type: ContentType, videoId: string | undefined) {
         ...d,
         hidden: (d.hidden ?? 0) + d.streams.length - kept.length,
         // Sources that say nothing about their audio have the original's: fansub
-        // releases never name their Japanese audio.
-        // And Settings → Anime: your preferred release groups go to the top of
-        // "Best match", so they're what autoplay tries first.
-        streams: kept.map((r) => ({
-          ...r,
-          quality: r.quality.languages?.length ? r.quality : { ...r.quality, languages: ["ja"] },
-          score: r.score + groupBoost(r.quality.source, groups),
-        })),
+        // releases never name their Japanese audio. (Settings → Anime's preferred
+        // release groups count in Best Match: lib/playback/bestMatch.ts.)
+        streams: kept.map((r) => (r.quality.languages?.length ? r : { ...r, quality: { ...r.quality, languages: ["ja"] } })),
       };
     },
-    [no4k, groups],
+    [no4k],
   );
   return useQuery({
     queryKey: keys.streams(type, videoId ?? ""),

@@ -35,9 +35,9 @@ import {
   videoFile,
   READY_CHECKS,
   readinessNote,
+  recordFail,
   rememberLanguage,
   resetAutoplay,
-  screenResolution,
   sliderAmplitude,
   sourceRow,
   useReadiness,
@@ -49,6 +49,7 @@ import { downloadedStream, episodeState, isLocalFile, nextVideo, progressMap, se
 import { WindowControls } from "../components/WindowControls";
 import { Scrubber } from "../components/player/Scrubber";
 import { useSource } from "../components/player/useSource";
+import { useSourceRecord, useThroughput } from "../components/player/useSourceRecord";
 import { SkipButton, useSkipSegments } from "../components/player/SkipSegments";
 import { OptionsOverlay, type OptionItem } from "../components/player/OptionsOverlay";
 import { VolumeHud, type VolumePing } from "../components/player/VolumeHud";
@@ -73,7 +74,7 @@ import { getPrefs, openSettings, setPrefs, useEpisodeLayout, usePrefs, withShort
 import { Segmented } from "../components/Segmented";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
-import { airLabel, episodeCode, formatRemaining, formatTime, seasonLabel } from "../lib/format";
+import { airLabel, episodeCode, formatRemaining, formatTime, runtimeSeconds, seasonLabel } from "../lib/format";
 import { keys, prefetchStreams, useMeta, useProgress, useStreams, useUpdateSettings } from "../lib/net";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, RankedStream, Stream, Video } from "../lib/types";
@@ -539,6 +540,7 @@ export function Player({
       // would just start mpv again (and if it keeps exiting, loop through
       // every source).
       const exited = videoRef.current instanceof MpvMedia && videoRef.current.error?.playerExited;
+      if (!exited) recordFail(source.kind);
       const el = videoRef.current;
       if (el instanceof HTMLVideoElement && el.error) {
         const kinds = ["", "loading was stopped", "network error", "couldn't decode it", "format not supported"];
@@ -737,7 +739,7 @@ export function Player({
   // title page. Ids stay the index into the ranked list, so selection works
   // regardless of the view. Kept for this show while the player stays open,
   // through picking a source or moving to another episode (each rebuilds it).
-  const sourceFilters = useSourceFilters(streams.data?.streams, settings, metaId);
+  const sourceFilters = useSourceFilters(streams.data?.streams, settings, metaId, runtimeSeconds(meta?.runtime));
   const hiddenSources = streams.data?.hidden ?? 0;
   // The first few sources get a look ahead of time while the panel is open (#21).
   const readiness = useReadiness(
@@ -754,7 +756,7 @@ export function Player({
       sourceInfo.show(
         r,
         sourceRow(r).title,
-        { filter: sourceFilters.filter, sort: sourceFilters.sort, screen: screenResolution(), preferScreen: settings?.preferScreenResolution ?? true, playing: report },
+        { filter: sourceFilters.filter, sort: sourceFilters.sort, match: sourceFilters.match(r), playing: report },
         anchor,
       ),
     );
@@ -955,6 +957,11 @@ export function Player({
     return (atEnd ? remaining <= NEXT_UP_AT_END : inCredits || (creditsStart == null && remaining <= Math.max(40, t.duration * 0.04))) ? "yes" : "no";
   });
   const showNextUp = !!next && !nextDismissed && nearEnd !== "unknown" && (ended || nearEnd === "yes");
+  // What Best Match learns from this try (#230): how long it took to start, whether it played through, and
+  // what the connection carried (links only: not a file here or the torrent engine's own link on this machine).
+  useSourceRecord(source.kind, source.state.status === "resolving", started, ended || nearEnd === "yes");
+  const remoteLink = !!playingUrl && /^https?:\/\//i.test(playingUrl.url) && !/^https?:\/\/(127\.|localhost[:/]|\[::1\])/i.test(playingUrl.url);
+  useThroughput(media, started && !paused, remoteLink);
 
   const cycleClock = () =>
     updateSettings.mutate({ timeDisplay: TIME_DISPLAYS[(TIME_DISPLAYS.indexOf(timeDisplay) + 1) % TIME_DISPLAYS.length] });

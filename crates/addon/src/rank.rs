@@ -1,6 +1,8 @@
 //! Turn free-text stream rows ("Addon\n4k HDR", "Movie.2160p.WEB-DL 💾 12.4 GB") into
-//! structured quality and a score, so the UI can show *one* good default and a
-//! tidy grouped list instead of a wall of emoji.
+//! structured quality, so the UI can show *one* good default and a tidy grouped
+//! list instead of a wall of emoji. Which source is the best match is the app's
+//! to say (src/lib/playback/bestMatch.ts, #230): it knows the screen, the
+//! connection and what played before. Here sources only come in a plain order.
 
 use std::sync::LazyLock;
 
@@ -39,9 +41,6 @@ pub struct RankedStream {
     pub stream: Stream,
     pub addon: String,
     pub quality: StreamQuality,
-    pub score: f32,
-    /// What the score adds up (#229).
-    pub score_reasons: Vec<ScoreReason>,
     /// Short human label, e.g. "4K · HDR · 12.4 GB".
     pub label: String,
     /// The id the add-on was asked by (`tt…:1:5`, `kitsu:12:5`): which request brought this source.
@@ -315,47 +314,14 @@ fn is_multi_subs(word: &str, after: &str) -> bool {
 /// "Dub", "Dubs", "Dubbed": whole words, so Portuguese "Dublado" isn't one.
 static DUB_WORDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bdub(?:s|bed)?\b").unwrap());
 
-/// Higher is better. Deliberately simple and explainable; user preferences
-/// (max resolution, avoid HDR on SDR screens, size caps) plug in here later.
-pub fn score(q: &StreamQuality) -> f32 {
-    score_reasons(q).iter().map(|r| r.points).sum()
-}
-
-/// One reason behind a score, as the source info panel shows it (#229).
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct ScoreReason {
-    pub reason: &'static str,
-    pub points: f32,
-}
-
-/// What [`score`] adds up, in order: the picture's height first, then each bonus and penalty.
-pub fn score_reasons(q: &StreamQuality) -> Vec<ScoreReason> {
-    let part = |reason, points| ScoreReason { reason, points };
-    let mut parts = vec![match q.resolution {
-        Some(2160) => part("4K", 40.0),
-        Some(1440) => part("1440p", 37.0),
-        Some(1080) => part("1080p", 35.0),
-        Some(720) => part("720p", 22.0),
-        Some(_) => part("Below 720p", 10.0),
-        None => part("Unknown resolution", 15.0),
-    }];
-    if q.direct {
-        parts.push(part("Direct link", 10.0));
-    }
-    if q.hdr || q.dolby_vision {
-        parts.push(part(if q.dolby_vision { "Dolby Vision" } else { "HDR" }, 2.0));
-    }
-    if q.codec == Some("HEVC") || q.codec == Some("AV1") {
-        parts.push(part(if q.codec == Some("AV1") { "AV1" } else { "HEVC" }, 1.0));
-    }
-    if q.size_bytes.is_some_and(|size| size > 40_000_000_000) {
-        // Remux-sized: slow to start for little visible gain.
-        parts.push(part("Over 40 GB", -12.0));
-    }
-    if q.low_quality_source {
-        parts.push(part("CAM or telesync", -100.0));
-    }
-    parts
+/// The order sources come in before the app scores them: CAM rips last, then the
+/// tallest picture first, direct links before the rest at the same height. Of a file
+/// found twice, the copy kept is the first in this order.
+fn listing_order(a: &StreamQuality, b: &StreamQuality) -> std::cmp::Ordering {
+    a.low_quality_source
+        .cmp(&b.low_quality_source)
+        .then(b.resolution.unwrap_or(0).cmp(&a.resolution.unwrap_or(0)))
+        .then(b.direct.cmp(&a.direct))
 }
 
 pub fn label(q: &StreamQuality) -> String {
@@ -440,8 +406,8 @@ impl StreamFilter {
     }
 }
 
-/// Rank streams from many addons, best first. Duplicates (same URL, or the same
-/// add-on, name and title) collapse to the highest scoring copy. Streams with nothing playable (no URL, torrent or
+/// Rank streams from many addons: CAM rips last, tallest picture first. Duplicates (same URL, or the same
+/// add-on, name and title) collapse to the first copy in that order. Streams with nothing playable (no URL, torrent or
 /// YouTube id) are dropped.
 pub fn rank_streams(streams: impl IntoIterator<Item = (String, Stream)>) -> Vec<RankedStream> {
     rank_streams_filtered(streams, &StreamFilter::default()).0
@@ -479,8 +445,6 @@ pub fn rank_asked(
             let quality = parse_quality(&stream);
             let file = wanted.and(file_episode(&stream));
             RankedStream {
-                score: score(&quality),
-                score_reasons: score_reasons(&quality),
                 label: label(&quality),
                 quality,
                 addon,
@@ -492,7 +456,7 @@ pub fn rank_asked(
         })
         .collect();
     // Another episode's files last; the copy kept of a file found twice is then the right episode's.
-    ranked.sort_by(|a, b| a.other_episode.cmp(&b.other_episode).then(b.score.total_cmp(&a.score)));
+    ranked.sort_by(|a, b| a.other_episode.cmp(&b.other_episode).then(listing_order(&a.quality, &b.quality)));
 
     let mut seen = std::collections::HashSet::new();
     ranked.retain(|r| match (&r.stream.url, &r.stream.info_hash) {
@@ -529,27 +493,20 @@ mod tests {
     }
 
     #[test]
-    fn the_score_is_the_sum_of_its_reasons() {
-        let q = StreamQuality {
-            resolution: Some(2160),
-            dolby_vision: true,
-            codec: Some("HEVC"),
-            size_bytes: Some(60_000_000_000),
-            direct: true,
+    fn sources_come_tallest_first_direct_before_the_rest_cams_last() {
+        let q = |resolution, direct, low_quality_source| StreamQuality {
+            resolution,
+            direct,
+            low_quality_source,
             ..Default::default()
         };
-        let reasons: Vec<_> = score_reasons(&q).iter().map(|r| (r.reason, r.points)).collect();
+        let mut list =
+            [q(Some(1080), false, false), q(Some(2160), true, true), q(None, true, false), q(Some(1080), true, false)];
+        list.sort_by(listing_order);
         assert_eq!(
-            reasons,
-            [("4K", 40.0), ("Direct link", 10.0), ("Dolby Vision", 2.0), ("HEVC", 1.0), ("Over 40 GB", -12.0)]
+            list,
+            [q(Some(1080), true, false), q(Some(1080), false, false), q(None, true, false), q(Some(2160), true, true)]
         );
-        assert_eq!(score(&q), 41.0);
-        let cam = StreamQuality { low_quality_source: true, ..Default::default() };
-        assert_eq!(
-            score_reasons(&cam).iter().map(|r| r.reason).collect::<Vec<_>>(),
-            ["Unknown resolution", "CAM or telesync"]
-        );
-        assert_eq!(score(&cam), -85.0);
     }
 
     #[test]

@@ -12,7 +12,8 @@
  */
 import { formatBytes } from "../format";
 import { isKitsuId } from "../anime/kitsu";
-import { languageLabel, matches, NO_FILTER, SORTS, TAG_LABELS, tagsOf, bestScore, type SourceFilter } from "./sources";
+import { languageLabel, matches, NO_FILTER, SORTS, TAG_LABELS, tagsOf, type SourceFilter } from "./sources";
+import { scoreOne, type Match } from "./bestMatch";
 import type { RankedStream, SourceSort } from "../types";
 
 /** What a masked value shows instead. */
@@ -134,9 +135,8 @@ export interface SourceInfoContext {
   /** The list's filters, to say which of them would hide this source. */
   filter?: SourceFilter;
   sort?: SourceSort;
-  /** This screen's height as a video resolution, and Settings → Sources' "prefer this screen". */
-  screen?: number;
-  preferScreen?: boolean;
+  /** Best Match's score and reasons for this source, as the list worked them out (useSourceFilters' `match`). */
+  match?: Match;
   /** Only for the playing source. */
   playing?: PlayingReport;
 }
@@ -192,18 +192,10 @@ function hiddenBy(r: RankedStream, f: SourceFilter): string[] {
 }
 
 function scoreRows(r: RankedStream, ctx: SourceInfoContext): InfoRow[] {
-  const reasons = r.scoreReasons ?? [];
-  const rows: InfoRow[] = reasons.map((x) => ({ label: x.reason, value: signed(x.points) }));
-  // The app adds to the add-on side's score only for a preferred release group (Settings → Anime).
-  const extra = r.score - reasons.reduce((n, x) => n + x.points, 0);
-  if (reasons.length && Math.abs(extra) > 0.001) rows.push({ label: "Preferred release group", value: signed(extra) });
-  let total = r.score;
-  if ((ctx.sort ?? "best") === "best" && ctx.screen) {
-    const best = bestScore(r, ctx.screen, ctx.preferScreen ?? true);
-    if (best !== r.score) rows.push({ label: "Bigger than this screen shows", value: signed(best - r.score) });
-    total = best;
-  }
-  return [{ label: "Score", value: `${Math.round(total * 10) / 10}${ctx.sort && ctx.sort !== "best" ? ` (list sorted by ${SORTS[ctx.sort]})` : ""}` }, ...rows];
+  // Without the list's (a source made in the app), only what the file says.
+  const { score, reasons } = ctx.match ?? scoreOne(r);
+  const sorted = ctx.sort && ctx.sort !== "best" ? ` (list sorted by ${SORTS[ctx.sort]})` : "";
+  return [{ label: "Score", value: `${Math.round(score * 10) / 10}${sorted}` }, ...reasons.map((x) => ({ label: x.reason, value: signed(x.points) }))];
 }
 
 const kbps = (bps?: number) => (bps ? `${Math.round(bps / 1000)} kb/s` : null);

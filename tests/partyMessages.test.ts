@@ -119,7 +119,10 @@ test("a key holding several presence entries counts as its newest, wherever the 
 
 test("the host's rules and answers are checked like everything else (#156)", () => {
   const rules = { v: 2, host: null, locked: true, control: "host", wait: false, approve: true, out: ["b", "b", "c<"] };
-  expect(parseMessage({ t: "rules", from: "a", rules })).toEqual({ t: "rules", from: "a", rules: { ...rules, control: "host", out: ["b"] } as never });
+  // Rules from an app before "Pause when someone is buffering" (#238): off.
+  expect(parseMessage({ t: "rules", from: "a", rules })).toEqual({ t: "rules", from: "a", rules: { ...rules, control: "host", stall: false, out: ["b"] } as never });
+  expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, stall: true } })).toMatchObject({ rules: { stall: true } });
+  expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, stall: "yes" } })).toBeNull();
   expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, control: "anyone" } })).toBeNull();
   expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, v: 0 } })).toBeNull();
   expect(parseMessage({ t: "rules", from: "a", rules: { ...rules, locked: "yes" } })).toBeNull();
@@ -143,6 +146,12 @@ test("the host's rules and answers are checked like everything else (#156)", () 
     lag: LAG_MAX,
   });
   expect(parseMessage({ t: "at", from: "b", videoId: "tt0000105:1:5", position: 3 })).toBeNull();
+  // Stalled (#238): kept when it's a yes or no, left out otherwise (older apps don't send it).
+  const at = { t: "at", from: "b", videoId: "tt0000105:1:5", position: 3, paused: true, lag: 0 };
+  expect(parseMessage({ ...at, stalled: true })).toMatchObject({ stalled: true });
+  expect(parseMessage({ ...at, stalled: false })).toMatchObject({ stalled: false });
+  expect(parseMessage({ ...at, stalled: "yes" })).not.toHaveProperty("stalled");
+  expect(parseMessage(at)).not.toHaveProperty("stalled");
   expect(parseMember({ id: "s1", name: "Sam", avatar: "", joinedAt: 1, waiting: false, knock: true }, "s1")?.knock).toBe(true);
 });
 

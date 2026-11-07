@@ -2,8 +2,9 @@ import { useRef, useState } from "react";
 import { AlertCircle, Check, Info, Instant } from "./icons";
 import { useRouter } from "../lib/router";
 import { openSettings, type PageId } from "../lib/settings";
-import { useStreams } from "../lib/net";
-import { READY_CHECKS, readinessNote, screenResolution, sourceRow, TAG_LABELS, tagsOf, useReadiness, useSourceFilters, useTitleSettings } from "../lib/playback";
+import { useMeta, useStreams } from "../lib/net";
+import { runtimeSeconds } from "../lib/format";
+import { READY_CHECKS, readinessNote, sourceRow, TAG_LABELS, tagsOf, useReadiness, useSourceFilters, useTitleSettings } from "../lib/playback";
 import type { ContentType, RankedStream, Readiness } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
 import { Button } from "./ui/Button";
@@ -34,16 +35,18 @@ export function StreamList({
   // Desktop settings are the overlay over this page; TV has its own settings screen.
   const showSettings = (page: PageId) => (tv ? tab({ name: "settings", page }) : openSettings(page));
   const { data, isLoading, isError, error } = useStreams(type, videoId);
-  // An anime's language filter is Settings → Anime's (#235).
+  // An anime's languages (default filter, Best Match) are Settings → Anime's (#235).
   const { settings } = useTitleSettings(type, videoId);
-  const f = useSourceFilters(data?.streams, settings);
+  // The title's length, for Best Match's bitrates: its meta is usually already loaded (the page behind this list).
+  const { data: meta } = useMeta(type, videoId.replace(/:\d+:\d+$/, ""));
+  const f = useSourceFilters(data?.streams, settings, undefined, runtimeSeconds(meta?.runtime));
   // The first few sources in view get a look ahead of time (#21).
   const ready = useReadiness(f.view.slice(0, Math.min(f.matched, READY_CHECKS)).map(({ r }) => r));
   // A source's "i" panel (#229); on TV, the row's menu that leads to it.
   const info = useSourceInfo(tv);
   const [menu, setMenu] = useState<{ s: RankedStream; anchor: HTMLElement } | null>(null);
   const showInfo = (s: RankedStream, anchor: HTMLElement) =>
-    info.show(s, sourceRow(s).title, { filter: f.filter, sort: f.sort, screen: screenResolution(), preferScreen: settings?.preferScreenResolution ?? true }, anchor);
+    info.show(s, sourceRow(s).title, { filter: f.filter, sort: f.sort, match: f.match(s) }, anchor);
 
   if (isLoading) {
     return (

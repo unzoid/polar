@@ -5,12 +5,11 @@
   "MetaDetails": ["awards","budget","countries","episodes","languages","originalLanguage","released","revenue","seasons","status","studios","tagline","tmdbId","votes","writers"],
   "MetaPreview": ["background","description","genres","id","imdbRating","logo","logos","name","poster","releaseInfo","type"],
   "Person": ["character","name","photo"],
-  "RankedStream": ["addon","fileEpisode","label","otherEpisode","quality","requestId","score","scoreReasons","stream"],
+  "RankedStream": ["addon","fileEpisode","label","otherEpisode","quality","requestId","stream"],
   "Readiness.notReady": ["reason","state"],
   "Readiness.ready": ["ms","state"],
   "Readiness.slow": ["ms","state"],
   "Readiness.unchecked": ["state"],
-  "ScoreReason": ["points","reason"],
   "Stream": ["behaviorHints","description","externalUrl","fileIdx","infoHash","name","sources","title","url","ytId"],
   "StreamQuality": ["codec","direct","dolbyVision","hdr","languages","lowQualitySource","resolution","sizeBytes","source","tags"],
   "Video": ["episode","id","overview","rating","released","season","thumbnail","title"]
