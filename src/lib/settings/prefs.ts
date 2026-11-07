@@ -44,7 +44,8 @@ export interface Prefs {
   uiScale: number;
   /** Pause when the window is minimized. */
   pauseOnMinimize: boolean;
-  /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title. */
+  /** What the user's Discord profile shows while something plays: nothing, that Polarity is in use, or the title.
+   * Starts at "app" (#150); a value already stored, Off included, stays as it was. */
   discordPresence: "off" | "app" | "title";
   /**
    * A profile new to this device starts with the add-ons and API keys already here (#80). Off: it starts
@@ -147,7 +148,7 @@ const DEFAULTS: Prefs = {
   autoSkipDelay: 5,
   uiScale: 1,
   pauseOnMinimize: false,
-  discordPresence: "off",
+  discordPresence: "app",
   shareAddonsAndKeys: false,
   dialogueBoost: false,
   volumeLeveling: false,

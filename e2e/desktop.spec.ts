@@ -533,6 +533,19 @@ test("a movie's page has a Download button that names what it downloads; a show'
   await expect(actions.getByRole("button", { name: "Download Movie", exact: true })).toHaveText("Download Movie");
 });
 
+test("on a new install Discord shows only that something plays, never the title (#150)", async ({ app }) => {
+  const sent = () => app.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as ({ details: string; image?: string } | null)[]);
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+  await expect.poll(async () => (await sent()).at(-1)).toMatchObject({ details: "Watching" });
+  expect(JSON.stringify(await sent())).not.toContain("Glass Orchard");
+  expect((await sent()).at(-1)?.image).toBeUndefined();
+  await app.keyboard.press("Escape");
+  await expect.poll(async () => (await sent()).at(-1)).toBeNull();
+});
+
 test("with Show on Discord set to the title, the player sends what plays, its pause, and clears it on close (#31)", async ({ app }) => {
   const sent = () => app.evaluate(() => ((window as { __discord?: unknown[] }).__discord ?? []) as ({ details: string; state?: string; end?: number } | null)[]);
   await app.getByRole("button", { name: /^Profile/ }).click();

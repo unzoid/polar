@@ -1,5 +1,5 @@
-//! Discord Rich Presence (#31): what plays, on the user's Discord profile, when they turn it on
-//! (Settings → Playback; off by default). Talks to the Discord app on this machine over its local
+//! Discord Rich Presence (#31): what plays, on the user's Discord profile, as Settings → Playback
+//! has it (by default only that Polarity is in use, #150; the title only when the user picks it). Talks to the Discord app on this machine over its local
 //! IPC socket (a named pipe on Windows): a handshake with the app's client id, then `SET_ACTIVITY`.
 //! The client id is Polarity's Discord application ([`APP_ID`]); a build can use another with
 //! `POLAR_DISCORD_CLIENT_ID`, or none by setting it empty. Without an id, or on a machine where
