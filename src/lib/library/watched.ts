@@ -1,6 +1,9 @@
 import { api } from "../api";
 import { sync } from "../account/sync";
 import { isReleased, runtimeSeconds } from "../format";
+import { noteWatched } from "../lists/listSync";
+import { noteSimklWatched } from "../simkl/simklSync";
+import { noteTraktWatched } from "../trakt/traktSync";
 import { keys, queryClient } from "../net/queries";
 import type { Meta, MetaPreview, Progress, Settings, Video } from "../types";
 
@@ -76,4 +79,10 @@ export async function markWatched(entries: Progress[], watched: boolean) {
   queryClient.invalidateQueries({ queryKey: keys.continue });
   queryClient.invalidateQueries({ queryKey: keys.history });
   sync.schedule();
+  // A linked AniList list hears of episodes marked watched by hand too (#83).
+  if (watched) void noteWatched(rows.map((r) => r.videoId));
+  // And a linked Trakt (#85) or Simkl (#86) account's history, both ways.
+  const videos = rows.map((r) => ({ videoId: r.videoId, type: r.type }));
+  void noteTraktWatched(videos, watched);
+  void noteSimklWatched(videos, watched);
 }

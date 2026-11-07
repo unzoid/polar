@@ -31,6 +31,9 @@ interface EpisodeIds {
   kitsu?: number;
   /** Counted from the start of the show (ani.zip's absolute number), when known. */
   abs?: number;
+  /** The entry's AniList id and its number of episodes, when known: linked lists are told of the episode (#83, #84). */
+  al?: number;
+  of?: number;
 }
 
 interface TitleContext {
@@ -48,6 +51,16 @@ interface TitleContext {
 }
 
 type Saved = Record<string, TitleContext>;
+
+/** The entry an episode belongs to, by each list service's id, for linked lists (#83, #84). */
+export interface ListEpisode {
+  anilist?: number;
+  mal?: number;
+  /** The episode's number in the entry. */
+  episode: number;
+  /** The entry's number of episodes, when known. */
+  total: number | null;
+}
 
 export interface EpisodeContext {
   mal?: number;
@@ -72,8 +85,15 @@ function readEpisode(v: unknown): EpisodeIds | number | undefined {
   if (!isRecord(v)) return count(v);
   const n = count(v.n);
   if (n === undefined) return undefined;
-  const [mal, kitsu, abs] = [count(v.mal), count(v.kitsu), count(v.abs)];
-  return { n, ...(mal !== undefined && { mal }), ...(kitsu !== undefined && { kitsu }), ...(abs !== undefined && { abs }) };
+  const [mal, kitsu, abs, al, of] = [count(v.mal), count(v.kitsu), count(v.abs), count(v.al), count(v.of)];
+  return {
+    n,
+    ...(mal !== undefined && { mal }),
+    ...(kitsu !== undefined && { kitsu }),
+    ...(abs !== undefined && { abs }),
+    ...(al !== undefined && { al }),
+    ...(of !== undefined && { of }),
+  };
 }
 
 /** What an older version or a damaged store left: titles and fields that don't fit are left out (critique M9). */
@@ -151,17 +171,24 @@ export function playContextStore(storage: KeyValue | undefined, now: () => numbe
     /**
      * One entry's episodes as its anime page lined them up. Replaces what was kept for this entry's
      * episodes (and anything an older version kept for the title); other entries' stay. `count`: the
-     * entry's number of episodes, when known; numbers past it are dropped. Filler flags stay until
-     * `filler` replaces them.
+     * entry's number of episodes, when known; numbers past it are dropped. `anilist`: the entry's
+     * AniList id, kept with each episode for a linked list. Filler flags stay until `filler` replaces them.
      */
-    remember(titleId: string, ids: { mal?: number; kitsu?: number; count?: number }, episodes: LinedEpisode[]) {
+    remember(titleId: string, ids: { mal?: number; kitsu?: number; anilist?: number; count?: number }, episodes: LinedEpisode[]) {
       const all = load();
       const old = all[titleId];
       const entry = (e: EpisodeIds) => (ids.kitsu !== undefined ? e.kitsu === ids.kitsu : ids.mal !== undefined && e.kitsu === undefined && e.mal === ids.mal);
       const eps: TitleContext["eps"] = {};
       for (const [video, e] of Object.entries(old?.eps ?? {})) if (typeof e === "object" && !entry(e)) eps[video] = e;
       for (const [videoId, n, abs] of fitting(episodes, ids.count)) {
-        eps[videoId] = { n, ...(ids.mal !== undefined && { mal: ids.mal }), ...(ids.kitsu !== undefined && { kitsu: ids.kitsu }), ...(abs !== undefined && { abs }) };
+        eps[videoId] = {
+          n,
+          ...(ids.mal !== undefined && { mal: ids.mal }),
+          ...(ids.kitsu !== undefined && { kitsu: ids.kitsu }),
+          ...(abs !== undefined && { abs }),
+          ...(ids.anilist !== undefined && { al: ids.anilist }),
+          ...(ids.count !== undefined && { of: ids.count }),
+        };
       }
       const next: TitleContext = { ...(ids.mal !== undefined && { mal: ids.mal }), ...(ids.kitsu !== undefined && { kitsu: ids.kitsu }), eps, at: now() };
       if (old?.fillers) next.fillers = old.fillers;
@@ -185,6 +212,12 @@ export function playContextStore(storage: KeyValue | undefined, now: () => numbe
     episode(videoId: string): EpisodeContext | undefined {
       const ids = idsOf(load()[titleOfVideo(videoId)], videoId);
       return ids && { mal: ids.mal, kitsu: ids.kitsu, episode: ids.n };
+    },
+    /** The entry the video is an episode of (its AniList and MAL ids), and its number there, when its page knew them. */
+    listEpisode(videoId: string): ListEpisode | undefined {
+      const e = load()[titleOfVideo(videoId)]?.eps[videoId];
+      if (typeof e !== "object" || (e.al === undefined && e.mal === undefined)) return undefined;
+      return { ...(e.al !== undefined && { anilist: e.al }), ...(e.mal !== undefined && { mal: e.mal }), episode: e.n, total: e.of ?? null };
     },
     /**
      * Other ids stream addons may know the video by: the Kitsu episode (or movie) for IMDb ids. Only

@@ -10,6 +10,11 @@ import type { ContentType, VideoFile } from "../types";
 export const keys = {
   catalog: (type: ContentType, id: string, genre = "") => ["catalog", type, id, genre] as const,
   catalogAll: ["catalog"] as const,
+  /** An add-on's catalog (#206): a Home row's first page, Discover's pages, one search's answer. */
+  addonCatalog: (addon: string, type: ContentType, id: string) => ["addon-catalog", "row", addon, type, id] as const,
+  addonCatalogPages: (addon: string, type: ContentType, id: string, genre = "") => ["addon-catalog", "pages", addon, type, id, genre] as const,
+  addonSearch: (addon: string, type: ContentType, id: string, query: string) => ["addon-catalog", "search", addon, type, id, query] as const,
+  addonCatalogAll: ["addon-catalog"] as const,
   meta: (type: ContentType, id: string) => ["meta", type, id] as const,
   /** Which page a title opens on (lib/anime/titlePage.ts). */
   titlePage: (type: ContentType, id: string) => ["title-page", type, id] as const,
@@ -58,6 +63,7 @@ export const keys = {
   aniZip: (anilistId: number) => ["anizip", "anilist", anilistId] as const,
   aniZipImdb: (imdb: string) => ["anizip", "imdb", imdb] as const,
   aniZipKitsu: (kitsu: number) => ["anizip", "kitsu", kitsu] as const,
+  aniZipMal: (mal: number) => ["anizip", "mal", mal] as const,
   anime: {
     home: ["anime", "home"] as const,
     genre: (genre: string) => ["anime", "genre", genre] as const,

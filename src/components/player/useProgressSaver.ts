@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { api } from "../../lib/api";
 import { sync } from "../../lib/account";
-import { isLocalFile } from "../../lib/library";
+import { isLocalFile, isWatched } from "../../lib/library";
+import { noteWatched } from "../../lib/lists";
 import { isFileId, noteFile } from "../../lib/localFiles";
 import { keys, queryClient } from "../../lib/net";
 import type { ContentType, Meta, Progress, Video } from "../../lib/types";
@@ -34,6 +35,8 @@ export function useProgressSaver({
   state: ReturnType<typeof useSource>["state"];
 }) {
   const lastSave = useRef(0);
+  /** The video already told to a linked AniList list (#83): once per video per opening. */
+  const told = useRef<string | undefined>(undefined);
   const local = isFileId(metaId);
   const save = useCallback(() => {
     const v = media.current;
@@ -59,6 +62,10 @@ export function useProgressSaver({
       updatedAt: 0,
     };
     api.saveProgress(p).then(sync.schedule, () => {});
+    if (told.current !== videoId && isWatched(v.currentTime, v.duration)) {
+      told.current = videoId;
+      void noteWatched([videoId]);
+    }
   }, [media, meta, metaId, videoId, type, current, state, local]);
 
   // Opening a file on this device puts it at the top of Recent files.

@@ -33,4 +33,5 @@ export * from "./settingsSync";
 export { SECRET_KEYS } from "./settingsDoc";
 export * from "./spacePush";
 export { linkHasKey } from "./keyedLink";
+export { formatTvCode, isTvCode, TV_CODE_LENGTH, type TvSignInRequest } from "./tvSignIn";
 export { dismissNotice, exposedNames, noticeDue, onFirstPlainSync } from "./secretsNotice";
