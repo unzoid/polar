@@ -26,6 +26,7 @@ import { startUpdateChecks } from "./lib/updater";
 import { appWindow, leaveApp, longPressMenus, onLongPress, openContextMenu, systemBack } from "./lib/platform";
 import { PartyHost } from "./components/party/PartyHost";
 import { DeepLinks } from "./components/DeepLinks";
+import { FriendsHost } from "./components/friends/FriendsHost";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SignOutDialog } from "./components/SignOutDialog";
 import { StoreProblemToast } from "./components/StoreProblemToast";
@@ -262,6 +263,7 @@ function MainApp() {
       )}
       <PartyHost />
       <DeepLinks />
+      <FriendsHost />
     </>
   );
 }

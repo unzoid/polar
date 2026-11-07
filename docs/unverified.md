@@ -765,6 +765,11 @@ on two devices, check:
 - An HLS (`.m3u8`) and a DASH (`.mpd`) link both play; a link to a web page says it's a page, not a
   video; a link that answers 403 or 404 says so.
 - The profile menu's Join Watch Party dialog: "or watch a link together" starts a party on a link.
+- A YouTube link (#201): paste a `youtube.com/watch?v=`, a `youtu.be/`, a Shorts and an embed link of the same
+  video on one device each time. YouTube's own player opens in the player, without its controls; the title shows
+  once it loads; Play/Pause, the scrubber, ±10 s and volume drive it; the other device follows pause and seeks. A
+  video whose owner doesn't allow embedding says so. Checked here only against a stand-in for YouTube's embed
+  (e2e), not YouTube itself, and not on macOS (`tauri://` origin), Windows, Linux, Android or iOS web views.
 - TV mode: the question shows and works with a remote (Play focused, Back is Not Now). There's no
   link field in TV mode.
 
@@ -831,6 +836,26 @@ whether the window resets on a channel rejoin over the same socket (assumed not)
 3. With A paused, B presses play while A can't see B's entry (hard to force by hand: the logs show it as
    "refused vN by …"): B goes back to paused within a second or two.
 
+## Friends (#135)
+
+Checked here: the migration in PGlite (`tests/sql/friends.test.ts`: codes, requests, accepting, blocking,
+the caps, invites, and who may listen to or show presence on `friends:<profile>` and `invites:<profile>`
+as `friend_topic_allowed` decides), the store against a fake server (`tests/friendsStore.test.ts`), the
+parsing (`tests/friends.test.ts`), and the panel, invite toast, settings and TV row in the browser with the
+fake account (`fake.html?account=1`, e2e). Not checked against Supabase: Realtime itself. To check, apply
+`supabase/migrations/20261108000000_friends.sql`, then with two accounts A and B on two devices:
+1. A: profile menu → Friends → Turn On Friends; a code shows. B does the same, types A's code, Add: A's
+   list shows B under Requests within a second or two (the server's "changed" broadcast), without reopening.
+2. A accepts: B's list shows A as a friend, Online, with a green dot.
+3. A starts a watch party on a title: within 15 s B sees "In a watch party · <title>"; B presses Join and
+   ends up in A's party (or waits for A to let them in, if A asks first).
+4. A, in the party, presses Invite on another online friend C: C gets the toast and joins from it.
+5. A sets "Who sees what you watch" to Nobody: B sees "In a watch party" without the title. A sets "Who sees
+   you're online" to Nobody: A shows Offline on B within 15 s; after B restarts, Realtime refuses B's join
+   of `friends:<A>` (Dashboard → Logs → Realtime).
+6. Throughout a party with Friends on, Realtime's logs show no ClientPresenceRateLimitReached (friends'
+   presence shares the connection with the party's; it updates at most once per 15 s).
+
 ## AirPlay on macOS (#19)
 
 Checked here: the link check and the hand-over between mpv and the receiver (`tests/airplayLinks.test.ts`,
@@ -847,6 +872,20 @@ same network:
 - Without mpv (built-in player) the same, with the element on screen sent as it is.
 - Subtitles: add-on subtitles go to the element as WebVTT tracks; whether the receiver shows them is
   untested. Subtitles inside the file aren't sent.
+
+## Downloads page (#15)
+
+Checked here: grouping, seasons, sorting, filters, search, totals and the saved view (`tests/downloadsView.test.ts`);
+the page with 75 made-up downloads in the browser shell (`fake.html?downloads=many`) on desktop, phone and TV
+(e2e: collapsed titles, a title kept open after a reload, search, In Progress, Delete All Watched, Delete Selected,
+D-pad through titles and seasons); `disk.rs` type-checked for Linux, Windows, Android, macOS and iOS. Needs the app:
+- The summary's "N GB free" matches the free space of the disk holding the downloads folder (Windows: the drive's
+  free space in Explorer; macOS/Linux: `df -h` on the folder). It's left out, not wrong, when the system won't say.
+- "Saved in" names the real folder (Videos/Polarity, or the app's folder on iOS and Android).
+- Deleting many at once (Delete All Watched with a few dozen episodes) removes the files from that folder, and the
+  rows fold away together without a jump.
+- TV with a remote or controller: up and down pass over the downloads still coming down without opening their menu;
+  A opens it.
 
 ## Scrolling long pages (#134)
 

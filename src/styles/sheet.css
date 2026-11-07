@@ -338,6 +338,56 @@
   grid-template-columns: 1fr;
   gap: 0.125rem;
 }
+/* Best Match's factors (#274): Factor, This source, Points; factors that don't apply are dimmed.
+   Wider than a phone's card, it scrolls sideways inside it, never the page. */
+.source-info-table-wrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.source-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.source-info-table :is(th, td) {
+  padding: 0.3125rem 0.75rem 0.3125rem 0;
+  text-align: left;
+  vertical-align: top;
+  font-weight: inherit;
+}
+.source-info-table :is(th, td):last-child {
+  padding-right: 0;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.source-info-table thead th {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  border-bottom: 1px solid var(--hairline);
+}
+.source-info-table tbody th {
+  color: var(--text-2);
+}
+.source-info-table td {
+  color: var(--text);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.source-info-table tr[data-na] :is(th, td) {
+  color: var(--text-3);
+}
+.source-info-table tfoot :is(th, td) {
+  font-weight: 650;
+  color: var(--text);
+  border-top: 1px solid var(--hairline);
+}
+:root[data-form="phone"] .source-info-table :is(th, td) {
+  min-width: 7rem;
+}
+:root[data-form="phone"] .source-info-table :is(th, td):last-child {
+  min-width: 0;
+}
 
 .badge {
   display: inline-flex;

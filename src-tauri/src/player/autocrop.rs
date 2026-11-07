@@ -31,6 +31,8 @@ struct CropGeometry {
     size: (i64, i64),
     display: (i64, i64),
     window: (i64, i64),
+    /// The player's Fill is on (mpv's `panscan`, #183): the picture covers the window.
+    fill: bool,
     /// The cropdetect filter this video needs ([`cropdetect_for`]), and our
     /// detector's levels.
     filter: &'static str,
@@ -39,15 +41,22 @@ struct CropGeometry {
     frame: f64,
 }
 
+/// Whether the player's Fill is on: the UI sets `panscan` to 1 for Fill and 0 for Fit.
+pub(super) async fn panscan_fills(mpv: &Mpv) -> bool {
+    mpv.request(json!(["get_property", "panscan"])).await.ok().and_then(|p| p.as_f64()).is_some_and(|p| p > 0.5)
+}
+
 async fn crop_geometry(mpv: &Mpv) -> Option<CropGeometry> {
     let params = mpv.request(json!(["get_property", "video-params"])).await.ok()?;
     let osd = mpv.request(json!(["get_property", "osd-dimensions"])).await.ok()?;
     let fps = mpv.request(json!(["get_property", "container-fps"])).await.ok().and_then(|f| f.as_f64());
+    let fill = panscan_fills(mpv).await;
     let int = |v: &Value, k: &str| v.get(k).and_then(Value::as_i64).filter(|n| *n > 0);
     Some(CropGeometry {
         size: (int(&params, "w")?, int(&params, "h")?),
         display: (int(&params, "dw")?, int(&params, "dh")?),
         window: (int(&osd, "w")?, int(&osd, "h")?),
+        fill,
         filter: cropdetect_for(params.get("gamma").and_then(Value::as_str)),
         levels: levels_for(params.get("gamma").and_then(Value::as_str)),
         frame: 1.0 / fps.filter(|f| (1.0..=300.0).contains(f)).unwrap_or(24.0),
@@ -204,6 +213,8 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
     let mut reading: Option<Rect> = None;
     let mut geometry: Option<(CropGeometry, Instant)> = None;
     let mut zoom = CropZoom::new(Easing::default());
+    // Fit and Fill switch at once (panscan does): the zoom follows at once too.
+    let mut filled: Option<bool> = None;
     let clock = Instant::now();
     let mut filter = CROPDETECT; // what mpv_tune added
     let mut opened = 0; // the last load checked for opening bars
@@ -326,8 +337,10 @@ pub(super) async fn autocrop(app: AppHandle, run: u64) {
                 });
             }
         }
-        let target = zoom_for(tracker.bars(load), g.size, g.display, g.window);
-        let at_once = frame.is_some() && tracker.on_cut();
+        let target = zoom_for(tracker.bars(load), g.size, g.display, g.window, g.fill);
+        let switched = filled.is_some_and(|f| f != g.fill);
+        filled = Some(g.fill);
+        let at_once = switched || (frame.is_some() && tracker.on_cut());
         if let Some(z) = zoom.next(load, g.window, target, at_once, clock.elapsed().as_secs_f64()) {
             if mpv.request(json!(["set_property", "video-zoom", z])).await.is_err() {
                 zoom.unsent();
