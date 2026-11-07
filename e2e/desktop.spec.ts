@@ -1137,3 +1137,64 @@ test("the player pins the window on top and locks it, P unpins, and leaving the 
   await expect(player).toHaveCount(0);
   await expect.poll(told).toEqual({ set_always_on_top: false, set_resizable: true, set_minimizable: true, set_maximizable: true });
 });
+
+test.describe("stremio:// links (#163)", () => {
+  const open = (app: Page, link: string) => app.evaluate((l) => (window as unknown as { __polarFakeDeepLink: (u: string) => void }).__polarFakeDeepLink(l), link);
+  const installs = (app: Page) => app.evaluate(() => (window as { __addonInstalls?: string[] }).__addonInstalls ?? []);
+  const note = (app: Page) => app.locator('.toast[data-kind="link-note"]');
+
+  test("off by default: a link only says how to turn them on; on, each kind of link does its own thing", async ({ app }) => {
+    await open(app, "stremio://addon.example.com/c0nf1g/manifest.json");
+    await expect(note(app)).toContainText("Open Stremio links in Polarity");
+    await expect(app.getByTestId("addon-offer")).toHaveCount(0);
+
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Settings" }).click();
+    const settings = app.getByRole("dialog", { name: /^Settings/ });
+    await settings.getByRole("button", { name: "Add-ons", exact: true }).click();
+    const toggle = settings.getByRole("switch", { name: /^Open Stremio links in Polarity/ });
+    await expect(toggle).not.toBeChecked();
+    await toggle.click();
+    await expect(toggle).toBeChecked();
+    // Turning it on registers the handler; the app's start had made sure it was off.
+    await expect.poll(() => app.evaluate(() => (window as { __stremioLinks?: boolean[] }).__stremioLinks)).toEqual([false, true]);
+    await settings.getByRole("button", { name: "Close settings" }).click();
+
+    // An install link asks, and Cancel installs nothing.
+    await open(app, "stremio://addon.example.com/c0nf1g/manifest.json");
+    const offer = app.getByRole("dialog", { name: "Install Linked Add-on?" });
+    await expect(offer).toContainText("An add-on from an install link.");
+    await expect(offer.getByTestId("addon-offer-url")).toHaveText("https://addon.example.com/c0nf1g/manifest.json");
+    await offer.getByRole("button", { name: "Cancel" }).click();
+    await expect(offer).toHaveCount(0);
+    expect(await installs(app)).toEqual([]);
+
+    // Install installs it, once.
+    await open(app, "stremio://addon.example.com/c0nf1g/manifest.json");
+    await app.getByRole("dialog", { name: "Install Linked Add-on?" }).getByRole("button", { name: "Install" }).click();
+    await expect(note(app)).toContainText("Linked Add-on is installed.");
+    await expect(app.getByRole("dialog", { name: "Install Linked Add-on?" })).toHaveCount(0);
+    expect(await installs(app)).toEqual(["https://addon.example.com/c0nf1g/manifest.json"]);
+
+    // An add-on that can't be read can't be installed.
+    await open(app, "stremio://broken.example.com/manifest.json");
+    const broken = app.getByRole("dialog", { name: "Couldn't read this add-on" });
+    await expect(broken).toBeVisible();
+    await expect(broken.getByRole("button", { name: "Install" })).toHaveCount(0);
+    await app.keyboard.press("Escape");
+    await expect(broken).toHaveCount(0);
+
+    // An episode link: its show, on its season, with its sources listed; nothing plays.
+    await open(app, "stremio:///detail/series/tt9200000/tt9200000:2:3");
+    await expect(app.getByRole("heading", { level: 1, name: "Low Water Station" }).or(app.getByRole("img", { name: "Low Water Station" })).first()).toBeVisible();
+    await expect(app.getByRole("radio", { name: "Season 2" })).toBeChecked();
+    await expect(app.getByRole("dialog").filter({ has: app.getByRole("heading", { name: "Sources" }) })).toContainText("S2, E3");
+    await expect(app.locator(".player")).toHaveCount(0);
+    await app.keyboard.press("Escape");
+
+    // A link it doesn't understand: Home, and a note.
+    await open(app, "stremio:///board");
+    await expect(note(app)).toContainText("can't open this link");
+    await expect(app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Home", exact: true })).toHaveAttribute("aria-current", "page");
+  });
+});

@@ -9,6 +9,7 @@ import type {
   ExternalRatings,
   InstalledAddon,
   LibraryItem,
+  Manifest,
   Meta,
   MetaPreview,
   Playable,
@@ -92,6 +93,8 @@ export const api = {
   addons: () => call<InstalledAddon[]>("addons_list"),
   /** The add-ons the app installs itself, by manifest URL. */
   bundledAddons: () => call<string[]>("addons_bundled"),
+  /** An add-on's manifest, read without installing it (an install link's confirmation, #163). */
+  previewAddon: (url: string) => call<Manifest>("addon_preview", { url }),
   installAddon: (url: string) => call<InstalledAddon>("addon_install", { url }).then(changed),
   removeAddon: (id: string) => call<void>("addon_remove", { id }).then(changed),
 

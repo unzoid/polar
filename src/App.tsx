@@ -66,7 +66,7 @@ function Screen({ route }: { route: Route }) {
     case "settings":
       return <SettingsRoute page={route.page} />;
     case "detail":
-      return <TitleRoute type={route.type} id={route.id} preview={route.preview} />;
+      return <TitleRoute type={route.type} id={route.id} preview={route.preview} episode={route.episode} />;
     case "anime":
       return <Anime />;
     case "anime-detail":
@@ -89,7 +89,7 @@ function Screen({ route }: { route: Route }) {
  * page, and which page it is is settled before either renders: a skeleton until then, never one
  * page swapped for the other.
  */
-function TitleRoute({ type, id, preview }: { type: ContentType; id: string; preview?: MetaPreview }) {
+function TitleRoute({ type, id, preview, episode }: { type: ContentType; id: string; preview?: MetaPreview; episode?: string }) {
   const { data: page } = useQuery(titlePageQuery(type, id, preview));
   const loading = <Skeleton className="detail-loading" />;
   if (!page) return loading;
@@ -99,7 +99,7 @@ function TitleRoute({ type, id, preview }: { type: ContentType; id: string; prev
         <AnimeDetail id={page.anilist} />
       </Suspense>
     );
-  return <Detail type={type} id={id} preview={preview} />;
+  return <Detail type={type} id={id} preview={preview} episode={episode} />;
 }
 
 /**
@@ -262,7 +262,7 @@ function MainApp() {
         <DesktopApp />
       )}
       <PartyHost />
-      <DeepLinks />
+      <DeepLinks tv={tv} />
       <FriendsHost />
     </>
   );

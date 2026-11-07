@@ -1073,6 +1073,15 @@ export const SETTINGS: SettingDef[] = [
   // Add-ons
   { id: "addonsInstalled", page: "addons", title: "Installed", keywords: "add-ons addons remove" },
   { id: "addonUrl", page: "addons", title: "Install from URL", keywords: "add-on addon manifest stremio" },
+  {
+    id: "stremioLinks",
+    page: "addons",
+    title: "Open Stremio links in Polarity",
+    caption: "Links on websites meant for the Stremio app, such as an add-on's install button or a title's link, open here instead.",
+    keywords: "stremio links install button scheme handler default app",
+    bind: p("stremioLinks"),
+    control: toggle,
+  },
 
   // Marketplace
   { id: "openSubtitles", page: "marketplace", title: "OpenSubtitles", keywords: "add-ons addons subtitles captions install store" },

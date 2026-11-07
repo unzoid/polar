@@ -49,6 +49,8 @@ export interface Prefs {
   discordPresence: "off" | "app" | "title";
   /** Who may join a watch party from the "Join watch party" button on the user's Discord profile (#154). */
   discordJoin: "nobody" | "ask" | "anyone";
+  /** Links meant for Stremio (`stremio://`) open in Polarity on this device (#163): its own choice, so it never syncs. */
+  stremioLinks: boolean;
   /**
    * A profile new to this device starts with the add-ons and API keys already here (#80). Off: it starts
    * with none (its own from the account, once they sync) and Settings offers to copy a set from this device.
@@ -154,6 +156,7 @@ const DEFAULTS: Prefs = {
   pauseOnMinimize: false,
   discordPresence: "app",
   discordJoin: "ask",
+  stremioLinks: false,
   shareAddonsAndKeys: false,
   dialogueBoost: false,
   volumeLeveling: false,

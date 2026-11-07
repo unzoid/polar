@@ -17,6 +17,7 @@ import type { LibraryItem, MetaPreview, Progress, Settings } from "../../types";
  */
 
 const library: LibraryItem[] = [...fx.library];
+let addons = [...fx.addons];
 const seeded = fx.DOWNLOADS ? fx.seededDownloads() : undefined;
 const progress: Progress[] = [...fx.progress];
 // Episodes watched through (the seeded downloads' marks): read per title only, history keeps one entry each.
@@ -68,7 +69,21 @@ const commands: Record<string, (a: Args) => unknown> = {
   ratings: () =>
     fx.WORST ? { rottenTomatoes: 100, audience: 0, metacritic: 100, letterboxd: 5, trakt: 100 } : { rottenTomatoes: 91, audience: 87, metacritic: 78, letterboxd: 3.9 },
   trailer: () => null,
-  addons_list: () => fx.addons,
+  addons_list: () => addons,
+  // Install links (#163): any example.com add-on answers; an address with "broken" in it doesn't. Installs are counted.
+  addon_preview: (a) =>
+    String(a.url).includes("broken")
+      ? Promise.reject({ code: "network", message: "network: error sending request" })
+      : { id: "example.linked", version: "1.0.0", name: "Linked Add-on", description: "An add-on from an install link.", types: ["movie"], resources: ["stream"] },
+  addon_install: (a) => {
+    const w = window as { __addonInstalls?: string[] };
+    (w.__addonInstalls ??= []).push(String(a.url));
+    const addon = { manifestUrl: String(a.url), manifest: { id: "example.linked", version: "1.0.0", name: "Linked Add-on", types: ["movie"], resources: ["stream"] } };
+    addons = [...addons.filter((x) => x.manifest.id !== addon.manifest.id), addon as (typeof addons)[number]];
+    return addon;
+  },
+  // Open Stremio links in Polarity (#163): each change is kept for browser tests to read.
+  stremio_links_set: (a) => void ((window as { __stremioLinks?: boolean[] }).__stremioLinks ??= []).push(!!a.on),
   addons_bundled: () => [],
   library_list: () => library,
   library_toggle: (a) => {
@@ -119,7 +134,7 @@ const commands: Record<string, (a: Args) => unknown> = {
   // Discord: what the player sends is kept for browser tests to read.
   discord_available: () => true,
   discord_presence: (a) => void ((window as { __discord?: unknown[] }).__discord ??= []).push(a.activity),
-  // polarity:// links, as `__polarFakeDeepLink(url)` opens them (#153).
+  // polarity:// links, and stremio:// ones (#163), as `__polarFakeDeepLink(url)` opens them (#153).
   deep_links_take: () => deepLinks.splice(0),
   resolve_stream: (a) => {
     const stream = a.stream as { url?: string; infoHash?: string };

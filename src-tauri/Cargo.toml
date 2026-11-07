@@ -38,6 +38,9 @@ libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+# "Open Stremio links in Polarity" (#163) keeps and puts back the scheme's registration it replaces;
+# the version the deep-link plugin already uses.
+windows-registry = "0.6"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # gilrs has no Android or iOS backend; phones and TVs see controllers through the Gamepad API.
