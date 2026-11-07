@@ -20,7 +20,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { anchorOf, appWindow, isDesktop, isMac, nativeDialogsAvailable, setImmersive, showNativeDialog } from "../lib/platform";
+import { anchorOf, appWindow, isDesktop, isMac, isTvDevice, nativeDialogsAvailable, os, setImmersive, showNativeDialog } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -439,7 +439,7 @@ export function Player({
     if (!v) return;
     v.volume = sliderAmplitude(volume);
     v.muted = muted;
-    storeLocal("polar.volume", String(volume));
+    if (!systemVolume) storeLocal("polar.volume", String(volume));
   }, [volume, muted, media]);
 
   // A watch party plays at 1x for everyone (its sync nudges the rate itself).
@@ -857,11 +857,14 @@ export function Player({
           stepper.step(action === "frameBack" ? -1 : 1);
           return true;
         case "volumeUp":
+          // Where the system sets the volume, its keys are the system's.
+          if (systemVolume) return false;
           setVolume((v) => Math.min(1, +(v + 0.1).toFixed(2)));
           pingVolume("up");
           setMuted(false);
           return true;
         case "volumeDown":
+          if (systemVolume) return false;
           setVolume((v) => Math.max(0, +(v - 0.1).toFixed(2)));
           pingVolume("down");
           return true;
@@ -1015,7 +1018,7 @@ export function Player({
         }}
         onWheel={(e) => {
           const wheel = settings?.wheelAction ?? "volume";
-          if (wheel === "none") return;
+          if (wheel === "none" || (wheel === "volume" && systemVolume)) return;
           if (wheel === "seek") seekBy(-Math.sign(e.deltaY) * seekStep);
           else {
             setVolume((v) => Math.min(1, Math.max(0, +(v - Math.sign(e.deltaY) * 0.05).toFixed(2))));
@@ -1094,19 +1097,21 @@ export function Player({
             <IconButton variant="player" onClick={() => setMuted((m) => !m)} label={muted ? "Unmute" : "Mute"} title={withShortcut("Mute", "mute")}>
               <VolumeIcon size={22} />
             </IconButton>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={muted ? 0 : volume}
-              onChange={(e) => {
-                setVolume(Number(e.target.value));
-                setMuted(false);
-              }}
-              aria-label="Volume"
-              style={{ "--value": `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
-            />
+            {!systemVolume && (
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={muted ? 0 : volume}
+                onChange={(e) => {
+                  setVolume(Number(e.target.value));
+                  setMuted(false);
+                }}
+                aria-label="Volume"
+                style={{ "--value": `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
+              />
+            )}
           </div>
           {airplay.available && (
             <IconButton variant="player" onClick={airplay.pick} label="AirPlay" title="AirPlay" aria-pressed={airplay.casting}>
@@ -1554,8 +1559,16 @@ function ActionButton({
   );
 }
 
-/** The volume last set, 0–1 (1 when none was, or it isn't a number). */
+/**
+ * Android phones and tablets (#179): their volume buttons and the system's volume panel set the
+ * volume, so the player has no slider and plays at full volume itself (a level set before can't
+ * be left stuck low with nothing to raise it). Android TV keeps the remote's volume HUD.
+ */
+const systemVolume = os === "android" && !isTvDevice;
+
+/** The volume last set, 0–1 (1 when none was, or it isn't a number; always 1 where the system sets it). */
 function savedVolume() {
+  if (systemVolume) return 1;
   const v = Number(localStorage.getItem("polar.volume") ?? 1);
   return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
 }
