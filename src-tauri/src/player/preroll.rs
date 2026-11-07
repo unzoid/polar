@@ -280,6 +280,7 @@ mod imp {
             "--demuxer-max-bytes=8MiB".into(),
             "--demuxer-readahead-secs=1".into(),
             "--network-timeout=10".into(),
+            "--tls-verify=yes".into(),
             "--ytdl=no".into(),
             "--sub-auto=no".into(),
             "--audio-file-auto=no".into(),
