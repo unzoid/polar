@@ -858,9 +858,9 @@
   transform-origin: left;
 }
 
-/* Continue Watching: the time left on the picture, Apple TV style. A strip
-   along the bottom blurs the art progressively (sharp at its top edge,
-   fully blurred at the bottom) under a short bar and "23m left". */
+/* Continue Watching: the time left on the picture, Apple TV style: a short bar
+   and "23m left" over a plain gradient along the bottom (#38: a blur there read
+   as a smear). The gradient eases out, so it has no edge where it starts. */
 .card-resume {
   position: absolute;
   inset: auto 0 0;
@@ -872,7 +872,7 @@
   border-bottom-left-radius: inherit;
   border-bottom-right-radius: inherit;
   overflow: hidden;
-  /* Keeps the blur layer (z-index -1) above the art, under the text. */
+  /* Keeps the gradient (z-index -1) above the art, under the text. */
   isolation: isolate;
   pointer-events: none;
 }
@@ -881,10 +881,15 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(to top, rgb(0 0 0 / 0.45), transparent);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  mask-image: linear-gradient(to top, #000 45%, transparent);
+  background: linear-gradient(
+    to top,
+    rgb(0 0 0 / 0.62) 0%,
+    rgb(0 0 0 / 0.5) 22%,
+    rgb(0 0 0 / 0.32) 48%,
+    rgb(0 0 0 / 0.14) 72%,
+    rgb(0 0 0 / 0.04) 90%,
+    transparent 100%
+  );
 }
 .card-resume .progress-track {
   position: relative;
