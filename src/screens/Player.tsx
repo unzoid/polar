@@ -21,7 +21,7 @@ import {
 } from "../components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { ease, useFormFactor } from "../lib/ui";
-import { anchorOf, appWindow, isDesktop, isMac, isTvDevice, nativeDialogsAvailable, os, setImmersive, showNativeDialog } from "../lib/platform";
+import { anchorOf, appWindow, canEmbedOtherSites, isDesktop, isMac, isTvDevice, nativeDialogsAvailable, os, setImmersive, showNativeDialog } from "../lib/platform";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Img } from "../components/Img";
 import { Spinner } from "../components/Spinner";
@@ -71,6 +71,8 @@ import {
 import { isMpv, MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
 import { createFrameStepper, DEFAULT_FPS, FRAME_SHOWN_MS, measureFps, stepFrame } from "../components/player/frameStep";
 import { createWindowPin } from "../components/player/windowPin";
+import { YouTubeMedia } from "../components/player/youtubeMedia";
+import { youtubeEmbed, youtubeUrl } from "../components/Trailer";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
 import { getPrefs, openSettings, setPrefs, shortcutText, useEpisodeLayout, usePrefs, withShortcut } from "../lib/settings";
 import { Segmented } from "../components/Segmented";
@@ -98,6 +100,7 @@ import {
   streamHint,
   useParty,
   usePartySurface,
+  youtubeId,
 } from "../lib/party";
 import { setWatching } from "../lib/friends";
 import { usePartySync } from "../components/player/usePartySync";
@@ -152,6 +155,10 @@ export function Player({
   // A link pasted into a watch party (#136): no title behind it, so no title page, episodes, sources,
   // progress or lookups by id; it plays the URL it came with.
   const link = isLinkId(metaId) ? stream?.url : undefined;
+  // A YouTube video's link plays in YouTube's own embedded player (#201), never in mpv.
+  const ytId = link ? youtubeId(link) : undefined;
+  // On Android YouTube's player can't go in a frame (lib/platform canEmbedOtherSites): the video opens in YouTube.
+  const ytOutside = ytId && !canEmbedOtherSites() ? ytId : undefined;
   // A video file on this device (#204): its title is the file or its folder (lib/localFiles), its
   // source the file itself, and where it stopped is kept on this device; nothing is looked up online.
   const local = isFileId(metaId);
@@ -162,8 +169,11 @@ export function Player({
   // Engine: embedded mpv when installed (plays every codec, AC3/DTS audio, every
   // subtitle format), else the WebView's own <video>.
   const engineQuery = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
-  const engine: "mpv" | "html" | null = engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
+  const engine: "mpv" | "html" | "youtube" | null = ytId ? "youtube" : engineQuery.isFetched ? (engineQuery.data ? "mpv" : "html") : null;
   const mpv = useMemo(() => new MpvMedia(), []);
+  const yt = useMemo(() => new YouTubeMedia(), []);
+  const [ytFrame, setYtFrame] = useState<HTMLIFrameElement | null>(null);
+  useEffect(() => (ytFrame ? yt.attach(ytFrame) : undefined), [yt, ytFrame]);
   // Watch party: signed-in profiles only. Joining the room's video, look for the file it's on.
   const { profile } = useAccount();
   const canParty = partyAvailable() && !!profile;
@@ -175,6 +185,7 @@ export function Player({
   const { steps, add: logStep } = useStartLog();
   useEffect(() => {
     if (engine === "mpv") logStep("Player: mpv", "info", "player");
+    else if (engine === "youtube") logStep("Player: YouTube's embedded player", "info", "player");
     // What the built-in player can't do depends on the file's codecs and the machine, not on MKV (test report 1, item 23).
     else if (engine === "html")
       logStep("Player: built-in (mpv isn't installed, so some files may not play: AC3/DTS audio, HEVC where the system can't decode it)", "info", "player");
@@ -185,7 +196,7 @@ export function Player({
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   /** What plays in the app; `media` is what the controls drive, an AirPlay receiver's element while casting with mpv. */
-  const baseMedia: MediaLike | null = engine === "mpv" ? mpv : videoEl;
+  const baseMedia: MediaLike | null = engine === "mpv" ? mpv : engine === "youtube" ? yt : videoEl;
   const baseRef = useRef<MediaLike | null>(null);
   baseRef.current = baseMedia;
   const videoRef = useRef<MediaLike | null>(null);
@@ -209,7 +220,8 @@ export function Player({
     video: engine === "html" ? videoEl : null,
     url: playingUrl?.url,
     headers: playingUrl ? requestHeaders(playingUrl.stream) : null,
-    enabled: !party,
+    // YouTube's player has no file to hand over.
+    enabled: !party && engine !== "youtube",
   });
   const media: MediaLike | null = airplay.media ?? baseMedia;
   videoRef.current = media;
@@ -328,7 +340,14 @@ export function Player({
     }
     return { next: n, skipped };
   }, [meta, type, videoId, animeSkipFiller]);
-  const title = link ? stream?.name || linkLabel(link) : (meta?.name ?? "");
+  // A YouTube video is called by its own title once its player says it.
+  const [ytTitle, setYtTitle] = useState<string | null>(null);
+  useEffect(() => {
+    const onTitle = () => setYtTitle(yt.title);
+    yt.addEventListener("titlechange", onTitle);
+    return () => yt.removeEventListener("titlechange", onTitle);
+  }, [yt]);
+  const title = link ? ytTitle || stream?.name || linkLabel(link) : (meta?.name ?? "");
   const heading = local ? (current?.title ?? title) : current ? `${episodeCode(current.season, current.episode)} · ${current.title}` : title;
 
   // --- Watch party ------------------------------------------------------------
@@ -393,6 +412,9 @@ export function Player({
       const start = partyPosition(videoId) ?? resumePoint(source.resume ?? (local ? recentPosition(videoId) : undefined));
       resumed.current = true;
       v.load(source.state.url, start, requestHeaders(source.state.stream));
+    } else if (v instanceof YouTubeMedia) {
+      resumed.current = true;
+      v.load(partyPosition(videoId) ?? null);
     } else if (v instanceof HTMLVideoElement) {
       const url = source.state.url;
       const play = (src: string) => {
@@ -563,7 +585,7 @@ export function Player({
       } else {
         const v = videoRef.current;
         setError(
-          v instanceof MpvMedia
+          v instanceof MpvMedia || v instanceof YouTubeMedia
             ? (v.error?.message ?? "This file couldn't be played.")
             : linkError.current
               ? linkError.current
@@ -629,7 +651,8 @@ export function Player({
     () =>
       createFrameStepper(async (direction) => {
         const v = videoRef.current;
-        if (!v?.duration || !startedRef.current) return;
+        // YouTube's player seeks to whole moments, not frames.
+        if (!v?.duration || !startedRef.current || v instanceof YouTubeMedia) return;
         window.clearTimeout(steppingTimer.current);
         setStepping(true);
         await stepFrame(v, direction, fpsRef.current);
@@ -893,7 +916,7 @@ export function Player({
           return true;
         case "frameBack":
         case "frameForward":
-          if (!isDesktop || !started) return false;
+          if (!isDesktop || !started || ytId) return false;
           stepper.step(action === "frameBack" ? -1 : 1);
           return true;
         case "volumeUp":
@@ -1034,6 +1057,19 @@ export function Player({
       {engine === "html" && (
         <video ref={setVideoEl} className="player-video" playsInline style={subtitleCueVars(subStyle)} />
       )}
+      {ytId && !ytOutside && (
+        // YouTube's own player, its controls off: the player's controls (and the party) drive it through its API.
+        <iframe
+          ref={setYtFrame}
+          className="player-video player-youtube"
+          src={youtubeEmbed(ytId, { controls: false, api: true })}
+          title={title}
+          allow="autoplay; encrypted-media; picture-in-picture"
+          // It runs its own page and nothing more: no popups, no taking the app's window elsewhere.
+          sandbox="allow-scripts allow-same-origin allow-presentation"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      )}
       {/* Click target over either engine: tap to play/pause, double-click for
           fullscreen (on touch, a side's double-tap seeks), wheel for volume. */}
       <div
@@ -1086,13 +1122,14 @@ export function Player({
           <PlayerStatus
             key="status"
             state={source.state}
-            error={error}
+            error={ytOutside ? "On Android, YouTube videos play in YouTube." : error}
             logo={meta?.logo}
             name={link ? title : meta?.name}
             background={meta?.background}
             steps={steps}
-            backend={engine === "html" ? "built-in" : (engine ?? "not chosen yet")}
+            backend={engine === "html" ? "built-in" : engine === "youtube" ? "YouTube's embedded player" : (engine ?? "not chosen yet")}
             onSources={link || local ? undefined : () => setOptions("sources")}
+            onYouTube={ytOutside ? () => void api.openExternal(youtubeUrl(ytOutside)) : undefined}
           />
         )}
       </AnimatePresence>
@@ -1254,7 +1291,8 @@ export function Player({
           {type === "series" && (
             <ActionButton icon={<Episodes size={22} />} label={local ? "In this folder" : "Episodes"} glyph={pad("episodes")} onClick={() => setOptions("episodes")} />
           )}
-          <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={(el) => openOptions("tracks", el)} />
+          {/* YouTube's player keeps its own captions and audio. */}
+          {!ytId && <ActionButton icon={<Captions size={22} />} label="Subtitles & Audio" glyph={pad("tracks")} onClick={(el) => openOptions("tracks", el)} />}
           {!link && !local && <ActionButton icon={<Sources size={22} />} label="Sources" glyph={pad("sources")} onClick={() => setOptions("sources")} />}
           {canParty && !airplay.casting && (
             <ActionButton
@@ -1447,7 +1485,7 @@ export function Player({
                     content: (
                       <div className="party-pane">
                         <p className="party-lede">
-                          Start a party on a video file or stream from the web. Everyone's app opens the link itself, after seeing it.
+                          Start a party on a YouTube video, or a video file or stream from the web. Everyone's app opens the link itself, after seeing it.
                         </p>
                         <LinkForm me={profile!} onDone={() => setOptions(null)} />
                       </div>
