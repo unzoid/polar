@@ -19,6 +19,7 @@ import { useEffect } from "react";
 import { useArtGate } from "../../lib/ui";
 import { SourcePicker, useSourcePicker } from "../title/SourcePicker";
 import { TitleActions } from "../title/TitleActions";
+import { SimklPanel } from "../title/SimklPanel";
 import { TraktNotSent } from "../title/TraktRating";
 import { TitleHeading } from "../title/TitleHeading";
 import { openTrailer } from "../Trailer";
@@ -156,6 +157,7 @@ export function AnimeHero({
           </p>
         )}
         <TraktNotSent id={pb.metaId} />
+        {pb.metaId && <SimklPanel item={{ id: pb.metaId, type: pb.isMovie ? "movie" : "series" }} />}
       </div>
 
       <SourcePicker picker={picker} />

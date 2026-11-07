@@ -5,14 +5,15 @@ import { keys } from "../net/queryKeys";
 import type { ContentType, LibraryItem, Progress } from "../types";
 import { getSimklLink, saveSimklLink, type SimklLink } from "./link";
 import { liveSimklLink, onSimklLinked, simklLinkChanged } from "./linking";
-import { simklRefOf } from "./items";
+import { simklRefOf, type SimklKind, type SimklRef, type SimklStatus } from "./items";
 import { forgetSimklSeen, noteSimklItem, pullSimkl, realSimklPullDeps, simklItems, type SimklPullResult } from "./pull";
+import { keepSimklRating, simklRatings, validSimklRating } from "./ratings";
 import { clearSimklQueue, enqueueSimkl, flushSimkl, pendingSimklOps, type SimklFlushResult, type SimklOp } from "./queue";
 
 /**
  * Keeps the active profile's Simkl account in step with Polarity (#86). Out: watched marks made by
- * hand, and episodes the player counted watched that Simkl's scrobble didn't, and, with the
- * watchlist switch on, titles added to or taken off the library go into the profile's queue
+ * hand, and episodes the player counted watched that Simkl's scrobble didn't, a title's list and
+ * rating set on its page, and, with the watchlist switch on, titles added to or taken off the library go into the profile's queue
  * (queue.ts), which goes out when the profile starts, when the window or the network comes back,
  * and right after each change. In: what changed on Simkl (pull.ts), looked at when the profile
  * starts or links, and when the window comes back at most every quarter of an hour, as Simkl's
@@ -149,7 +150,7 @@ export async function noteSimklLibrary(item: { id: string; type: ContentType }, 
   const link = await d.getLink(of);
   if (!link?.watchlist) return;
   const listed = simklItems(of, d.storage)[item.id];
-  const kind = ref.kind === "movie" ? "movies" : "kitsu" in ref.ids ? "anime" : "shows";
+  const kind = kindOf(ref);
   if (inLibrary && !listed) {
     noteSimklItem(of, item.id, { kind, status: "plantowatch" }, d.storage);
     await queue([{ list: "watchlist", ref, extra: { to: "plantowatch" } }]);
@@ -157,6 +158,46 @@ export async function noteSimklLibrary(item: { id: string; type: ContentType }, 
     noteSimklItem(of, item.id, null, d.storage);
     await queue([{ list: "watchlist", remove: true, ref }]);
   }
+}
+
+/** Where Simkl keeps a film or show: anime are the ones Polarity plays by Kitsu's number. */
+const kindOf = (ref: SimklRef): SimklKind => (ref.kind === "movie" ? "movies" : "kitsu" in ref.ids ? "anime" : "shows");
+
+/**
+ * A title put on one of the profile's Simkl lists from its page, or taken off them (`null`): kept on
+ * the device at once (pull.ts), then queued for Simkl and sent. Taking a title off Simkl's lists is
+ * taking it off its history there; its rating is taken off too, so a title gone from the lists
+ * doesn't stay rated. Only with a usable link, and only for a `tt…` or `kitsu:N` film or show.
+ */
+export async function setSimklStatus(item: { id: string; type: ContentType }, status: SimklStatus | null): Promise<void> {
+  const ref = simklRefOf(item.id, item.type);
+  if (!ref || ref.kind === "episode") return;
+  const d = use();
+  const of = space;
+  if (!usable(await d.getLink(of))) return;
+  if (status) {
+    noteSimklItem(of, item.id, { kind: kindOf(ref), status }, d.storage);
+    return queue([{ list: "watchlist", ref, extra: { to: status } }]);
+  }
+  const rated = simklRatings(of, d.storage)?.[item.id] !== undefined;
+  noteSimklItem(of, item.id, null, d.storage);
+  if (rated) keepSimklRating(of, item.id, null, d.storage);
+  await queue([{ list: "watchlist", remove: true, ref }, ...(rated ? [{ list: "ratings" as const, remove: true as const, ref }] : [])]);
+}
+
+/**
+ * A title rated 1–10 from its page, or its rating taken off (`null`): kept on the device at once
+ * (ratings.ts), then queued for Simkl and sent. Only with a usable link, and only for a film or show
+ * Simkl can be told about.
+ */
+export async function rateSimkl(item: { id: string; type: ContentType }, rating: number | null): Promise<void> {
+  const ref = simklRefOf(item.id, item.type);
+  if (!ref || ref.kind === "episode" || (rating !== null && !validSimklRating(rating))) return;
+  const d = use();
+  const of = space;
+  if (!usable(await d.getLink(of))) return;
+  keepSimklRating(of, item.id, rating, d.storage);
+  await queue([rating === null ? { list: "ratings", remove: true, ref } : { list: "ratings", ref, extra: { rating, rated_at: new Date(d.now()).toISOString() } }]);
 }
 
 /** Switches the profile's library ↔ Plan to Watch step on or off; on looks at Simkl at once. */
@@ -175,7 +216,7 @@ export async function setSimklWatchlist(
   if (on) void syncSimkl(true);
 }
 
-/** Unlinking drops what was still waiting, where Simkl was and its lists; linking sends what was queued meanwhile and looks. */
+/** Unlinking drops what was still waiting, where Simkl was, its lists and ratings; linking sends what was queued meanwhile and looks. */
 onSimklLinked((of, linked) => {
   if (!linked) {
     clearSimklQueue(of, use().storage);

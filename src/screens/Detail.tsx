@@ -21,6 +21,7 @@ import { type PlayRequest, trailerFor, useFileTrailer, usePlayTarget } from "../
 import { prefetchStreams, useMeta, useProgress, useStreams } from "../lib/net";
 import type { ContentType, Meta, MetaPreview, Video } from "../lib/types";
 import { IconButton } from "../components/ui/Button";
+import { SimklPanel } from "../components/title/SimklPanel";
 import { TitleActions } from "../components/title/TitleActions";
 import { EmptyState } from "../components/ui/EmptyState";
 import { BatchDownload } from "../components/BatchDownload";
@@ -161,6 +162,7 @@ function DetailHero({
             </IconButton>
           )}
         </TitleActions>
+        <SimklPanel item={item} />
       </div>
 
       {(meta?.cast?.length || meta?.director?.length) ? (

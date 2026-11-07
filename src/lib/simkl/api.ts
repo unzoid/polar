@@ -103,6 +103,9 @@ export function simklQuotaLow(now = Date.now(), quota = simklQuota): boolean {
 let version: Promise<string> | undefined;
 const versionOf = (caller: SimklCaller) => (caller.version ? Promise.resolve(caller.version) : (version ??= appVersion().catch(() => "dev")));
 
+/** What `app-version` says on Simkl's links and requests: the app's own version. */
+export const simklAppVersion = () => versionOf({});
+
 /** `path` with the parameters Simkl wants on every call, plus `query`. */
 export function simklUrl(path: string, clientId: string, appVersion: string, query: Record<string, string> = {}): string {
   const url = new URL(`${SIMKL_API_URL}${path}`);

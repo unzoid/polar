@@ -1,7 +1,7 @@
 import { storeLocal } from "../errors";
 import { isRecord, num, str, storedJson } from "../parse";
 import { simkl, SimklError, simklOffline, SimklSignedOut, type SimklCaller } from "./api";
-import { sameSimklRef, simklSyncBody, type SimklIds, type SimklRef, type SimklSyncItem } from "./items";
+import { sameSimklRef, SIMKL_STATUSES as STATUSES, simklSyncBody, type SimklIds, type SimklRef, type SimklStatus, type SimklSyncItem } from "./items";
 import { saveSimklLink, type SimklLink } from "./link";
 import { liveSimklLink } from "./linking";
 
@@ -14,18 +14,19 @@ import { liveSimklLink } from "./linking";
  * Taking a film off Simkl's history takes it off the account's lists altogether (Simkl's
  * remove-from-history): a film marked unwatched in Polarity leaves Simkl's lists too.
  *
- * With the watchlist switch on, titles added to the library go onto Simkl's Plan to Watch
- * (`watchlist`, sent to `/sync/add-to-list`), and those taken off it while still there leave
- * Simkl's lists (simklSync.ts decides which).
+ * A title's list (`watchlist`, sent to `/sync/add-to-list` with the list in `to`): set from its
+ * page, or with the watchlist switch on, Plan to Watch for titles added to the library; taking it
+ * off (from its page, or taking off the library a title still on Plan to Watch) takes it off
+ * Simkl's lists (simklSync.ts decides which). Ratings (`ratings`) set or taken off from a title page.
  */
-export type SimklListName = "history" | "watchlist";
+export type SimklListName = "history" | "watchlist" | "ratings";
 
 export interface SimklOp {
   list: SimklListName;
   remove?: true;
   ref: SimklRef;
-  /** `watched_at` for history, `to` (the list) for the watchlist. */
-  extra?: Record<string, string>;
+  /** `watched_at` for history, `to` (the list) for the watchlist, `rating` (1–10) and `rated_at` for ratings. */
+  extra?: Record<string, string | number>;
 }
 
 const MAX_OPS = 500;
@@ -55,13 +56,19 @@ function readRef(v: unknown): SimklRef | undefined {
 }
 
 export function readSimklOp(v: unknown): SimklOp | undefined {
-  if (!isRecord(v) || (v.list !== "history" && v.list !== "watchlist")) return undefined;
+  if (!isRecord(v) || (v.list !== "history" && v.list !== "watchlist" && v.list !== "ratings")) return undefined;
   const ref = readRef(v.ref);
   if (!ref) return undefined;
   const op: SimklOp = { list: v.list, ref };
   if (v.remove === true) op.remove = true;
-  if (isRecord(v.extra) && typeof v.extra.watched_at === "string") op.extra = { watched_at: v.extra.watched_at };
-  if (isRecord(v.extra) && v.extra.to === "plantowatch") op.extra = { to: "plantowatch" };
+  const extra = isRecord(v.extra) ? v.extra : {};
+  if (v.list === "history" && typeof extra.watched_at === "string") op.extra = { watched_at: extra.watched_at };
+  if (v.list === "watchlist" && STATUSES.includes(extra.to as SimklStatus)) op.extra = { to: extra.to as SimklStatus };
+  if (v.list === "ratings" && !op.remove) {
+    const rating = num(extra.rating);
+    if (rating === undefined || !Number.isInteger(rating) || rating < 1 || rating > 10) return undefined;
+    op.extra = { rating, ...(typeof extra.rated_at === "string" ? { rated_at: extra.rated_at } : {}) };
+  }
   return op;
 }
 
@@ -105,8 +112,11 @@ const realDeps = (): SimklQueueDeps => ({
 
 export type SimklFlushResult = "done" | "empty" | "signed-out" | "offline";
 
-/** Where a batch goes: the history, or a list; a title leaves Simkl's lists by leaving its history. */
-const pathOf = (list: SimklListName, remove: boolean) => (remove ? "/sync/history/remove" : list === "history" ? "/sync/history" : "/sync/add-to-list");
+/** Where a batch goes: the history, a list or the ratings; a title leaves Simkl's lists by leaving its history. */
+function pathOf(list: SimklListName, remove: boolean) {
+  if (list === "ratings") return remove ? "/sync/ratings/remove" : "/sync/ratings";
+  return remove ? "/sync/history/remove" : list === "history" ? "/sync/history" : "/sync/add-to-list";
+}
 
 /** The first run of ops that go out as one request: same list, same direction, at most {@link BATCH}. */
 function batchOf(ops: SimklOp[]): SimklOp[] {

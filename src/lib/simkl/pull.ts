@@ -3,7 +3,9 @@ import { formatVideoId } from "../library/identity";
 import { isRecord, num, str, storedJson } from "../parse";
 import type { ContentType, LibraryItem, Progress } from "../types";
 import { simkl, simklQuotaLow, type SimklCaller } from "./api";
+import { polarityIdOf, positiveId as positive, SIMKL_KINDS, SIMKL_STATUSES as STATUSES, type SimklKind, type SimklStatus } from "./items";
 import type { SimklLink } from "./link";
+import { forgetSimklRatings, pullSimklRatings, simklRatings } from "./ratings";
 
 /**
  * What changed on Simkl since this device last looked (#86), the way Simkl asks apps to sync
@@ -17,21 +19,14 @@ import type { SimklLink } from "./link";
  * title is on Simkl ({@link SimklItems}); what was there before is the import's. What Simkl removes
  * is noticed by its `removed_from_list` time moving, and then only by reading the kind's list as
  * bare Simkl ids: those gone leave the kept lists, and nothing in Polarity is taken away.
+ * Ratings are read whole on the first look, and after it only for the kinds whose `rated_at`
+ * moved, as what changed since the last look (ratings.ts).
  * Nothing is read while Simkl says the account's daily allowance is nearly spent (api.ts).
  */
-export type SimklKind = "shows" | "movies" | "anime";
-
-export const SIMKL_KINDS: readonly SimklKind[] = ["shows", "movies", "anime"];
-
-/** Simkl's lists. Films have no `watching` or `hold`. */
-export type SimklStatus = "watching" | "plantowatch" | "hold" | "completed" | "dropped";
-
-const STATUSES: readonly SimklStatus[] = ["watching", "plantowatch", "hold", "completed", "dropped"];
-
-/** Where Simkl was at the last look: its `all`, and per kind the time of the last list change and the last removal. */
+/** Where Simkl was at the last look: its `all`, and per kind the time of the last list change, the last removal and the last rating. */
 export interface SimklSeen {
   all: string;
-  kinds: Partial<Record<SimklKind, { lists: string; removed: string }>>;
+  kinds: Partial<Record<SimklKind, { lists: string; removed: string; rated: string }>>;
 }
 
 /** A title on the profile's Simkl lists, by Polarity id: its kind there, its list, Simkl's number when known. */
@@ -60,7 +55,7 @@ export function readActivities(v: unknown): SimklSeen | undefined {
   for (const kind of SIMKL_KINDS) {
     const k = v[ACTIVITY[kind]];
     if (!isRecord(k)) continue;
-    kinds[kind] = { lists: latest(STATUSES.map((s) => str(k[s]))), removed: str(k.removed_from_list) ?? "" };
+    kinds[kind] = { lists: latest(STATUSES.map((s) => str(k[s]))), removed: str(k.removed_from_list) ?? "", rated: str(k.rated_at) ?? "" };
   }
   return { all, kinds };
 }
@@ -71,7 +66,7 @@ export function readSeen(v: unknown): SimklSeen | undefined {
   if (isRecord(v.kinds))
     for (const kind of SIMKL_KINDS) {
       const k = v.kinds[kind];
-      if (isRecord(k)) kinds[kind] = { lists: str(k.lists) ?? "", removed: str(k.removed) ?? "" };
+      if (isRecord(k)) kinds[kind] = { lists: str(k.lists) ?? "", removed: str(k.removed) ?? "", rated: str(k.rated) ?? "" };
     }
   return { all: str(v.all) ?? "", kinds };
 }
@@ -95,8 +90,18 @@ export function readItems(v: unknown): SimklItems {
 export const simklItems = (space: string | null, storage: Pick<Storage, "getItem"> = localStorage): SimklItems =>
   readItems(storedJson(storage, simklItemsKey(space)));
 
-const keepItems = (space: string | null, items: SimklItems, storage: Pick<Storage, "setItem">) =>
+const itemListeners = new Set<() => void>();
+
+/** Hear when the kept lists change; returns the function that stops listening. */
+export function onSimklItems(listener: () => void): () => void {
+  itemListeners.add(listener);
+  return () => itemListeners.delete(listener);
+}
+
+function keepItems(space: string | null, items: SimklItems, storage: Pick<Storage, "setItem">) {
   storeLocal(simklItemsKey(space), JSON.stringify(items), storage);
+  itemListeners.forEach((l) => l());
+}
 
 /** Notes a change Polarity made itself (a title put on Plan to Watch, or taken off), until the next look says otherwise. */
 export function noteSimklItem(space: string | null, id: string, item: SimklItem | null, storage: Pick<Storage, "getItem" | "setItem"> = localStorage) {
@@ -104,23 +109,6 @@ export function noteSimklItem(space: string | null, id: string, item: SimklItem 
   if (item) items[id] = { ...items[id], ...item };
   else delete items[id];
   keepItems(space, items, storage);
-}
-
-const positive = (v: unknown) => {
-  const n = num(v) ?? (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : undefined);
-  return n !== undefined && Number.isInteger(n) && n > 0 ? n : undefined;
-};
-
-/**
- * The Polarity id of a Simkl title: its IMDb id, or for anime its Kitsu number when Simkl has one
- * (what Polarity plays anime by, and sends them by); `undefined` when it has neither.
- */
-export function polarityIdOf(kind: SimklKind, ids: unknown): string | undefined {
-  if (!isRecord(ids)) return undefined;
-  const imdb = str(ids.imdb);
-  const kitsu = positive(ids.kitsu);
-  if (kind === "anime" && kitsu) return `kitsu:${kitsu}`;
-  return imdb && /^tt\d{1,10}$/.test(imdb) ? imdb : undefined;
 }
 
 /** One entry of an all-items answer, read: where it is, and what it is in Polarity. */
@@ -237,10 +225,13 @@ export async function pullSimkl(space: string | null, link: SimklLink, deps: Sim
       for (const e of entriesOf(kind, await deps.get(`/sync/all-items/${kind}`, { extended: "ids_only" }, caller))) items[e.id] = e.item;
     }
     keepItems(space, items, deps.storage);
+    if (deps.quotaLow()) return null;
+    await pullSimklRatings(space, caller, deps.get, deps.storage);
     keep();
     return null;
   }
-  if (now.all === seen.all) return { watched: 0, listed: 0 };
+  const ratingsRead = simklRatings(space, deps.storage) !== undefined;
+  if (now.all === seen.all && ratingsRead) return { watched: 0, listed: 0 };
   const items = simklItems(space, deps.storage);
   const since = Date.parse(seen.all) || 0;
   const progress: Progress[] = [];
@@ -265,14 +256,21 @@ export async function pullSimkl(space: string | null, link: SimklLink, deps: Sim
       }
     }
   }
+  const rated = SIMKL_KINDS.filter((kind) => moved(now.kinds[kind]?.rated, seen.kinds[kind]?.rated));
+  if (!ratingsRead || rated.length) {
+    if (deps.quotaLow()) return null;
+    await pullSimklRatings(space, caller, deps.get, deps.storage, ratingsRead ? { all: seen.all, kinds: rated } : undefined);
+  }
   if (progress.length || library.length) await deps.importLibrary(library, progress);
   keepItems(space, items, deps.storage);
   keep();
   return { watched: progress.length, listed: library.length };
 }
 
-/** Forgets where Simkl was and the lists kept for the profile (unlinking). */
+/** Forgets where Simkl was, and the lists and ratings kept for the profile (unlinking). */
 export function forgetSimklSeen(space: string | null, storage: Pick<Storage, "removeItem"> = localStorage) {
   storage.removeItem(simklSeenKey(space));
   storage.removeItem(simklItemsKey(space));
+  itemListeners.forEach((l) => l());
+  forgetSimklRatings(space, storage);
 }

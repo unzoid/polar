@@ -1,7 +1,9 @@
 import "./storageStub";
 import { afterEach, describe, expect, test } from "bun:test";
 import type { SimklLink } from "../src/lib/simkl/link";
-import { polarityIdOf, pullSimkl, readActivities, simklItems, simklItemsKey, simklSeenKey, type SimklPullDeps } from "../src/lib/simkl/pull";
+import { polarityIdOf, polarityIdsOf } from "../src/lib/simkl/items";
+import { pullSimkl, readActivities, simklItems, simklItemsKey, simklSeenKey, type SimklPullDeps } from "../src/lib/simkl/pull";
+import { simklRatingsKey } from "../src/lib/simkl/ratings";
 import { enqueueSimkl, flushSimkl, pendingSimklOps, readSimklOp, simklQueueKey } from "../src/lib/simkl/queue";
 import { noteSimklLibrary, setSimklSpace, setSimklSyncDeps, setSimklWatchlist, syncSimkl } from "../src/lib/simkl/simklSync";
 
@@ -56,12 +58,14 @@ describe("what changed on Simkl", () => {
   test("activities: Simkl's all, and per kind the latest list change and removal", () => {
     expect(readActivities(acts(T2, { tv_shows: { completed: T1, plantowatch: T0, removed_from_list: T2 } }))).toEqual({
       all: T2,
-      kinds: { shows: { lists: T1, removed: T2 }, movies: { lists: "", removed: "" }, anime: { lists: "", removed: "" } },
+      kinds: { shows: { lists: T1, removed: T2, rated: "" }, movies: { lists: "", removed: "", rated: "" }, anime: { lists: "", removed: "", rated: "" } },
     });
     expect(readActivities({})).toBeUndefined();
   });
 
   test("titles are IMDb's, anime Kitsu's first; neither is nothing", () => {
+    expect(polarityIdsOf("anime", { simkl: 1, imdb: "tt0000002", kitsu: 5 })).toEqual(["kitsu:5", "tt0000002"]);
+    expect(polarityIdsOf("shows", { simkl: 1, imdb: "tt0000002", kitsu: 5 })).toEqual(["tt0000002"]);
     expect(polarityIdOf("shows", { simkl: 1, imdb: "tt0000002", kitsu: 5 })).toBe("tt0000002");
     expect(polarityIdOf("anime", { simkl: 1, imdb: "tt0000002", kitsu: "5" })).toBe("kitsu:5");
     expect(polarityIdOf("anime", { simkl: 1, imdb: "tt0000002" })).toBe("tt0000002");
@@ -78,6 +82,9 @@ describe("what changed on Simkl", () => {
       "/sync/all-items/shows?extended=ids_only",
       "/sync/all-items/movies?extended=ids_only",
       "/sync/all-items/anime?extended=ids_only",
+      "/sync/ratings/shows/1,2,3,4,5,6,7,8,9,10?",
+      "/sync/ratings/movies/1,2,3,4,5,6,7,8,9,10?",
+      "/sync/ratings/anime/1,2,3,4,5,6,7,8,9,10?",
     ]);
     expect(simklItems("p", storage)).toEqual({ tt0000002: { kind: "shows", status: "watching", simkl: 7 } });
     expect(imported).toEqual([]);
@@ -125,6 +132,7 @@ describe("what changed on Simkl", () => {
     };
     const { d, storage, got, imported } = pullDeps(answers);
     storage.setItem(simklSeenKey("p"), JSON.stringify({ all: T1, kinds: { shows: { lists: T1, removed: "" }, movies: { lists: T1, removed: "" } } }));
+    storage.setItem(simklRatingsKey("p"), "{}");
     expect(await pullSimkl("p", link, d)).toEqual({ watched: 2, listed: 0 });
     expect(got.slice(1)).toEqual([
       `/sync/all-items/shows?date_from=${encodeURIComponent(T1)}&extended=full&episode_watched_at=yes`,
@@ -198,6 +206,7 @@ describe("what changed on Simkl", () => {
           : {},
     );
     storage.setItem(simklSeenKey("p"), JSON.stringify({ all: T1, kinds: { shows: { lists: T1, removed: T0 } } }));
+    storage.setItem(simklRatingsKey("p"), "{}");
     storage.setItem(
       simklItemsKey("p"),
       JSON.stringify({
@@ -268,7 +277,7 @@ describe("the library and Plan to Watch", () => {
       { list: "watchlist", remove: true, ref: { kind: "movie", ids: { imdb: "tt0000001" } } },
     ]);
     expect(simklItems("p", storage).tt0000001).toBeUndefined();
-    expect(readSimklOp({ list: "watchlist", ref: { kind: "movie", ids: { imdb: "tt0000001" } }, extra: { to: "watching" } })?.extra).toBeUndefined();
+    expect(readSimklOp({ list: "watchlist", ref: { kind: "movie", ids: { imdb: "tt0000001" } }, extra: { to: "seen" } })?.extra).toBeUndefined();
     expect(storage.getItem(simklQueueKey("p"))).not.toContain("TOKEN");
   });
 

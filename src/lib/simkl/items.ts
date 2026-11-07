@@ -1,4 +1,5 @@
 import { parseVideoId } from "../library/identity";
+import { isRecord, num, str } from "../parse";
 import type { ContentType } from "../types";
 
 /**
@@ -86,3 +87,37 @@ export function simklSyncBody(items: SimklSyncItem[]): { movies: unknown[]; show
     })),
   };
 }
+
+/** The kinds Simkl keeps its lists by. */
+export type SimklKind = "shows" | "movies" | "anime";
+
+export const SIMKL_KINDS: readonly SimklKind[] = ["shows", "movies", "anime"];
+
+/** A whole number above 0, as a number or as digits. */
+export const positiveId = (v: unknown) => {
+  const n = num(v) ?? (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : undefined);
+  return n !== undefined && Number.isInteger(n) && n > 0 ? n : undefined;
+};
+
+/**
+ * The Polarity id of a Simkl title: its IMDb id, or for anime its Kitsu number when Simkl has one
+ * (what Polarity plays anime by, and sends them by); `undefined` when it has neither.
+ */
+export function polarityIdOf(kind: SimklKind, ids: unknown): string | undefined {
+  return polarityIdsOf(kind, ids)[0];
+}
+
+/** Every Polarity id a Simkl title can be found by: an anime's `kitsu:N` first, then the IMDb id. */
+export function polarityIdsOf(kind: SimklKind, ids: unknown): string[] {
+  if (!isRecord(ids)) return [];
+  const imdb = str(ids.imdb);
+  const kitsu = kind === "anime" ? positiveId(ids.kitsu) : undefined;
+  const out = kitsu ? [`kitsu:${kitsu}`] : [];
+  if (imdb && /^tt\d{1,10}$/.test(imdb)) out.push(imdb);
+  return out;
+}
+
+/** Simkl's lists. Films have no `watching` or `hold`. */
+export type SimklStatus = "watching" | "plantowatch" | "hold" | "completed" | "dropped";
+
+export const SIMKL_STATUSES: readonly SimklStatus[] = ["watching", "plantowatch", "hold", "completed", "dropped"];
