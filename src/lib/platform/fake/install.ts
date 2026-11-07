@@ -138,6 +138,14 @@ const commands: Record<string, (a: Args) => unknown> = {
   "plugin:window|is_fullscreen": () => false,
   "plugin:window|is_maximized": () => false,
   "plugin:window|is_minimized": () => false,
+  // Pin window (#266): what the window was told is kept for browser tests to read.
+  window_can_pin: () => true,
+  ...Object.fromEntries(
+    ["set_always_on_top", "set_resizable", "set_minimizable", "set_maximizable"].map((name) => [
+      `plugin:window|${name}`,
+      (a: Args) => void (((window as { __window?: Record<string, unknown> }).__window ??= {})[name] = a.value),
+    ]),
+  ),
 };
 
 mockWindows("main");
