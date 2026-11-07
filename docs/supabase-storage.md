@@ -350,6 +350,12 @@ How the caps work:
 - Friends (`supabase/migrations/20261108000000_friends.sql`): rows change only through the
   `friend_*` functions, which refuse a request or an answer past the caps with `friend_limit` or
   `friend_requests_limit`; the Friends panel says which.
+  `supabase/migrations/20261109120000_friend_tries_and_cap_locks.sql` adds: an account tries up
+  to 20 friend codes nobody has in an hour (`friend_request` answers `unknown` for one, then
+  refuses with `friend_tries_limit`) and sends up to 30 invites in 10 minutes
+  (`friend_invite_limit`); the tries are kept in `friend_tries` for an hour.
+- Inserts arriving at the same moment are counted one after the other: the profile limit and the
+  row caps take a lock per account first, and friend requests and answers one per pair of profiles.
 - In the app (`sync.ts`, `AccountFullToast`): a kind that's full stays on the device and is tried
   again each round, everything else goes on syncing, and a toast says which part is full, once a
   session per kind. Before a push the app leaves out what the server would refuse anyway (an id
