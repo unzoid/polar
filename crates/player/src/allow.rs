@@ -58,9 +58,10 @@ pub const READ_ONLY_PROPERTIES: &[&str] = &[
 ];
 
 /// Media and subtitles only ever come from the network (addons, or a server
-/// on this machine); never local files or mpv's special protocols.
+/// on this machine); never local files or mpv's special protocols. Taken as
+/// mpv takes it: with a space in front, mpv reads even `https://…` as a file.
 pub fn is_web_url(url: &str) -> bool {
-    let lower = url.trim_start().to_ascii_lowercase();
+    let lower = url.to_ascii_lowercase();
     lower.starts_with("https://") || lower.starts_with("http://")
 }
 
@@ -141,5 +142,7 @@ mod tests {
             assert!(check_property(prop).is_err(), "{prop} isn't settable through mpv_set");
         }
         assert!(!is_web_url("file:///C:/x.mkv") && is_web_url("HTTP://127.0.0.1:8080/a.mkv"));
+        assert!(!is_web_url(" https://x/s.srt") && !is_web_url("\nhttp://x/a.mkv"));
+        assert!(check_command(&[json!("sub-add"), json!(" https://x/s.srt")]).is_err());
     }
 }

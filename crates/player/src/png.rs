@@ -34,14 +34,14 @@ pub fn decode_stored(file: &[u8]) -> Option<Image> {
     while rest.len() >= 12 {
         let len = u32::from_be_bytes(rest[..4].try_into().ok()?) as usize;
         let kind = &rest[4..8];
-        let data = rest.get(8..8 + len)?;
+        let data = rest.get(8..8usize.checked_add(len)?)?;
         match kind {
             b"IHDR" if data.len() == 13 => header = Some(data),
             b"IDAT" => zlib.extend_from_slice(data),
             b"IEND" => break,
             _ => {}
         }
-        rest = rest.get(12 + len..)?;
+        rest = rest.get(12usize.checked_add(len)?..)?;
     }
     let h = header?;
     let (w, ht) =
@@ -86,7 +86,8 @@ fn inflate_stored(zlib: &[u8], size: usize) -> Option<Vec<u8>> {
     if cmf & 0x0f != 8 || (u16::from(cmf) << 8 | u16::from(flg)) % 31 != 0 || flg & 0x20 != 0 {
         return None;
     }
-    let mut out = Vec::with_capacity(size);
+    // Never more than the stream holds, whatever size the header claims.
+    let mut out = Vec::with_capacity(size.min(zlib.len()));
     let mut at = 2;
     loop {
         // Every block is stored, so each header starts a byte: final bit, then type 00.
@@ -242,6 +243,12 @@ mod tests {
         let ihdr = png.windows(4).position(|c| c == b"IHDR").unwrap() + 4;
         sixteen[ihdr + 8] = 16;
         assert_eq!(decode_stored(&sixteen), None, "16-bit samples");
+        let mut huge = png.clone();
+        huge[ihdr..ihdr + 8].copy_from_slice(&[0, 0, 0x20, 0, 0, 0, 0x20, 0]);
+        assert_eq!(decode_stored(&huge), None, "a header far larger than its data");
+        let mut long = png.clone();
+        long[idat - 8..idat - 4].copy_from_slice(&[0xff; 4]);
+        assert_eq!(decode_stored(&long), None, "a chunk longer than the file");
     }
 
     #[test]
