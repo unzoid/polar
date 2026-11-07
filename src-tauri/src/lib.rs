@@ -274,6 +274,7 @@ pub fn run() {
             commands::settings_reset,
             commands::settings_defaults,
             commands::open_external,
+            commands::window_can_pin,
             commands::anime_episode_flags,
             commands::anime_ids,
             commands::anime_cache,

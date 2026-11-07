@@ -22,6 +22,7 @@ export type Action =
   | "volumeDown"
   | "mute"
   | "fullscreen"
+  | "pinWindow"
   | "skip"
   | "nextEpisode"
   | "tracks"
@@ -45,6 +46,7 @@ export const ACTIONS: { id: Action; label: string; group: ActionGroup; when?: st
   { id: "volumeDown", label: "Volume down", group: "player" },
   { id: "mute", label: "Mute", group: "player" },
   { id: "fullscreen", label: "Fullscreen", group: "player" },
+  { id: "pinWindow", label: "Pin window on top", group: "player", when: "While watching, on desktop" },
   { id: "skip", label: "Skip intro / recap", group: "player" },
   { id: "nextEpisode", label: "Next episode", group: "player" },
   { id: "tracks", label: "Subtitles & audio", group: "player" },
@@ -71,6 +73,7 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   volumeDown: ["ArrowDown"],
   mute: ["m"],
   fullscreen: ["f"],
+  pinWindow: ["p"],
   skip: ["s"],
   nextEpisode: ["n"],
   tracks: ["c"],

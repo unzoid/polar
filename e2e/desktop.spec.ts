@@ -248,6 +248,38 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   await expect(player).toHaveCount(0);
 });
 
+test("the player pins the window on top and locks it, P unpins, and leaving the player always unpins (#266)", async ({ app }) => {
+  const told = () => app.evaluate(() => (window as unknown as { __window?: Record<string, unknown> }).__window ?? {});
+  await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
+  await card(app, "The Glass Orchard").click();
+  await app.getByRole("button", { name: "Play", exact: true }).click();
+  const player = app.locator(".player");
+  await expect(player).toHaveAttribute("data-started", "true");
+  await player.hover();
+  const pin = player.getByRole("button", { name: "Pin window" });
+  await expect(pin).toHaveAttribute("aria-pressed", "false");
+  await pin.click();
+  await expect(pin).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(told).toEqual({ set_always_on_top: true, set_resizable: false, set_minimizable: false, set_maximizable: false });
+  // Locked in place: nothing to drag the window by, minimise and maximise off, close still there.
+  await expect(player.locator("[data-tauri-drag-region]")).toHaveCount(0);
+  await expect(player.getByRole("button", { name: "Minimize" })).toBeDisabled();
+  await expect(player.getByRole("button", { name: "Maximize" })).toBeDisabled();
+  await expect(player.getByRole("button", { name: "Close" })).toBeEnabled();
+  // The first time, it says how to get out of it.
+  await expect(player).toContainText("Window pinned, press P to unpin");
+  await app.keyboard.press("p");
+  await expect(pin).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(told).toEqual({ set_always_on_top: false, set_resizable: true, set_minimizable: true, set_maximizable: true });
+  await expect(player.locator("[data-tauri-drag-region]")).toHaveCount(2);
+  // Pinned again, then out of the player: the window goes back.
+  await app.keyboard.press("p");
+  await expect.poll(async () => (await told()).set_always_on_top).toBe(true);
+  await player.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(player).toHaveCount(0);
+  await expect.poll(told).toEqual({ set_always_on_top: false, set_resizable: true, set_minimizable: true, set_maximizable: true });
+});
+
 test("the player steps one frame at a time with , and . and the buttons by the clock, which shows the frame (#243)", async ({ app }) => {
   await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).click();
   await card(app, "The Glass Orchard").click();

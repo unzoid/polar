@@ -536,9 +536,14 @@
     background-color 80ms var(--ease-std),
     color 80ms var(--ease-std);
 }
-.window-controls button:hover {
+.window-controls button:hover:not(:disabled) {
   background: var(--fill-3);
   color: var(--text);
+}
+/* The player's pinned window (#266): minimise and maximise are off. */
+.window-controls button:disabled {
+  color: var(--text-3);
+  opacity: 0.5;
 }
 .window-controls .close:hover {
   background: #c42b1c;

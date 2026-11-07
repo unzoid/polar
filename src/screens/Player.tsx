@@ -67,8 +67,9 @@ import {
 } from "../components/player/SubtitleSettings";
 import { isMpv, MpvMedia, type MediaLike, type StepDetail } from "../components/player/mpvMedia";
 import { createFrameStepper, DEFAULT_FPS, measureFps, stepFrame } from "../components/player/frameStep";
+import { createWindowPin } from "../components/player/windowPin";
 import { listenProbe, nextProbeId, probeStep, useStartLog } from "../components/player/useStartLog";
-import { getPrefs, openSettings, setPrefs, useEpisodeLayout, usePrefs, withShortcut } from "../lib/settings";
+import { getPrefs, openSettings, setPrefs, shortcutText, useEpisodeLayout, usePrefs, withShortcut } from "../lib/settings";
 import { Segmented } from "../components/Segmented";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
@@ -99,7 +100,7 @@ import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { LinkForm, PartyBadge, PartyHold, PartyNotes, PartyStart } from "../components/party/PartyUI";
 import { PartyRoomPane, PartySettingsPane } from "../components/party/PartyMenu";
-import { ChevronLeft, ChevronRight, WatchParty } from "../components/icons";
+import { ChevronLeft, ChevronRight, Pin, WatchParty } from "../components/icons";
 import { Button, IconButton } from "../components/ui/Button";
 import { errorMessage, storeLocal, warnFailed } from "../lib/errors";
 import { PLAYER_EXIT_MS } from "../components/PlayerLayer";
@@ -645,12 +646,39 @@ export function Player({
     if (!isDesktop) setPrefs({ videoFill: direction === "out" });
   });
 
+  // --- Pin window (#266): desktop only, where the system lets an app stay on top ---
+  const [canPin, setCanPin] = useState(false);
+  useEffect(() => {
+    if (!isDesktop || tv) return setCanPin(false);
+    let live = true;
+    void win.canPin().then((ok) => live && setCanPin(ok));
+    return () => void (live = false);
+  }, [tv]);
+  const [pinned, setPinned] = useState(false);
+  const pinner = useMemo(() => createWindowPin(win, setPinned), []);
+  // Leaving the player, or switching to TV mode, always unpins: the window is never left on top.
+  useEffect(() => {
+    if (tv) void pinner.unpin();
+  }, [tv, pinner]);
+  useEffect(() => () => void pinner.unpin(), [pinner]);
+  const togglePin = useCallback(() => {
+    const pinning = !pinner.pinned;
+    void pinner.toggle().then(() => {
+      // Said once, the first time: how to get out of it.
+      if (!pinning || !pinner.pinned || pinHintSeen()) return;
+      storeLocal(PIN_HINT, "1");
+      const key = shortcutText("pinWindow");
+      flashNotice(key ? `Window pinned, press ${key} to unpin` : "Window pinned", 3500);
+    });
+  }, [pinner, flashNotice]);
+
   const toggleFullscreen = useCallback(async () => {
     if (tv) return;
     const next = !(await win.isFullscreen());
-    await win.setFullscreen(next);
+    // Going fullscreen unpins first.
+    await pinner.setFullscreen(next);
     setFullscreen(next);
-  }, [tv]);
+  }, [tv, pinner]);
 
   // Fade back to the page first, *then* leave fullscreen: resizing the window
   // while mpv's native picture is up is what flickers, so do it once the page
@@ -872,6 +900,10 @@ export function Player({
         case "fullscreen":
           void toggleFullscreen();
           return true;
+        case "pinWindow":
+          if (!canPin) return false;
+          togglePin();
+          return true;
         case "skip":
           skip.skipActive();
           return true;
@@ -1011,6 +1043,8 @@ export function Player({
             return poke(true);
           }
           if (!isDesktop) return toggleFill();
+          // Pinned, the window stays as it is (#266).
+          if (pinner.pinned) return;
           void toggleFullscreen();
         }}
         onWheel={(e) => {
@@ -1080,11 +1114,12 @@ export function Player({
       {party && <PartyNotes party={party} />}
 
       {/* Top: back, what's playing, window-level controls. Drag lives here. */}
-      <div className="player-top" data-tauri-drag-region>
+      {/* Pinned (#266), nothing moves the window. */}
+      <div className="player-top" data-tauri-drag-region={pinned ? undefined : true}>
         <IconButton variant="player" onClick={() => void exit()} label="Back" title="Back (Esc)">
           <ArrowLeft size={26} />
         </IconButton>
-        <div className="player-heading" data-tauri-drag-region>
+        <div className="player-heading" data-tauri-drag-region={pinned ? undefined : true}>
           <span className="player-heading-title">{heading}</span>
           {current && <span className="player-heading-show">{title}</span>}
         </div>
@@ -1113,6 +1148,17 @@ export function Player({
               <Cast size={22} />
             </IconButton>
           )}
+          {canPin && !fullscreen && (
+            <IconButton
+              variant="player"
+              onClick={togglePin}
+              label="Pin window"
+              aria-pressed={pinned}
+              title={withShortcut(pinned ? "Unpin window" : "Pin window on top", "pinWindow")}
+            >
+              <Pin size={22} />
+            </IconButton>
+          )}
           {!tv && isDesktop && (
             <IconButton variant="player" onClick={() => void toggleFullscreen()} label="Fullscreen" title={withShortcut("Fullscreen", "fullscreen")}>
               {fullscreen ? <ExitFullscreen size={22} /> : <Fullscreen size={22} />}
@@ -1124,7 +1170,7 @@ export function Player({
             </IconButton>
           )}
         </div>
-        {!fullscreen && !tv && <WindowControls />}
+        {!fullscreen && !tv && <WindowControls pinned={pinned} />}
       </div>
 
       {/* Centre transport, Netflix-style: bare glyphs, no button chrome. */}
@@ -1236,6 +1282,22 @@ export function Player({
                     { id: "frame", label: "Step one frame when paused" },
                   ],
                   onSelect: (id: string) => setPrefs({ tvFrameStep: id === "frame" }),
+                },
+              ]
+            : []),
+          // Desktop: keep the window on top of the others, locked in place (#266).
+          ...(canPin
+            ? [
+                {
+                  title: "Window",
+                  value: pinned ? "pinned" : "normal",
+                  options: [
+                    { id: "normal", label: "Normal" },
+                    { id: "pinned", label: "Pinned on top" },
+                  ],
+                  onSelect: (id: string) => {
+                    if ((id === "pinned") !== pinner.pinned) togglePin();
+                  },
                 },
               ]
             : []),
@@ -1552,6 +1614,16 @@ function ActionButton({
       {glyph}
     </button>
   );
+}
+
+/** Whether "Window pinned, press P to unpin" (#266) has been shown on this device. */
+const PIN_HINT = "polar.pinHint";
+function pinHintSeen() {
+  try {
+    return !!localStorage.getItem(PIN_HINT);
+  } catch {
+    return false;
+  }
 }
 
 /** The volume last set, 0–1 (1 when none was, or it isn't a number). */
