@@ -2,11 +2,11 @@ import logo from "../assets/polarity-white.png";
 import { ChevronDown, ChevronLeft, Close, Search, Speed, Tv } from "./icons";
 import { addRecentSearch, clearRecentSearches, FOCUS_SEARCH_EVENT, setSearchText, useRecentSearches, useSearchText } from "../lib/catalog";
 import { setTvMode, tvModeAvailable } from "../tv/tvMode";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { rootTab, useRouter, type TabRoute } from "../lib/router";
-import { usePrefs } from "../lib/settings";
-import { useHandFocus } from "../lib/ui";
+import { usePrefs, useSettingsOverlay } from "../lib/settings";
+import { dismissDepth, onDismissDepth, useHandFocus } from "../lib/ui";
 import { MOD_LABEL } from "../lib/platform";
 import { useSettings } from "../lib/net";
 import { WindowControls } from "./WindowControls";
@@ -19,7 +19,8 @@ import { PopoverPopup, PopoverRoot, PopoverTrigger } from "./ui/Popover";
 import { Chip } from "./ui/Chip";
 import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "./ui/Menu";
 import { useNativeTabs } from "./NativeTabs";
-import type { NavLink } from "../lib/navTabs";
+import { useNativeBack } from "./NativeBack";
+import { backHistory, type NavLink } from "../lib/navTabs";
 
 const LINKS: NavLink[] = [
   { route: { name: "home" }, label: "Home" },
@@ -50,6 +51,13 @@ export function NavBar() {
   // Back to a top-level page with focus on Back: it hides, so focus moves off it first (test report 1, item 25).
   const backButton = useRef<HTMLButtonElement>(null);
   useHandFocus(backButton, !canGoBack);
+  // On iOS the system draws Back here, while nothing covers the page (lib/platform/nativeBack.ts).
+  const layers = useSyncExternalStore(onDismissDepth, dismissDepth);
+  const settingsOpen = useSettingsOverlay().open;
+  const covered = layers > 0 || settingsOpen || current.name === "player";
+  const nativeBack = useNativeBack(backButton, canGoBack && !covered, backHistory(stack), (steps) => {
+    for (let i = 0; i < steps; i++) back();
+  });
   const scrolled = useActivePageScrolled(stack.length);
   const { data: settings } = useSettings();
   const { animeEnabled, showTvButton } = usePrefs();
@@ -70,6 +78,7 @@ export function NavBar() {
         ref={backButton}
         className="navbar-icon navbar-back pressable"
         data-shown={canGoBack}
+        data-native-back={nativeBack || undefined}
         onClick={back}
         aria-label="Back"
         title="Back (Esc)"

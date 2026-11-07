@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { nativeTabsState, tabId, tabRoute, type NavLink } from "../src/lib/navTabs";
+import { backHistory, nativeTabsState, routeTitle, tabId, tabRoute, type NavLink } from "../src/lib/navTabs";
 import type { Entry, Route } from "../src/lib/router";
 
 const LINKS: NavLink[] = [
@@ -50,4 +50,15 @@ test("the bar hides over the player and over anything covering the screen", () =
 test("a picked tab opens its section; an unknown id opens nothing", () => {
   expect(tabRoute(LINKS, "discover:movie")).toEqual({ name: "discover", type: "movie" });
   expect(tabRoute(LINKS, "anime")).toBeUndefined();
+});
+
+test("the back button's menu lists the pages behind, nearest first, by name (#174)", () => {
+  const preview = { id: "tt0000000", type: "movie" as const, name: "The Glass Orchard" };
+  const s = stack({ name: "discover", type: "movie" }, { name: "detail", type: "movie", id: "tt0000000", preview }, { name: "library-collection", view: "saved" }, {
+    name: "playlist",
+    id: "p1",
+  });
+  expect(backHistory(s)).toEqual(["Saved", "The Glass Orchard", "Movies"]);
+  expect(backHistory(stack({ name: "home" }))).toEqual([]);
+  expect(routeTitle({ name: "detail", type: "series", id: "tt0000000" })).toBe("Series");
 });

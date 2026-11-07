@@ -1,9 +1,10 @@
 import { Dialog } from "@base-ui/react/dialog";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Avatar } from "./Avatar";
 import { ChevronLeft, ChevronRight, Close, Reset, SignOut } from "./icons";
 import { iconButtonClass } from "./ui/Button";
-import { useFormFactor } from "../lib/ui";
+import { useNativeBack } from "./NativeBack";
+import { dismissDepth, onDismissDepth, useFormFactor } from "../lib/ui";
 import { tvModeAvailable } from "../tv/tvMode";
 import { SearchField } from "./ui/SearchField";
 import { useAccount } from "../lib/account";
@@ -57,6 +58,10 @@ export function SettingsOverlay() {
   // sections first, as a phone's own Settings app does. Back (or Escape) goes from a page to the list.
   const phone = useFormFactor().form === "phone";
   const [view, setView] = useState<"list" | "page">("list");
+  // On iOS the system draws a section's Back, while no menu covers it (lib/platform/nativeBack.ts).
+  const backButton = useRef<HTMLButtonElement>(null);
+  const layers = useSyncExternalStore(onDismissDepth, dismissDepth);
+  const nativeBack = useNativeBack(backButton, open && phone && view === "page" && layers === 0, ["Settings"], () => setView("list"));
 
   // Each opening lands on the requested page (or where it was left), search cleared.
   useEffect(() => {
@@ -232,7 +237,13 @@ export function SettingsOverlay() {
           <div className="t3s-main">
             <header className="t3s-header">
               {phone && (
-                <button className={iconButtonClass("settings", "t3s-back")} aria-label="All settings" onClick={() => setView("list")}>
+                <button
+                  ref={backButton}
+                  className={iconButtonClass("settings", "t3s-back")}
+                  data-native-back={nativeBack || undefined}
+                  aria-label="All settings"
+                  onClick={() => setView("list")}
+                >
                   <ChevronLeft size={20} strokeWidth={2.2} />
                 </button>
               )}

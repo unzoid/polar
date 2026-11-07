@@ -1,5 +1,5 @@
 import type { NativeTabsState } from "./platform/nativeTabs";
-import { rootTab, type Entry, type TabRoute } from "./router";
+import { rootTab, type Entry, type Route, type TabRoute } from "./router";
 
 /** The app's sections, as NavBar lists them and iOS's tab bar shows them (components/NativeTabs.tsx). */
 export type NavLink = { route: TabRoute; label: string };
@@ -38,4 +38,48 @@ export function nativeTabsState(links: NavLink[], stack: Entry[], covered: boole
 export function tabRoute(links: NavLink[], id: string): TabRoute | undefined {
   if (id === SEARCH_TAB.id) return { name: "search" };
   return links.find((l) => tabId(l.route) === id)?.route;
+}
+
+const COLLECTIONS = { saved: "Saved", watched: "Watched", playlists: "Playlists", downloads: "Downloads" } as const;
+
+/** A page's name in iOS's back button menu (components/NativeBack.tsx). */
+export function routeTitle(route: Route): string {
+  switch (route.name) {
+    case "home":
+      return "Home";
+    case "discover":
+      return route.type === "movie" ? "Movies" : "Series";
+    case "anime":
+      return "Anime";
+    case "library":
+      return "Library";
+    case "calendar":
+      return "Calendar";
+    case "search":
+      return "Search";
+    case "settings":
+      return "Settings";
+    case "detail":
+      return route.preview?.name ?? (route.type === "movie" ? "Movie" : "Series");
+    case "anime-detail":
+      return route.preview?.title.english ?? route.preview?.title.romaji ?? "Anime";
+    case "anime-schedule":
+      return "Schedule";
+    case "anime-browse":
+      return route.title ?? "Anime";
+    case "library-collection":
+      return COLLECTIONS[route.view];
+    case "playlist":
+      return "Playlist";
+    case "player":
+      return "Player";
+  }
+}
+
+/** The pages behind the top of the stack, nearest first. */
+export function backHistory(stack: Entry[]): string[] {
+  return stack
+    .slice(0, -1)
+    .reverse()
+    .map((e) => routeTitle(e.route));
 }
