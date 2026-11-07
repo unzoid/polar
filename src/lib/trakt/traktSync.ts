@@ -7,6 +7,7 @@ import { getTraktLink, saveTraktLink, type TraktLink } from "./link";
 import { liveTraktLink, onTraktLinked, traktLinkChanged } from "./linking";
 import { traktRefOf } from "./items";
 import { forgetTraktSeen, pullTrakt, realPullDeps, type PullResult } from "./pull";
+import { forgetTraktRatings, keepTraktRating, validRating } from "./ratings";
 import { clearTraktQueue, enqueueTrakt, flushTrakt, pendingTraktOps, type TraktFlushResult, type TraktOp } from "./queue";
 
 /**
@@ -14,7 +15,7 @@ import { clearTraktQueue, enqueueTrakt, flushTrakt, pendingTraktOps, type TraktF
  * by hand (and episodes the player counted watched that Trakt's scrobble didn't) and, with the
  * watchlist switch on, titles added to or removed from the library go into the profile's queue
  * (queue.ts), which goes out when the profile starts, when the window or the network comes back,
- * and right after each change. In: what changed on Trakt (pull.ts), looked at when the profile
+ * and right after each change, as do ratings given on a title page. In: what changed on Trakt (pull.ts), looked at when the profile
  * starts or links, and when the window comes back at most every few minutes.
  *
  * The active profile is the one sync runs for (lib/account/sync.ts); `null` is the device's own.
@@ -144,6 +145,21 @@ export async function noteTraktLibrary(item: { id: string; type: ContentType }, 
   await queue([inLibrary ? { list: "watchlist", ref } : { list: "watchlist", remove: true, ref }]);
 }
 
+/**
+ * The profile rates a film or show 1–10 on its title page, or takes the rating off (`null`): kept on
+ * the device at once (ratings.ts), then queued for Trakt and sent. Only with a usable link, and
+ * only for what Trakt can be told about (`tt…` titles).
+ */
+export async function rateTrakt(item: { id: string; type: ContentType }, rating: number | null): Promise<void> {
+  const ref = traktRefOf(item.id, item.type);
+  if (!ref || ref.kind === "episode" || (rating !== null && !validRating(rating))) return;
+  const d = use();
+  const of = space;
+  if (!usable(await d.getLink(of))) return;
+  keepTraktRating(of, ref.imdb, rating, d.storage);
+  await queue([rating === null ? { list: "ratings", remove: true, ref } : { list: "ratings", ref, extra: { rating, rated_at: new Date(d.now()).toISOString() } }]);
+}
+
 /** Switches the profile's library ↔ watchlist step on or off; on looks at Trakt's watchlist at once. */
 export async function setTraktWatchlist(of: string | null, on: boolean, deps: Pick<TraktSyncDeps, "getLink"> & { saveLink: typeof saveTraktLink } = { getLink: use().getLink, saveLink: saveTraktLink }) {
   const link = await deps.getLink(of);
@@ -156,11 +172,12 @@ export async function setTraktWatchlist(of: string | null, on: boolean, deps: Pi
   if (on) void syncTrakt(true);
 }
 
-/** Unlinking drops what was still waiting and where Trakt was; linking sends what was queued meanwhile and looks. */
+/** Unlinking drops what was still waiting, where Trakt was and the ratings kept; linking sends what was queued meanwhile and looks. */
 onTraktLinked((of, linked) => {
   if (!linked) {
     clearTraktQueue(of, use().storage);
     forgetTraktSeen(of, use().storage);
+    forgetTraktRatings(of, use().storage);
   } else void syncTrakt(true);
 });
 

@@ -18,7 +18,7 @@ export interface TraktOp {
   list: TraktList;
   remove?: true;
   ref: TraktRef;
-  /** `watched_at` for history, `rating` (1–10) for ratings. */
+  /** `watched_at` for history, `rating` (1–10) and `rated_at` for ratings. */
   extra?: Record<string, string | number>;
 }
 
@@ -46,7 +46,7 @@ export function readTraktOp(v: unknown): TraktOp | undefined {
   if (v.remove === true) op.remove = true;
   if (isRecord(v.extra)) {
     const extra: Record<string, string | number> = {};
-    for (const [k, x] of Object.entries(v.extra)) if ((k === "watched_at" && typeof x === "string") || (k === "rating" && typeof x === "number")) extra[k] = x;
+    for (const [k, x] of Object.entries(v.extra)) if (((k === "watched_at" || k === "rated_at") && typeof x === "string") || (k === "rating" && typeof x === "number")) extra[k] = x;
     if (Object.keys(extra).length) op.extra = extra;
   }
   return op;

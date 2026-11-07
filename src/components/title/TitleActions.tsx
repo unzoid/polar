@@ -8,6 +8,7 @@ import { Button, IconButton } from "../ui/Button";
 import { useFormFactor } from "../../lib/ui";
 import { LibraryButton } from "./LibraryButton";
 import type { SourcePickerState } from "./SourcePicker";
+import { TraktRating } from "./TraktRating";
 
 export type TitleActionsProps = {
   /** What Play and "Choose source" act on; nothing yet (or nothing playable) disables both. */
@@ -36,7 +37,7 @@ export type TitleActionsProps = {
 
 /**
  * The action row of a title page (docs/ui-components.md U5): Play, Trailer, Library, Playlist,
- * Choose source, Download, in that order, each only where the page has it. TV draws its own
+ * Choose source, Download, Trakt rating (#85, only when linked), in that order, each only where the page has it. TV draws its own
  * column of pills (step 6).
  */
 export function TitleActions({
@@ -87,6 +88,7 @@ export function TitleActions({
         <Sources size={19} />
       </IconButton>
       {item && download && <DownloadButton item={item} labelled={!phone} />}
+      {item && <TraktRating item={item} />}
       {children}
     </div>
   );

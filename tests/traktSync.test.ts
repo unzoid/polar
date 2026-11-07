@@ -7,6 +7,8 @@ import { enqueueTrakt, flushTrakt, pendingTraktOps, readTraktOp, traktQueueKey, 
 import { scrobble } from "../src/lib/trakt/scrobble";
 import { noteTraktLibrary, noteTraktWatched, setTraktSpace, setTraktSyncDeps, setTraktWatchlist, syncTrakt, type TraktSyncDeps } from "../src/lib/trakt/traktSync";
 import { historyRow, pullTrakt, readActivities, traktSeenKey, watchlistItem, type PullDeps } from "../src/lib/trakt/pull";
+import { forgetTraktRatings, ratingRow, readRatings, traktRatings, traktRatingsKey } from "../src/lib/trakt/ratings";
+import { rateTrakt } from "../src/lib/trakt/traktSync";
 
 // #85: Polarity's titles on Trakt, scrobbles, and the changes waiting to go out.
 const link: TraktLink = { token: "TOKEN", refreshToken: "REFRESH", expiresAt: 2e12, slug: "someone", name: "Someone" };
@@ -244,11 +246,11 @@ describe("marks made by hand", () => {
 });
 
 describe("what changed on Trakt", () => {
-  const acts = (watched: string, watchlist = "2026-01-01T00:00:00.000Z") => ({
+  const acts = (watched: string, watchlist = "2026-01-01T00:00:00.000Z", rated = "2026-01-01T00:00:00.000Z") => ({
     all: watched,
-    movies: { watched_at: "2026-01-01T00:00:00.000Z", watchlisted_at: watchlist },
-    episodes: { watched_at: watched, watchlisted_at: "2026-01-01T00:00:00.000Z" },
-    shows: { watchlisted_at: "2026-01-01T00:00:00.000Z" },
+    movies: { watched_at: "2026-01-01T00:00:00.000Z", watchlisted_at: watchlist, rated_at: "2025-06-01T00:00:00.000Z" },
+    episodes: { watched_at: watched, watchlisted_at: "2026-01-01T00:00:00.000Z", rated_at: "2026-12-01T00:00:00.000Z" },
+    shows: { watchlisted_at: "2026-01-01T00:00:00.000Z", rated_at: rated },
   });
   const episode = (n: number, at: string) => ({
     watched_at: at,
@@ -257,10 +259,11 @@ describe("what changed on Trakt", () => {
     show: { title: "The Lighthouse Keepers", ids: { imdb: "tt0000002" } },
   });
 
-  test("activities: the latest watched and watchlist times", () => {
+  test("activities: the latest watched, watchlist and film or show rating times", () => {
     expect(readActivities(acts("2026-03-01T00:00:00.000Z", "2026-02-01T00:00:00.000Z"))).toEqual({
       watched: "2026-03-01T00:00:00.000Z",
       watchlist: "2026-02-01T00:00:00.000Z",
+      rated: "2026-01-01T00:00:00.000Z",
     });
     expect(readActivities(null)).toBeUndefined();
   });
@@ -304,10 +307,11 @@ describe("what changed on Trakt", () => {
     return { d, storage, got, imported };
   }
 
-  test("the first look only notes where Trakt is", async () => {
+  test("the first look only notes where Trakt is, and reads the ratings", async () => {
     const { d, storage, got, imported } = pullDeps({ "/sync/last_activities": acts("2026-03-01T00:00:00.000Z") });
     expect(await pullTrakt("p", link, d)).toBeNull();
-    expect(got).toEqual(["/sync/last_activities"]);
+    expect(got).toEqual(["/sync/last_activities", "/sync/ratings/movies", "/sync/ratings/shows"]);
+    expect(traktRatings("p", storage)).toEqual({});
     expect(imported).toEqual([]);
     expect(JSON.parse(storage.m.get(traktSeenKey("p"))!).watched).toBe("2026-03-01T00:00:00.000Z");
   });
@@ -317,7 +321,8 @@ describe("what changed on Trakt", () => {
       "/sync/last_activities": acts("2026-03-02T00:00:00.000Z"),
       "/sync/history": [episode(3, "2026-03-02T00:00:00.000Z")],
     });
-    storage.setItem(traktSeenKey("p"), JSON.stringify({ watched: "2026-03-01T00:00:00.000Z", watchlist: "2026-01-01T00:00:00.000Z" }));
+    storage.setItem(traktSeenKey("p"), JSON.stringify({ watched: "2026-03-01T00:00:00.000Z", watchlist: "2026-01-01T00:00:00.000Z", rated: "2026-01-01T00:00:00.000Z" }));
+    storage.setItem(traktRatingsKey("p"), "{}");
     expect(await pullTrakt("p", link, d)).toEqual({ watched: 1, listed: 0 });
     expect(got[1]).toBe("/sync/history?start_at=2026-03-01T00%3A00%3A00.000Z&page=1&limit=100");
     expect(imported[0][1]).toMatchObject([{ videoId: "tt0000002:1:3" }]);
@@ -342,6 +347,38 @@ describe("what changed on Trakt", () => {
     on.storage.setItem(traktSeenKey("p"), seen);
     expect(await pullTrakt("p", { ...link, watchlist: true }, on.d)).toEqual({ watched: 0, listed: 1 });
     expect(on.imported[0][0]).toMatchObject([{ id: "tt0000001", type: "movie" }]);
+  });
+
+  test("ratings: films and shows read whole when they moved, what waits to go out on top", async () => {
+    expect(ratingRow({ rating: 8, type: "movie", movie: { ids: { imdb: "tt0000001" } } })).toEqual(["tt0000001", 8]);
+    expect(ratingRow({ rating: 11, type: "movie", movie: { ids: { imdb: "tt0000001" } } })).toBeUndefined();
+    expect(ratingRow({ rating: 7, type: "episode", episode: { season: 1, number: 1 }, show: { ids: { imdb: "tt0000002" } } })).toBeUndefined();
+    expect(readRatings({ tt0000001: 3, tt0000002: 0, "kitsu:5": 9, tt0000003: 7.5 })).toEqual({ tt0000001: 3 });
+    const { d, storage, got } = pullDeps({
+      "/sync/last_activities": acts("2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"),
+      "/sync/ratings/movies": [
+        { rating: 9, type: "movie", movie: { ids: { imdb: "tt0000001" } } },
+        { rating: 4, type: "movie", movie: { ids: { imdb: "tt0000004" } } },
+      ],
+      "/sync/ratings/shows": [{ rating: 6, type: "show", show: { ids: { imdb: "tt0000002" } } }],
+    });
+    storage.setItem(traktSeenKey("p"), JSON.stringify({ watched: "2026-01-01T00:00:00.000Z", watchlist: "2026-01-01T00:00:00.000Z", rated: "2026-02-01T00:00:00.000Z" }));
+    storage.setItem(traktRatingsKey("p"), JSON.stringify({ tt0000009: 5 }));
+    enqueueTrakt(
+      "p",
+      [
+        { list: "ratings", ref: { kind: "show", imdb: "tt0000003" }, extra: { rating: 10, rated_at: "2026-03-02T00:00:00.000Z" } },
+        { list: "ratings", remove: true, ref: { kind: "movie", imdb: "tt0000004" } },
+      ],
+      storage,
+    );
+    await pullTrakt("p", link, d);
+    expect(traktRatings("p", storage)).toEqual({ tt0000001: 9, tt0000002: 6, tt0000003: 10 });
+    expect(JSON.parse(storage.m.get(traktSeenKey("p"))!).rated).toBe("2026-03-01T00:00:00.000Z");
+    await pullTrakt("p", link, d);
+    expect(got.filter((g) => g.startsWith("/sync/ratings"))).toHaveLength(2);
+    forgetTraktRatings("p", storage);
+    expect(traktRatings("p", storage)).toBeUndefined();
   });
 });
 
@@ -391,6 +428,25 @@ describe("the sync", () => {
       { list: "watchlist", ref: { kind: "movie", imdb: "tt0000001" } },
       { list: "watchlist", remove: true, ref: { kind: "show", imdb: "tt0000002" } },
     ]);
+  });
+
+  test("a rating is kept on the device at once and queued; off is a removal; unlinked, episodes and Kitsu are left alone", async () => {
+    const { storage, sent, set } = syncDeps(link);
+    setTraktSpace("p");
+    await rateTrakt({ id: "tt0000001", type: "movie" }, 8);
+    expect(traktRatings("p", storage)).toEqual({ tt0000001: 8 });
+    await rateTrakt({ id: "tt0000001", type: "movie" }, null);
+    await rateTrakt({ id: "tt0000002", type: "series" }, 0);
+    await rateTrakt({ id: "tt0000002:1:1", type: "series" }, 5);
+    await rateTrakt({ id: "kitsu:5", type: "series" }, 5);
+    expect(traktRatings("p", storage)).toEqual({});
+    expect(sent).toEqual([
+      { list: "ratings", ref: { kind: "movie", imdb: "tt0000001" }, extra: { rating: 8, rated_at: "1970-01-01T00:00:00.000Z" } },
+      { list: "ratings", remove: true, ref: { kind: "movie", imdb: "tt0000001" } },
+    ]);
+    set(undefined);
+    await rateTrakt({ id: "tt0000003", type: "movie" }, 7);
+    expect(traktRatings("p", storage)?.tt0000003).toBeUndefined();
   });
 
   test("the switch is kept with the link", async () => {

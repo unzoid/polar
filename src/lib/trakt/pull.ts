@@ -4,6 +4,7 @@ import type { LibraryItem, Progress } from "../types";
 import { trakt, type TraktCaller } from "./api";
 import { readTraktItem, videoIdOf, type TraktRef } from "./items";
 import type { TraktLink } from "./link";
+import { pullRatings, traktRatings } from "./ratings";
 
 /**
  * What changed on Trakt since this device last looked (#85): Trakt's `last_activities` first, one
@@ -14,11 +15,14 @@ import type { TraktLink } from "./link";
  *
  * The first look after linking only notes where Trakt is: what was there before is the import's.
  * What Trakt removes (a play taken off its history, a title off its watchlist) isn't followed.
+ * Film and show ratings are read whole whenever they moved, the first look too (ratings.ts).
  */
 export interface TraktSeen {
   /** Trakt's own times (ISO) of the last watched mark and the last watchlist change. */
   watched: string;
   watchlist: string;
+  /** The last film or show rating. */
+  rated: string;
 }
 
 export const traktSeenKey = (space: string | null) => `polar.trakt.seen.${space ?? "local"}`;
@@ -37,13 +41,14 @@ export function readActivities(v: unknown): TraktSeen | undefined {
   };
   const watched = later(at("movies", "watched_at"), at("episodes", "watched_at"));
   const watchlist = later(later(at("movies", "watchlisted_at"), at("shows", "watchlisted_at")), at("episodes", "watchlisted_at"));
-  if (!watched && !watchlist && !str(v.all)) return undefined;
-  return { watched, watchlist };
+  const rated = later(at("movies", "rated_at"), at("shows", "rated_at"));
+  if (!watched && !watchlist && !rated && !str(v.all)) return undefined;
+  return { watched, watchlist, rated };
 }
 
 export function readSeen(v: unknown): TraktSeen | undefined {
   if (!isRecord(v)) return undefined;
-  return { watched: str(v.watched) ?? "", watchlist: str(v.watchlist) ?? "" };
+  return { watched: str(v.watched) ?? "", watchlist: str(v.watchlist) ?? "", rated: str(v.rated) ?? "" };
 }
 
 const moved = (now: string, before: string) => (Date.parse(now) || 0) > (Date.parse(before) || 0);
@@ -105,6 +110,7 @@ export async function pullTrakt(space: string | null, link: TraktLink, deps: Pul
   if (!now) return { watched: 0, listed: 0 };
   const seen = readSeen(storedJson(deps.storage, traktSeenKey(space)));
   const keep = (s: TraktSeen) => storeLocal(traktSeenKey(space), JSON.stringify(s), deps.storage);
+  if (!seen || !traktRatings(space, deps.storage) || moved(now.rated, seen.rated)) await pullRatings(space, caller, deps.get, deps.storage);
   if (!seen) {
     keep(now);
     return null;
@@ -125,7 +131,7 @@ export async function pullTrakt(space: string | null, link: TraktLink, deps: Pul
     for (const item of listOf(items, watchlistItem)) if (item.addedAt > since && !library.some((l) => l.id === item.id)) library.push(item);
   }
   if (progress.length || library.length) await deps.importLibrary(library, progress);
-  keep({ watched: now.watched || seen.watched, watchlist: now.watchlist || seen.watchlist });
+  keep({ watched: now.watched || seen.watched, watchlist: now.watchlist || seen.watchlist, rated: now.rated || seen.rated });
   return { watched: progress.length, listed: library.length };
 }
 
