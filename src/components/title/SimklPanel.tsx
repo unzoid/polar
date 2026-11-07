@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+import simklMark from "../../assets/simkl-mark.svg";
 import { api } from "../../lib/api";
 import { SIMKL_STATUSES, useSimklTitle, type SimklKind, type SimklStatus } from "../../lib/simkl";
 import type { ContentType } from "../../lib/types";
@@ -22,7 +24,8 @@ const statusesFor = (kind: SimklKind) => SIMKL_STATUSES.filter((s) => kind !== "
  * The title on the profile's Simkl lists (#86), under a title page's actions: only when the profile
  * has linked Simkl and the title is one Simkl can be told about (`tt…` or `kitsu:N`). Its list and
  * its rating 1 to 10, each in a menu, and a link to the title's page on Simkl, which Simkl's API
- * rules ask for.
+ * rules ask for, with Simkl's monochrome mark in it (#319): Simkl's own file, unchanged, drawn as a
+ * mask in the link's colour, as the rules suggest (credited in credits.ts and docs/licensing.md).
  */
 export function SimklPanel({ item }: { item: { id: string; type: ContentType } }) {
   const t = useSimklTitle(item);
@@ -79,6 +82,7 @@ export function SimklPanel({ item }: { item: { id: string; type: ContentType } }
         </MenuPopup>
       </MenuRoot>
       <button type="button" className="simkl-page t-caption" onClick={() => void open()}>
+        <span className="simkl-mark" aria-hidden style={{ "--simkl-mark": `url("${simklMark}")` } as CSSProperties} />
         View on Simkl
       </button>
     </div>
