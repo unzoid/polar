@@ -200,6 +200,8 @@ test("on a phone, a long press on a source opens its info; no i button shows (#2
   const panel = app.getByRole("dialog", { name: "Source Info" });
   await expect(panel).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
   expect(await panel.textContent()).not.toContain("TOKEN0000");
+  // Best Match's table scrolls sideways inside the card, never the page (#274).
+  await expect(panel.getByRole("table").getByRole("rowheader", { name: "Total" })).toBeAttached();
   expect(await fitsWidth(app)).toBe(true);
   await panel.getByRole("button", { name: "Done" }).tap();
   await expect(panel).toHaveCount(0);

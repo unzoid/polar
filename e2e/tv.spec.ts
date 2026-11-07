@@ -131,6 +131,7 @@ test("in a title's Sources, holding OK on a row opens its menu; Info shows the s
   await expect(body).toBeFocused();
   await expect(info).toContainText("https://media.example/token/•••/4.mp4?apikey=•••");
   expect(await info.textContent()).not.toContain("TOKEN0000");
+  await expect(info.getByRole("table").getByRole("rowheader", { name: "Total" })).toBeAttached();
   // Longer than the screen: down scrolls it.
   expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
   await press(app, "ArrowDown");

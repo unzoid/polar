@@ -113,9 +113,18 @@ export interface InfoRow {
   value: string;
 }
 
+/** A table in a section (Best Match's factors, #274): a header, the rows and a total, all text. */
+export interface InfoTable {
+  head: string[];
+  rows: string[][];
+  total: string[];
+}
+
 export interface InfoSection {
   title: string;
   rows: InfoRow[];
+  /** Shown before the rows. */
+  table?: InfoTable;
 }
 
 /** What the player reports about the playing file (mpv's properties, or the built-in player's few). */
@@ -191,11 +200,27 @@ function hiddenBy(r: RankedStream, f: SourceFilter): string[] {
   return out;
 }
 
-function scoreRows(r: RankedStream, ctx: SourceInfoContext): InfoRow[] {
+const ordinal = (n: number) => {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${s}`;
+};
+
+/** Best Match's table (#274): one row per factor bestMatch.ts scores, whatever they are, then the total and the rank. */
+function scoreSection(r: RankedStream, ctx: SourceInfoContext): InfoSection {
   // Without the list's (a source made in the app), only what the file says.
-  const { score, reasons } = ctx.match ?? scoreOne(r);
-  const sorted = ctx.sort && ctx.sort !== "best" ? ` (list sorted by ${SORTS[ctx.sort]})` : "";
-  return [{ label: "Score", value: `${Math.round(score * 10) / 10}${sorted}` }, ...reasons.map((x) => ({ label: x.reason, value: signed(x.points) }))];
+  const { score, factors, rank } = ctx.match ?? scoreOne(r);
+  return {
+    title: "Best Match",
+    table: {
+      head: ["Factor", "This source", "Points"],
+      rows: factors.map((f) => [f.label, f.input ?? "n/a", f.input == null ? "0" : signed(f.points)]),
+      total: ["Total", "", String(Math.round(score * 10) / 10)],
+    },
+    rows: [
+      row("Rank", rank && `${ordinal(rank.position)} of ${rank.of}`),
+      row("List sorted by", ctx.sort && ctx.sort !== "best" ? SORTS[ctx.sort] : null),
+    ].filter((x): x is InfoRow => !!x),
+  };
 }
 
 const kbps = (bps?: number) => (bps ? `${Math.round(bps / 1000)} kb/s` : null);
@@ -256,24 +281,41 @@ export function sourceInfo(r: RankedStream, ctx: SourceInfoContext = {}): InfoSe
         row("CAM or telesync", q.lowQualitySource ? "Yes, never picked by itself" : null),
         row("File says", r.fileEpisode),
         row("Another episode", r.otherEpisode ? "Yes, listed last and never picked by itself" : null),
-        ...scoreRows(r, ctx),
         row("Hidden by", ctx.filter ? hiddenBy(r, ctx.filter).join(", ") || "Nothing, it matches the filters" : null),
       ].filter((x): x is InfoRow => !!x),
     },
+    scoreSection(r, ctx),
   ];
   if (ctx.playing) sections.push({ title: "What the Player Reports", rows: playingRows(ctx.playing) });
+  const maskRow = (cells: string[]) => cells.map(maskText);
   return sections
-    .filter((sec) => sec.rows.length)
+    .filter((sec) => sec.rows.length || sec.table)
     .map((sec) => ({
       ...sec,
       // An info hash is a hash, not a key: everything else goes through the mask.
       rows: sec.rows.map((x) => ({ label: maskText(x.label), value: x.label === "Info hash" ? x.value : maskText(x.value) })),
+      table: sec.table && { head: sec.table.head, rows: sec.table.rows.map(maskRow), total: maskRow(sec.table.total) },
     }));
+}
+
+/** A table as plain text, its columns lined up (the last one, points, to the right). */
+function tableText(t: InfoTable): string[] {
+  const all = [t.head, ...t.rows, t.total];
+  const width = t.head.map((_, c) => Math.max(...all.map((cells) => cells[c].length)));
+  const line = (cells: string[]) =>
+    "  " + cells.map((x, c) => (c === cells.length - 1 ? x.padStart(width[c]) : x.padEnd(width[c]))).join("  ").trimEnd();
+  return [line(t.head), ...t.rows.map(line), line(t.total)];
 }
 
 /** What Copy puts on the clipboard: the same masked rows as text. */
 export function sourceInfoText(sections: InfoSection[]): string {
   return sections
-    .map((sec) => [sec.title, ...sec.rows.map((x) => `  ${x.label}: ${x.label === "Info hash" ? x.value : maskText(x.value)}`)].join("\n"))
+    .map((sec) =>
+      [
+        sec.title,
+        ...(sec.table ? tableText(sec.table) : []),
+        ...sec.rows.map((x) => `  ${x.label}: ${x.label === "Info hash" ? x.value : maskText(x.value)}`),
+      ].join("\n"),
+    )
     .join("\n\n");
 }
