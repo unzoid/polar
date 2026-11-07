@@ -59,13 +59,15 @@ export interface RoomRules {
   control: "everyone" | "host";
   /** Hold playback while someone is loading the video. */
   wait: boolean;
+  /** Hold playback while someone stalls mid-video (#238); absent from older apps' rules: off. */
+  stall: boolean;
   /** New joiners wait for the host's OK. */
   approve: boolean;
   /** Removed by the host: not shown, not listened to. */
   out: string[];
 }
 
-export const DEFAULT_RULES: RoomRules = { v: 0, host: null, locked: false, control: "everyone", wait: true, approve: false, out: [] };
+export const DEFAULT_RULES: RoomRules = { v: 0, host: null, locked: false, control: "everyone", wait: true, stall: false, approve: false, out: [] };
 
 /** Why a joiner was turned away. */
 export type Refusal = "locked" | "denied";
@@ -89,7 +91,7 @@ export type PartyMessage =
   /** "Your presence entry is missing or out of date here: send it again" (#203). */
   | { t: "presence"; from: string; to: string }
   /** Where this member's player is, for "3 s behind". */
-  | { t: "at"; from: string; videoId: string; position: number; paused: boolean; lag: number };
+  | { t: "at"; from: string; videoId: string; position: number; paused: boolean; lag: number; stalled?: boolean };
 
 const ID_MAX = 64;
 /** More removals than any real party makes; the oldest drop off. */
@@ -174,10 +176,11 @@ export function parseRules(x: unknown): RoomRules | undefined {
   if (!isRecord(x) || !Number.isSafeInteger(x.v) || (x.v as number) < 1) return undefined;
   if (typeof x.locked !== "boolean" || typeof x.wait !== "boolean" || typeof x.approve !== "boolean") return undefined;
   if (x.control !== "everyone" && x.control !== "host") return undefined;
+  if (x.stall !== undefined && typeof x.stall !== "boolean") return undefined;
   const host = x.host === null ? null : id(x.host);
   if (host === undefined || !Array.isArray(x.out)) return undefined;
   const out = x.out.map(id).filter((o): o is string => !!o);
-  return { v: x.v as number, host, locked: x.locked, control: x.control, wait: x.wait, approve: x.approve, out: [...new Set(out)].slice(-OUT_MAX) };
+  return { v: x.v as number, host, locked: x.locked, control: x.control, wait: x.wait, stall: x.stall === true, approve: x.approve, out: [...new Set(out)].slice(-OUT_MAX) };
 }
 
 /** A broadcast message, or null if it isn't one this version understands. */
@@ -220,7 +223,10 @@ export function parseMessage(x: unknown): PartyMessage | null {
     case "at": {
       const videoId = mediaId(x.videoId);
       if (!videoId || !finite(x.position) || typeof x.paused !== "boolean") return null;
-      return { t: "at", from, videoId, position: clamp(x.position, 0, POSITION_MAX), paused: x.paused, lag: finite(x.lag) ? clamp(x.lag, 0, LAG_MAX) : 0 };
+      const lag = finite(x.lag) ? clamp(x.lag, 0, LAG_MAX) : 0;
+      // Stalled mid-video (#238); older apps leave it out.
+      const stalled = typeof x.stalled === "boolean" ? { stalled: x.stalled } : {};
+      return { t: "at", from, videoId, position: clamp(x.position, 0, POSITION_MAX), paused: x.paused, lag, ...stalled };
     }
     default:
       return null;

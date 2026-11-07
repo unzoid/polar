@@ -53,6 +53,8 @@ pub const READ_ONLY_PROPERTIES: &[&str] = &[
     "video-params",
     "video-bitrate",
     "audio-bitrate",
+    // Best Match (#230): what the connection carries while the cache fills, in bytes per second.
+    "cache-speed",
 ];
 
 /// Media and subtitles only ever come from the network (addons, or a server
@@ -130,6 +132,8 @@ mod tests {
         assert!(check_command(&[json!("frame-step"), json!(100000), json!("play")]).is_err());
         assert!(check_command(&[json!("frame-back-step"), json!(5)]).is_err());
         assert!(check_command(&[json!("get_property"), json!("container-fps")]).is_ok());
+        assert!(check_command(&[json!("get_property"), json!("cache-speed")]).is_ok());
+        assert!(check_command(&[json!("set"), json!("cache-speed"), json!(0)]).is_err());
         assert!(check_command(&[json!("set"), json!("time-pos"), json!(0)]).is_err());
         for prop in ["file-format", "video-codec", "video-params", "video-bitrate", "audio-bitrate"] {
             assert!(check_command(&[json!("get_property"), json!(prop)]).is_ok(), "{prop} is readable");

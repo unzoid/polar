@@ -83,13 +83,21 @@ export function usePartySync({
     if (inParty && !leaving && !own) setPartyWaiting(!onRoomVideo || !started);
   }, [inParty, onRoomVideo, started, leaving, own]);
 
-  // A stall that lasts is shown to the others as Buffering, not waited for.
+  // A stall that lasts is shown to the others as Buffering, and held for if the
+  // room's rules say so (#238). The room hears of it (and where it stopped, so it
+  // holds there) at once from a position report: presence updates are rationed.
+  const stalled = useRef(false);
   useEffect(() => {
     if (!inParty || leaving) return;
-    if (!buffering || !started) return setPartyBuffering(false);
-    const t = window.setTimeout(() => setPartyBuffering(true), BUFFERING_SHOWN_MS);
+    const tell = (on: boolean) => {
+      if (stalled.current !== on && media && onRoomVideo) reportPosition(videoId, media.currentTime, media.paused || on, on);
+      stalled.current = on;
+      setPartyBuffering(on);
+    };
+    if (!buffering || !started) return tell(false);
+    const t = window.setTimeout(() => tell(true), BUFFERING_SHOWN_MS);
     return () => window.clearTimeout(t);
-  }, [inParty, buffering, started, leaving]);
+  }, [inParty, buffering, started, leaving, media, onRoomVideo, videoId]);
 
   // In the player, or out browsing (the party goes on; the room stops waiting for
   // you). Away from the moment Back is pressed, not when the fade-out ends.
@@ -137,7 +145,8 @@ export function usePartySync({
   // Where this player is, now and then, so the others see if it falls behind.
   useEffect(() => {
     if (!media || !inParty || leaving || !onRoomVideo || !started) return;
-    const report = () => reportPosition(videoId, media.currentTime, media.paused);
+    // Stalled isn't moving, whatever the engine's paused flag says.
+    const report = () => reportPosition(videoId, media.currentTime, media.paused || stalled.current, stalled.current);
     report();
     const t = window.setInterval(report, REPORT_MS);
     return () => window.clearInterval(t);
