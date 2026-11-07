@@ -1,4 +1,5 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
+import { emit } from "@tauri-apps/api/event";
 
 import * as fx from "./fixtures";
 import { fakeAccount } from "./account";
@@ -99,6 +100,12 @@ const commands: Record<string, (a: Args) => unknown> = {
   },
   download_remove: (a) => void (downloads = downloads.filter((d) => d.id !== a.id)),
   download_reveal: () => undefined,
+  // Notifications (#209): what would be shown or planned is kept for browser tests to read.
+  notifications_permission: () => "granted",
+  notifications_request: () => "granted",
+  notifications_show: (a) => void ((window as { __notes?: unknown[] }).__notes ??= []).push(a.note),
+  notifications_plan: (a) => void ((window as { __plannedNotes?: unknown }).__plannedNotes = a.notes),
+  notifications_take_launch: () => null,
   controllers_list: () => [],
   mpv_available: () => false,
   // Discord: what the player sends is kept for browser tests to read.
@@ -144,3 +151,6 @@ mockIPC(
   },
   { shouldMockEvents: true },
 );
+
+// A click on a note, as the native shell reports it (#209).
+(window as { __polarFakeNoteClick?: (payload: string) => void }).__polarFakeNoteClick = (payload) => void emit("notification://click", payload);

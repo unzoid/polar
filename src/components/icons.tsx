@@ -36,6 +36,7 @@ export const ChevronRight = icon(S24.ChevronRightIcon, S20.ChevronRightIcon, S16
 export const Close = icon(S24.XMarkIcon, S20.XMarkIcon, S16.XMarkIcon);
 export const Controls = icon(S24.CommandLineIcon, S20.CommandLineIcon, S16.CommandLineIcon);
 export const Desktop = icon(S24.ComputerDesktopIcon, S20.ComputerDesktopIcon, S16.ComputerDesktopIcon);
+export const Bell = icon(S24.BellIcon, S20.BellIcon, S16.BellIcon);
 export const Edit = icon(S24.PencilIcon, S20.PencilIcon, S16.PencilIcon);
 export const Episodes = icon(S24.RectangleStackIcon, S20.RectangleStackIcon, S16.RectangleStackIcon);
 export const ExitFullscreen = icon(S24.ArrowsPointingInIcon, S20.ArrowsPointingInIcon, S16.ArrowsPointingInIcon);

@@ -90,6 +90,16 @@ export interface Prefs {
   /** The TV mode button in the navbar (Settings → Controls & TV). */
   showTvButton: boolean;
 
+  // Notifications (#209), on this device: each kind off until switched on (phones ask for permission then).
+  /** A series being followed has a new episode out. */
+  notifyEpisodes: boolean;
+  /** A series being followed has a new season out. */
+  notifySeasons: boolean;
+  /** A download finished or failed. */
+  notifyDownloads: boolean;
+  /** Which series count as followed: the library and what's been started, or only what's been started. */
+  notifyScope: "library" | "started";
+
   /** Ecchi anime (AniList's adult titles never show): as is, blurred, or left out. Synced. */
   matureContent: "show" | "blur" | "hide";
 
@@ -172,6 +182,10 @@ const DEFAULTS: Prefs = {
   searchSuggestions: true,
   autoDownloadUpdates: true,
   showTvButton: true,
+  notifyEpisodes: false,
+  notifySeasons: false,
+  notifyDownloads: false,
+  notifyScope: "library",
   matureContent: "show",
   animeEnabled: true,
   animeHiddenShelves: "",

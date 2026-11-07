@@ -15,6 +15,7 @@ import { Search } from "./screens/Search";
 import { Detail } from "./screens/Detail";
 import { Anime, AnimeBrowse, AnimeSchedule } from "./screens/Anime";
 import { useAccount } from "./lib/account";
+import { useNotifications } from "./lib/notifications";
 import { ControllerToast } from "./tv/TvChrome";
 import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
 import { dismissDepth, lazyNamed, pressEscape, systemBackAction, usePageFocus, useSystemBack } from "./lib/ui";
@@ -207,6 +208,8 @@ function MainApp() {
 
   // Anime turned off (here or on another device) while you're in it: nothing to stay on.
   const { stack, tab } = useRouter();
+  // New episodes, finished downloads, clicks on notes (#209).
+  useNotifications();
   const inAnime = rootTab(stack).name === "anime";
   useEffect(() => {
     if (inAnime && !animeEnabled) tab({ name: "home" });

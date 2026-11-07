@@ -7,6 +7,7 @@ export type PageId =
   | "appearance"
   | "browsing"
   | "anime"
+  | "notifications"
   | "controls"
   | "controller"
   | "marketplace"
@@ -23,6 +24,7 @@ export const PAGE_LABELS: Record<PageId, string> = {
   appearance: "Appearance",
   browsing: "Browsing",
   anime: "Anime",
+  notifications: "Notifications",
   controls: "Controls & TV",
   controller: "Controller",
   marketplace: "Marketplace",
