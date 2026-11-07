@@ -34,6 +34,7 @@
   --focus: color-mix(in srgb, var(--accent) 65%, white);
   --progress: #f5f5f7;
   --danger: #ff6b5e;
+  --online: #30d158; /* system green: a friend online (#135) */
   --good: #5ed39a;
 
   /* Glass: one recipe, two weights. Heavy for structure, light for controls. */

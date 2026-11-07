@@ -195,6 +195,17 @@ test.describe("signed in, on a fresh profile", () => {
     // The remote carries on from inside the panel, not from nowhere.
     await expect(focused(app)).toHaveAccessibleName("Copy Invite");
   });
+  test("Home's Friends row: friends in a party first; OK joins the party (#135)", async ({ app }) => {
+    // Friends turned on (on another device, as far as TV is concerned): Home lists them.
+    await app.goto("/fake.html?account=1&friends=1");
+    const row = app.locator(".tv-rail").filter({ has: app.locator(".tv-rail-title", { hasText: "Friends" }) });
+    await expect(row.locator(".tv-friend").first()).toContainText("Sam");
+    await expect(row.locator(".tv-friend").first()).toContainText("In a watch party · Big Buck Bunny");
+    await expect(row.locator(".tv-rail-title")).toContainText("1 friend request");
+    await row.locator(".tv-friend").first().focus();
+    await press(app, "Enter");
+    await expect(row.locator(".tv-rail-title")).toContainText("Joining the watch party…");
+  });
 });
 
 test("Downloads opens from the Library's rail and its titles open and close with the remote (#15)", async ({ app }) => {

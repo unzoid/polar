@@ -97,6 +97,7 @@ import {
   useParty,
   usePartySurface,
 } from "../lib/party";
+import { setWatching } from "../lib/friends";
 import { usePartySync } from "../components/player/usePartySync";
 import { useDiscordPresence } from "../components/player/useDiscordPresence";
 import { LinkForm, PartyBadge, PartyHold, PartyNotes, PartyStart } from "../components/party/PartyUI";
@@ -482,6 +483,14 @@ export function Player({
   const { pauseOnMinimize, discordPresence } = usePrefs();
   // A file on this device stays private: its name isn't shown on Discord.
   useDiscordPresence(media, meta, videoId, local ? "off" : discordPresence);
+  // What friends may see playing (#135); the same rule: never a file on this device.
+  const playingVideo = meta?.videos?.find((v) => v.id === videoId);
+  const friendsLabel = playingVideo?.season !== undefined && playingVideo.episode !== undefined ? `S${playingVideo.season}:E${playingVideo.episode}` : undefined;
+  useEffect(() => {
+    if (local || !meta?.name) return;
+    setWatching({ type, metaId, title: meta.name, ...(friendsLabel ? { label: friendsLabel } : {}) });
+    return () => setWatching(null);
+  }, [local, type, metaId, meta?.name, friendsLabel]);
   useEffect(() => {
     if (!pauseOnMinimize) return;
     const unlisten = win.onResized(() => {
