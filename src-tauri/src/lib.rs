@@ -3,6 +3,7 @@ mod automation;
 mod commands;
 mod controllers;
 mod discord;
+mod disk;
 mod downloads;
 mod imdb;
 mod introdb;
@@ -10,6 +11,7 @@ mod keychain;
 mod local_files;
 mod locks;
 mod logging;
+mod native_back;
 mod native_dialogs;
 mod native_tabs;
 mod player;
@@ -290,6 +292,7 @@ pub fn run() {
             downloads::download_resume,
             downloads::download_remove,
             downloads::download_reveal,
+            downloads::downloads_storage,
             controllers::controllers_list,
             sync::space_activate,
             sync::space_import_local,
@@ -319,6 +322,7 @@ pub fn run() {
             player::mpv_snapshot,
             player::player_system_bars,
             native_tabs::native_tabs,
+            native_back::native_back,
             native_dialogs::native_dialog,
             native_dialogs::native_share,
         ])

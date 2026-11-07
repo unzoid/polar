@@ -28,6 +28,7 @@ import { TvAnime, TvAnimeDetail } from "./TvAnime";
 import { TvDetail } from "./TvDetail";
 import { TvDiscover, TvHome, TvLibrary, TvSearch } from "./TvScreens";
 import { TvCalendar } from "./TvCalendar";
+import { TvDownloads } from "./TvDownloads";
 import { TvSettings } from "./TvSettings";
 import { TvJoinParty } from "./TvJoinParty";
 import { useJoinPartyOpen, usePartyMenuOpen } from "../lib/party";
@@ -43,9 +44,10 @@ function TvScreen({ route }: { route: Route }) {
       return <TvHome />;
     case "discover":
       return <TvDiscover type={route.type} />;
-    case "library":
-    // Collections and playlists are desktop pages; switching modes on one lands here.
     case "library-collection":
+      return route.view === "downloads" ? <TvDownloads /> : <TvLibrary />;
+    case "library":
+    // The other collections and playlists are desktop pages; switching modes on one lands here.
     case "playlist":
       return <TvLibrary />;
     case "calendar":

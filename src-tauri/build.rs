@@ -16,9 +16,14 @@ fn main() {
     // tauri.ios.conf.json (`bundle.iOS.frameworks`) instead.
     let native: &[&str] = match os.as_str() {
         "macos" => &["src/macos/mpv_view.m"],
-        "ios" => {
-            &["src/ios/mpv_view.m", "src/ios/files.m", "src/ios/system_bars.m", "src/ios/tabs.m", "src/ios/dialogs.m"]
-        }
+        "ios" => &[
+            "src/ios/mpv_view.m",
+            "src/ios/files.m",
+            "src/ios/system_bars.m",
+            "src/ios/tabs.m",
+            "src/ios/dialogs.m",
+            "src/ios/back.m",
+        ],
         _ => &[],
     };
     if !native.is_empty() {

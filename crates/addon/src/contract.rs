@@ -87,6 +87,7 @@ fn field_names_match_contract() {
         released: s("2024-01-01"),
         countries: vec!["US".into()],
         languages: vec!["en".into()],
+        original_language: s("en"),
         studios: vec!["S".into()],
         writers: vec!["W".into()],
         awards: s("a"),

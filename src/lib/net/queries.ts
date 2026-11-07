@@ -1,4 +1,4 @@
-import { type QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { api } from "../api";
 import { errorCode } from "../errors";
@@ -60,7 +60,7 @@ export function useStreams(type: ContentType, videoId: string | undefined) {
 }
 
 /** Whether a video is anime: a Kitsu id, or an IMDb show ani.zip knows. */
-function useIsAnime(videoId: string | undefined) {
+export function useIsAnime(videoId: string | undefined) {
   const imdb = videoId?.startsWith("tt") ? videoId.split(":")[0] : undefined;
   const { data: anime } = useQuery({
     ...aniZipLookup({ imdb_id: imdb ?? "" }),
@@ -85,6 +85,16 @@ export function useRatings(type: ContentType, id: string) {
 
 export const useProgress = (metaId: string) =>
   useQuery({ queryKey: keys.progress(metaId), queryFn: () => api.progressFor(metaId), staleTime: 0 });
+
+/** Several titles' progress at once, flattened (the Downloads page's watched marks, #15); the same cache as useProgress. */
+export const useProgressOf = (metaIds: string[]) =>
+  useQueries({
+    queries: metaIds.map((metaId) => ({ queryKey: keys.progress(metaId), queryFn: () => api.progressFor(metaId), staleTime: 0 })),
+    combine: flatProgress,
+  });
+
+// Outside the hook, so the combined list keeps its identity until a result changes.
+const flatProgress = (results: { data?: Progress[] }[]) => results.flatMap((r) => r.data ?? []);
 
 export const useContinueWatching = () =>
   useQuery({ queryKey: keys.continue, queryFn: api.continueWatching, staleTime: 0 });

@@ -4,6 +4,8 @@ import {
   aniZipQuery,
   cardFacts,
   countdown,
+  entryAction,
+  type EntryAction,
   prefetchAnime,
   FORMAT_LABEL,
   isMature,
@@ -21,6 +23,7 @@ import { api } from "../../lib/api";
 import { useCardIntent } from "../../lib/ui";
 import { ArtTitle, Card } from "../title/Card";
 import { Star, Warning } from "../icons";
+import { openTrailer } from "../Trailer";
 
 /**
  * Settings → Browsing → Mature content, "blur": the art behind dark frosted
@@ -82,17 +85,32 @@ export function useOpenAnime(item: Media) {
  * loads and, as Settings → Anime has them, the AniList score and when the next
  * episode lands. `label` replaces the caption's facts (a relation type,
  * "Episode 5 · 18:30"). `onOpen` replaces opening its page (a season tab of the
- * page it's on); `current` marks the entry on screen.
+ * page it's on); `current` marks the entry on screen. `action` is what a click
+ * does instead of opening its page (lib/anime/franchiseEntry.ts); a manga or
+ * novel always opens on the site Settings → Anime picks.
  */
-export function AnimeCard({ item, label, onOpen, current }: { item: Media; label?: string; onOpen?: (e: React.MouseEvent<HTMLElement>) => void; current?: boolean }) {
+export function AnimeCard({
+  item,
+  label,
+  onOpen,
+  current,
+  action: given,
+}: {
+  item: Media;
+  label?: string;
+  onOpen?: (e: React.MouseEvent<HTMLElement>) => void;
+  current?: boolean;
+  action?: EntryAction;
+}) {
   const title = useAnimeTitle()(item.title);
   const open = useOpenAnime(item);
   const prefs = usePrefs();
   const next = prefs.animeCardCountdown ? item.nextAiringEpisode : undefined;
   const score = useAnimeScore()(prefs.animeCardScores ? item.averageScore : undefined);
-  // A manga or novel in a franchise has no page here: it opens on MyAnimeList
-  // (AniList when MAL doesn't list it), badged so it doesn't pass for a show.
+  // A manga or novel in a franchise has no page here: it opens on the chosen site (AniList when MyAnimeList
+  // doesn't list it), badged so it doesn't pass for a show; so does an entry Polarity can't play (#192).
   const isAnime = item.type !== "MANGA";
+  const action: EntryAction = given ?? (isAnime ? { kind: "page" } : entryAction(item, prefs.animeReadOn));
   // The linked IMDb title's poster first, so every season of a show looks alike (#27), unless seasons are
   // separate shows (#194): then the entry's own cover. Nothing until the links answer.
   const imdb = useLinkedImdb(isAnime ? item.id : 0);
@@ -100,7 +118,12 @@ export function AnimeCard({ item, label, onOpen, current }: { item: Media; label
   const separate = prefs.animeSeparateEntries;
   const [art, ...artFallbacks] = !isAnime ? (cover ? [cover] : []) : imdb === undefined ? [] : posterArt({ imdb, cover, separate });
   if (prefs.matureContent === "hide" && isMature(item)) return null;
-  const readOn = item.idMal ? `https://myanimelist.net/manga/${item.idMal}` : `https://anilist.co/manga/${item.id}`;
+  const click =
+    action.kind === "site"
+      ? { onClick: () => void api.openExternal(action.url), hint: `Open on ${action.site}` }
+      : action.kind === "youtube"
+        ? { onClick: () => openTrailer({ name: title, ytId: action.ytId, ytFirst: true, ytFrom: "AniList" }), hint: "Play on YouTube" }
+        : open;
 
   return (
     <Card
@@ -118,12 +141,12 @@ export function AnimeCard({ item, label, onOpen, current }: { item: Media; label
           ? [item.format && FORMAT_LABEL[item.format], `Ep ${next.episode} in ${countdown(untilAiring(next.airingAt))}`].filter(Boolean).join(" · ")
           : cardFacts(item))
       }
-      {...(isAnime ? open : { onClick: () => void api.openExternal(readOn), hint: "Open on MyAnimeList" })}
+      {...click}
       {...(onOpen && { onClick: onOpen })}
       style={{ "--cover": item.coverImage.color ?? undefined } as React.CSSProperties}
     >
       {prefs.matureContent === "blur" && isMature(item) && <MatureCover />}
-      {!isAnime && <span className="card-kind-badge">{item.format === "NOVEL" ? "Novel" : "Manga"}</span>}
+      {action.kind !== "page" && <span className="card-kind-badge">{action.badge}</span>}
       {score && (
         <span className="card-score card-score-art anime-card-score tabular" title="AniList score">
           <Star size={11} />

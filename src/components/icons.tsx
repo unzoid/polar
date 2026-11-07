@@ -40,6 +40,8 @@ export const Edit = icon(S24.PencilIcon, S20.PencilIcon, S16.PencilIcon);
 export const Episodes = icon(S24.RectangleStackIcon, S20.RectangleStackIcon, S16.RectangleStackIcon);
 export const ExitFullscreen = icon(S24.ArrowsPointingInIcon, S20.ArrowsPointingInIcon, S16.ArrowsPointingInIcon);
 export const Fullscreen = icon(S24.ArrowsPointingOutIcon, S20.ArrowsPointingOutIcon, S16.ArrowsPointingOutIcon);
+/** The player's Fit / Fill on desktop (#183), where the arrows are fullscreen's. */
+export const FillWindow = icon(S24.ViewfinderCircleIcon, S20.ViewfinderCircleIcon, S16.ViewfinderCircleIcon);
 export const Grid = icon(S24.Squares2X2Icon, S20.Squares2X2Icon, S16.Squares2X2Icon);
 export const Hidden = icon(S24.EyeSlashIcon, S20.EyeSlashIcon, S16.EyeSlashIcon);
 export const Info = icon(S24.InformationCircleIcon, S20.InformationCircleIcon, S16.InformationCircleIcon);

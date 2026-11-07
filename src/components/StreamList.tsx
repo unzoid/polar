@@ -2,9 +2,9 @@ import { useRef, useState } from "react";
 import { AlertCircle, Check, Info, Instant } from "./icons";
 import { useRouter } from "../lib/router";
 import { openSettings, type PageId } from "../lib/settings";
-import { useMeta, useSettings, useStreams } from "../lib/net";
+import { useMeta, useStreams } from "../lib/net";
 import { runtimeSeconds } from "../lib/format";
-import { READY_CHECKS, readinessNote, sourceRow, TAG_LABELS, tagsOf, useReadiness, useSourceFilters } from "../lib/playback";
+import { READY_CHECKS, readinessNote, sourceRow, TAG_LABELS, tagsOf, useReadiness, useSourceFilters, useTitleSettings } from "../lib/playback";
 import type { ContentType, RankedStream, Readiness } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
 import { Button } from "./ui/Button";
@@ -35,7 +35,8 @@ export function StreamList({
   // Desktop settings are the overlay over this page; TV has its own settings screen.
   const showSettings = (page: PageId) => (tv ? tab({ name: "settings", page }) : openSettings(page));
   const { data, isLoading, isError, error } = useStreams(type, videoId);
-  const { data: settings } = useSettings();
+  // An anime's languages (default filter, Best Match) are Settings → Anime's (#235).
+  const { settings } = useTitleSettings(type, videoId);
   // The title's length, for Best Match's bitrates: its meta is usually already loaded (the page behind this list).
   const { data: meta } = useMeta(type, videoId.replace(/:\d+:\d+$/, ""));
   const f = useSourceFilters(data?.streams, settings, undefined, runtimeSeconds(meta?.runtime));

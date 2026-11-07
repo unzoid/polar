@@ -231,6 +231,10 @@
   opacity: 0;
   pointer-events: none;
 }
+/* On iOS the system draws Back over this one (NativeBack.tsx): it keeps its place, unseen. */
+[data-native-back] {
+  visibility: hidden;
+}
 @media (prefers-reduced-motion: reduce) {
   .navbar-back {
     transition: opacity var(--dur-fast) var(--ease-std);
