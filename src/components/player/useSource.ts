@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
-import { useProgress, useSettings, useStreams } from "../../lib/net";
-import { autoPickOrder, describeStream, describeTorrent, torrentLimits, type TorrentStep } from "../../lib/playback";
+import { useMeta, useProgress, useSettings, useStreams } from "../../lib/net";
+import {
+  autoPickOrder,
+  describeStream,
+  describeTorrent,
+  recordFail,
+  recordTry,
+  torrentLimits,
+  useMatchContext,
+  type SourceKind,
+  type TorrentStep,
+} from "../../lib/playback";
+import { runtimeSeconds } from "../../lib/format";
 import { on } from "../../lib/platform";
 import { getPrefs, setPrefs } from "../../lib/settings";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
@@ -21,6 +32,8 @@ interface Candidate {
   stream: Stream;
   label?: string;
   addon?: string;
+  /** Its release group, for what worked before (sourceHistory.ts). */
+  group?: string | null;
 }
 
 let torrentSteps = 0;
@@ -38,6 +51,8 @@ let torrentSteps = 0;
  * too (peer counts until `started()` says the picture is up), and closed when
  * the player goes or falls through to the next source. The first torrent on a
  * device waits for the user's Play or Cancel in a notice first (Prefs.torrentNotice).
+ * Each try of a ranked source, and each that fails to open, is kept for Best Match
+ * (sourceHistory.ts); the player records whether it started and played through.
  */
 export function useSource(
   type: ContentType,
@@ -57,6 +72,11 @@ export function useSource(
   const needsRanking = !picked && (!!prefer || (saved !== undefined && !saved?.stream));
   const streams = useStreams(type, needsRanking ? videoId : undefined);
   const { data: settings } = useSettings();
+  // Best Match for this device; the runtime gives the files' bitrates.
+  const { data: meta } = useMeta(type, metaId, needsRanking);
+  const match = useMatchContext(settings, runtimeSeconds(meta?.runtime));
+  const matchRef = useRef(match);
+  matchRef.current = match;
   useEffect(() => {
     if (needsRanking) log("Asking your add-ons for sources", "info", "sources");
   }, [needsRanking, log]);
@@ -79,7 +99,7 @@ export function useSource(
       // Best match for this screen, narrowed by the filters you set in the player
       // for this show (next episode: the same kind of file), else by the source
       // preferences in Settings, when they leave something.
-      const ranked = autoPickOrder(streams.data.streams, settings, metaId);
+      const ranked = autoPickOrder(streams.data.streams, settings, metaId, matchRef.current);
       // The room's file first, even past Settings' filters: same file, same timing.
       const same = prefer ? streams.data.streams.find((r) => sameFile(r.stream, prefer)) : undefined;
       const { streams: all, failed, hidden = 0 } = streams.data;
@@ -98,7 +118,7 @@ export function useSource(
       setCandidates(
         (same ? [same, ...ranked.filter((r) => r !== same)] : ranked)
           .slice(0, 5)
-          .map((s) => ({ stream: s.stream, label: s.label, addon: s.addon })),
+          .map((s) => ({ stream: s.stream, label: s.label, addon: s.addon, group: s.quality.source })),
       );
     } else if (streams.isError) {
       log(`Couldn't ask the add-ons: ${errorMessage(streams.error)}`, "fail", "sources");
@@ -127,7 +147,9 @@ export function useSource(
     const name = [candidate.label, candidate.addon].filter(Boolean).join(" · ");
     log(`Source ${attempt + 1} of ${candidates.length}${name ? `: ${name}` : ""}`, "info", "link");
     setState({ status: "resolving", ...candidate });
+    recordTry(candidate);
     const fail = (reason: string) => {
+      recordFail(candidate);
       log(reason, "fail", "link");
       setState({ status: "failed", reason });
     };
@@ -187,6 +209,8 @@ export function useSource(
     },
     /** Resume point captured when playback started. */
     resume: saved ?? undefined,
+    /** The add-on and release group of the source being tried, when it came from the ranked list. */
+    kind: (candidates?.[attempt] ?? {}) as SourceKind,
     /** Try the next candidate after a playback error. False if none left. */
     next: () => {
       if (!candidates || attempt + 1 >= candidates.length) return false;
