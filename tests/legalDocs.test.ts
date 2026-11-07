@@ -77,3 +77,20 @@ test("90-day clearing of removals, as PRIVACY.md says", () => {
   expect(migrations).toContain("Removals older than 90 days are purged to make room when a profile reaches");
   expect(privacy).toContain("markers older than 90 days are cleared when a profile reaches its size limit");
 });
+
+test("#245: no placeholder is left, and the filled-in values are there", () => {
+  for (const text of [privacy, terms]) {
+    expect(text).not.toMatch(/to fill in|to be added/i);
+    expect(text).toContain("Last updated: 07/11/2026");
+  }
+  expect(privacy).toContain("Hosted in the EU: Supabase's eu-west-3 region (Paris, France).");
+  expect(privacy).toContain("are kept for 1 day");
+  expect(privacy).toContain("Backups of the account server are kept for 1 day");
+});
+
+test("#245: PRIVACY.md says what Android's system backup copies, and the keychain stays out of it", () => {
+  expect(privacy).toContain("**Android's system backup:**");
+  expect(privacy).toContain("It never copies your keys, add-on links or sign-ins");
+  // What it promises: PolarKeys.kt writes the keychain to the no-backup folder.
+  expect(read("src-tauri/gen/android/app/src/main/java/app/getpolar/desktop/PolarKeys.kt")).toContain("context.noBackupFilesDir");
+});
