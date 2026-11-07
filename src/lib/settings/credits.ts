@@ -15,6 +15,9 @@ export interface Credit {
 /** TMDB's required notice, in the words of its API terms of use (themoviedb.org/api-terms-of-use). */
 export const TMDB_NOTICE = "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.";
 
+/** Trakt's required line for apps using its API (developer.trakt.tv, API use policy). */
+export const TRAKT_NOTICE = "Polarity is not endorsed or certified by Trakt.";
+
 export const CREDITS: Credit[] = [
   { name: "TMDB", url: "https://www.themoviedb.org", use: "Catalogs, search, details, episodes, images and trailers, with your TMDB key" },
   { name: "Cinemeta (Stremio)", url: "https://www.stremio.com", use: "Catalogs and details without a TMDB key, and artwork" },
@@ -25,6 +28,7 @@ export const CREDITS: Credit[] = [
   { name: "TheTVDB", url: "https://thetvdb.com", use: "Anime episode titles, stills and artwork, by way of ani.zip" },
   { name: "MyAnimeList, via Jikan", url: "https://jikan.moe", use: "Which anime episodes are filler or recaps" },
   { name: "MyAnimeList", url: "https://myanimelist.net", use: "Your MyAnimeList list, when a profile links it (uses the MyAnimeList API)" },
+  { name: "Trakt", url: "https://trakt.tv", use: `Your Trakt history, watchlist and ratings, when a profile links it. ${TRAKT_NOTICE}` },
   { name: "Anime Filler List", url: "https://www.animefillerlist.com", use: "Filler episodes when Jikan has none" },
   { name: "AniSkip", url: "https://aniskip.com", use: "Anime opening and ending times" },
   { name: "IntroDB", url: "https://introdb.app", use: "Intro, recap and credits times" },
