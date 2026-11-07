@@ -415,6 +415,16 @@
 .episode-card-main:disabled {
   opacity: 0.5;
 }
+/* An episode with no still: the show's banner, dimmed so it doesn't pass for the episode's own (#192). */
+.episode-still-fallback {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.episode-still-fallback .card-img {
+  filter: brightness(0.45) saturate(0.7);
+}
+
 .episode-runtime {
   position: absolute;
   left: 12px;

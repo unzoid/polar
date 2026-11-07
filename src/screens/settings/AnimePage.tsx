@@ -46,6 +46,10 @@ export function AnimePage() {
         <SettingRow id="animeCardCountdown" />
         <SettingRow id="animeSeparateEntries" />
       </Card>
+      <Card title="Also in This Franchise">
+        <SettingRow id="animeReadOn" />
+        <SettingRow id="animeHideUnplayable" />
+      </Card>
       <Card title="Schedule">
         <SettingRow id="animeScheduleAll" />
       </Card>
