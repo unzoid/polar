@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import "./storageStub";
 import { describeRequest, looksSecret, MASK, maskText, maskUrl, sourceInfo, sourceInfoText } from "../src/lib/playback/sourceInfo";
 import { NO_FILTER } from "../src/lib/playback/sources";
+import { NEUTRAL, scoreSources } from "../src/lib/playback/bestMatch";
 import type { RankedStream } from "../src/lib/types";
 
 // Invented keys, one per place a key turns up in add-on and stream links.
@@ -95,13 +96,6 @@ const stream = (patch: Partial<RankedStream> = {}): RankedStream => ({
     },
   },
   quality: { resolution: 2160, hdr: true, dolbyVision: false, codec: "HEVC", sizeBytes: 14.2e9, lowQualitySource: false, direct: true, languages: ["en", "ja"], tags: ["HDR10"] },
-  score: 53,
-  scoreReasons: [
-    { reason: "4K", points: 40 },
-    { reason: "Direct link", points: 10 },
-    { reason: "HDR", points: 2 },
-    { reason: "HEVC", points: 1 },
-  ],
   label: "4K · HDR · HEVC · 14.2 GB",
   requestId: "tt0000000:1:5",
   ...patch,
@@ -110,7 +104,7 @@ const stream = (patch: Partial<RankedStream> = {}): RankedStream => ({
 const rows = (r: RankedStream, ctx = {}) => new Map(sourceInfo(r, ctx).flatMap((s) => s.rows.map((x) => [x.label, x.value])));
 
 test("the copied text contains no key from any position", () => {
-  const text = sourceInfoText(sourceInfo(stream(), { filter: NO_FILTER, sort: "best", screen: 2160 }));
+  const text = sourceInfoText(sourceInfo(stream(), { filter: NO_FILTER, sort: "best" }));
   expect(secretsIn(text)).toEqual([]);
   expect(text).toContain("Request header Authorization: " + MASK);
   expect(text).toContain("Request header Cookie: " + MASK);
@@ -119,22 +113,28 @@ test("the copied text contains no key from any position", () => {
 });
 
 test("the panel says where a source came from and what was made of it", () => {
-  const m = rows(stream(), { filter: { ...NO_FILTER, res: "1080", lang: "ja" }, sort: "best", screen: 1080 });
+  const r = stream();
+  const device = { screen: 1080, preferScreen: true, hdr: false, dolbyVision: null, hevc: true, av1: null };
+  const m = rows(r, { filter: { ...NO_FILTER, res: "1080", lang: "ja" }, sort: "best", match: scoreSources([r], { ...NEUTRAL, device }).get(r) });
   expect(m.get("Add-on")).toBe("Open Films");
   expect(m.get("Asked by")).toBe("IMDb tt0000000, season 1, episode 5 (tt0000000:1:5)");
   expect(m.get("Resolution")).toBe("4K (2160p)");
   expect(m.get("Audio languages")).toBe("English, Japanese");
-  expect(m.get("4K")).toBe("+40");
+  expect(m.get("4K on a 1080p screen")).toBe("+40");
   expect(m.get("Bigger than this screen shows")).toBe("−8");
-  expect(m.get("Score")).toBe("45");
+  expect(m.get("HEVC, decoded by this device's hardware")).toBe("+1");
+  // An SDR screen: no points for HDR.
+  expect([...m.keys()].filter((k) => k.includes("HDR on"))).toEqual([]);
+  expect(m.get("Score")).toBe("43");
   expect(m.get("Hidden by")).toBe("Resolution");
   expect(m.get("videoSize")).toBe("14.2 GB (14200000000 bytes)");
 });
 
-test("a preferred group's boost is its own reason; another sort says so", () => {
-  const m = rows(stream({ score: 2053 }), { sort: "sizeDesc", screen: 2160 });
-  expect(m.get("Preferred release group")).toBe("+2000");
-  expect(m.get("Score")).toBe("2053 (list sorted by Largest File)");
+test("a preferred group is its own reason; another sort says so", () => {
+  const r = stream({ quality: { ...stream().quality, source: "GROUP" } });
+  const m = rows(r, { sort: "sizeDesc", match: scoreSources([r], { ...NEUTRAL, preferredGroups: ["group"] }).get(r) });
+  expect(m.get("GROUP, a release group you prefer")).toBe("+12");
+  expect(m.get("Score")).toBe("62 (list sorted by Largest File)");
 });
 
 test("the playing source adds what the player reports", () => {

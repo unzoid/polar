@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../api";
+import { keys } from "../net/queryKeys";
+import { preferredGroups } from "../anime/groups";
+import { usePrefs } from "../settings/prefs";
 import { languageName, langMatches } from "./languages";
 import { formatBytes } from "../format";
+import { NEUTRAL, scoreSources, type Match, type MatchContext } from "./bestMatch";
+import { useDeviceCaps } from "./device";
+import { connectionMbps, sourceRecord } from "./sourceHistory";
 import type { RankedStream, Settings, SourceSort } from "../types";
 
 /**
@@ -11,7 +19,8 @@ import type { RankedStream, Settings, SourceSort } from "../types";
  *  - a file-size range;
  *  - tags (Dolby Vision, HDR, Remux, Atmos…) that narrow the list one by one,
  *    some switched on by themselves when available (Settings → Sources);
- *  - "Best match" that knows this screen: no 4K first on a 1080p display.
+ *  - "Best match" (bestMatch.ts): this screen, this device, this connection, your
+ *    preferences and what played before.
  */
 
 // --- This screen ---------------------------------------------------------
@@ -116,14 +125,31 @@ export function sourceRow(r: RankedStream) {
 const res = (r: RankedStream) => r.quality.resolution ?? 0;
 const size = (r: RankedStream) => r.quality.sizeBytes ?? 0;
 
-/**
- * "Best match", aware of this screen: on a 1080p (or smaller) display a 4K
- * file is a bigger download for no visible gain, so it ranks as if it were a
- * notch lower.
- */
-export function bestScore(r: RankedStream, screen: number, preferScreen: boolean) {
-  const over = preferScreen && screen < 1300 && res(r) > Math.max(screen, 1080);
-  return r.score - (over ? 8 : 0);
+/** What Best Match weighs a list against (bestMatch.ts): this device, the connection, your settings, what played before. */
+export function useMatchContext(settings: Settings | undefined, runtimeSec?: number | null): MatchContext {
+  const { hwdec, animePreferredGroups } = usePrefs();
+  const engine = useQuery({ queryKey: keys.mpv, queryFn: api.mpvAvailable, staleTime: Infinity });
+  const caps = useDeviceCaps(engine.isFetched ? (engine.data ? "mpv" : "html") : null, hwdec);
+  const screen = useMemo(screenResolution, []);
+  const preferScreen = settings?.preferScreenResolution ?? true;
+  const groups = useMemo(() => preferredGroups(animePreferredGroups), [animePreferredGroups]);
+  const tags = settings?.sourceAutoTags;
+  const audio = settings?.audioLanguage ?? "";
+  return useMemo(
+    () => ({
+      device: { screen, preferScreen, ...caps },
+      connectionMbps: connectionMbps(),
+      runtimeSec: runtimeSec || null,
+      audioLanguage: audio,
+      preferredTags: tags ?? [],
+      preferredGroups: groups,
+      history: sourceRecord,
+      now: Date.now(),
+    }),
+    // The capabilities are a new object each render; their values are what count.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [screen, preferScreen, caps.hdr, caps.dolbyVision, caps.hevc, caps.av1, runtimeSec, audio, tags, groups],
+  );
 }
 
 export const SORTS: Record<SourceSort, string> = {
@@ -133,7 +159,9 @@ export const SORTS: Record<SourceSort, string> = {
   sizeAsc: "Smallest File",
 };
 
-export function compareBy(sort: SourceSort, screen: number, preferScreen: boolean) {
+/** `scores`: Best Match's, for "best". */
+export function compareBy(sort: SourceSort, scores: ReadonlyMap<RankedStream, Match>) {
+  const best = (r: RankedStream) => scores.get(r)?.score ?? 0;
   switch (sort) {
     case "quality":
       return (a: RankedStream, b: RankedStream) => res(b) - res(a) || size(b) - size(a);
@@ -142,7 +170,7 @@ export function compareBy(sort: SourceSort, screen: number, preferScreen: boolea
     case "sizeAsc":
       return (a: RankedStream, b: RankedStream) => (size(a) || Infinity) - (size(b) || Infinity);
     default:
-      return (a: RankedStream, b: RankedStream) => bestScore(b, screen, preferScreen) - bestScore(a, screen, preferScreen);
+      return (a: RankedStream, b: RankedStream) => best(b) - best(a);
   }
 }
 
@@ -213,14 +241,14 @@ export function defaultFilter(streams: RankedStream[], settings?: Settings): Sou
  * (so the next episode is the same kind of file), else the list's default
  * filters if they do, best match (or your sort) first.
  */
-export function autoPickOrder(streams: RankedStream[], settings?: Settings, show?: string) {
+export function autoPickOrder(streams: RankedStream[], settings?: Settings, show?: string, ctx: MatchContext = NEUTRAL) {
   const playable = streams.filter((s) => !s.quality.lowQualitySource && !s.otherEpisode);
   const kept = show ? playerChoices.get(show) : undefined;
   const yours = kept ? playable.filter((r) => matches(r, kept.filter)) : [];
   const f = defaultFilter(playable, settings);
   const preferred = yours.length ? yours : playable.filter((r) => matches(r, f));
   const pool = preferred.length ? preferred : playable;
-  const cmp = compareBy(kept?.sort ?? "best", screenResolution(), settings?.preferScreenResolution ?? true);
+  const cmp = compareBy(kept?.sort ?? "best", scoreSources(playable, ctx));
   return pool.map((r, i) => ({ r, i })).sort((a, b) => cmp(a.r, b.r) || a.i - b.i).map(({ r }) => r);
 }
 
@@ -250,8 +278,10 @@ export interface Facet<K extends string = string> {
  * `show`: the player's list for this show. It starts from what you last set
  * in the player for it (while the player stays open), as long as that leaves
  * something here, and remembers what you change.
+ *
+ * `runtimeSec`: the title's length, for Best Match's bitrates.
  */
-export function useSourceFilters(streams: RankedStream[] | undefined, settings: Settings | undefined, show?: string) {
+export function useSourceFilters(streams: RankedStream[] | undefined, settings: Settings | undefined, show?: string, runtimeSec?: number | null) {
   const [filter, setFilter] = useState<SourceFilter>(NO_FILTER);
   const [sort, setSortState] = useState<SourceSort>(
     () => (show && playerChoices.get(show)?.sort) || (settings?.sourceSort && settings.sourceSort in SORTS ? settings.sourceSort : "best"),
@@ -280,15 +310,15 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
     setSortState(s);
   };
 
-  const screen = useMemo(screenResolution, []);
   const screenRes = useMemo(screenResKey, []);
-  const preferScreen = settings?.preferScreenResolution ?? true;
+  const ctx = useMatchContext(settings, runtimeSec);
   // Settings → Sources: filters narrow the list, or only order it.
   const hide = settings?.sourceFiltersHide ?? false;
-  const all = streams ?? [];
+  const all = useMemo(() => streams ?? [], [streams]);
+  const scores = useMemo(() => scoreSources(all, ctx), [all, ctx]);
 
   const view = useMemo(() => {
-    const cmp = compareBy(sort, screen, preferScreen);
+    const cmp = compareBy(sort, scores);
     return all
       .map((r, i) => ({ r, i }))
       .map((x) => ({ ...x, match: matches(x.r, filter), other: !!x.r.otherEpisode }))
@@ -296,7 +326,7 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
       // Without hiding, what matches comes first and the rest follows, each in sort order; files of
       // other episodes come after all of it.
       .sort((a, b) => Number(a.other) - Number(b.other) || Number(b.match) - Number(a.match) || cmp(a.r, b.r) || a.i - b.i);
-  }, [all, filter, sort, screen, preferScreen, hide]);
+  }, [all, filter, sort, scores, hide]);
   /** How many of `view`, from the top, match the filters (the rest are "other sources", then "other episodes"). */
   const matched = view.filter((x) => x.match && !x.other).length;
   /** Where in `view` the files of other episodes start. */
@@ -359,6 +389,8 @@ export function useSourceFilters(streams: RankedStream[] | undefined, settings: 
     /** Filters order the list rather than hide (Settings → Sources). */
     soft: !hide,
     total: all.length,
+    /** Best Match's score and reasons for a source of this list. */
+    match: (r: RankedStream) => scores.get(r),
     facets,
     screenRes,
   };
