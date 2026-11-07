@@ -1,8 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { MpvTrack } from "../src/components/player/mpvMedia";
 
-// The language helpers come through lib/playback, which reads stored preferences.
-(globalThis as { localStorage?: unknown }).localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+// The language helpers come through lib/playback, which reads stored preferences: none stored. A store that
+// keeps what's written, as files that run after this one in the same process expect.
+const mem = new Map<string, string>();
+(globalThis as { localStorage?: unknown }).localStorage = {
+  getItem: (k: string) => mem.get(k) ?? null,
+  setItem: (k: string, v: string) => void mem.set(k, v),
+  removeItem: (k: string) => void mem.delete(k),
+};
 const { mpvSelection } = await import("../src/components/player/trackChoice");
 
 // An invented file: one video, two audio tracks, two embedded subtitles.

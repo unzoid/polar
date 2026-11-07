@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
-import { useMeta, useProgress, useSettings, useStreams } from "../../lib/net";
+import { useMeta, useProgress, useStreams } from "../../lib/net";
 import {
   autoPickOrder,
   describeStream,
@@ -9,6 +9,7 @@ import {
   recordTry,
   torrentLimits,
   useMatchContext,
+  useTitleSettings,
   type SourceKind,
   type TorrentStep,
 } from "../../lib/playback";
@@ -71,7 +72,7 @@ export function useSource(
 
   const needsRanking = !picked && (!!prefer || (saved !== undefined && !saved?.stream));
   const streams = useStreams(type, needsRanking ? videoId : undefined);
-  const { data: settings } = useSettings();
+  const { settings } = useTitleSettings(type, videoId);
   // Best Match for this device; the runtime gives the files' bitrates.
   const { data: meta } = useMeta(type, metaId, needsRanking);
   const match = useMatchContext(settings, runtimeSeconds(meta?.runtime));

@@ -14,6 +14,7 @@ export * from "./sourceHistory";
 export * from "./sources";
 export * from "./sourceInfo";
 export * from "./startLog";
+export * from "./titleLanguages";
 export * from "./titlePlayback";
 export * from "./torrent";
 export * from "./trailers";

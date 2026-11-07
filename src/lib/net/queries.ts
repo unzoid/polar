@@ -60,7 +60,7 @@ export function useStreams(type: ContentType, videoId: string | undefined) {
 }
 
 /** Whether a video is anime: a Kitsu id, or an IMDb show ani.zip knows. */
-function useIsAnime(videoId: string | undefined) {
+export function useIsAnime(videoId: string | undefined) {
   const imdb = videoId?.startsWith("tt") ? videoId.split(":")[0] : undefined;
   const { data: anime } = useQuery({
     ...aniZipLookup({ imdb_id: imdb ?? "" }),

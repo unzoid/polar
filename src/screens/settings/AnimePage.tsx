@@ -25,6 +25,8 @@ export function AnimePage() {
       <Card title="Language">
         <SettingRow id="animeTitles" />
         <SettingRow id="animeVoices" />
+        <SettingRow id="animeAudioLanguage" />
+        <SettingRow id="animeSubtitleLanguage" />
       </Card>
       <Card title="Shelves" footer="What the Anime page shows, top to bottom, in desktop and TV mode. Featured is the carousel at the top; Genres adds a shelf for each genre.">
         <div className="settings-row settings-chip-row">
