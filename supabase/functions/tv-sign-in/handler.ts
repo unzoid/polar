@@ -22,6 +22,7 @@ export interface TvSignInDeps {
   start(codeHash: string, pollHash: string, device: string, ipHash: string): Promise<string>;
   /** The device name of a live request, or null. Throws `rate_limited` past the user's limit. */
   look(userId: string, codeHash: string): Promise<string | null>;
+  /** False when there's no such request; then it counts towards the user's limit like `look`, and throws `rate_limited` past it. */
   answer(userId: string, codeHash: string, approve: boolean): Promise<boolean>;
   claim(pollHash: string): Promise<{ state: string; userId: string | null }>;
   /** The user a session's access token belongs to, or null. */

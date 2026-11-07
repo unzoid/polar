@@ -133,6 +133,13 @@ describe("tv-sign-in", () => {
     for (let i = 0; i < 5; i++) expect((await call({ action: "start", device: "TV" }, { ip: "198.51.100.9" })).status).toBe(200);
     expect(await call({ action: "start", device: "TV" }, { ip: "198.51.100.9" })).toMatchObject({ status: 429, body: { error: "rate_limited" } });
     expect((await call({ action: "start", device: "TV" }, { ip: "198.51.100.10" })).status).toBe(200);
+    // Past the user's tries (misses, in the database), looking up and answering are 429 too.
+    const tired = setup({ look: () => Promise.reject(new Error("rate_limited")), answer: () => Promise.reject(new Error("rate_limited")) });
+    for (const action of ["look", "answer"])
+      expect(await tired.call({ action, code: "AAAAAAAA", approve: true }, { token: "token-a" })).toMatchObject({
+        status: 429,
+        body: { error: "rate_limited" },
+      });
 
     // The second request's first code is the first request's: it draws another.
     let codes = 0;
