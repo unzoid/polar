@@ -54,3 +54,24 @@ export const MOD = isMac ? "Meta" : "Ctrl";
 
 /** ...and as people read it. */
 export const MOD_LABEL = isMac ? "⌘" : "Ctrl";
+
+/** Torrent sources play with the built-in engine on desktop and Android (#207); iOS and iPadOS have no engine. */
+export const torrentsPlayHere = os !== "ios";
+
+type NetworkBridge = { polarDevice?: { onMobileData?: () => boolean; batterySaver?: () => boolean } };
+
+const askDevice = (q: "onMobileData" | "batterySaver", scope: NetworkBridge | undefined): boolean => {
+  try {
+    return scope?.polarDevice?.[q]?.() === true;
+  } catch {
+    return false;
+  }
+};
+
+const deviceScope = () => (typeof window === "undefined" ? undefined : (window as NetworkBridge));
+
+/** Android: the connection in use right now is mobile data (gen/android MainActivity.kt). False elsewhere. */
+export const onMobileData = (scope = deviceScope()): boolean => askDevice("onMobileData", scope);
+
+/** Android: battery saver is on right now. False elsewhere. */
+export const batterySaver = (scope = deviceScope()): boolean => askDevice("batterySaver", scope);

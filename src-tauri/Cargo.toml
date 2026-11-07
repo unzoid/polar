@@ -36,12 +36,14 @@ base64 = "0.22"
 # gilrs has no Android or iOS backend; phones and TVs see controllers through the Gamepad API.
 gilrs = "0.11"
 keyring = "4.2"
-# Torrent playback of the user's add-on streams; desktop first (#47).
-polar-torrent.workspace = true
 tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 # The file dialog behind "Open File…" (#204).
 tauri-plugin-dialog = "2"
+
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+# Torrent playback of the user's add-on streams: desktop (#47) and Android (#207), not iOS.
+polar-torrent.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 # libmpv loaded from the APK and given the SurfaceView (player/android.rs); the same versions

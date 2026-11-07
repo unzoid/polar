@@ -536,6 +536,8 @@ export function Player({
       save();
     },
     error: () => {
+      // The torrent engine was stopped in the background (#207): its reason stays on screen.
+      if (source.halted()) return;
       // mpv exiting isn't this source's fault: moving on to the next source
       // would just start mpv again (and if it keeps exiting, loop through
       // every source).
@@ -1042,6 +1044,14 @@ export function Player({
             steps={steps}
             backend={engine === "html" ? "built-in" : (engine ?? "not chosen yet")}
             onSources={link || local ? undefined : () => setOptions("sources")}
+            onSettings={
+              tv
+                ? undefined
+                : () => {
+                    void exit();
+                    openSettings("sources");
+                  }
+            }
           />
         )}
       </AnimatePresence>

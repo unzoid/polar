@@ -6,7 +6,13 @@ import { keys, useSettings, useUpdateSettings } from "../../lib/net";
 import type { Settings as SettingsT } from "../../lib/types";
 import { Card, FormRow } from "../../components/settings/rows";
 import { SettingRow } from "../../components/settings/SettingRow";
-import { isDesktop } from "../../lib/platform";
+import { os, torrentsPlayHere } from "../../lib/platform";
+
+/** Android stops the engine where nobody sees it running (#207). */
+const ANDROID_FOOTER =
+  os === "android"
+    ? " On Android a torrent also stops when Polarity has been in the background for half a minute, and nothing is shared after playback while battery saver is on."
+    : "";
 
 export function SourcesPage() {
   const qc = useQueryClient();
@@ -76,15 +82,16 @@ export function SourcesPage() {
         </div>
       </Card>
 
-      {isDesktop && (
+      {torrentsPlayHere && (
         <Card
           title="Torrent Sources"
-          footer="Torrent sources your add-ons list play with the built-in engine. Only the file you watch is downloaded, in the order you watch it, into a cache on this device that's emptied when playback ends or Polarity quits. Other peers can see your IP address while a torrent plays."
+          footer={`Torrent sources your add-ons list play with the built-in engine. Only the file you watch is downloaded, in the order you watch it, into a cache on this device that's emptied when playback ends or Polarity quits.${ANDROID_FOOTER} Other peers can see your IP address while a torrent plays.`}
         >
           <SettingRow id="torrentCacheGb" />
           <SettingRow id="torrentSpeedMbps" />
           <SettingRow id="torrentUploadMbps" />
           <SettingRow id="torrentKeepSharing" />
+          {os === "android" && <SettingRow id="torrentMobileData" />}
           <SettingRow id="torrentNotice" />
         </Card>
       )}

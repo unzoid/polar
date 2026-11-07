@@ -3,7 +3,12 @@ package app.getpolar.desktop
 import android.app.Activity
 import android.app.UiModeManager
 import android.content.res.Configuration
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -23,6 +28,21 @@ class MainActivity : TauriActivity() {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     keepAboveKeyboard()
+  }
+
+  // The torrent engine never runs unseen (#207, src-tauri/src/torrent.rs): after half a minute in the
+  // background it stops, whatever is playing. Coming back sooner keeps it. No foreground service.
+  private val background = Handler(Looper.getMainLooper())
+  private val stopTorrents = Runnable { TorrentEngine.background() }
+
+  override fun onStop() {
+    super.onStop()
+    background.postDelayed(stopTorrents, TORRENT_GRACE_MS)
+  }
+
+  override fun onStart() {
+    super.onStart()
+    background.removeCallbacks(stopTorrents)
   }
 
   // Edge to edge, the system no longer shrinks the window for the on-screen keyboard (adjustResize is
@@ -68,10 +88,32 @@ class MainActivity : TauriActivity() {
   }
 }
 
+private const val TORRENT_GRACE_MS = 30_000L
+
+/** Stops the torrent engine in Rust (src-tauri/src/torrent.rs) when the app has been away too long. */
+object TorrentEngine {
+  external fun background()
+}
+
 /** What the web view may ask of the device; nothing else is exposed. */
 class PolarDevice(private val activity: Activity, private val tv: Boolean) {
   @JavascriptInterface
   fun isTv(): Boolean = tv
+
+  // Torrent sources don't start on mobile data unless the user allows it (#207, src/lib/playback/torrent.ts).
+  // A network that is mobile data and nothing else; Wi-Fi or Ethernet (also under a VPN) isn't.
+  @JavascriptInterface
+  fun onMobileData(): Boolean {
+    val connectivity = activity.getSystemService(ConnectivityManager::class.java) ?: return false
+    val caps = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
+    return caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+      !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+      !caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+  }
+
+  // Nothing is shared after playback while battery saver is on (#207).
+  @JavascriptInterface
+  fun batterySaver(): Boolean = activity.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
 
   // Back at the root (src/lib/platform/back.ts): to the background, as Android 12 and later do for a
   // launcher's activity. Ending the process instead ran its exit handlers under the web view's render

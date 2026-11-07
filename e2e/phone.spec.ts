@@ -304,3 +304,37 @@ test.describe("on an iPhone", () => {
     await expect(sheet).toHaveCount(0);
   });
 });
+
+test("on mobile data a torrent source doesn't start and says why, until the setting allows it (#207)", async ({ app }) => {
+  await app.addInitScript(() => {
+    localStorage.setItem("polar.fakeTorrents", "1");
+    (window as { polarDevice?: object }).polarDevice = { onMobileData: () => true, batterySaver: () => false };
+  });
+  await app.reload();
+  const opens = () => app.evaluate(() => (window as { __torrentOpens?: number }).__torrentOpens ?? 0);
+  const play = async () => {
+    await app.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Movies", exact: true }).tap();
+    await card(app, "The Glass Orchard").tap();
+    await app.getByRole("button", { name: "Play", exact: true }).tap();
+  };
+
+  // Every fake source is a torrent: each is passed over, the last says why, and nothing is opened.
+  await play();
+  const status = app.locator(".player-status");
+  await expect(status.getByRole("status")).toHaveText(/^Torrent sources don't play on mobile data\./);
+  await expect(app.getByRole("dialog", { name: "Torrent playback" })).toHaveCount(0);
+  expect(await opens()).toBe(0);
+
+  await status.getByRole("button", { name: "Open Settings" }).tap();
+  await expect(app.locator(".player")).toHaveCount(0);
+  const settings = app.getByRole("dialog");
+  const allow = settings.getByRole("switch", { name: /^Play torrent streams on mobile data/ });
+  await expect(allow).not.toBeChecked();
+  await allow.tap();
+  await expect(allow).toBeChecked();
+  await settings.getByRole("button", { name: "Close settings" }).tap();
+
+  // Allowed: the torrent goes on (to the one-time notice first).
+  await play();
+  await expect(app.getByRole("dialog", { name: "Torrent playback" })).toBeVisible();
+});

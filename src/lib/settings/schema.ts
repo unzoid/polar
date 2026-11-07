@@ -425,6 +425,7 @@ export const SETTINGS: SettingDef[] = [
     keywords: "torrent cache disk space size limit",
     bind: p("torrentCacheGb"),
     control: { kind: "number", min: 0, max: 200, step: 5, unit: "GB", zero: "No limit", tvStep: 10 },
+    tv: "Torrent Cache Limit",
   },
   {
     id: "torrentSpeedMbps",
@@ -443,6 +444,7 @@ export const SETTINGS: SettingDef[] = [
     keywords: "torrent bandwidth speed limit upload share mbps",
     bind: p("torrentUploadMbps"),
     control: { kind: "number", min: 0, max: 100, step: 1, unit: "Mbit/s", zero: "No limit", tvStep: 2 },
+    tv: "Torrent Upload Limit",
   },
   {
     id: "torrentNotice",
@@ -461,6 +463,17 @@ export const SETTINGS: SettingDef[] = [
     keywords: "torrent seed share upload after playback",
     bind: p("torrentKeepSharing"),
     control: toggle,
+    tv: "Keep Sharing After Playback",
+  },
+  {
+    id: "torrentMobileData",
+    page: "sources",
+    title: "Play torrent streams on mobile data",
+    caption: "Off: on mobile data a torrent source doesn't start, so it can't use up your data plan. Wi-Fi and Ethernet aren't affected.",
+    keywords: "torrent mobile data cellular metered wifi plan",
+    bind: p("torrentMobileData"),
+    control: toggle,
+    tv: "Torrents on Mobile Data",
   },
 
   // Subtitles & Audio

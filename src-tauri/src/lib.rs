@@ -230,7 +230,7 @@ pub fn run() {
                 fillers: polar_anime::Fillers::new(cache.clone()),
                 anime_lists: polar_anime::AnimeLists::new(cache.clone()),
             });
-            #[cfg(desktop)]
+            #[cfg(not(target_os = "ios"))]
             torrent::manage(app.handle(), cache);
             app.manage(controllers::Controllers::default());
             controllers::watch(app.handle().clone());

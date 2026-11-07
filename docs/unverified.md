@@ -723,7 +723,25 @@ against a real project.
     a second or two, and upload stops. With "Keep sharing after playback" on, it stays and keeps uploading until
     Polarity quits; the next start finds the folder empty.
   - No firewall prompt appears (the engine doesn't listen; it connects out).
-  - Phones: a torrent source says it plays on the desktop app for now.
+  - iPhone and iPad: a torrent source says it doesn't play there.
+
+## Torrent sources on Android (#207)
+
+- Checked here: the Android build type-checks with the engine (clippy for `aarch64-linux-android`), the Kotlin
+  compiles, and in the browser (fake backend) a torrent on mobile data is passed over for the next source, or with
+  none left fails with the reason and Open Settings; the setting is on Settings → Sources (phone) and TV Settings
+  → Sources. Not run here: an Android device or emulator playing a torrent, real networks, battery saver.
+- To check on an Android phone and an Android TV, with your own add-on returning torrent streams of a file you're
+  entitled to watch (an open film):
+  - On Wi-Fi: the source plays as on desktop (notice the first time, peer lines, then the picture).
+  - On mobile data (Wi-Fi off) with "Play torrent streams on mobile data" off: the torrent doesn't start; the
+    loading screen says why and has Open Settings (phone); with other sources the next one plays instead. With the
+    setting on, it plays.
+  - Close the player: `adb shell run-as app.getpolar.desktop ls cache/torrent-cache` is empty within a second or
+    two, and the app's network use (Settings → Network → Data usage) stops growing.
+  - Play, press Home, wait more than 30 seconds, come back: the player says playback stopped while Polarity was
+    in the background, the cache folder is empty, and no data is used meanwhile. Back within 30 seconds, it plays on.
+  - Battery saver on with "Keep sharing after playback" on: closing the player still empties the cache.
 
 ## Seasons as separate shows (#22)
 

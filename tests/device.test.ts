@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { detectIpad, detectOs, detectTvDevice } from "../src/lib/platform/device";
+import { batterySaver, detectIpad, detectOs, detectTvDevice, onMobileData } from "../src/lib/platform/device";
 
 test("detectOs reads the webview's navigator", () => {
   expect(detectOs({ platform: "Win32", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" })).toBe("windows");
@@ -33,4 +33,19 @@ test("detectIpad: the desktop-site iPad, the iPad agent, never an iPhone or a Ma
   expect(detectIpad({ platform: "iPad", userAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)", maxTouchPoints: 5 })).toBe(true);
   expect(detectIpad({ platform: "iPhone", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", maxTouchPoints: 5 })).toBe(false);
   expect(detectIpad({ platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" })).toBe(false);
+});
+
+test("mobile data and battery saver come from Android's bridge, false without it (#207)", () => {
+  expect(onMobileData(undefined)).toBe(false);
+  expect(batterySaver({})).toBe(false);
+  expect(onMobileData({ polarDevice: { onMobileData: () => true } })).toBe(true);
+  expect(batterySaver({ polarDevice: { batterySaver: () => true } })).toBe(true);
+  const broken = {
+    polarDevice: {
+      onMobileData: () => {
+        throw new Error("gone");
+      },
+    },
+  };
+  expect(onMobileData(broken)).toBe(false);
 });
