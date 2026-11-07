@@ -47,11 +47,16 @@ test("tabs, a title page and the player by touch", async ({ app }) => {
   await expect(player).toHaveCount(0);
 });
 
-test("search on a phone", async ({ app }) => {
+test("search on a phone is a page of its own: genres to start from, results as you type, Back to where you were", async ({ app }) => {
   await app.getByRole("button", { name: "Search", exact: true }).tap();
-  await app.getByRole("textbox", { name: "Search" }).fill("orchard");
+  await expect(app.getByRole("heading", { level: 1, name: "Search" })).toBeVisible();
+  await expect(app.getByRole("button", { name: "Horror", exact: true })).toBeVisible();
+  expect(await fitsWidth(app)).toBe(true);
+  await app.getByRole("searchbox", { name: "Search" }).fill("orchard");
   await expect(card(app, "Orchard House")).toBeVisible();
   expect(await fitsWidth(app)).toBe(true);
+  await app.getByRole("button", { name: "Back", exact: true }).tap();
+  await expect(app.getByRole("heading", { level: 1, name: "Search" })).toHaveCount(0);
 });
 
 test("an add-on's catalogs switched on show as Home rows and fit a phone (#206)", async ({ app }) => {
@@ -130,9 +135,11 @@ test("the season picker keeps its own row on a phone (#151)", async ({ app }) =>
 
 test("settings on a phone: the sections, then one section with a way back", async ({ app }) => {
   await app.getByRole("button", { name: /^Profile/ }).tap();
-  await app.getByRole("menuitem", { name: "Settings" }).tap();
+  // The profile menu is a sheet on a phone; Settings rises over it.
+  const profiles = app.locator(".sheet");
+  await profiles.getByRole("button", { name: "Settings" }).tap();
   // Not by name: on a phone the header shows only the open section, and that names the dialog ("Browsing").
-  const settings = app.getByRole("dialog");
+  const settings = app.locator(".t3s");
   await expect(settings).toHaveAccessibleName(/^Settings/);
   const browsing = settings.getByRole("button", { name: "Browsing", exact: true });
   await expect(browsing).toBeVisible();
@@ -144,6 +151,8 @@ test("settings on a phone: the sections, then one section with a way back", asyn
   await expect(browsing).toBeVisible();
   await settings.getByRole("button", { name: "Close settings" }).tap();
   await expect(settings).toHaveCount(0);
+  // Closing Settings leaves the profile sheet it rose over.
+  await expect(profiles).toBeVisible();
 });
 
 /** A notched phone's insets (in CSS px), set on the page as the webview would report them. */
@@ -194,7 +203,7 @@ test("the player's controls keep clear of the notch and the home indicator, upri
 
 test("the trailer fits the screen at every phone width, upright and sideways, its controls inside the insets (#289)", async ({ app }) => {
   await app.getByRole("button", { name: "Search", exact: true }).tap();
-  await app.getByRole("textbox", { name: "Search" }).fill("lanterns");
+  await app.getByRole("searchbox", { name: "Search" }).fill("lanterns");
   await card(app, "Paper Lanterns").tap();
   await app.getByRole("button", { name: "Trailer", exact: true }).tap();
   const layer = app.getByRole("dialog", { name: "Paper Lanterns trailer" });
@@ -285,8 +294,9 @@ test.describe("on an iPhone", () => {
   test.use({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148" });
 
   test("a sheet opens at half the screen, expands and closes like iOS's own (#174)", async ({ app }) => {
-    await app.getByRole("button", { name: "Search", exact: true }).tap();
-    await app.getByRole("textbox", { name: "Search" }).fill("glass orchard");
+    // Search is iOS's own tab here (the top bar's icon steps aside for it).
+    await app.evaluate(() => (window as unknown as { __polarFakeNativeTab: (id: string) => void }).__polarFakeNativeTab("search"));
+    await app.getByRole("searchbox", { name: "Search" }).fill("glass orchard");
     await card(app, "The Glass Orchard").tap();
     await app.getByRole("button", { name: "Choose source", exact: true }).tap();
     const sheet = app.locator(".sheet");

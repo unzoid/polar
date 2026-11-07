@@ -342,6 +342,8 @@ function DesktopApp() {
             className={entry.route.name === "detail" || entry.route.name === "anime-detail" ? "page page-pushed" : "page"}
             data-active={entry === topPage && !playing}
             data-motion={motion?.enter === entry.key ? "enter" : motion?.leave === entry.key ? "leave" : undefined}
+            // A page on its way out is still drawn for a moment, but no longer read out.
+            aria-hidden={(motion?.leave === entry.key && entry !== topPage) || undefined}
             style={motion ? ({ "--page-dir": motion.dir } as CSSProperties) : undefined}
             data-under-player={(entry === topPage && !!player) || undefined}
             data-page-key={entry.key}
