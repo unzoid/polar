@@ -1,4 +1,5 @@
-// A Postgres (PGlite, in memory) with just enough of Supabase for the migrations: the roles,
+// A Postgres (PGlite, in memory) with just enough of Supabase for the migrations: the roles and
+// their default grants on what the migrations create (as on Supabase, not only through PUBLIC),
 // auth.users and auth.uid() read from the request's JWT claim, and the realtime table the
 // watch-party policies name (its topic read from the `realtime.topic` setting) and realtime.send, which
 // records what it would broadcast in realtime.sent. Row-level security is enforced as on Supabase once `as(user)` has
@@ -28,7 +29,9 @@ create function realtime.topic() returns text language sql stable as $$ select c
 create table realtime.sent (payload jsonb, event text, topic text, private boolean);
 create function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void
   language sql as $$ insert into realtime.sent values (payload, event, topic, private) $$;
-grant usage on schema realtime to authenticated;`);
+grant usage on schema realtime to authenticated;
+alter default privileges in schema public grant execute on functions to anon, authenticated;
+alter default privileges in schema public grant all on tables to anon, authenticated;`);
   return db;
 }
 

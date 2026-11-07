@@ -796,7 +796,7 @@ on two devices, check:
 Checked here: the activity's buttons and their limits (`src-tauri/src/discord.rs` tests, type-checked
 only: src-tauri doesn't link here), polarity:// link parsing (`tests/deepLink.test.ts`), the join desk
 and the sealed code on a simulated channel (`tests/discordJoin.test.ts`: Anyone, Ask me, decline,
-timeout, lock, busy, token rotation, a forged answer), the website's /watch and /party pages at a
+timeout, lock, busy, token rotation, a forged answer, refusal or "seen"), the website's /watch and /party pages at a
 desktop and a phone width, and end to end in the browser shell with two pages as two members (e2e:
 the host allows a request from a party link and the joiner lands in the party; a polarity://title
 link opens the title). Not run: a real Discord client, a real Realtime project, an installed build's
@@ -1124,7 +1124,7 @@ Checked here: the migration in PGlite, the Edge Function's steps against an in-m
 waiting loop, and the screens in the browser shell with its stand-in account (e2e: desktop, TV, Settings →
 Account → Sign in a TV). Not checked: a real Supabase project, Deno, or a real TV.
 
-1. Apply `supabase/migrations/20261109000000_tv_sign_in.sql`; deploy with
+1. Apply `supabase/migrations/20261109000000_tv_sign_in.sql` and `20261110000000_tv_sign_in_limits.sql`; deploy with
    `supabase functions deploy tv-sign-in --no-verify-jwt`.
 2. On a signed-out device (TV mode, or a second computer): Sign in with your phone / another device. A code shows.
 3. On a signed-in device: Settings → Account → Sign in a TV, enter the code. "Sign in on <device>?" names the
@@ -1133,7 +1133,12 @@ Account → Sign in a TV). Not checked: a real Supabase project, Deno, or a real
 5. Deny, and wait out a code (5 minutes): the first device says so and offers a new code. The same code twice is refused.
 6. Table editor: `tv_sign_in` is empty after each sign-in; no plain codes or addresses in it.
 7. Six codes from one network within five minutes: the sixth is refused ("Too many attempts").
-8. Supabase's own projects with the new publishable keys: check `generateLink` + `verifyOtp({ token_hash, type:
+8. The address the function counts is the caller's own, not one the caller made up: from one computer, send six
+   `start` requests (`curl -X POST <project>/functions/v1/tv-sign-in -H 'Content-Type: application/json' -d
+   '{"action":"start","device":"Test"}'`), each with its own made-up `-H 'X-Forwarded-For: 192.0.2.N'` (N = 1…6).
+   The sixth must be refused (429). If all six get a code, the platform keeps the caller's header first:
+   `callerAddress` in `supabase/functions/tv-sign-in/handler.ts` has to read the entry the platform adds instead.
+9. Supabase's own projects with the new publishable keys: check `generateLink` + `verifyOtp({ token_hash, type:
    "magiclink" })` still signs in (the function and the app use supabase-js 2).
 
 ## Notifications (#209)

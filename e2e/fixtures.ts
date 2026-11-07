@@ -5,7 +5,8 @@ import { serveMedia } from "./media";
  * Every test starts on fake.html with no network beyond the dev server:
  * media.example answers with a silent WAV (media.ts), every other host is
  * refused, so a test never reaches a real service. Uncaught errors in the
- * page fail the test.
+ * page fail the test, except WebKit's own note on a load refused here (see
+ * refusedLoad).
  *
  * Headless WebKit paints backdrop-filter in software: the title page's glass
  * buttons bring it down to about a frame a second, so Playwright's wait for an
@@ -19,10 +20,17 @@ export const test = base.extend<{ tv: boolean; account: boolean; app: Page }>({
   account: [false, { option: true }],
   app: async ({ page, baseURL, tv, account, browserName }, use) => {
     const errors: string[] = [];
-    page.on("pageerror", (e) => errors.push(String(e)));
+    const refused = new Set<string>();
+    page.on("pageerror", (e) => {
+      if (browserName === "webkit" && refusedLoad(e, refused)) return;
+      errors.push(String(e));
+    });
     await page.route(
       (url) => url.origin !== new URL(baseURL!).origin && url.protocol.startsWith("http") && url.host !== "media.example",
-      (route) => route.abort("blockedbyclient"),
+      (route) => {
+        refused.add(route.request().url());
+        return route.abort("blockedbyclient");
+      },
     );
     await serveMedia(page);
     if (browserName === "webkit")
@@ -42,6 +50,17 @@ export const test = base.extend<{ tv: boolean; account: boolean; app: Page }>({
 });
 
 export { expect };
+
+/**
+ * WebKit's console note on a failed load of another origin, "Fetch API cannot load <url> due to access control
+ * checks.", which Playwright passes on as an error in the page now and then (with the fetch's call stack, but no
+ * TypeError and no "Unhandled Promise Rejection"), even when the app catches the failed fetch. Only the note for a
+ * URL this fixture refused is let through.
+ */
+function refusedLoad(e: Error, refused: Set<string>): boolean {
+  const m = /^Fetch API cannot load (\S+) due to access control checks\.$/.exec((e.stack ?? "").split("\n")[0]);
+  return !!m && refused.has(m[1]);
+}
 
 /** A poster or row card, by the title's name (its accessible name is "<name> <year>"). */
 export const card = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(`^${name}\\b`) }).first();

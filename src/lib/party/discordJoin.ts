@@ -14,12 +14,12 @@
  * - A locked room (#156) turns everyone away; once in, the room's own rules
  *   (approving joins, removing members) apply as to anyone with the code.
  *
- * Anyone who has the token can listen and speak on its channel. So the code
- * goes to the one joiner let in sealed with a key only the two of them share
- * (ECDH: the joiner's one-time key pair and the token's; AES-GCM), and the
- * joiner only takes an answer from the key the token's fingerprint names:
- * someone else with the token can't hand a joiner the code of another party.
- * (They can still send a joiner a refusal, which only ends that attempt.)
+ * Anyone who has the token can listen and speak on its channel. So every
+ * answer to a joiner (the code, a refusal, "seen") is sealed with a key only
+ * the two of them share (ECDH: the joiner's one-time key pair and the token's;
+ * AES-GCM), and the joiner only takes an answer from the key the token's
+ * fingerprint names: someone else with the token can't hand a joiner the code
+ * of another party, turn them away or keep them waiting.
  * Messages are parsed like the room's (messages.ts): anything else is dropped.
  * Pure apart from its deps, so tests run it against a simulated channel
  * (tests/discordJoin.test.ts).
@@ -114,11 +114,10 @@ async function sharedKey(subtle: SubtleCrypto, mine: CryptoKey, theirs: PublicKe
 
 // Messages, checked before use.
 
-type JoinMessage =
-  | { t: "ask"; id: string; name: string; key: PublicKey }
-  | { t: "seen"; to: string }
-  | { t: "ok"; to: string; key: PublicKey; iv: string; box: string }
-  | { t: "no"; to: string; why: JoinRefusal };
+/** What the desk answers a joiner, sealed: "seen", "no:<why>" or "ok:<code>", after the `t` it travels under. */
+type Sealed = { to: string; key: PublicKey; iv: string; box: string };
+
+type JoinMessage = { t: "ask"; id: string; name: string; key: PublicKey } | ({ t: "seen" | "ok" | "no" } & Sealed);
 
 const ID = /^[A-Za-z0-9-]{8,64}$/;
 const str = (v: unknown, max: number) => (typeof v === "string" && v.length <= max ? v : null);
@@ -141,21 +140,14 @@ export function parseJoinMessage(raw: Record<string, unknown>): JoinMessage | nu
       const key = keyOf(raw.key);
       return id && ID.test(id) && key ? { t: "ask", id, name: cleanName(raw.name), key } : null;
     }
-    case "seen": {
-      const to = str(raw.to, 64);
-      return to ? { t: "seen", to } : null;
-    }
-    case "ok": {
+    case "seen":
+    case "ok":
+    case "no": {
       const to = str(raw.to, 64);
       const key = keyOf(raw.key);
       const iv = str(raw.iv, 16);
       const box = str(raw.box, 128);
-      return to && key && iv && box ? { t: "ok", to, key, iv, box } : null;
-    }
-    case "no": {
-      const to = str(raw.to, 64);
-      const why = raw.why as JoinRefusal;
-      return to && why in REFUSALS ? { t: "no", to, why } : null;
+      return to && key && iv && box ? { t: raw.t, to, key, iv, box } : null;
     }
     default:
       return null;
@@ -185,7 +177,8 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
     ready: boolean;
   }
   interface Pending extends JoinRequest {
-    key: PublicKey;
+    /** Shared with this joiner: every answer is sealed with it. */
+    key: CryptoKey;
     live: Live;
     expire: () => void;
   }
@@ -199,6 +192,8 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
   /** Requests already heard, so a repeat doesn't ask twice (forgotten in bulk past HEARD_MAX). */
   const heard = new Set<string>();
   const HEARD_MAX = 500;
+  /** Requests are taken one at a time, in the order they came (sealing an answer takes a moment). */
+  let heardInTurn = Promise.resolve();
 
   function rotate() {
     if (stopped) return;
@@ -218,7 +213,7 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
       const l: Live = { token, pair, pub, channel: null as unknown as JoinChannel, ready: false };
       l.channel = deps.connect(
         `join-${topic}`,
-        (m) => void hear(l, m),
+        (m) => void (heardInTurn = heardInTurn.then(() => hear(l, m)).catch(() => {})),
         () => {
           if (l.ready) return;
           l.ready = true;
@@ -235,33 +230,36 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
     if (stopped || msg?.t !== "ask" || heard.has(msg.id)) return;
     if (heard.size >= HEARD_MAX) heard.clear();
     heard.add(msg.id);
-    const channel = l.channel;
-    const no = (why: JoinRefusal) => channel.send({ t: "no", to: msg.id, why });
+    let key: CryptoKey;
+    try {
+      key = await sharedKey(deps.subtle, l.pair.privateKey, msg.key);
+    } catch {
+      // A key that isn't a point on the curve: nobody honest sends one, and there's nothing to seal an answer with.
+      return;
+    }
+    if (stopped) return;
     const r = room();
     const m = mode();
-    if (!r.code || m === "nobody") return no("closed");
-    if (r.locked) return no("locked");
-    if (pending.length >= PENDING_MAX) return no("busy");
-    channel.send({ t: "seen", to: msg.id });
-    if (m === "anyone") return void (await letIn(l, msg.id, msg.key));
+    if (!r.code || m === "nobody") return reply(l, msg.id, key, "no:closed");
+    if (r.locked) return reply(l, msg.id, key, "no:locked");
+    if (pending.length >= PENDING_MAX) return reply(l, msg.id, key, "no:busy");
+    await reply(l, msg.id, key, "seen");
+    if (m === "anyone") return letIn(l, msg.id, key);
     const expire = deps.after(() => answer(msg.id, false), ASK_MS);
-    pending = [...pending, { id: msg.id, name: msg.name, key: msg.key, live: l, expire }];
+    pending = [...pending, { id: msg.id, name: msg.name, key, live: l, expire }];
     changed();
   }
 
-  async function letIn(l: Live, to: string, theirs: PublicKey) {
-    const { channel, pair, pub } = l;
+  /** Seals `text` for the joiner `to` and sends it under the `t` it starts with. */
+  async function reply(l: Live, to: string, key: CryptoKey, text: string) {
+    const iv = deps.randomBytes(12);
+    const box = new Uint8Array(await deps.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, new TextEncoder().encode(text)));
+    l.channel.send({ t: text.split(":")[0], to, key: l.pub, iv: b64url(iv), box: b64url(box) });
+  }
+
+  async function letIn(l: Live, to: string, key: CryptoKey) {
     const code = room().code;
-    if (!code) return channel.send({ t: "no", to, why: "closed" });
-    try {
-      const key = await sharedKey(deps.subtle, pair.privateKey, theirs);
-      const iv = deps.randomBytes(12);
-      const box = new Uint8Array(await deps.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, new TextEncoder().encode(code)));
-      if (!stopped) channel.send({ t: "ok", to, key: pub, iv: b64url(iv), box: b64url(box) });
-    } catch {
-      // A key that isn't a point on the curve: nobody honest sends one.
-      channel.send({ t: "no", to, why: "closed" });
-    }
+    if (!stopped) await reply(l, to, key, code ? `ok:${code}` : "no:closed");
   }
 
   /** The member's answer to a request (also the timeout's "no"). */
@@ -272,8 +270,8 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
     pending = pending.filter((x) => x !== p);
     changed();
     const r = room();
-    if (!allow) p.live.channel.send({ t: "no", to: id, why: "declined" });
-    else if (r.locked) p.live.channel.send({ t: "no", to: id, why: "locked" });
+    if (!allow) void reply(p.live, id, p.key, "no:declined");
+    else if (r.locked) void reply(p.live, id, p.key, "no:locked");
     else void letIn(p.live, id, p.key);
   }
 
@@ -291,12 +289,14 @@ export function createJoinDesk(deps: JoinDeps, room: () => DeskRoom, mode: () =>
     stop() {
       stopped = true;
       stopRotation?.();
-      for (const p of pending) {
+      const closing = pending.map((p) => {
         p.expire();
-        p.live.channel.send({ t: "no", to: p.id, why: "closed" });
-      }
+        return reply(p.live, p.id, p.key, "no:closed");
+      });
       pending = [];
-      for (const l of live) l.channel.close();
+      // Each channel closes once its refusals are out.
+      const channels = live.map((l) => l.channel);
+      void Promise.allSettled(closing).then(() => channels.forEach((c) => c.close()));
       live = [];
       current = null;
       changed();
@@ -329,6 +329,7 @@ export function askToJoin(
     let over = false;
     let asked = false;
     let stopSeen = () => {};
+    let inTurn = Promise.resolve();
     const stops: (() => void)[] = [];
     const finish = (fn: () => void) => {
       if (over) return;
@@ -355,19 +356,23 @@ export function askToJoin(
       channel = deps.connect(`join-${topic}`, (raw) => {
         const msg = parseJoinMessage(raw);
         if (!msg || msg.t === "ask" || msg.to !== id || over) return;
-        if (msg.t === "seen") {
-          stopSeen();
-          progress?.("waiting");
-          stops.push(deps.after(() => finish(() => reject(new Error(REFUSALS.declined))), ASK_MS + SEEN_MS));
-        } else if (msg.t === "no") finish(() => reject(new Error(REFUSALS[msg.why])));
-        else
-          // Only from the key the token names; anything else (someone else with the token) is ignored.
-          void (async () => {
-            if (!sameBytes(await fingerprint(deps.subtle, msg.key), desk)) return;
-            const key = await sharedKey(deps.subtle, pair.privateKey, msg.key);
-            const plain = await deps.subtle.decrypt({ name: "AES-GCM", iv: fromB64url(msg.iv) as BufferSource }, key, fromB64url(msg.box) as BufferSource);
-            finish(() => resolve(new TextDecoder().decode(plain)));
-          })().catch(() => {});
+        // Only from the key the token names; anything else (someone else with the token) is ignored.
+        // One at a time, so "seen" is taken before the code that follows it.
+        inTurn = inTurn.then(async () => {
+          if (!sameBytes(await fingerprint(deps.subtle, msg.key), desk)) return;
+          const key = await sharedKey(deps.subtle, pair.privateKey, msg.key);
+          const plain = await deps.subtle.decrypt({ name: "AES-GCM", iv: fromB64url(msg.iv) as BufferSource }, key, fromB64url(msg.box) as BufferSource);
+          const text = new TextDecoder().decode(plain);
+          const rest = text.slice(msg.t.length + 1);
+          if (over || text.split(":")[0] !== msg.t) return;
+          if (msg.t === "seen") {
+            stopSeen();
+            progress?.("waiting");
+            stops.push(deps.after(() => finish(() => reject(new Error(REFUSALS.declined))), ASK_MS + SEEN_MS));
+          } else if (msg.t === "no") {
+            if (Object.hasOwn(REFUSALS, rest)) finish(() => reject(new Error(REFUSALS[rest as JoinRefusal])));
+          } else if (rest) finish(() => resolve(rest));
+        }).catch(() => {});
       }, ask);
       // A channel that never opens (offline, signed out on the server): said, not waited on forever.
       stops.push(deps.after(() => !asked && finish(() => reject(new Error(REFUSALS.expired))), 2 * SEEN_MS));

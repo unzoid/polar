@@ -264,3 +264,37 @@ test("someone else with the token can't answer in the member's place; malformed 
     expect(parseJoinMessage(bad as Record<string, unknown>)).toBeNull();
   }
 });
+
+test("someone else with the token can't turn a joiner away or keep them waiting: refusals and 'seen' are sealed too", async () => {
+  const w = world();
+  const { desk } = party(w, "ask");
+  await w.settle();
+  const token = desk.token()!;
+  const fakes: Record<string, unknown>[] = [];
+  const forged = (id: string) => {
+    const ch = w.deps.connect(w.opened[0], () => {}, () => {});
+    fakes.push({ t: "no", to: id, why: "declined" }, { t: "seen", to: id });
+    fakes.slice(-2).forEach((m) => ch.send(m));
+  };
+  // A forged refusal right after the request: the joiner keeps waiting for the member.
+  const ask = join(w.deps, token, "Moa");
+  await w.settle();
+  const [{ id }] = desk.requests();
+  forged(id);
+  await w.settle();
+  desk.answer(id, true);
+  await w.settle();
+  expect(await ask.done).toEqual({ code: "K7Q2ZP" });
+  // A forged "seen" for a desk that never answers: the link still expires after SEEN_MS.
+  desk.stop();
+  const late = join(w.deps, token, "Sam");
+  await w.settle();
+  forged("joiner-0002");
+  await w.settle();
+  await w.advance(SEEN_MS);
+  expect(await late.done).toEqual({ error: REFUSALS.expired });
+  // Nothing a desk sends a joiner is readable or forgeable by others on the channel.
+  const answers = w.sent.filter((s) => s.m.t !== "ask" && !fakes.includes(s.m));
+  expect(answers.map((s) => s.m.t)).toEqual(["seen", "ok"]);
+  for (const { m } of answers) expect(m).toMatchObject({ key: expect.any(Object), iv: expect.any(String), box: expect.any(String) });
+});

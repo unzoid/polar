@@ -171,7 +171,9 @@
     opacity var(--dur-fast) var(--ease-out);
 }
 .skip-num {
-  font-size: 1.1875rem; /* the 8-unit figure of the old 24-unit glyph, at 56px */
+  /* The 8-unit figure of the old 24-unit glyph, at 56px. In px like the circle: in rem it outgrew
+     the circle wherever the root type is larger (TV mode). */
+  font-size: 19px;
   padding-top: 2px; /* sits in the circle's optical middle, under the arrowhead's weight */
 }
 /* Starts where the number is (the circle's middle, half the 84px button in) and travels outwards. */

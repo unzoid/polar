@@ -30,7 +30,13 @@ test("an install link for this device or the local network isn't offered", () =>
   for (const host of ["localhost:7000", "127.0.0.1:7000", "192.168.1.20", "10.0.0.5", "172.20.1.1", "[::1]:7000", "[fd00::1]", "nas.local", "addon", "169.254.1.1"]) {
     expect(parseStremioLink(`stremio://${host}/manifest.json`)).toEqual({ kind: "unknown", local: true });
   }
+  // The same, written another way: a trailing dot, an IPv4 address inside an IPv6 one, short IPv4 forms.
+  for (const host of ["localhost.", "nas.local.", "addon.", "[::127.0.0.1]", "[::ffff:192.168.1.20]", "[64:ff9b::a00:5]", "127.1", "0x7f.1", "0"]) {
+    expect(parseStremioLink(`stremio://${host}/manifest.json`)).toEqual({ kind: "unknown", local: true });
+  }
   expect(isLocalHost("addon.example.com")).toBe(false);
+  expect(isLocalHost("addon.example.com.")).toBe(false);
+  expect(isLocalHost("2001:db8::1")).toBe(false);
   expect(isLocalHost("172.32.0.1")).toBe(false);
   expect(isLocalHost("203.0.113.9")).toBe(false);
 });
@@ -110,7 +116,7 @@ test("an install link never installs without Install being pressed", async () =>
   offerAddon("https://addon.example.com/manifest.json", deps);
   expect(getAddonOffer()?.step).toBe("loading");
   // Install while the manifest is still being read does nothing.
-  expect(await confirmAddon(deps)).toBeNull();
+  expect(await confirmAddon(getAddonOffer()?.id ?? 0, deps)).toBeNull();
   await settle();
   expect(getAddonOffer()).toMatchObject({ step: "confirm", name: "Linked Add-on", description: "An add-on.", manifestUrl: "https://addon.example.com/manifest.json" });
   expect(installed).toEqual([]);
@@ -118,13 +124,13 @@ test("an install link never installs without Install being pressed", async () =>
   // Cancel: nothing installed.
   dismissAddonOffer();
   expect(getAddonOffer()).toBeNull();
-  expect(await confirmAddon(deps)).toBeNull();
+  expect(await confirmAddon(getAddonOffer()?.id ?? 0, deps)).toBeNull();
   expect(installed).toEqual([]);
 
   // Install pressed: installed once.
   offerAddon("https://addon.example.com/manifest.json", deps);
   await settle();
-  expect(await confirmAddon(deps)).toBe("Linked Add-on");
+  expect(await confirmAddon(getAddonOffer()?.id ?? 0, deps)).toBe("Linked Add-on");
   expect(installed).toEqual(["https://addon.example.com/manifest.json"]);
   expect(getAddonOffer()).toBeNull();
 });
@@ -150,11 +156,21 @@ test("a newer link replaces one still asking; an add-on that can't be read can't
   expect(getAddonOffer()).toMatchObject({ step: "confirm", manifestUrl: "https://two.example.com/manifest.json" });
   dismissAddonOffer();
 
+  // Install pressed on the first card just as a second link replaced it: neither is installed.
+  offerAddon("https://one.example.com/manifest.json", deps);
+  await settle();
+  const pressed = getAddonOffer()!.id;
+  offerAddon("https://two.example.com/manifest.json", deps);
+  await settle();
+  expect(await confirmAddon(pressed, deps)).toBeNull();
+  expect(getAddonOffer()).toMatchObject({ step: "confirm", manifestUrl: "https://two.example.com/manifest.json" });
+  dismissAddonOffer();
+
   const broken = fakeDeps(true);
   offerAddon("https://addon.example.com/manifest.json", broken.deps);
   await settle();
   expect(getAddonOffer()).toMatchObject({ step: "error", error: "network: error sending request" });
-  expect(await confirmAddon(broken.deps)).toBeNull();
+  expect(await confirmAddon(getAddonOffer()?.id ?? 0, broken.deps)).toBeNull();
   expect(broken.installed).toEqual([]);
   expect(installed).toEqual([]);
   dismissAddonOffer();

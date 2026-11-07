@@ -53,10 +53,13 @@ export function offerAddon(manifestUrl: string, deps: OfferDeps) {
   );
 }
 
-/** Install pressed. Resolves with the add-on's name once installed. */
-export async function confirmAddon(deps: OfferDeps): Promise<string | null> {
+/**
+ * Install pressed on the card showing offer `id`. Resolves with the add-on's name once installed. A newer link
+ * may have replaced that offer just before the press: then nothing is installed.
+ */
+export async function confirmAddon(id: number, deps: OfferDeps): Promise<string | null> {
   const asked = offer;
-  if (asked?.step !== "confirm") return null;
+  if (asked?.step !== "confirm" || asked.id !== id) return null;
   set({ ...asked, step: "installing" });
   try {
     await deps.install(asked.manifestUrl);

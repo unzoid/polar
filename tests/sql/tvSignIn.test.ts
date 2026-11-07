@@ -132,6 +132,47 @@ describe("limits", () => {
     expect(await count(`tv_sign_in_tries where user_id = '${A}'`)).toBe(1);
   });
 
+  test("answers to codes that aren't there count towards the same limit; a right answer always goes through", async () => {
+    await as(db, null);
+    await db.exec(`delete from tv_sign_in_tries`);
+    await as(db, SERVICE);
+    for (let i = 0; i < 10; i++) expect(await answer(A, 900 + i, true)).toBe(false);
+    expect(await refusal(`select tv_sign_in_answer('${A}', '${h(910)}', true)`)).toBe("rate_limited");
+    expect(await refusal(`select tv_sign_in_look('${A}', '${h(910)}')`)).toBe("rate_limited");
+    // A request they really have in front of them still takes their answer.
+    await start(41, 141, 10);
+    expect(await answer(A, 41, false)).toBe(true);
+    expect(await claim(141)).toEqual({ state: "denied", user_id: null });
+  });
+
+  test("lookups older than ten minutes are deleted whoever made them", async () => {
+    await as(db, null);
+    await db.exec(`update tv_sign_in_tries set at = now() - interval '11 minutes'`);
+    await as(db, SERVICE);
+    await look(B, 999);
+    expect(await count(`tv_sign_in_tries where user_id = '${A}'`)).toBe(0);
+  });
+
+  test("full: the oldest unanswered requests make way for new ones, answered ones stay", async () => {
+    await expireAll();
+    await start(50, 150, 11);
+    await answer(A, 50, true);
+    await as(db, null);
+    // 9,999 more from many addresses (oldest first), as a flood would leave them.
+    await db.exec(`insert into tv_sign_in (code_hash, poll_hash, device, ip_hash, created_at)
+      select lpad(to_hex(1000000 + n), 64, '0'), lpad(to_hex(2000000 + n), 64, '0'), 'TV', lpad(to_hex(3000000 + n), 64, '0'),
+        now() - interval '1 minute' + n * interval '1 millisecond'
+      from generate_series(1, 9999) n`);
+    await as(db, SERVICE);
+    expect(await count("tv_sign_in")).toBe(10000);
+    await start(51, 151, 12);
+    expect(await count("tv_sign_in")).toBe(10000);
+    expect(await count(`tv_sign_in where code_hash = '${h(51)}'`)).toBe(1);
+    expect(await count(`tv_sign_in where code_hash = lpad(to_hex(1000001), 64, '0')`)).toBe(0);
+    expect(await claim(150)).toEqual({ state: "approved", user_id: A });
+    await expireAll();
+  });
+
   test("a deleted account takes its lookups and approvals with it", async () => {
     await start(40, 140, 9);
     await answer(B, 40, true);
