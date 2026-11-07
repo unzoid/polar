@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
-import { useProgress, useSettings, useStreams } from "../../lib/net";
-import { autoPickOrder, describeStream, describeTorrent, torrentLimits, type TorrentStep } from "../../lib/playback";
+import { useProgress, useStreams } from "../../lib/net";
+import { autoPickOrder, describeStream, describeTorrent, torrentLimits, useTitleSettings, type TorrentStep } from "../../lib/playback";
 import { on } from "../../lib/platform";
 import { getPrefs, setPrefs } from "../../lib/settings";
 import type { ContentType, Playable, Progress, Stream } from "../../lib/types";
@@ -56,7 +56,7 @@ export function useSource(
 
   const needsRanking = !picked && (!!prefer || (saved !== undefined && !saved?.stream));
   const streams = useStreams(type, needsRanking ? videoId : undefined);
-  const { data: settings } = useSettings();
+  const { settings } = useTitleSettings(type, videoId);
   useEffect(() => {
     if (needsRanking) log("Asking your add-ons for sources", "info", "sources");
   }, [needsRanking, log]);

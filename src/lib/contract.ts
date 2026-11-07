@@ -74,6 +74,7 @@ export const contract = {
     countries: true,
     episodes: true,
     languages: true,
+    originalLanguage: true,
     released: true,
     revenue: true,
     seasons: true,
@@ -206,6 +207,8 @@ export const contract = {
   Segments: { intro: true, outro: true, postCredits: true, recap: true } satisfies Keys<SkipSegments>,
   Settings: {
     accentColor: true,
+    animeAudioLanguage: true,
+    animeSubtitleLanguage: true,
     audioLanguage: true,
     autoPickSource: true,
     autoSkip: true,

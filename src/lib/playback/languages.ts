@@ -32,3 +32,8 @@ export function langMatches(code: string | undefined, pref: string) {
   const want = pref.toLowerCase();
   return norm === want || norm.split("-")[0] === want.split("-")[0];
 }
+
+/** Settings → Anime's "Same as other titles": the language under Subtitles & Audio (#235). */
+export const SAME_AS_OTHERS = "same";
+/** Settings → Anime's "Original language": the one the show was made in. */
+export const ORIGINAL_LANGUAGE = "original";

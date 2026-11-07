@@ -65,6 +65,8 @@ export interface MetaDetails {
   released?: string;
   countries?: string[];
   languages?: string[];
+  /** The language it was made in (ISO 639-1, e.g. "ja"), when the source says. */
+  originalLanguage?: string;
   /** Networks for a show, studios for a movie. */
   studios?: string[];
   writers?: string[];
@@ -297,6 +299,10 @@ export interface Settings {
   audioLanguage: string;
   /** Preferred subtitle language; empty = off. */
   subtitleLanguage: string;
+  /** Settings → Anime: audio language for anime. "same" = `audioLanguage`, "original" = the show's own, else as `audioLanguage`. */
+  animeAudioLanguage: string;
+  /** Settings → Anime: subtitle language for anime. "same" = `subtitleLanguage`, else as `subtitleLanguage`. */
+  animeSubtitleLanguage: string;
   /** Seconds the arrow keys jump. */
   seekStep: number;
   /** Play the best source immediately; off = show the source list first. */

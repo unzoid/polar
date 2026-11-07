@@ -31,6 +31,11 @@ pub struct Settings {
     pub audio_language: String,
     /// Preferred subtitle language, e.g. `en`. Empty = subtitles off.
     pub subtitle_language: String,
+    /// Settings → Anime: the audio language for anime. "same" = `audio_language`,
+    /// "original" = the language the show was made in, else as `audio_language`.
+    pub anime_audio_language: String,
+    /// Settings → Anime: the subtitle language for anime. "same" = `subtitle_language`.
+    pub anime_subtitle_language: String,
     /// Seconds the arrow keys (and skip buttons) jump.
     pub seek_step: u32,
     /// Play the best source straight away. Off: Play opens the source list first.
@@ -190,6 +195,8 @@ impl Default for Settings {
             auto_skip: false,
             audio_language: String::new(),
             subtitle_language: String::new(),
+            anime_audio_language: "same".into(),
+            anime_subtitle_language: "same".into(),
             seek_step: 10,
             auto_pick_source: true,
             show_card_titles: true,

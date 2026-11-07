@@ -177,6 +177,9 @@ pub struct MetaDetails {
     pub countries: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub languages: Vec<String>,
+    /// The language it was made in (ISO 639-1, e.g. `ja`), when the source says.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_language: Option<String>,
     /// Networks for a show, studios for a movie.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub studios: Vec<String>,

@@ -96,7 +96,7 @@ const ROWS: Record<Exclude<CategoryId, "anime">, string[]> = {
   tv: ["uiSounds", "uiSoundVolume", "padHints", "padStick", "padPlayerVolume", "controllerAlerts"],
 };
 
-const ANIME_ROWS = ["animeTitles", "animeCardScores", "animeScoreFormat", "animeCardCountdown", "animeSeparateEntries"];
+const ANIME_ROWS = ["animeTitles", "animeAudioLanguage", "animeSubtitleLanguage", "animeCardScores", "animeScoreFormat", "animeCardCountdown", "animeSeparateEntries"];
 
 function CategoryRows({ id }: { id: CategoryId }) {
   const prefs = usePrefs();

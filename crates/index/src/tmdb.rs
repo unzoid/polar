@@ -525,6 +525,7 @@ fn detail_to_meta(ty: &str, imdb_id: &str, d: &Value, videos: Vec<Video>) -> Met
         released: str_of(&d["release_date"]).or_else(|| str_of(&d["first_air_date"])),
         countries,
         languages: list(&d["spoken_languages"], "english_name", 4),
+        original_language: str_of(&d["original_language"]),
         studios: if is_series { list(&d["networks"], "name", 3) } else { list(&d["production_companies"], "name", 3) },
         writers,
         awards: None,
@@ -793,5 +794,13 @@ mod tests {
             serde_json::from_value(json!({"id": 1, "name": "Made Up Toon", "genre_ids": [16, 10759, 1]})).unwrap();
         let preview = item.into_preview("series", "tt0000001".into(), Vec::new());
         assert_eq!(preview.genres, ["Animation", "Action"]);
+    }
+
+    #[test]
+    fn details_say_the_language_it_was_made_in() {
+        let d = json!({"id": 1, "name": "Made Up Toon", "original_language": "ja"});
+        assert_eq!(detail_to_meta("series", "tt0000001", &d, Vec::new()).details.original_language.as_deref(), Some("ja"));
+        let d = json!({"id": 1, "name": "Made Up Toon", "original_language": ""});
+        assert_eq!(detail_to_meta("series", "tt0000001", &d, Vec::new()).details.original_language, None);
     }
 }

@@ -35,6 +35,7 @@ import {
   videoFile,
   READY_CHECKS,
   readinessNote,
+  rememberLanguage,
   resetAutoplay,
   screenResolution,
   sliderAmplitude,
@@ -42,6 +43,7 @@ import {
   useReadiness,
   useResetAutoplayOnInput,
   useSourceFilters,
+  useTitleSettings,
 } from "../lib/playback";
 import { downloadedStream, episodeState, isLocalFile, nextVideo, progressMap, seasonsOf, useDownloads, watchedFraction } from "../lib/library";
 import { WindowControls } from "../components/WindowControls";
@@ -72,7 +74,7 @@ import { Segmented } from "../components/Segmented";
 import { api } from "../lib/api";
 import { useAccount } from "../lib/account";
 import { airLabel, episodeCode, formatRemaining, formatTime, seasonLabel } from "../lib/format";
-import { keys, prefetchStreams, useMeta, useProgress, useSettings, useStreams, useUpdateSettings } from "../lib/net";
+import { keys, prefetchStreams, useMeta, useProgress, useStreams, useUpdateSettings } from "../lib/net";
 import { useRouter } from "../lib/router";
 import type { ContentType, Progress, RankedStream, Stream, Video } from "../lib/types";
 import { playContext, stillFor } from "../lib/anime";
@@ -150,7 +152,8 @@ export function Player({
   // source the file itself, and where it stopped is kept on this device; nothing is looked up online.
   const local = isFileId(metaId);
   const { data: meta } = useMeta(type, metaId, !isLinkId(metaId) && !local);
-  const { data: settings } = useSettings();
+  // Its languages are Settings → Anime's for an anime (#235).
+  const { settings, anime, original } = useTitleSettings(type, videoId);
   const { touch } = useFormFactor();
   // Engine: embedded mpv when installed (plays every codec, AC3/DTS audio, every
   // subtitle format), else the WebView's own <video>.
@@ -265,7 +268,7 @@ export function Player({
       subtitle: settings?.subtitleLanguage ?? "",
       subtitleMode: settings?.subtitleMode ?? "always",
     },
-    (patch) => updateSettings.mutate(patch),
+    (patch) => updateSettings.mutate(rememberLanguage(settings, anime, original, patch)),
     playingFile,
     // Subtitles beside a file on this device load with it (mpv's sub-auto); add-ons aren't asked.
     !local,

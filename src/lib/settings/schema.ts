@@ -1,4 +1,4 @@
-import { PREFERRED_LANGUAGES, languageName } from "../playback/languages";
+import { ORIGINAL_LANGUAGE, PREFERRED_LANGUAGES, SAME_AS_OTHERS, languageName } from "../playback/languages";
 import { isMac } from "../platform/device";
 import type { Prefs } from "./prefs";
 import type { Settings } from "../types";
@@ -68,6 +68,17 @@ export function languageChoices(current: Value, none: string): Choice[] {
   const code = String(current ?? "");
   const codes = code && !PREFERRED_LANGUAGES.includes(code) ? [code, ...PREFERRED_LANGUAGES] : PREFERRED_LANGUAGES;
   return [{ value: "", label: none }, ...codes.map((c) => ({ value: c, label: languageName(c) ?? c }))];
+}
+
+/** Settings → Anime's languages (#235): "Same as other titles" first, then for audio "Original language", then languageChoices. */
+function animeLanguageChoices(current: Value, none: string, original: boolean): Choice[] {
+  const code = String(current ?? "");
+  const own = code === SAME_AS_OTHERS || code === ORIGINAL_LANGUAGE ? "" : code;
+  return [
+    { value: SAME_AS_OTHERS, label: "Same as other titles" },
+    ...(original ? [{ value: ORIGINAL_LANGUAGE, label: "Original language" }] : []),
+    ...languageChoices(own, none),
+  ];
 }
 
 /** TMDB's metadata languages, as locales. */
@@ -757,6 +768,28 @@ export const SETTINGS: SettingDef[] = [
       { value: "japanese", label: "Japanese" },
       { value: "english", label: "English" },
     ]),
+  },
+  {
+    id: "animeAudioLanguage",
+    page: "anime",
+    title: "Audio",
+    controlLabel: "Audio language for anime",
+    caption: "Other titles keep the one under Subtitles & Audio",
+    keywords: "anime audio language dub sub japanese original voices",
+    bind: s("animeAudioLanguage", SAME_AS_OTHERS),
+    control: choice((current) => animeLanguageChoices(current, "Default", true)),
+    tv: "Anime Audio",
+  },
+  {
+    id: "animeSubtitleLanguage",
+    page: "anime",
+    title: "Subtitles",
+    controlLabel: "Subtitle language for anime",
+    caption: "Other titles keep the one under Subtitles & Audio",
+    keywords: "anime subtitle language captions subs",
+    bind: s("animeSubtitleLanguage", SAME_AS_OTHERS),
+    control: choice((current) => animeLanguageChoices(current, "Off", false)),
+    tv: "Anime Subtitles",
   },
   {
     id: "animeShelves",

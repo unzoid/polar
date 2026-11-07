@@ -432,6 +432,8 @@ export const settings: Settings = {
   autoSkip: false,
   audioLanguage: "",
   subtitleLanguage: "",
+  animeAudioLanguage: "same",
+  animeSubtitleLanguage: "same",
   seekStep: 10,
   autoPickSource: true,
   showCardTitles: true,

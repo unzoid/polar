@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { AlertCircle, Check, Info, Instant } from "./icons";
 import { useRouter } from "../lib/router";
 import { openSettings, type PageId } from "../lib/settings";
-import { useSettings, useStreams } from "../lib/net";
-import { READY_CHECKS, readinessNote, screenResolution, sourceRow, TAG_LABELS, tagsOf, useReadiness, useSourceFilters } from "../lib/playback";
+import { useStreams } from "../lib/net";
+import { READY_CHECKS, readinessNote, screenResolution, sourceRow, TAG_LABELS, tagsOf, useReadiness, useSourceFilters, useTitleSettings } from "../lib/playback";
 import type { ContentType, RankedStream, Readiness } from "../lib/types";
 import { SourceFilterBar } from "./SourceFilters";
 import { Button } from "./ui/Button";
@@ -34,7 +34,8 @@ export function StreamList({
   // Desktop settings are the overlay over this page; TV has its own settings screen.
   const showSettings = (page: PageId) => (tv ? tab({ name: "settings", page }) : openSettings(page));
   const { data, isLoading, isError, error } = useStreams(type, videoId);
-  const { data: settings } = useSettings();
+  // An anime's language filter is Settings → Anime's (#235).
+  const { settings } = useTitleSettings(type, videoId);
   const f = useSourceFilters(data?.streams, settings);
   // The first few sources in view get a look ahead of time (#21).
   const ready = useReadiness(f.view.slice(0, Math.min(f.matched, READY_CHECKS)).map(({ r }) => r));
