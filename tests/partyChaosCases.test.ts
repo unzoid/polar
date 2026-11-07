@@ -2,9 +2,9 @@
 // scripted case on the same fault-injecting server (tests/partyChaos.ts), so a
 // fix that comes undone fails here by name, whatever the random runs do.
 import { expect, test } from "bun:test";
-import { ECHO_MISSES, GHOST_MS, GONE_MS, HEAL_MS, PING_MS, PRESENCE_WINDOW_MS } from "../src/lib/party/room";
+import { ECHO_MISSES, GHOST_MS, GONE_MS, HEAL_MS, PING_MS, PRESENCE_WINDOW_MS, STALL_HOLD_MAX_MS, STALL_WINDOW_MS } from "../src/lib/party/room";
 import { ChaosHub, rng } from "./partyChaos";
-import { MEDIA, setup, statusOf, type Member } from "./partySim";
+import { MEDIA, setup, stall, statusOf, type Member } from "./partySim";
 
 const id = (i: number) => `member-${i + 1}`;
 
@@ -368,4 +368,107 @@ test("where only the host controls playback, a member's seek while paused goes b
     expect(timeline(o)).toEqual(before);
     expect(Math.abs(o.media!.currentTime - at)).toBeLessThan(0.2);
   }
+});
+
+// Pause when someone is buffering (#238).
+
+/** A party of three with "Pause when someone is buffering" on, or off. */
+function stallParty(on: boolean) {
+  const p = party(3);
+  p.ms[0].room.setRules({ stall: on });
+  p.sim.run(3000);
+  return p;
+}
+
+const held = (m: Member) => !!m.room.getParty()!.playback!.held;
+
+test("with the room pausing for stalls, a member's stall holds everyone where it stopped, and play resumes together", () => {
+  const { sim, ms } = stallParty(true);
+  const [a, b, c] = ms;
+  const stoppedAt = b.media!.currentTime;
+  stall(sim, b, 8000);
+  sim.run(4000);
+  for (const m of ms) expect(held(m)).toBe(true);
+  expect(a.media!.paused && c.media!.paused).toBe(true);
+  expect(a.room.getParty()!.members.find((m) => m.id === id(1))!.buffering).toBe(true);
+  // Held where B stopped, not where the room had got to while B's stall was being noticed.
+  expect(Math.abs(a.room.getParty()!.playback!.position - stoppedAt)).toBeLessThan(0.3);
+  sim.run(3000);
+  expect(Math.abs(a.media!.currentTime - stoppedAt)).toBeLessThan(0.6);
+  // B plays again: everyone resumes, together.
+  sim.run(6000);
+  for (const m of ms) expect(held(m)).toBe(false);
+  expect(ms.every((m) => !m.media!.paused)).toBe(true);
+  const at = ms.map((m) => m.media!.currentTime);
+  expect(Math.max(...at) - Math.min(...at)).toBeLessThan(0.5);
+  expect(a.room.partyLog()).toContain(`holding for ${id(1)}: buffering`);
+});
+
+test("with the room pausing for stalls, it gives up on a stall that lasts: the others play on and the member shows as Buffering", () => {
+  const { sim, ms } = stallParty(true);
+  const [a, b] = ms;
+  stall(sim, b, STALL_HOLD_MAX_MS + 20_000);
+  sim.run(5000);
+  expect(held(a)).toBe(true);
+  sim.run(STALL_HOLD_MAX_MS);
+  for (const m of ms) expect(held(m)).toBe(false);
+  expect(a.media!.paused).toBe(false);
+  expect(statusOf(a.room.getParty()!, id(1))).toBe("Buffering");
+  // Still stalled after the give-up: no hold again for the same stall.
+  sim.run(10_000);
+  expect(held(a)).toBe(false);
+  // B plays again, and catches up by itself.
+  sim.run(10_000);
+  expect(statusOf(a.room.getParty()!, id(1))).toBe("Watching");
+  expect(Math.abs(b.media!.currentTime - a.media!.currentTime)).toBeLessThan(0.5);
+});
+
+test("with the room pausing for stalls, it holds for one member three times in two minutes, not a fourth", () => {
+  const { sim, ms } = stallParty(true);
+  const [a, b] = ms;
+  const holds: boolean[] = [];
+  for (let i = 0; i < 4; i++) {
+    stall(sim, b, 6000);
+    let seen = false;
+    const watch = sim.every(() => (seen ||= held(a)), 100);
+    sim.run(14_000);
+    watch();
+    holds.push(seen);
+  }
+  expect(holds).toEqual([true, true, true, false]);
+  expect(statusOf(a.room.getParty()!, id(1))).toBe("Watching");
+  // Once the window has passed, a stall is held for again.
+  sim.run(STALL_WINDOW_MS);
+  stall(sim, b, 6000);
+  sim.run(4000);
+  expect(held(a)).toBe(true);
+});
+
+test("with the room pausing for stalls, a stall under the threshold never holds", () => {
+  const { sim, ms } = stallParty(true);
+  const [a] = ms;
+  let seen = false;
+  const watch = sim.every(() => (seen ||= held(a)), 50);
+  for (const ms_ of [800, 1300, 1500]) {
+    stall(sim, ms[1], ms_);
+    sim.run(8000);
+  }
+  watch();
+  expect(seen).toBe(false);
+  expect(a.media!.paused).toBe(false);
+});
+
+test("with the room not pausing for stalls (the default), a stall is shown and the others play on", () => {
+  const { sim, ms } = stallParty(false);
+  const [a, b] = ms;
+  expect(a.room.getParty()!.rules.stall).toBe(false);
+  let seen = false;
+  const watch = sim.every(() => (seen ||= held(a)), 100);
+  stall(sim, b, 8000);
+  sim.run(4000);
+  expect(statusOf(a.room.getParty()!, id(1))).toBe("Buffering");
+  sim.run(10_000);
+  watch();
+  expect(seen).toBe(false);
+  expect(a.media!.paused).toBe(false);
 });
