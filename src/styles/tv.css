@@ -1423,6 +1423,84 @@
 .tv .options-column[data-size="wide"] {
   width: min(38rem, 52vw);
 }
+/* Episodes (EpisodeRail.tsx) as tvOS lays them out: low on the screen, the rail running to both of
+   its edges (cards start at the gutter and are cut by the screen, not the column), and focus the
+   same lift and ring as the cards at home. No play glyph or Download on every card: the focused
+   one shows its Download, the remote's down reaches it. */
+.tv .options-columns:has(> .options-column[data-size="full"]) {
+  align-self: end;
+  width: 100vw;
+  max-width: none;
+  margin-bottom: 9vh;
+}
+.tv .options-column[data-size="full"] {
+  width: 100%;
+  max-height: none;
+}
+.tv .options-column[data-size="full"] .options-head {
+  padding: 0 var(--tv-gutter);
+  margin-bottom: 1.5rem;
+}
+.tv .episode-rail-viewport {
+  --rail-card-w: min(22vw, 39vh);
+}
+.tv .episode-rail {
+  gap: 1.75rem;
+  /* Room for the lifted still and its ring, which the scroller would otherwise clip. */
+  padding: 1rem var(--tv-gutter);
+  margin: -1rem 0 0;
+  scroll-padding-inline: var(--tv-gutter);
+}
+.tv .episode-rail-main {
+  gap: 1rem;
+  outline: none;
+}
+.tv .episode-rail-still {
+  border-radius: var(--tv-radius);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+.tv .episode-rail-card[aria-current] .episode-rail-still {
+  box-shadow: none;
+}
+.tv .episode-rail-main:focus .episode-rail-still {
+  transform: scale(var(--tv-lift));
+  box-shadow:
+    0 0 0 var(--tv-ring) #fff,
+    0 1.4rem 2.6rem -1rem rgb(0 0 0 / 0.85);
+}
+.tv .episode-rail-play {
+  display: none;
+}
+.tv .episode-rail-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-2);
+  transition: color var(--dur-fast) var(--ease-std);
+}
+.tv .episode-rail-main:focus .episode-rail-title,
+.tv .episode-rail-card[aria-current] .episode-rail-title {
+  color: var(--text);
+}
+.tv .episode-rail-card .episode-rail-download {
+  top: calc(100cqw * 9 / 16 + 0.6rem);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-std);
+}
+.tv .episode-rail-card:focus-within .episode-rail-download {
+  opacity: 1;
+}
+.tv .episode-rail-meta {
+  margin-top: 0.5rem;
+}
+.tv .episode-rail-overview {
+  -webkit-line-clamp: 3;
+  color: var(--text-3);
+}
+:root[data-nav-held] .tv .episode-rail-still {
+  transition-duration: 0ms;
+}
 .tv .options-head {
   min-height: 2.6rem;
   gap: 1.25rem;

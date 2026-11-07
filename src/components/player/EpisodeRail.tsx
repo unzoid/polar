@@ -48,7 +48,7 @@ export function EpisodeRail({
     const card = el?.querySelector<HTMLElement>('[aria-current="true"]');
     if (!el) return;
     // The rail is the cards' offset parent (position: relative).
-    el.scrollLeft = card?.offsetLeft ?? 0;
+    el.scrollLeft = card ? card.offsetLeft - railInset(el) : 0;
     setEdges((e) => sameEdges(e, edgesOf(el)));
   }, [season, playing]);
 
@@ -151,10 +151,15 @@ const edgesOf = (el: HTMLElement): Edges => ({ start: el.scrollLeft < 4, end: el
 /** Same edges, same object: a new one per scroll event would re-render every card each frame. */
 const sameEdges = (was: Edges, now: Edges) => (was.start === now.start && was.end === now.end ? was : now);
 
+/** Where the rail's cards line up from its edge: TV's rail runs to the screen's edges and its cards
+ *  start at the gutter (its scroll-padding). */
+export const railInset = (rail: HTMLElement) => parseFloat(getComputedStyle(rail).scrollPaddingLeft) || 0;
+
 /** Scrolls `card` fully into `rail`'s view, the least distance (the rail alone, not its ancestors). */
 function reveal(rail: HTMLElement, card: HTMLElement) {
-  const left = card.offsetLeft;
-  const right = left + card.offsetWidth;
+  const inset = railInset(rail);
+  const left = card.offsetLeft - inset;
+  const right = card.offsetLeft + card.offsetWidth + inset;
   const to = left < rail.scrollLeft ? left : right > rail.scrollLeft + rail.clientWidth ? right - rail.clientWidth : null;
   if (to !== null) rail.scrollTo({ left: to, behavior: prefersReducedMotion() ? "auto" : "smooth" });
 }
