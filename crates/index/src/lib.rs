@@ -191,17 +191,27 @@ impl Indexer {
     }
 
     pub async fn search(&self, ty: &str, query: &str) -> Result<Vec<MetaPreview>> {
+        self.search_in(ty, query, None).await
+    }
+
+    /// A search narrowed to titles released in `year` where the backend can
+    /// (TMDB); Cinemeta's search has no year, so it answers the plain search.
+    pub async fn search_in(&self, ty: &str, query: &str, year: Option<u16>) -> Result<Vec<MetaPreview>> {
         check_type(ty)?;
         let query = query.trim();
         if query.is_empty() {
             return Ok(Vec::new());
         }
-        let key = format!("{ty}/search/{}", query.to_lowercase());
+        let year = year.filter(|_| matches!(self.backend, Backend::Tmdb(_)));
+        let key = match year {
+            Some(y) => format!("{ty}/search/{y}/{}", query.to_lowercase()),
+            None => format!("{ty}/search/{}", query.to_lowercase()),
+        };
         if let Some(hit) = self.catalogs.get(&key) {
             return Ok(hit);
         }
         let metas = match &self.backend {
-            Backend::Tmdb(t) => t.search(ty, query).await?,
+            Backend::Tmdb(t) => t.search(ty, query, year).await?,
             Backend::Cinemeta(c) => c.search(ty, query).await?,
         };
         self.catalogs.insert(key, metas.clone());

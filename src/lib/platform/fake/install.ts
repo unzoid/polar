@@ -63,6 +63,10 @@ const commands: Record<string, (a: Args) => unknown> = {
     if (fx.WORST === "empty") return { movies: [], series: [] };
     return { movies: fx.movies.filter(hit), series: fx.series.filter(hit) };
   },
+  search_movies: (a) => {
+    const q = String(a.query).toLowerCase();
+    return fx.movies.filter((m) => m.name.toLowerCase().includes(q) && (a.year == null || m.releaseInfo === String(a.year)));
+  },
   meta: (a) => fx.meta(String(a.id)) ?? Promise.reject({ code: "not_found", message: "not found" }),
   streams: () => fx.streams(),
   subtitles: () => [],

@@ -862,6 +862,22 @@ whether the window resets on a channel rejoin over the same socket (assumed not)
 3. With A paused, B presses play while A can't see B's entry (hard to force by hand: the logs show it as
    "refused vN by …"): B goes back to paused within a second or two.
 
+## Letterboxd export import (#87)
+
+Letterboxd doesn't publish its export's columns. The parser reads `Name`, `Year`, `Date`, `Watched Date` and
+`Rating` by header name (any order, any case) from `watched.csv`, `diary.csv`, `ratings.csv` and `watchlist.csv`.
+It was written from exports users have described, not from a real one. The tests use invented files of that shape.
+To check, with a Letterboxd account that has a few watched, logged, rated and watchlisted films:
+1. Letterboxd → Settings → Data → Export your data. In Polarity: Settings → Account (or Advanced when signed out) →
+   Import from Letterboxd → Choose File… → the ZIP. The counts match the account: Watchlist, Watched, and Ratings
+   with "Ratings aren't imported".
+2. Import, with and without a TMDB key. The films land in the library (watchlist) and in History (watched) on the
+   right days. A film logged twice in the diary shows its latest day.
+3. Films with a common title (remakes) or with a different year on Letterboxd and the catalog are listed under
+   "Films to pick". Picking one imports it, Search finds others, and Skip drops it.
+4. Import the same ZIP again: nothing new is added.
+5. Unzip the export and pick `watched.csv` and `watchlist.csv` together. The same counts show.
+
 ## AniList account link (#83)
 
 Checked here: unit tests (`tests/listSync.test.ts`: the sign-in code, the queue, the watched rule, sending and

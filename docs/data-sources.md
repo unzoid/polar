@@ -32,6 +32,7 @@ first (see `AGENTS.md`).
 | Add-ons the user installs | Streams, subtitles, catalogs | `crates/addon/src/client.rs`, `src-tauri/src/commands.rs` | Per add-on | Each add-on's own |
 | Add-on list | The curated list in Settings → Add-ons | `src/lib/catalog/marketplace.ts` | None | — |
 | GitHub releases API | Release notes for updates | `src/lib/updater.ts` | None | 60 unauthenticated requests an hour |
+| Letterboxd export (a file) | Watchlist and watched films the user imports (#87) | `src/lib/library/letterboxdImport.ts`, `src/components/settings/LetterboxdImport.tsx` | None | Read on the device; nothing is fetched from Letterboxd and its `boxd.it` links are never followed. Films are found through the catalog above, two searches at a time |
 | Supabase | Accounts and sync, the owner's project | `src/lib/account/` | Owner's publishable key | `docs/supabase-storage.md` |
 
 Every host the web view fetches from is listed in its `connect-src` policy
@@ -70,6 +71,10 @@ Every host the web view fetches from is listed in its `connect-src` policy
   as Simkl does. The credits say "uses the Simkl API" in text; Simkl's API rules ask for its logo, which isn't added
   until the owner or Simkl says how. Unlinking revokes the token and removes the sign-in, the queue, the
   lists and ratings kept and the last look.
+- **Letterboxd:** its API is by invitation only, so there is no account link. The import reads the export the user
+  downloads from Letterboxd's settings. The export carries no IMDb or TMDB ids, so each film is matched by title and year
+  through the catalog (TMDB's search narrowed to the year, Cinemeta's plain search). A row that matches no film, or more
+  than one, is left for the user to pick. Ratings aren't imported: Polarity has no rating of its own.
 - **Credits:** Settings → About → Credits names every source and shows TMDB's notice and logo (`src/lib/settings/credits.ts`).
 
 ## 3. What the app keeps on disk
