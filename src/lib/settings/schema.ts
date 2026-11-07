@@ -840,6 +840,27 @@ export const SETTINGS: SettingDef[] = [
     tv: "Seasons as Separate Shows",
   },
   {
+    id: "animeReadOn",
+    page: "anime",
+    title: "Open manga and novels on",
+    caption: "Also in This Franchise opens manga, novels and entries Polarity can't play on this site, in your browser",
+    keywords: "anime manga novel light novel one-shot myanimelist mal anilist franchise browser",
+    bind: p("animeReadOn"),
+    control: choice([
+      { value: "myanimelist", label: "MyAnimeList" },
+      { value: "anilist", label: "AniList" },
+    ]),
+  },
+  {
+    id: "animeHideUnplayable",
+    page: "anime",
+    title: "Only shows and films in Also in This Franchise",
+    caption: "Leave out manga, novels, music videos and other entries Polarity can't play",
+    keywords: "anime manga novel music video pv short franchise hide unplayable",
+    bind: p("animeHideUnplayable"),
+    control: toggle,
+  },
+  {
     id: "animeScheduleAll",
     page: "anime",
     title: "List every show",

@@ -85,6 +85,13 @@ export function readCard(v: unknown): AnimeCard | undefined {
     nextAiringEpisode: episode !== undefined && airingAt !== undefined ? { episode, airingAt, timeUntilAiring: num(next.timeUntilAiring) ?? 0 } : null,
   };
   if ("description" in v) card.description = str(v.description) ?? null;
+  if ("externalLinks" in v)
+    card.externalLinks = listOf(v.externalLinks, (l) => {
+      const r = rec(l);
+      const site = str(r.site);
+      const url = str(r.url);
+      return site === undefined || url === undefined ? undefined : { site, url };
+    });
   return card;
 }
 
