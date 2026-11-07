@@ -393,3 +393,23 @@ In the dashboard's SQL editor, as the owner:
   per table, sign-ups per day for 30 days (a burst can be a script), and the size of each table.
 - `supabase/admin/delete_account.sql`: deletes one account (put its id in first), as a whole or
   only its profiles and their rows (`keep_sign_in`). It can't be undone.
+
+## 9. Signing in on a TV (#133)
+
+`supabase/migrations/20261109000000_tv_sign_in.sql` and the Edge Function `supabase/functions/tv-sign-in`.
+The TV (not signed in) asks the function for an 8-character code (31 letters and digits, no 0/O/1/I/L) and a
+secret of its own; a signed-in device looks the code up (what the TV calls itself) and approves or denies; the TV
+asks every 3 s with its secret and, once approved, gets a one-time magic-link token hash (made with the admin API's
+`generateLink`, which sends no email) and verifies it into a session of its own. The other device's session never
+travels.
+
+- Only the service role touches `tv_sign_in` and `tv_sign_in_tries`: RLS on with no policies, functions granted to
+  `service_role` alone. Codes and secrets are stored as SHA-256, the caller's address as an HMAC keyed with the
+  service key.
+- A request lives 5 minutes and is handed out once: deleted when the TV collects the answer; expired rows go with
+  the next request. Limits: 5 live requests per address, 10,000 in all, 10 code lookups per user per 10 minutes.
+- Deploy: apply the migration, then `supabase functions deploy tv-sign-in --no-verify-jwt` (the TV has no session
+  yet; the function checks the user's token itself for look and answer). It reads `SUPABASE_URL` and
+  `SUPABASE_SERVICE_ROLE_KEY`, which Supabase provides to functions.
+- Tests: `tests/sql/tvSignIn.test.ts` (PGlite), `tests/tvSignInFunction.test.ts` (the function's steps with an
+  in-memory database), `tests/tvSignIn.test.ts` (the app's waiting loop).

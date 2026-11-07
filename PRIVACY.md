@@ -28,6 +28,11 @@ in, it keeps:
 - **Your email address**, which you sign in with (a login code is emailed to you; there's no password), and the
   times you signed in. Supabase's sign-in service also keeps its own logs of requests, which include your IP address.
   How long those are kept: 1 day
+- **Signing in on a TV with a code** (Settings → Account → Sign in a TV): while a code is waiting, at most five
+  minutes, the server keeps the kind of device that asked (for example "Android TV"), a scrambled form of its IP
+  address (to limit how many codes one address can ask for) and, once you approve, which account approved it. It's
+  deleted when the TV signs in, or when the code expires. Each code you look up is counted for ten minutes, to stop
+  guessing.
 - **Profiles:** each profile's name and the avatar picked for it (one of the app's built-in pictures, never a photo).
 - **Library:** which titles are in each profile's library, by id (for example an IMDb or Kitsu id), and when they
   were added. Not their names or pictures.

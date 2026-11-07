@@ -7,6 +7,7 @@ import type { AnimeLink } from "../library/identity";
 import type { ContentType, Progress, SyncLibraryItem } from "../types";
 import { count, isRecord, str } from "../parse";
 import { normalizeAvatar, type AvatarId } from "./avatars";
+import type { TvClaim, TvSignInRequest } from "./tvSignIn";
 
 export interface AccountUser {
   id: string;
@@ -243,6 +244,20 @@ export interface AccountBackend {
     signOut(): Promise<void>;
     /** Deletes the account and everything synced with it. */
     deleteAccount(): Promise<void>;
+  };
+
+  /** Signing in on a TV from a device that's already signed in (#133, lib/account/tvSignIn.ts). */
+  tvSignIn: {
+    /** The waiting device: a code to show, named `device` on the other side. */
+    start(device: string): Promise<TvSignInRequest>;
+    /** The waiting device: whether the code was answered. */
+    claim(poll: string): Promise<TvClaim>;
+    /** The waiting device: an approved request's token exchanged for a session of its own. */
+    finish(tokenHash: string): Promise<AccountUser>;
+    /** The signed-in device: what the code's device calls itself. `invalid_code` when it's no live code. */
+    look(code: string): Promise<string>;
+    /** The signed-in device: approve (sign it in to this account) or deny. */
+    answer(code: string, approve: boolean): Promise<void>;
   };
 
   profiles: {

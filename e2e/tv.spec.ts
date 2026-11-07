@@ -242,3 +242,20 @@ test("Downloads opens from the Library's rail and its titles open and close with
   await press(app, "Backspace");
   await expect(focused(app)).toHaveAccessibleName("All Downloads");
 });
+
+test("signed out, the TV offers the phone first; denied, it says so and gets a new code (#133)", async ({ app }) => {
+  await app.goto("/fake.html?account=signed-out");
+  const phone = app.getByRole("button", { name: "Sign in with your phone" });
+  await expect(app.locator(".auth-actions button").first()).toHaveAccessibleName("Sign in with your phone");
+  await phone.focus();
+  await press(app, "Enter");
+  const code = app.locator(".auth-device-code");
+  await expect(code).toHaveText(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+  const first = await code.textContent();
+  await app.evaluate(() => (globalThis as unknown as { __polarFakeTv: { answer(a: boolean): void } }).__polarFakeTv.answer(false));
+  await expect(app.getByText("The sign-in was denied on the other device.")).toBeVisible({ timeout: 10_000 });
+  await app.getByRole("button", { name: "Get a new code" }).focus();
+  await press(app, "Enter");
+  await expect(code).toHaveText(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+  expect(await code.textContent()).not.toBe(first);
+});

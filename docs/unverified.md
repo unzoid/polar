@@ -934,6 +934,24 @@ To check on Windows (WebView2), and on Linux and macOS:
   inspect the app and record a Performance trace while scrolling; it names what's left. Still known: a shelf's first appearance costs a
   long frame (its cards styled and drawn for the first time).
 
+## Signing in on a TV with a code (#133)
+
+Checked here: the migration in PGlite, the Edge Function's steps against an in-memory database, the app's
+waiting loop, and the screens in the browser shell with its stand-in account (e2e: desktop, TV, Settings →
+Account → Sign in a TV). Not checked: a real Supabase project, Deno, or a real TV.
+
+1. Apply `supabase/migrations/20261109000000_tv_sign_in.sql`; deploy with
+   `supabase functions deploy tv-sign-in --no-verify-jwt`.
+2. On a signed-out device (TV mode, or a second computer): Sign in with your phone / another device. A code shows.
+3. On a signed-in device: Settings → Account → Sign in a TV, enter the code. "Sign in on <device>?" names the
+   kind of device. Approve: within a few seconds the first device opens on "Who's watching?" (or the only profile).
+4. Sign out on one device: the other stays signed in. Supabase → Authentication → Users shows two sessions.
+5. Deny, and wait out a code (5 minutes): the first device says so and offers a new code. The same code twice is refused.
+6. Table editor: `tv_sign_in` is empty after each sign-in; no plain codes or addresses in it.
+7. Six codes from one network within five minutes: the sixth is refused ("Too many attempts").
+8. Supabase's own projects with the new publishable keys: check `generateLink` + `verifyOtp({ token_hash, type:
+   "magiclink" })` still signs in (the function and the app use supabase-js 2).
+
 ## Notifications (#209)
 
 Checked here: what's new (time zones, undated episodes, a whole season at once, the one-a-day rule,
