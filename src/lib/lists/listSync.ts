@@ -75,7 +75,7 @@ export function seenEntry(mediaId: number, of: string | null = space): ListEntry
   return readSeen(storedJson(use().storage, entriesKey(of))).entries[mediaId];
 }
 
-/** Hear when entries seen on AniList change; returns the function that stops listening. */
+/** Hear when entries seen on AniList change, or the profile they are read for does; returns the function that stops listening. */
 export function onListEntries(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -87,9 +87,24 @@ export function forgetListEntries(of: string | null) {
   listeners.forEach((l) => l());
 }
 
+/**
+ * Keeps `entry` as the profile's entry for its anime, as changed from Polarity (or, with `null`,
+ * drops `mediaId`'s), until AniList's own answer replaces it.
+ */
+export function keepEntry(of: string | null, entry: ListEntry | null, mediaId = entry?.mediaId) {
+  if (mediaId === undefined) return;
+  const d = use();
+  const seen = readSeen(storedJson(d.storage, entriesKey(of)));
+  if (entry) seen.entries[mediaId] = entry;
+  else delete seen.entries[mediaId];
+  storeLocal(entriesKey(of), JSON.stringify(seen), d.storage);
+  listeners.forEach((l) => l());
+}
+
 /** The profile sync now runs for (`null`: none, the device's own); its queue goes out and its list is looked at. */
 export function setListSpace(next: string | null) {
   space = next;
+  listeners.forEach((l) => l());
   void syncList(true);
 }
 

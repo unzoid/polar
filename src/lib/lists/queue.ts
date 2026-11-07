@@ -71,12 +71,18 @@ function write(space: string | null, ops: ListOp[], storage: QueueDeps["storage"
 
 /**
  * Adds `op` to the profile's queue. A change to an entry replaces the entry's earlier changes
- * that it covers: a second "watched" keeps the later episode, a removal drops what came before.
+ * that it covers: a second "watched" keeps the later episode, a removal drops what came before,
+ * and changes made one after another (the page's episode buttons) go out as one.
  */
 export function enqueue(space: string | null, op: ListOp, storage: QueueDeps["storage"] = localStorage) {
   let ops = pendingOps(space, storage);
   if (op.kind === "remove") ops = ops.filter((o) => o.mediaId !== op.mediaId);
   if (op.kind === "watched") ops = ops.filter((o) => !(o.kind === "watched" && o.mediaId === op.mediaId && o.episode <= op.episode));
+  const last = ops.at(-1);
+  if (op.kind === "set" && last?.kind === "set" && last.mediaId === op.mediaId) {
+    write(space, [...ops.slice(0, -1), { ...op, change: { ...last.change, ...op.change } }], storage);
+    return;
+  }
   write(space, [...ops, op], storage);
 }
 

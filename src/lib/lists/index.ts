@@ -3,8 +3,10 @@
 // this folder, code inside src/lib imports the file.
 
 export * from "./anilistList";
+export * from "./linking";
 export * from "./linkStore";
 export * from "./listSync";
 export * from "./progressRule";
 export * from "./queue";
 export * from "./signIn";
+export * from "./useAniList";
