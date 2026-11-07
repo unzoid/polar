@@ -117,7 +117,8 @@ Never built or run here (no Android SDK or NDK). Type-checked with clippy for `a
 certificate bundle and the MediaCodec mapping are tested (`polar-player`: `certs`, `tune`); the build script's
 source archive and `SOURCES.txt` steps were tried on a stand-in folder, its build steps weren't.
 CI job `android` builds libmpv and FFmpeg with `scripts/android-mpv.sh` (mpv-android's build scripts, pinned
-versions, about an hour the first time, then cached) and keeps `android-mpv-sources` (the sources archive) next to
+versions: each git source checked against its commit, each archive against its SHA-256; about an hour the first
+time, then cached) and keeps `android-mpv-sources` (the sources archive) next to
 the APK; the emulator smoke test fails if the APK carries libmpv and the app hasn't loaded it.
 What to look for on a phone or the emulator, with the `android-debug-apk` artifact: the loading screen says
 "Player: mpv"; an MKV with HEVC video and AC3 or DTS audio plays with picture and sound; ASS and PGS subtitles show;
