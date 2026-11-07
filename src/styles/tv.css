@@ -1200,6 +1200,33 @@
   width: min(56rem, 100%);
   padding: 0.5rem 0.5rem 2rem;
 }
+/* A source's info (#229): over the source list, read from across the room. */
+.tv-source-info,
+.tv-source-menu-layer {
+  position: fixed;
+  z-index: var(--z-modal);
+}
+.tv-source-info .source-info-body {
+  width: min(72rem, 100%);
+  outline: none;
+}
+.tv-source-info .source-info-heading {
+  font-size: var(--fs-md);
+  margin-bottom: 0.5rem;
+}
+.tv-source-info .source-info-row {
+  grid-template-columns: minmax(12rem, 18rem) 1fr;
+  gap: 1.5rem;
+  padding: 0.45rem 0;
+  font-size: var(--fs-lg);
+}
+.tv-source-info .source-info-actions {
+  justify-content: flex-start;
+  margin-top: 1.5rem;
+}
+.tv-source-menu {
+  width: 20rem;
+}
 /* A title's Details: the desktop block, given the whole width. */
 .tv-details .tv-details-body {
   width: min(88rem, 100%);

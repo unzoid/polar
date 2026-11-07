@@ -192,6 +192,136 @@
   font-weight: 550;
   color: var(--text-2);
 }
+/* A source's "i" (#229): on the row's right while it's hovered or focused, the size slides
+   aside for it. Nothing shows on other rows, and none on touch screens (a long press opens it). */
+.stream-row-wrap {
+  position: relative;
+}
+.stream-info {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity var(--dur-fast) var(--ease-std);
+}
+.stream-info:hover,
+.stream-info:focus-visible {
+  color: var(--text);
+  background: var(--fill-3);
+}
+.stream-row-wrap .stream-size {
+  transition: transform var(--dur-fast) var(--ease-std);
+}
+@media (hover: hover) and (pointer: fine) {
+  .stream-row-wrap:hover .stream-info {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .stream-row-wrap:hover .stream-size {
+    transform: translateX(-2rem);
+  }
+}
+.stream-row-wrap:has(:focus-visible) .stream-info {
+  opacity: 1;
+  pointer-events: auto;
+}
+.stream-row-wrap:has(:focus-visible) .stream-size {
+  transform: translateX(-2rem);
+}
+@media (prefers-reduced-motion: reduce) {
+  .stream-row-wrap .stream-size {
+    transition: none;
+  }
+}
+
+/* --- Source info (#229): a card over everything, its rows a two-column list. */
+.source-info:not(.tv-panel) {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--scrim-2);
+  outline: none;
+  animation: fade-in var(--dur-base) var(--ease-out);
+}
+.source-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  width: min(40rem, 100%);
+  /* The grid's row grows with its content: the card is held to the window itself, Done always in reach. */
+  max-height: min(44rem, calc(100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  padding: 1.5rem;
+  border-radius: var(--r-panel);
+  background: var(--surface-popover);
+  backdrop-filter: var(--blur-popover);
+  -webkit-backdrop-filter: var(--blur-popover);
+}
+.source-info-card h2,
+.source-info-card p {
+  margin: 0;
+}
+.source-info-card .source-info-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -0.5rem;
+  padding: 0 0.5rem;
+}
+.source-info-section + .source-info-section {
+  margin-top: 1rem;
+}
+.source-info-heading {
+  margin: 0 0 0.375rem;
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.source-info dl {
+  margin: 0;
+}
+.source-info-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) 1fr;
+  gap: 0.75rem;
+  padding: 0.3125rem 0;
+  font-size: var(--fs-sm);
+}
+.source-info-row dt {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.source-info-row dd {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.source-info-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+:root[data-form="phone"] .source-info-row {
+  grid-template-columns: 1fr;
+  gap: 0.125rem;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

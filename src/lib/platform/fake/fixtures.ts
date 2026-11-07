@@ -368,6 +368,9 @@ function worstStreams(): StreamsResult {
   };
 }
 
+/** A made-up key in the fake sources' links and headers: no screen or copied text may show it (#229). */
+export const FAKE_KEY = "TOKEN0000000000000000000000000001";
+
 /** Browser tests of torrent sources (#137) set this: every source is then a made-up torrent. */
 export const TORRENTS = localStorage.getItem("polar.fakeTorrents") === "1";
 
@@ -396,10 +399,25 @@ export function streams(): StreamsResult {
   return {
     streams: rows.map(([addon, resolution, hdr, sizeBytes, title], k) => ({
       addon,
-      stream: { url: `https://media.example/${k}.mp4`, name: `${addon}\n${resolution}p`, title },
+      // The last source carries made-up keys where add-ons put theirs: the source info panel masks them (#229).
+      stream:
+        k === rows.length - 1
+          ? {
+              url: `https://media.example/token/${FAKE_KEY}/${k}.mp4?apikey=${FAKE_KEY}`,
+              name: `${addon}\n${resolution}p`,
+              title,
+              description: `Mirror https://mirror.example.org/${FAKE_KEY}/film.mkv apikey=${FAKE_KEY}`,
+              behaviorHints: { filename: "Open.Film.480p.DVD.mkv", bingeGroup: "open-mirror-480", proxyHeaders: { request: { Authorization: `Bearer ${FAKE_KEY}` } } },
+            }
+          : { url: `https://media.example/${k}.mp4`, name: `${addon}\n${resolution}p`, title },
       quality: { resolution, hdr, dolbyVision: false, sizeBytes, lowQualitySource: false, direct: true, languages: ["en"], tags: hdr ? ["HDR10"] : [] },
       score: 100 - k * 10,
+      scoreReasons: [
+        { reason: `${resolution}p`, points: 90 - k * 10 },
+        { reason: "Direct link", points: 10 },
+      ],
       label: `${resolution}p`,
+      requestId: "tt0000001",
     })),
     failed: [],
   };

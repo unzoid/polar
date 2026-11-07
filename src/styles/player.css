@@ -529,6 +529,53 @@
 .options-item {
   flex-shrink: 0; /* rows keep their height; the column scrolls instead */
 }
+/* A source row's "i" (#229): room kept for it on the right, shown while the row is hovered or focused. */
+.options-item-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+.options-item-wrap > .options-item {
+  padding-right: 3rem;
+}
+.options-info {
+  position: absolute;
+  top: 50%;
+  right: 0.625rem;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--r-pill);
+  color: rgb(245 245 247 / 0.62);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity var(--dur-fast) var(--ease-std);
+}
+.options-info:hover,
+.options-info:focus-visible {
+  color: #fff;
+  background: rgb(255 255 255 / 0.16);
+}
+/* On the selected (light) row, the glyph follows its dark text. */
+.options-item[aria-checked="true"] + .options-info {
+  color: var(--text-on-light);
+}
+.options-item[aria-checked="true"] + .options-info:is(:hover, :focus-visible) {
+  background: rgb(0 0 0 / 0.1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .options-item-wrap:hover .options-info {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.options-item-wrap:has(:focus-visible) .options-info {
+  opacity: 1;
+  pointer-events: auto;
+}
 .options-item[data-rich="true"] {
   align-items: center;
   padding-block: 0.5rem;
