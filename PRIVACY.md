@@ -94,8 +94,8 @@ terms apply:
 - **Updates and the add-on list:** GitHub, to check for and download updates and to load the list of add-ons in
   Settings.
 - **Sign-in check:** Cloudflare Turnstile, only if the account server asks for one before sending a login code.
-- **Trailers:** IMDb's video files, or YouTube's player in its privacy-enhanced mode (youtube-nocookie.com), when
-  you open a trailer.
+- **Trailers and YouTube links:** IMDb's video files, or YouTube's player in its privacy-enhanced mode
+  (youtube-nocookie.com), when you open a trailer or play a YouTube link put on with "Watch a link".
 
 The full list of data sources, with what each is used for, is in Settings → About → Credits.
 

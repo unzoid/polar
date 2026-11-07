@@ -911,4 +911,42 @@ test.describe("signed in, on a fresh profile", () => {
     await expect(app.getByRole("button", { name: "End Party" })).toBeVisible();
     await expect(partySurfaces(app)).toHaveCount(1);
   });
+
+  test("a YouTube link plays in YouTube's embedded player, driven by the player's controls (#201)", async ({ app }) => {
+    // A stand-in for YouTube's embed that speaks its IFrame Player API messages: no request leaves the machine.
+    const commands: string[] = [];
+    await app.exposeFunction("ytCommand", (f: string) => void commands.push(f));
+    await app.route("https://www.youtube-nocookie.com/**", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: `<!doctype html><body style="background:#123"><script>
+          let host = null;
+          const say = (event, info) => host.postMessage(JSON.stringify({ event, info, id: 1 }), "*");
+          addEventListener("message", (e) => {
+            const m = JSON.parse(e.data);
+            if (m.event === "listening" && !host) { host = e.source; say("onReady"); }
+            if (m.event !== "command") return;
+            window.ytCommand?.(m.func);
+            if (m.func === "playVideo") say("infoDelivery", { playerState: 1, currentTime: 0, duration: 120, videoData: { title: "An Open Film" } });
+            if (m.func === "pauseVideo") say("onStateChange", 2);
+          });
+        </script></body>`,
+      }),
+    );
+    await app.getByRole("button", { name: /^Profile/ }).click();
+    await app.getByRole("menuitem", { name: "Join Watch Party" }).click();
+    await app.getByRole("textbox", { name: "Video link" }).fill("https://youtu.be/abc-DEF_123?si=xxx");
+    await app.getByRole("button", { name: "Watch", exact: true }).click();
+    const frame = app.locator("iframe.player-youtube");
+    await expect(frame).toHaveAttribute("src", /^https:\/\/www\.youtube-nocookie\.com\/embed\/abc-DEF_123\?.*enablejsapi=1/);
+    await expect(frame).toHaveAttribute("src", /controls=0/);
+    await expect(app.locator(".player video")).toHaveCount(0);
+    await expect(app.locator(".player")).toHaveAttribute("data-started", "true");
+    await expect(app.locator(".player")).toHaveAttribute("data-engine", "youtube");
+    await expect(app.locator(".player")).toContainText("An Open Film");
+    await app.locator(".player").hover();
+    await app.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(app.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+    expect(commands).toContain("pauseVideo");
+  });
 });

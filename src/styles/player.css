@@ -17,6 +17,10 @@
   object-fit: contain;
   background: #000;
 }
+/* A YouTube link (#201): YouTube's own player, framed like the video it is. */
+.player-youtube {
+  border: 0;
+}
 /* A phone's Fill: the picture covers the screen, its edges cropped (mpv does it with panscan). */
 .player[data-fill="true"] .player-video {
   object-fit: cover;
