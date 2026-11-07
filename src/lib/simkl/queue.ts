@@ -13,14 +13,18 @@ import { liveSimklLink } from "./linking";
  *
  * Taking a film off Simkl's history takes it off the account's lists altogether (Simkl's
  * remove-from-history): a film marked unwatched in Polarity leaves Simkl's lists too.
+ *
+ * With the watchlist switch on, titles added to the library go onto Simkl's Plan to Watch
+ * (`watchlist`, sent to `/sync/add-to-list`), and those taken off it while still there leave
+ * Simkl's lists (simklSync.ts decides which).
  */
-export type SimklListName = "history";
+export type SimklListName = "history" | "watchlist";
 
 export interface SimklOp {
   list: SimklListName;
   remove?: true;
   ref: SimklRef;
-  /** `watched_at` for history. */
+  /** `watched_at` for history, `to` (the list) for the watchlist. */
   extra?: Record<string, string>;
 }
 
@@ -51,12 +55,13 @@ function readRef(v: unknown): SimklRef | undefined {
 }
 
 export function readSimklOp(v: unknown): SimklOp | undefined {
-  if (!isRecord(v) || v.list !== "history") return undefined;
+  if (!isRecord(v) || (v.list !== "history" && v.list !== "watchlist")) return undefined;
   const ref = readRef(v.ref);
   if (!ref) return undefined;
   const op: SimklOp = { list: v.list, ref };
   if (v.remove === true) op.remove = true;
   if (isRecord(v.extra) && typeof v.extra.watched_at === "string") op.extra = { watched_at: v.extra.watched_at };
+  if (isRecord(v.extra) && v.extra.to === "plantowatch") op.extra = { to: "plantowatch" };
   return op;
 }
 
@@ -100,6 +105,9 @@ const realDeps = (): SimklQueueDeps => ({
 
 export type SimklFlushResult = "done" | "empty" | "signed-out" | "offline";
 
+/** Where a batch goes: the history, or a list; a title leaves Simkl's lists by leaving its history. */
+const pathOf = (list: SimklListName, remove: boolean) => (remove ? "/sync/history/remove" : list === "history" ? "/sync/history" : "/sync/add-to-list");
+
 /** The first run of ops that go out as one request: same list, same direction, at most {@link BATCH}. */
 function batchOf(ops: SimklOp[]): SimklOp[] {
   const [first] = ops;
@@ -126,7 +134,7 @@ export async function flushSimkl(space: string | null, deps: SimklQueueDeps = re
     const { list, remove } = batch[0];
     try {
       const items: SimklSyncItem[] = batch.map((o) => ({ ref: o.ref, extra: remove ? undefined : o.extra }));
-      await deps.send(`/sync/${list}${remove ? "/remove" : ""}`, simklSyncBody(items), { token: link.token });
+      await deps.send(pathOf(list, !!remove), simklSyncBody(items), { token: link.token });
     } catch (e) {
       if (e instanceof SimklSignedOut) {
         const fresh = renewed ? undefined : await deps.liveLink(space, true).catch(() => null);

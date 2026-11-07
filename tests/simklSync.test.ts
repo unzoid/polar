@@ -211,7 +211,14 @@ describe("marks made by hand", () => {
     const storage = memory();
     const flushed: (string | null)[] = [];
     let current: SimklLink | undefined = link;
-    setSimklSyncDeps({ storage, getLink: async () => current, flush: async (space) => (flushed.push(space), "done"), now: () => Date.UTC(2026, 10, 7) });
+    setSimklSyncDeps({
+      storage,
+      getLink: async () => current,
+      liveLink: async () => current,
+      flush: async (space) => (flushed.push(space), "done"),
+      pull: async () => null,
+      now: () => Date.UTC(2026, 10, 7),
+    });
     setSimklSpace("p");
     await syncSimkl();
     expect(flushed).toEqual([]);

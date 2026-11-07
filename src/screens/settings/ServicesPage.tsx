@@ -27,7 +27,7 @@ import {
   useListLink,
 } from "../../lib/lists";
 import { onTraktFull, setTraktWatchlist, traktReady, unlinkTrakt, useTraktLink } from "../../lib/trakt";
-import { simklReady, unlinkSimkl, useSimklLink } from "../../lib/simkl";
+import { setSimklWatchlist, simklReady, unlinkSimkl, useSimklLink } from "../../lib/simkl";
 import { TRAKT_NOTICE } from "../../lib/settings";
 
 /** Which warning a save needs: one for each key it sets that wasn't set to that before. */
@@ -361,6 +361,7 @@ function TraktRow(props: Expandable) {
 function SimklRow(props: Expandable) {
   const { space, link, state } = useSimklLink();
   const unlink = useMutation({ mutationFn: () => unlinkSimkl(space) });
+  const watchlist = useMutation({ mutationFn: (on: boolean) => setSimklWatchlist(space, on) });
   if (state === undefined) return null;
 
   return (
@@ -383,6 +384,10 @@ function SimklRow(props: Expandable) {
               {unlink.isPending ? "Unlinking…" : "Unlink"}
             </Button>
           </div>
+          <label className="settings-expand-toggle">
+            <span>Keep the library and Simkl's Plan to Watch in step</span>
+            <Switch checked={!!link.watchlist} disabled={watchlist.isPending} onChange={(on) => watchlist.mutate(on)} />
+          </label>
         </>
       ) : !simklReady() ? (
         <p className="settings-expand-text">Not set up in this build: signing in to Simkl needs Polarity registered with Simkl first.</p>

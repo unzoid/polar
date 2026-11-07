@@ -6,6 +6,7 @@ export * from "./api";
 export * from "./items";
 export * from "./link";
 export * from "./linking";
+export * from "./pull";
 export * from "./queue";
 export * from "./scrobble";
 export * from "./signIn";
