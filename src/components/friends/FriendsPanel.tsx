@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ElementType } from "react";
+import { useProfileSheetHosts } from "../profileSheetHost";
 import { Dialog } from "@base-ui/react/dialog";
 import { useAccount, type FriendEntry, type FriendPresence } from "../../lib/account";
 import {
@@ -18,7 +19,8 @@ import { openSettings } from "../../lib/settings";
 import { errorMessage } from "../../lib/errors";
 import { Avatar } from "../Avatar";
 import { Spinner } from "../Spinner";
-import { Check, Close, More, Users } from "../icons";
+import { Check, Close, Copy, More, Users } from "../icons";
+import { SwapIcon } from "../SwapIcon";
 import { Button, iconButtonClass } from "../ui/Button";
 import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "../ui/Menu";
 
@@ -30,9 +32,11 @@ import { MenuItem, MenuPopup, MenuRoot, MenuTrigger } from "../ui/Menu";
  */
 export function FriendsPanel() {
   const open = useFriendsOpen();
+  // A phone's profile sheet shows it as one of its views instead (ProfileMenu.tsx).
+  const inSheet = useProfileSheetHosts();
   return (
     <Dialog.Root
-      open={open}
+      open={open && !inSheet}
       onOpenChange={(o) => {
         if (o) return;
         // Closed while waiting for a friend's host: that's giving up on joining.
@@ -57,7 +61,9 @@ export function FriendsPanel() {
   );
 }
 
-function FriendsBody() {
+/** The panel's content; `inDialog: false` for the profile sheet, where there's no dialog to describe. */
+export function FriendsBody({ inDialog = true }: { inDialog?: boolean }) {
+  const Description: ElementType = inDialog ? Dialog.Description : "p";
   const state = useFriends();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,10 +89,10 @@ function FriendsBody() {
     };
     return (
       <>
-        <Dialog.Description className="party-dialog-text">
+        <Description className="party-dialog-text">
           Add friends with a friend code, see when they're online and what they're watching, and join their watch parties in one press. Off until you turn it
           on, for this profile only.
-        </Dialog.Description>
+        </Description>
         <p className="friends-fine">Friends will see that you're online, what you watch, and can join your watch party. You can change each in Settings → Account.</p>
         <Button variant="primary" className="party-dialog-ok" busy={busy} onClick={turnOn}>
           Turn On Friends
@@ -197,14 +203,16 @@ function OwnCode({ code }: { code: string }) {
         </div>
       </div>
       <div className="friends-code-actions">
-        <Button variant="glass" size="sm" className="party-copy" onClick={copy} data-copied={copied}>
-          <span className="party-copy-label" data-shown={!copied}>
-            Copy
-          </span>
-          <span className="party-copy-label" data-shown={copied} aria-hidden={!copied}>
-            <Check size={16} /> Copied
-          </span>
-        </Button>
+        {/* The code is the lead here: copying it is a quiet icon beside it, a check for a moment once done. */}
+        <button
+          type="button"
+          className={iconButtonClass("plain")}
+          aria-label={copied ? "Copied" : "Copy friend code"}
+          title={copied ? "Copied" : "Copy friend code"}
+          onClick={copy}
+        >
+          <SwapIcon state={copied ? "copied" : "copy"}>{copied ? <Check size={18} /> : <Copy size={18} />}</SwapIcon>
+        </button>
         <MenuRoot>
           <MenuTrigger className={iconButtonClass("plain")} aria-label="Friend code options">
             <More size={18} />

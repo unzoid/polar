@@ -226,5 +226,8 @@ mockIPC(
   { shouldMockEvents: true },
 );
 
+// A tab picked in iOS's tab bar, as the native shell reports it (components/NativeTabs.tsx).
+(window as { __polarFakeNativeTab?: (id: string) => void }).__polarFakeNativeTab = (id) => void emit("native://tab", id);
+
 // A click on a note, as the native shell reports it (#209).
 (window as { __polarFakeNoteClick?: (payload: string) => void }).__polarFakeNoteClick = (payload) => void emit("notification://click", payload);

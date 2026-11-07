@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import { MotionConfig } from "motion/react";
 import { actionFor, getPrefs, isSettingsOpen, openSettings, uiFontOf, usePrefs, useSettingsOverlay } from "./lib/settings";
 import type { Settings as SettingsT } from "./lib/types";
@@ -18,7 +18,7 @@ import { useAccount } from "./lib/account";
 import { useNotifications } from "./lib/notifications";
 import { ControllerToast } from "./tv/TvChrome";
 import { isTvMode, setTvMode, useTvMode } from "./tv/tvMode";
-import { dismissDepth, lazyNamed, pressEscape, systemBackAction, usePageFocus, useSystemBack } from "./lib/ui";
+import { dismissDepth, lazyNamed, pressEscape, systemBackAction, useFormFactor, usePageFocus, usePageMotion, useSystemBack } from "./lib/ui";
 import { CardMenuHost } from "./components/CardMenu";
 import { TrailerHost } from "./components/Trailer";
 import { OpenFilesHost } from "./components/OpenFiles";
@@ -295,6 +295,9 @@ function DesktopApp() {
   const topPage = pages[pages.length - 1];
   const { data: settings } = useSettings();
   usePageFocus(playing || !topPage ? undefined : String(topPage.key));
+  // On a phone pages change as a pair (lib/ui/pageMotion.ts); a page taken off the stack stays while it leaves.
+  const motion = usePageMotion(pages, useFormFactor().form === "phone" && !playing);
+  const shown = motion?.leaving ? [...pages, motion.leaving] : pages;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -333,11 +336,15 @@ function DesktopApp() {
     >
       <main className="main">
         <NavBar />
-        {pages.map((entry) => (
+        {shown.map((entry) => (
           <section
             key={entry.key}
             className={entry.route.name === "detail" || entry.route.name === "anime-detail" ? "page page-pushed" : "page"}
             data-active={entry === topPage && !playing}
+            data-motion={motion?.enter === entry.key ? "enter" : motion?.leave === entry.key ? "leave" : undefined}
+            // A page on its way out is still drawn for a moment, but no longer read out.
+            aria-hidden={(motion?.leave === entry.key && entry !== topPage) || undefined}
+            style={motion ? ({ "--page-dir": motion.dir } as CSSProperties) : undefined}
             data-under-player={(entry === topPage && !!player) || undefined}
             data-page-key={entry.key}
             inert={entry !== topPage || !!playing}

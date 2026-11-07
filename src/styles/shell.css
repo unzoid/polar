@@ -51,6 +51,42 @@
     opacity: 0;
   }
 }
+/* On a phone every page change moves as a pair (lib/ui/pageMotion.ts): the new page fades in from the side
+   it comes from (--page-dir: 1 the right, -1 the left, 0 in place) while the old one fades out the other
+   way, travelling half as far and leaving sooner. Both start together: nothing waits for the other. */
+:root[data-form="phone"] .page {
+  --page-shift: 28px;
+}
+:root[data-form="phone"] .page-pushed {
+  animation: none;
+}
+:root[data-form="phone"] .page[data-motion="enter"] {
+  animation: page-enter 260ms var(--ease-out) both;
+}
+:root[data-form="phone"] .page[data-motion="leave"] {
+  visibility: visible;
+  content-visibility: visible;
+  pointer-events: none;
+  animation: page-leave 180ms var(--ease-out) forwards;
+}
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--page-dir, 0) * var(--page-shift)));
+  }
+}
+@keyframes page-leave {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--page-dir, 0) * var(--page-shift) * -0.5));
+  }
+}
+/* Less motion: the pair crossfades in place. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-form="phone"] .page {
+    --page-shift: 0px;
+  }
+}
 
 /* --- Navbar (modern Netflix pattern), doubling as the window title bar.
        Transparent over hero art with a soft top scrim for legibility; once
@@ -487,7 +523,8 @@
 }
 /* iOS draws the tabs itself (components/NativeTabs.tsx): its tab bar is part of the safe area, so pages
    pad by that alone. */
-:root[data-native-tabs] .navbar-links {
+:root[data-native-tabs] .navbar-links,
+:root[data-native-tabs] .navbar-search-page {
   display: none;
 }
 :root[data-native-tabs][data-form="phone"] {

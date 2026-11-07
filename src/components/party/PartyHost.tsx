@@ -21,6 +21,7 @@ import { Button, iconButtonClass } from "../ui/Button";
 import { JoinForm, LinkForm, PartyNotes } from "./PartyUI";
 import { LinkConfirm } from "./LinkConfirm";
 import { TogetherOffer } from "./TogetherOffer";
+import { useProfileSheetHosts } from "../profileSheetHost";
 import { DiscordJoin } from "./DiscordJoin";
 import { useTvMode } from "../../tv/tvMode";
 
@@ -86,6 +87,8 @@ export function PartyHost() {
   const tv = useTvMode();
   const { profile } = useAccount();
   const inPlayer = current.name === "player";
+  // A phone's profile sheet asks for the code itself, as one of its views (ProfileMenu.tsx).
+  const inSheet = useProfileSheetHosts();
 
   // A dialog that led into the player is gone before the player's own panel can open (#247).
   useEffect(() => {
@@ -130,7 +133,7 @@ export function PartyHost() {
         </div>
       )}
       <Dialog.Root
-        open={open && !!profile && !tv}
+        open={open && !!profile && !tv && !inSheet}
         onOpenChange={(o) => {
           if (o) return;
           // Closed while waiting for the host: that's giving up on joining.

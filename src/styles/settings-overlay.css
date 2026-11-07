@@ -742,15 +742,58 @@
     flex: 1 1 7rem;
   }
 }
-/* A phone in either orientation takes the whole screen, clear of the notch,
-   the camera cutout and the home indicator: in landscape it is wider than the
-   width query above and got a floating dialog 340px tall. */
+/* A phone, in either orientation: a sheet that rises from the bottom edge to just under the status bar, over
+   whatever was open (the profile sheet), and goes back down the same way. Its grabber and headers pull it
+   down (SettingsOverlay.tsx useDragDown). Clear of the camera cutout and the home indicator. */
 :root[data-form="phone"] .t3s {
+  inset: auto 0 0 0;
+  margin: 0;
   width: 100vw;
-  height: 100dvh;
+  height: calc(100dvh - var(--safe-top) - 0.625rem);
   border: 0;
-  border-radius: 0;
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  padding: 0.875rem var(--safe-right) var(--safe-bottom) var(--safe-left);
+  /* Pulled up past the top, a copy of its fill keeps the bottom edge on the screen's (as .sheet). */
+  box-shadow:
+    0 0 0 1px var(--hairline),
+    0 100px 0 0 var(--t3-bg);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform 420ms var(--ease-drawer);
+}
+:root[data-form="phone"] .t3s[data-starting-style],
+:root[data-form="phone"] .t3s[data-ending-style] {
+  opacity: 1;
+  transform: translateY(100%);
+}
+:root[data-form="phone"] .t3s[data-ending-style] {
+  transition-duration: 280ms;
+}
+:root[data-form="phone"] .t3s-grabber {
+  position: absolute;
+  top: 0.375rem;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.18);
+  translate: -50% 0;
+}
+/* Where a finger pulls the sheet down: the browser mustn't take the drag as a scroll. */
+:root[data-form="phone"] :is(.t3s-grab, .t3s-list-head, .t3s-header) {
+  touch-action: none;
+}
+:root[data-form="phone"] .t3s-grab {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0.875rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-form="phone"] .t3s[data-starting-style],
+  :root[data-form="phone"] .t3s[data-ending-style] {
+    opacity: 0;
+    transform: none;
+  }
 }
 
 /* Phone: one column, as a phone's own Settings app. First the sections as a list (search on top,
