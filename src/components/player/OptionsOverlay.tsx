@@ -7,7 +7,7 @@ import { railInset } from "./EpisodeRail";
 import { IconButton } from "../ui/Button";
 import { isMpv, type MediaLike } from "./mpvMedia";
 import { os } from "../../lib/platform";
-import { prefersReducedMotion, useLayer } from "../../lib/ui";
+import { missMargin, prefersReducedMotion, useLayer } from "../../lib/ui";
 import { nearest } from "../../tv/spatial";
 
 export interface OptionItem {
@@ -87,7 +87,7 @@ export function OptionsOverlay({
   const missesPanel = (e: { target: EventTarget; clientX: number; clientY: number; pointerType: string }) => {
     if ((e.target as Element).closest?.(".options-close, .select-popup, .srcf-popover, .source-info, .tv-source-menu-layer")) return false;
     const rects = [...(root.current?.querySelectorAll(".options-column") ?? [])].map((el) => el.getBoundingClientRect());
-    return outsidePanel(e.clientX, e.clientY, rects, e.pointerType === "touch" ? MISS_MARGIN.touch : MISS_MARGIN.mouse);
+    return outsidePanel(e.clientX, e.clientY, rects, missMargin(e.pointerType));
   };
   // Stay mounted through the exit transition.
   const [mounted, setMounted] = useState(open);
@@ -205,22 +205,25 @@ export function OptionsOverlay({
 
 /** A dropdown or popover open over the panel. Closed ones can stay in the page (marked data-closed): they don't count (#226). */
 const OPEN_POPUP = ".select-popup:not([data-closed]), .srcf-popover:not([data-closed]), .source-info, .tv-source-menu";
-/** Past the panel's content, a click still counts as a miss for this far (px); a finger gets more room. */
-const MISS_MARGIN = { mouse: 24, touch: 40 };
 /** A press that travels further than this (px) is a drag or a scroll, not a click. */
 const CLICK_SLOP = 10;
 
 /**
  * Whether (x, y) is clearly outside the panel: past the box around all its
  * columns (their gaps and the space beside a short one included) by more than
- * `margin`.
+ * `margin` (lib/ui/missMargin.ts: wider at the sides).
  */
-export function outsidePanel(x: number, y: number, rects: readonly Pick<DOMRect, "left" | "top" | "right" | "bottom">[], margin: number) {
+export function outsidePanel(
+  x: number,
+  y: number,
+  rects: readonly Pick<DOMRect, "left" | "top" | "right" | "bottom">[],
+  margin: { x: number; y: number },
+) {
   if (!rects.length) return true;
-  const left = Math.min(...rects.map((r) => r.left)) - margin;
-  const top = Math.min(...rects.map((r) => r.top)) - margin;
-  const right = Math.max(...rects.map((r) => r.right)) + margin;
-  const bottom = Math.max(...rects.map((r) => r.bottom)) + margin;
+  const left = Math.min(...rects.map((r) => r.left)) - margin.x;
+  const top = Math.min(...rects.map((r) => r.top)) - margin.y;
+  const right = Math.max(...rects.map((r) => r.right)) + margin.x;
+  const bottom = Math.max(...rects.map((r) => r.bottom)) + margin.y;
   return x < left || x > right || y < top || y > bottom;
 }
 

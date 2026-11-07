@@ -32,7 +32,7 @@ export type SourcePickerState = ReturnType<typeof useSourcePicker>;
 export function SourcePicker({ picker }: { picker: SourcePickerState }) {
   const { request, open, close, play } = picker;
   return (
-    <Sheet open={open} onClose={close} title="Sources" subtitle={request?.subtitle}>
+    <Sheet open={open} onClose={close} title="Sources" subtitle={request?.subtitle} forgiveMisses>
       {request && (
         <StreamList
           type={request.type}

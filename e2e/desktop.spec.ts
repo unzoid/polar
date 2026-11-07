@@ -221,6 +221,9 @@ test("a movie plays in the built-in player, pauses and closes", async ({ app }) 
   const [audio, subs] = await Promise.all([0, 1].map((i) => app.locator(".options-column").nth(i).boundingBox()));
   await app.mouse.click((audio!.x + audio!.width + subs!.x) / 2, audio!.y + 40);
   await app.mouse.click(audio!.x - 12, audio!.y + 40);
+  // 50 px past the left or right edge, moving across the columns, is still a miss (#320).
+  await app.mouse.click(audio!.x - 50, audio!.y + 40);
+  await app.mouse.click(subs!.x + subs!.width + 50, subs!.y + 40);
   await expect(overlay).toBeVisible();
   // The subtitle preview is set like the built-in player's cues (#228): ::cue's
   // clamp(1.25rem, 2.4vw, 2.25rem) at the bottom, following a resized window.
