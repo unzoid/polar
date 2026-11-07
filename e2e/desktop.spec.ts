@@ -968,3 +968,59 @@ test("Settings → Services: a linked Trakt profile imports its watchlist and wh
   expect(asked.some((a) => a.path === "/oauth/revoke")).toBe(true);
   expect(await app.evaluate(() => localStorage.getItem("polar.link.trakt.local"))).toBeNull();
 });
+
+test("Settings → Services: a linked Simkl profile imports its Plan to Watch and what it watched, and unlinks (#86)", async ({ app }) => {
+  // A link made earlier on this device; Simkl's answers are made up here.
+  const link = { token: "TOKEN", refreshToken: "REFRESH", expiresAt: Date.now() + 5 * 86_400_000, account: 1, name: "Lanternfield Fan" };
+  await app.evaluate((v) => localStorage.setItem("polar.link.simkl.local", v), JSON.stringify(link));
+  const T = "2026-02-01T00:00:00Z";
+  const lists: Record<string, unknown> = {
+    movies: {
+      movies: [
+        { status: "plantowatch", added_to_watchlist_at: T, movie: { title: "Night Train", ids: { simkl: 1, imdb: "tt0000001" } } },
+        { status: "completed", last_watched_at: T, movie: { title: "Paper Moon Lane", ids: { simkl: 2, imdb: "tt0000003" } } },
+        { status: "plantowatch", movie: { title: "No Page", ids: { simkl: 3 } } },
+      ],
+    },
+    shows: {
+      shows: [
+        {
+          status: "watching",
+          show: { title: "Harbour Lights", ids: { simkl: 4, imdb: "tt0000002" } },
+          seasons: [{ number: 1, episodes: [{ number: 1, watched_at: T }, { number: 2, watched_at: T }] }],
+        },
+      ],
+    },
+    anime: { anime: [{ status: "plantowatch", show: { title: "Paper Kites", ids: { simkl: 5, kitsu: 5 } } }] },
+  };
+  const asked: { path: string; auth: string }[] = [];
+  await app.route("https://api.simkl.com/**", async (route) => {
+    const url = new URL(route.request().url());
+    asked.push({ path: url.pathname, auth: route.request().headers()["authorization"] ?? "" });
+    const kind = url.pathname.match(/^\/sync\/all-items\/(\w+)$/)?.[1];
+    const json = kind ? (lists[kind] ?? {}) : url.pathname === "/sync/activities" ? { all: T } : {};
+    await route.fulfill({ json });
+  });
+  await app.reload();
+  await app.getByRole("button", { name: /^Profile/ }).click();
+  await app.getByRole("menuitem", { name: "Settings" }).click();
+  const settings = app.getByRole("dialog", { name: /^Settings/ });
+  await settings.getByRole("button", { name: "Services", exact: true }).click();
+  const row = settings.getByRole("button", { name: /^Simkl/ });
+  await expect(row).toContainText("Linked");
+  await row.click();
+  await expect(settings.getByText("Linked as")).toContainText("Lanternfield Fan");
+  await settings.getByRole("button", { name: "Import from Simkl…" }).click();
+  await expect(
+    settings.getByText("2 titles on Plan to Watch. 1 film and 2 episodes watched. 1 title without an IMDb page or a Kitsu entry left out."),
+  ).toBeVisible();
+  await settings.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(settings.getByText(/^Added 2 titles to your library and 3 watched films and episodes\.$/)).toBeVisible();
+  expect(asked.filter((a) => a.path.startsWith("/sync/")).every((a) => a.auth === `Bearer ${link.token}`)).toBe(true);
+  await settings.getByRole("button", { name: "Unlink" }).click();
+  await expect(row).toContainText("Off");
+  // This build has no Simkl client id, so it says so instead of offering a sign-in.
+  await expect(settings.getByText(/signing in to Simkl needs Polarity registered/)).toBeVisible();
+  expect(asked.some((a) => a.path === "/oauth2/revoke")).toBe(true);
+  expect(await app.evaluate(() => localStorage.getItem("polar.link.simkl.local"))).toBeNull();
+});
