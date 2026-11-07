@@ -1,4 +1,5 @@
 import { type QueryClient, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { libraryToggled } from "../library/libraryEvents";
 import { useCallback } from "react";
 import { api } from "../api";
 import { errorCode } from "../errors";
@@ -110,8 +111,9 @@ export function useToggleLibrary() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (item: MetaPreview) => api.toggleLibrary(item),
-    onSuccess: () => {
+    onSuccess: (inLibrary, item) => {
       qc.invalidateQueries({ queryKey: keys.library });
+      libraryToggled(item, inLibrary);
       sync.schedule();
     },
   });

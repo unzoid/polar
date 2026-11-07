@@ -43,6 +43,7 @@ beforeEach(() => {
     }
     if (path === "/users/settings") return json({ user: { username: "someone", name: "Someone", ids: { slug: "someone" } } });
     if (path === "/oauth/revoke") return json({});
+    if (path === "/sync/last_activities") return json({ all: "2026-01-01T00:00:00.000Z", movies: {}, episodes: {}, shows: {} });
     return new Response(null, { status: 404 });
   }) as unknown as typeof fetch;
 });
@@ -78,12 +79,18 @@ test("Settings: without a client id the row says so, with Trakt's notice", async
   await view.unmount();
 });
 
-test("Settings: a linked profile sees its account and unlinks, which revokes the token", async () => {
+test("Settings: a linked profile sees its account, switches the watchlist step on and unlinks, which revokes the token", async () => {
   keychain.set(traktLinkName(null), JSON.stringify(link));
   const view = await wrap(<ServicesPage />);
   await settle();
   await click(byText(view.container, ".settings-row-title, .settings-row-button *", "Trakt").closest("button"));
   expect(view.container.textContent).toContain("Linked as Someone");
+  const step = byText(view.container, "label", "Keep the library and the Trakt watchlist in step").querySelector("input")!;
+  expect(step.checked).toBe(false);
+  await click(step);
+  await settle();
+  expect(JSON.parse(keychain.get(traktLinkName(null))!).watchlist).toBe(true);
+  expect((byText(view.container, "label", "Keep the library and the Trakt watchlist in step").querySelector("input") as HTMLInputElement).checked).toBe(true);
   await click(byText(view.container, "button", "Unlink"));
   await settle();
   expect(keychain.has(traktLinkName(null))).toBe(false);

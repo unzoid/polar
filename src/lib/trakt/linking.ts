@@ -28,6 +28,11 @@ export function onTraktLinkChange(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+/** Tells whoever shows the link that it changed (a switch kept with it). */
+export function traktLinkChanged() {
+  listeners.forEach((l) => l());
+}
+
 /** The Trakt sync's own hook: runs first on every link and unlink, with the profile and which it was. */
 export function onTraktLinked(hook: (space: string | null, linked: boolean) => void): () => void {
   linkHooks.add(hook);
@@ -93,6 +98,9 @@ async function lookUp(space: string | null, renew: boolean, deps: TraktLinkDeps)
 export async function linkTrakt(space: string | null, tokens: TraktTokens, deps: TraktLinkDeps = realDeps()): Promise<TraktLink> {
   const who = await deps.viewer({ token: tokens.token });
   const link: TraktLink = { ...tokens, slug: who.slug, name: who.name };
+  // Signing the same account in again keeps its watchlist switch.
+  const before = await deps.getLink(space).catch(() => undefined);
+  if (before?.slug === who.slug && before.watchlist) link.watchlist = true;
   await deps.saveLink(space, link);
   deps.changed(space, true);
   return link;

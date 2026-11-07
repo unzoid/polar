@@ -16,6 +16,8 @@ export interface TraktLink {
   /** The account, as Trakt names it: `slug` for addresses, `name` to show. */
   slug: string;
   name: string;
+  /** The library and the Trakt watchlist kept in step (Settings → Services → Trakt), off until switched on. */
+  watchlist?: boolean;
   /** Trakt refused the token before it ran out (revoked): signed in again before anything else is sent. */
   refused?: boolean;
 }
@@ -42,6 +44,7 @@ export function readTraktLink(raw: unknown): TraktLink | undefined {
   const [token, refreshToken, expiresAt, slug] = [str(v.token), str(v.refreshToken), num(v.expiresAt), str(v.slug)];
   if (!token || !refreshToken || expiresAt === undefined || !slug) return undefined;
   const link: TraktLink = { token, refreshToken, expiresAt, slug, name: str(v.name) ?? slug };
+  if (v.watchlist === true) link.watchlist = true;
   if (v.refused === true) link.refused = true;
   return link;
 }

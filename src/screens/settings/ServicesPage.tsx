@@ -24,7 +24,7 @@ import {
   unlinkList,
   useListLink,
 } from "../../lib/lists";
-import { traktReady, unlinkTrakt, useTraktLink } from "../../lib/trakt";
+import { onTraktFull, setTraktWatchlist, traktReady, unlinkTrakt, useTraktLink } from "../../lib/trakt";
 import { TRAKT_NOTICE } from "../../lib/settings";
 
 /** Which warning a save needs: one for each key it sets that wasn't set to that before. */
@@ -300,6 +300,9 @@ function MalRow(props: Expandable) {
 function TraktRow(props: Expandable) {
   const { space, link, state } = useTraktLink();
   const unlink = useMutation({ mutationFn: () => unlinkTrakt(space) });
+  const watchlist = useMutation({ mutationFn: (on: boolean) => setTraktWatchlist(space, on) });
+  const [full, setFull] = useState(false);
+  useEffect(() => onTraktFull((list) => list === "watchlist" && setFull(true)), []);
   if (state === undefined) return null;
 
   return (
@@ -322,6 +325,15 @@ function TraktRow(props: Expandable) {
               {unlink.isPending ? "Unlinking…" : "Unlink"}
             </Button>
           </div>
+          <label className="settings-expand-toggle">
+            <span>Keep the library and the Trakt watchlist in step</span>
+            <Switch checked={!!link.watchlist} disabled={watchlist.isPending} onChange={(on) => watchlist.mutate(on)} />
+          </label>
+          {full && (
+            <p className="settings-expand-text settings-error" role="alert">
+              Your Trakt watchlist is full, so some titles weren't added. Trakt's free accounts hold a limited number of titles.
+            </p>
+          )}
         </>
       ) : !traktReady() ? (
         <p className="settings-expand-text">Not set up in this build: signing in to Trakt needs Polarity registered with Trakt first.</p>
