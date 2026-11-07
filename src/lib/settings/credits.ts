@@ -29,6 +29,7 @@ export const CREDITS: Credit[] = [
   { name: "MyAnimeList, via Jikan", url: "https://jikan.moe", use: "Which anime episodes are filler or recaps" },
   { name: "MyAnimeList", url: "https://myanimelist.net", use: "Your MyAnimeList list, when a profile links it (uses the MyAnimeList API)" },
   { name: "Trakt", url: "https://trakt.tv", use: `Your Trakt history, watchlist and ratings, when a profile links it. ${TRAKT_NOTICE}` },
+  { name: "Simkl", url: "https://simkl.com", use: "Your Simkl lists, history and ratings, when a profile links it (uses the Simkl API)" },
   { name: "Anime Filler List", url: "https://www.animefillerlist.com", use: "Filler episodes when Jikan has none" },
   { name: "AniSkip", url: "https://aniskip.com", use: "Anime opening and ending times" },
   { name: "IntroDB", url: "https://introdb.app", use: "Intro, recap and credits times" },
