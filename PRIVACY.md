@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: 06/11/2026
+Last updated: 07/11/2026
 
 Polarity is a media player. This page says what it stores about you, where, and who else your device talks to while
 you use it. It's written from what the app does today; where something isn't settled yet, it says so.
@@ -77,7 +77,8 @@ terms apply:
   entered a key).
 - **Subtitles:** the OpenSubtitles add-on Polarity starts with, and any subtitle add-ons you install.
 - **Your own add-ons:** the add-ons you install are run by other people. They see your IP address and which titles
-  you ask them about. Polarity doesn't choose, check or vouch for them.
+  you ask them about. Add-ons with a catalog that takes a search also receive what you type in search. Polarity
+  doesn't choose, check or vouch for them.
 - **Torrent playback:** while a torrent source plays (and afterwards, only if you turned on Keep sharing after playback), the
   other people in that torrent see your IP address and which pieces of the file you download and upload.
 - **Updates and the add-on list:** GitHub, to check for and download updates and to load the list of add-ons in
